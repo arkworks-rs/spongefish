@@ -45,7 +45,7 @@ pub trait UnitToBytes {
 /// We point the curious reader to the documentation of [`CommonUnitToBytes`] and [`UnitToBytes`] for more details.
 pub trait ByteTranscript: CommonUnitToBytes + UnitToBytes {}
 
-pub trait UnitToBytesDeserialize {
+pub trait BytesToUnitDeserialize {
     fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), DomainSeparatorMismatch>;
 
     fn next_bytes<const N: usize>(&mut self) -> Result<[u8; N], DomainSeparatorMismatch> {
@@ -54,7 +54,7 @@ pub trait UnitToBytesDeserialize {
     }
 }
 
-pub trait UnitToBytesSerialize {
+pub trait BytesToUnitSerialize {
     fn add_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch>;
 }
 

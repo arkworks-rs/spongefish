@@ -1,7 +1,7 @@
 use rand::{CryptoRng, RngCore};
 
 use crate::duplex_sponge::Unit;
-use crate::{DomainSeparator, HashStateWithInstructions, UnitToBytesSerialize, UnitTranscript};
+use crate::{DomainSeparator, HashStateWithInstructions, BytesToUnitSerialize, UnitTranscript};
 
 use super::duplex_sponge::DuplexSpongeInterface;
 use super::keccak::Keccak;
@@ -124,7 +124,7 @@ where
     /// and used to re-seed the prover's random number generator.
     ///
     /// ```
-    /// use spongefish::{DomainSeparator, DefaultHash, UnitToBytesSerialize};
+    /// use spongefish::{DomainSeparator, DefaultHash, BytesToUnitSerialize};
     ///
     /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(20, "how not to make pasta 🤌");
     /// let mut prover_state = domain_separator.to_prover_state();
@@ -228,7 +228,7 @@ where
     }
 }
 
-impl<H, R> UnitToBytesSerialize for ProverState<H, u8, R>
+impl<H, R> BytesToUnitSerialize for ProverState<H, u8, R>
 where
     H: DuplexSpongeInterface<u8>,
     R: RngCore + CryptoRng,

@@ -6,7 +6,7 @@ use ark_ff::{Fp, FpConfig};
 use ark_serialize::CanonicalDeserialize;
 
 use super::{DeserializeField, DeserializeGroup};
-use crate::traits::{UnitToBytesDeserialize, UnitTranscript};
+use crate::traits::{BytesToUnitDeserialize, UnitTranscript};
 use crate::{DuplexSpongeInterface, ProofResult, VerifierState};
 
 impl<F, H> DeserializeField<F> for VerifierState<'_, H>

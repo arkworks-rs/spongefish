@@ -4,7 +4,7 @@ use crate::duplex_sponge::legacy::DigestBridge;
 use crate::keccak::Keccak;
 use crate::{
     CommonUnitToBytes, DomainSeparator, DuplexSpongeInterface, HashStateWithInstructions,
-    ProverState, UnitToBytes, UnitToBytesDeserialize, UnitToBytesSerialize,
+    ProverState, UnitToBytes, BytesToUnitDeserialize, BytesToUnitSerialize,
 };
 
 type Sha2 = DigestBridge<sha2::Sha256>;
@@ -171,7 +171,7 @@ fn test_prover_empty_absorb() {
 /// Absorbs and squeeze over byte-Units should be streamable.
 fn test_streaming_absorb_and_squeeze<H: DuplexSpongeInterface>()
 where
-    ProverState<H>: UnitToBytesSerialize + UnitToBytes,
+    ProverState<H>: BytesToUnitSerialize + UnitToBytes,
 {
     let bytes = b"yellow submarine";
 
