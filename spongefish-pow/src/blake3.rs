@@ -145,8 +145,8 @@ impl Blake3PoW {
 #[test]
 fn test_pow_blake3() {
     use crate::{
-        ByteDomainSeparator, PoWChallenge, PoWDomainSeparator, UnitToBytesDeserialize,
-        UnitToBytesSerialize,
+        ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, PoWChallenge,
+        PoWDomainSeparator,
     };
     use spongefish::{DefaultHash, DomainSeparator};
 

@@ -59,7 +59,7 @@ where
     G::BaseField: PrimeField,
     H: DuplexSpongeInterface<U>,
     G: CurveGroup,
-    ProverState<H, U>: GroupToUnit<G> + FieldToUnit<G::BaseField> + UnitToBytes,
+    ProverState<H, U>: GroupToUnitSerialize<G> + FieldToUnitSerialize<G::BaseField> + UnitToBytes,
 {
     // `ProverState` types implement a cryptographically-secure random number generator that is tied to the protocol transcript
     // and that can be accessed via the `rng()` function.
@@ -103,7 +103,8 @@ where
     G::BaseField: PrimeField,
     G: CurveGroup,
     H: DuplexSpongeInterface<U>,
-    VerifierState<'a, H, U>: DeserializeGroup<G> + DeserializeField<G::BaseField> + UnitToBytes,
+    VerifierState<'a, H, U>:
+        GroupToUnitDeserialize<G> + FieldToUnitDeserialize<G::BaseField> + UnitToBytes,
 {
     // Read the protocol from the transcript:
     let [K] = verifier_state.next_points()?;
