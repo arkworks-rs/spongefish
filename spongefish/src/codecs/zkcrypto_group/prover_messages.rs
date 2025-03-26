@@ -1,12 +1,12 @@
 use group::{ff::PrimeField, Group, GroupEncoding};
 use rand::{CryptoRng, RngCore};
 
-use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnit, GroupToUnit};
+use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnitSerialize, GroupToUnitSerialize};
 use crate::{
     BytesToUnitSerialize, CommonUnitToBytes, DuplexSpongeInterface, ProofResult, ProverState,
 };
 
-impl<F, H, R> FieldToUnit<F> for ProverState<H, u8, R>
+impl<F, H, R> FieldToUnitSerialize<F> for ProverState<H, u8, R>
 where
     F: PrimeField,
     H: DuplexSpongeInterface,
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<G, H, R> GroupToUnit<G> for ProverState<H, u8, R>
+impl<G, H, R> GroupToUnitSerialize<G> for ProverState<H, u8, R>
 where
     G: Group + GroupEncoding,
     G::Repr: AsRef<[u8]>,

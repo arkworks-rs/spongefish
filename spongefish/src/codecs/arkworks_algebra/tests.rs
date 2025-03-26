@@ -41,7 +41,9 @@ where
 }
 
 fn test_arkworks_end_to_end<F: Field, H: DuplexSpongeInterface>() -> ProofResult<()> {
-    use crate::codecs::arkworks_algebra::{DeserializeField, FieldToUnit, UnitToField};
+    use crate::codecs::arkworks_algebra::{
+        FieldToUnitDeserialize, FieldToUnitSerialize, UnitToField,
+    };
     use rand::Rng;
 
     let mut rng = ark_std::test_rng();

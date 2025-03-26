@@ -5,11 +5,11 @@ use ark_ff::Field;
 use ark_ff::{Fp, FpConfig};
 use ark_serialize::CanonicalDeserialize;
 
-use super::{DeserializeField, DeserializeGroup};
+use super::{FieldToUnitDeserialize, GroupToUnitDeserialize};
 use crate::traits::{BytesToUnitDeserialize, UnitTranscript};
 use crate::{DuplexSpongeInterface, ProofResult, VerifierState};
 
-impl<F, H> DeserializeField<F> for VerifierState<'_, H>
+impl<F, H> FieldToUnitDeserialize<F> for VerifierState<'_, H>
 where
     F: Field,
     H: DuplexSpongeInterface,
@@ -25,7 +25,7 @@ where
     }
 }
 
-impl<G, H> DeserializeGroup<G> for VerifierState<'_, H>
+impl<G, H> GroupToUnitDeserialize<G> for VerifierState<'_, H>
 where
     G: CurveGroup,
     H: DuplexSpongeInterface,
@@ -42,7 +42,7 @@ where
     }
 }
 
-impl<H, C, const N: usize> DeserializeField<Fp<C, N>> for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize> FieldToUnitDeserialize<Fp<C, N>> for VerifierState<'_, H, Fp<C, N>>
 where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
@@ -53,7 +53,8 @@ where
     }
 }
 
-impl<P, H, C, const N: usize> DeserializeGroup<EdwardsCurve<P>> for VerifierState<'_, H, Fp<C, N>>
+impl<P, H, C, const N: usize> GroupToUnitDeserialize<EdwardsCurve<P>>
+    for VerifierState<'_, H, Fp<C, N>>
 where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
@@ -69,7 +70,7 @@ where
     }
 }
 
-impl<P, H, C, const N: usize> DeserializeGroup<SWCurve<P>> for VerifierState<'_, H, Fp<C, N>>
+impl<P, H, C, const N: usize> GroupToUnitDeserialize<SWCurve<P>> for VerifierState<'_, H, Fp<C, N>>
 where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,

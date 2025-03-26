@@ -39,7 +39,7 @@
 //!     x: G::ScalarField,
 //! ) -> ProofResult<&[u8]>
 //! where
-//!     ProverState: GroupToUnit<G> + UnitToBytes,
+//!     ProverState: GroupToUnitSerialize<G> + UnitToBytes,
 //! {
 //!     let k = G::ScalarField::rand(prover_state.rng());
 //!     prover_state.add_points(&[G::generator() * k])?;
@@ -101,7 +101,7 @@
 //!     H: DuplexSpongeInterface<U>,
 //!     // ... and the prover to be able to absorb and squeeze elements from the group and the base field.
 //!     // (normally would be the ScalarField but this is to make it work nicely with algebraic hashes)
-//!     ProverState<H, U>: GroupToUnit<G> + FieldToUnit<G::BaseField> + UnitToBytes,
+//!     ProverState<H, U>: GroupToUnitSerialize<G> + FieldToUnitSerialize<G::BaseField> + UnitToBytes,
 //! {
 //!     let k = G::ScalarField::rand(prover_state.rng());
 //!     prover_state.add_points(&[G::generator() * k])?;
@@ -164,14 +164,14 @@ pub fn swap_field<F1: ark_ff::PrimeField, F2: ark_ff::PrimeField>(a_f1: F1) -> P
 // }
 // pub trait PairingWriter<P: ark_ec::pairing::Pairing> {
 //     fn add_g1_points(&mut self, input: &[P::G1]) -> crate::ProofResult<()> {
-//         GroupToUnit::<P::G1>::add_points(self, input)
+//         GroupToUnitSerialize::<P::G1>::add_points(self, input)
 //     }
 
 //     fn add_g2_points(&mut self, input: &[P::G2]) -> crate::ProofResult<()> {
-//         GroupToUnit::<P::G2>::add_points(self, input)
+//         GroupToUnitSerialize::<P::G2>::add_points(self, input)
 //     }
 // }
 
 // impl<'a, P: ark_ec::pairing::Pairing, H, U> PairingWriter<P> for VerifierState<'a, H, U> where
 // U: Unit, H: DuplexSpongeInterface<U>,
-// VerifierState<'a, H, U>:  GroupToUnit<P::G1> + GroupToUnit<P::G2>  {}
+// VerifierState<'a, H, U>:  GroupToUnitSerialize<P::G1> + GroupToUnitSerialize<P::G2>  {}

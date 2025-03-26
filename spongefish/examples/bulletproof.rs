@@ -14,9 +14,9 @@ use ark_ff::Field;
 use ark_std::log2;
 use rand::rngs::OsRng;
 use spongefish::codecs::arkworks_algebra::{
-    CommonGroupToUnit, DeserializeField, DeserializeGroup, DomainSeparator, FieldDomainSeparator,
-    FieldToUnit, GroupDomainSeparator, GroupToUnit, ProofError, ProofResult, ProverState,
-    UnitToField, VerifierState,
+    CommonGroupToUnit, DomainSeparator, FieldDomainSeparator, FieldToUnitDeserialize,
+    FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize, GroupToUnitSerialize,
+    ProofError, ProofResult, ProverState, UnitToField, VerifierState,
 };
 
 /// The IO Pattern of a bulleproof.
@@ -56,7 +56,7 @@ fn prove<'a, G: CurveGroup>(
     witness: (&[G::ScalarField], &[G::ScalarField]),
 ) -> ProofResult<&'a [u8]>
 where
-    ProverState: GroupToUnit<G> + UnitToField<G::ScalarField>,
+    ProverState: GroupToUnitSerialize<G> + UnitToField<G::ScalarField>,
 {
     assert_eq!(witness.0.len(), witness.1.len());
 
@@ -107,7 +107,7 @@ fn verify<G: CurveGroup>(
     statement: &G,
 ) -> ProofResult<()>
 where
-    for<'a> VerifierState<'a>: DeserializeGroup<G> + UnitToField<G::ScalarField>,
+    for<'a> VerifierState<'a>: GroupToUnitDeserialize<G> + UnitToField<G::ScalarField>,
 {
     let mut g = generators.0.to_vec();
     let mut h = generators.1.to_vec();

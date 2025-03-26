@@ -22,9 +22,9 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::codecs::arkworks_algebra::{
-    CommonGroupToUnit, DeserializeField, DeserializeGroup, DomainSeparator, DuplexSpongeInterface,
-    FieldDomainSeparator, FieldToUnit, GroupDomainSeparator, GroupToUnit, ProofError, ProofResult,
-    ProverState, UnitToField, VerifierState,
+    CommonGroupToUnit, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
+    FieldToUnitDeserialize, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize,
+    GroupToUnitSerialize, ProofError, ProofResult, ProverState, UnitToField, VerifierState,
 };
 
 /// Extend the IO pattern with the Schnorr protocol.
@@ -90,7 +90,7 @@ fn prove<H, G>(
 where
     H: DuplexSpongeInterface,
     G: CurveGroup,
-    ProverState<H>: GroupToUnit<G> + UnitToField<G::ScalarField>,
+    ProverState<H>: GroupToUnitSerialize<G> + UnitToField<G::ScalarField>,
 {
     // `ProverState` types implement a cryptographically-secure random number generator that is tied to the protocol transcript
     // and that can be accessed via the `rng()` function.
@@ -129,8 +129,9 @@ fn verify<G, H>(
 where
     G: CurveGroup,
     H: DuplexSpongeInterface,
-    for<'a> VerifierState<'a, H>:
-        DeserializeGroup<G> + DeserializeField<G::ScalarField> + UnitToField<G::ScalarField>,
+    for<'a> VerifierState<'a, H>: GroupToUnitDeserialize<G>
+        + FieldToUnitDeserialize<G::ScalarField>
+        + UnitToField<G::ScalarField>,
 {
     // Read the protocol from the transcript.
     // [[Side note:

@@ -112,16 +112,20 @@ where
     assert_eq!(ark_domsep.as_bytes(), group_domsep.as_bytes());
 
     // Check that scalars absorption leads to the same transcript.
-    codecs::arkworks_algebra::FieldToUnit::add_scalars(&mut ark_prover, &[ark_scalar]).unwrap();
+    codecs::arkworks_algebra::FieldToUnitSerialize::add_scalars(&mut ark_prover, &[ark_scalar])
+        .unwrap();
     ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    codecs::zkcrypto_group::FieldToUnit::add_scalars(&mut group_prover, &[group_scalar]).unwrap();
+    codecs::zkcrypto_group::FieldToUnitSerialize::add_scalars(&mut group_prover, &[group_scalar])
+        .unwrap();
     group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
     assert_eq!(ark_chal, group_chal);
 
     // Check that points absorption leads to the same transcript.
-    codecs::arkworks_algebra::GroupToUnit::add_points(&mut ark_prover, &[ark_point]).unwrap();
+    codecs::arkworks_algebra::GroupToUnitSerialize::add_points(&mut ark_prover, &[ark_point])
+        .unwrap();
     ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    codecs::zkcrypto_group::GroupToUnit::add_points(&mut group_prover, &[group_point]).unwrap();
+    codecs::zkcrypto_group::GroupToUnitSerialize::add_points(&mut group_prover, &[group_point])
+        .unwrap();
     group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
     assert_eq!(ark_chal, group_chal);
 
