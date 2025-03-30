@@ -17,7 +17,8 @@ macro_rules! field_traits {
 
             fn challenge_scalars<const N: usize>(&mut self) -> crate::ProofResult<[F; N]> {
                 let mut output = [F::default(); N];
-                self.fill_challenge_scalars(&mut output).map(|()| output)
+                self.fill_challenge_scalars(&mut output)?;
+                Ok(output)
             }
         }
 
@@ -41,7 +42,8 @@ macro_rules! field_traits {
 
             fn next_scalars<const N: usize>(&mut self) -> crate::ProofResult<[F; N]> {
                 let mut output = [F::default(); N];
-                self.fill_next_scalars(&mut output).map(|()| output)
+                self.fill_next_scalars(&mut output)?;
+                Ok(output)
             }
         }
     };
@@ -72,7 +74,8 @@ macro_rules! group_traits {
             /// Deserialize group elements from the protocol transcript and return them.
             fn next_points<const N: usize>(&mut self) -> $crate::ProofResult<[G; N]> {
                 let mut output = [G::default(); N];
-                self.fill_next_points(&mut output).map(|()| output)
+                self.fill_next_points(&mut output)?;
+                Ok(output)
             }
         }
 

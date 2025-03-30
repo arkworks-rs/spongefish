@@ -51,7 +51,8 @@ where
         for i in input {
             i.serialize_compressed(&mut buf)?;
         }
-        Ok(self.public_bytes(&buf).map(|()| buf)?)
+        self.public_bytes(&buf)?;
+        Ok(buf)
     }
 }
 

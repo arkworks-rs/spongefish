@@ -34,7 +34,8 @@ pub trait UnitToBytes {
 
     fn challenge_bytes<const N: usize>(&mut self) -> Result<[u8; N], DomainSeparatorMismatch> {
         let mut output = [0u8; N];
-        self.fill_challenge_bytes(&mut output).map(|()| output)
+        self.fill_challenge_bytes(&mut output)?;
+        Ok(output)
     }
 }
 
@@ -49,7 +50,8 @@ pub trait BytesToUnitDeserialize {
 
     fn next_bytes<const N: usize>(&mut self) -> Result<[u8; N], DomainSeparatorMismatch> {
         let mut input = [0u8; N];
-        self.fill_next_bytes(&mut input).map(|()| input)
+        self.fill_next_bytes(&mut input)?;
+        Ok(input)
     }
 }
 
