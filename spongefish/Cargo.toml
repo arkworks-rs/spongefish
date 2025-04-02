@@ -1,7 +1,10 @@
 [package]
 name = "spongefish"
 version = "0.2.0"
-authors = ["Michele Orrù <m@orru.net>", "Giacomo Fenzi <giacomofenzi@outlook.com>"]
+authors = [
+    "Michele Orrù <m@orru.net>",
+    "Giacomo Fenzi <giacomofenzi@outlook.com>",
+]
 description = "A library for Fiat-Shamir transcripts."
 edition = "2021"
 license = "BSD-3-Clause"
@@ -39,7 +42,6 @@ ark-curve25519 = { workspace = true }
 # test algebraic hashers
 bls12_381 = { workspace = true }
 ark-bls12-381 = { workspace = true, features = ["std"] }
-anyhow = { workspace = true, features = ["backtrace"] }
 ark-pallas = { workspace = true, features = ["std"] }
 pallas = { workspace = true }
 pasta_curves = { workspace = true }

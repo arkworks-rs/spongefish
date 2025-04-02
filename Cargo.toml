@@ -36,7 +36,6 @@ naive_bytecount = "allow"
 
 [workspace.dependencies]
 anemoi = { git = "https://github.com/mmaker/anemoi" }
-anyhow = "1.0.97"
 ark-bls12-381 = "0.5"
 ark-bn254 = "0.5"
 ark-curve25519 = "0.5"
