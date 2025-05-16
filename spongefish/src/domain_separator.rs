@@ -53,6 +53,11 @@ pub enum Op {
     ///
     /// In a tag, absorb is indicated with 'A'.
     Absorb(usize),
+    /// Indicates processing of out-of-band message
+    /// from prover to verified.
+    ///
+    /// This is useful for e.g. adding merkle proofs to the proof.
+    Hint(usize),
     /// Indicates squeezing of `usize` lanes.
     ///
     /// In a tag, squeeze is indicated with 'S'.
@@ -71,6 +76,7 @@ impl Op {
     fn new(id: char, count: Option<usize>) -> Result<Self, DomainSeparatorMismatch> {
         match (id, count) {
             ('A', Some(c)) if c > 0 => Ok(Self::Absorb(c)),
+            ('H', Some(c)) if c > 0 => Ok(Self::Hint(c)),
             ('R', None | Some(0)) => Ok(Self::Ratchet),
             ('S', Some(c)) if c > 0 => Ok(Self::Squeeze(c)),
             _ => Err("Invalid tag".into()),
@@ -114,6 +120,25 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
         );
 
         Self::from_string(self.io + SEP_BYTE + &format!("A{count}") + label)
+    }
+
+    /// Hint `count` native elements.
+    #[must_use]
+    pub fn hint(self, count: usize, label: &str) -> Self {
+        assert!(count > 0, "Count must be positive.");
+        assert!(
+            !label.contains(SEP_BYTE),
+            "Label cannot contain the separator BYTE."
+        );
+        assert!(
+            label
+                .chars()
+                .next()
+                .is_none_or(|char| !char.is_ascii_digit()),
+            "Label cannot start with a digit."
+        );
+
+        Self::from_string(self.io + SEP_BYTE + &format!("H{count}") + label)
     }
 
     /// Squeeze `count` native elements.
@@ -191,6 +216,10 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
                     let Op::Absorb(b) = next else { unreachable!() };
                     dst.push_back(Op::Absorb(a + b));
                 }
+                Some(Op::Hint(a)) if matches!(next, Op::Hint(_)) => {
+                    let Op::Hint(b) = next else { unreachable!() };
+                    dst.push_back(Op::Hint(a + b));
+                }
                 Some(prev) => {
                     dst.push_back(prev);
                     dst.push_back(next);
@@ -245,6 +274,7 @@ mod tests {
     #[test]
     fn test_op_new_invalid_cases() {
         assert!(Op::new('A', Some(0)).is_err()); // absorb with zero
+        assert!(Op::new('H', Some(0)).is_err()); // absorb with zero
         assert!(Op::new('S', Some(0)).is_err()); // squeeze with zero
         assert!(Op::new('X', Some(1)).is_err()); // invalid op char
         assert!(Op::new('R', Some(5)).is_err()); // R doesn't support > 0
@@ -492,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_finalize_complex_merge_boundaries() {
-        let tag = "demo\0A1a\0A1b\0S2c\0S2d\0A3e\0S1f";
+        let tag = "demo\0A1a\0A1b\0S2c\0S2d\0A3e\0S1f\0H4d";
         let ds = DomainSeparator::<H>::from_string(tag.to_string());
         let ops = ds.finalize();
         assert_eq!(
@@ -502,6 +532,7 @@ mod tests {
                 Op::Squeeze(4), // S2c + S2d
                 Op::Absorb(3),  // A3e
                 Op::Squeeze(1), // S1f
+                Op::Hint(4),    // H4d
             ]
         );
     }
