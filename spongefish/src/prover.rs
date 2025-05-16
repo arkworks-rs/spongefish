@@ -144,6 +144,16 @@ where
         Ok(())
     }
 
+    /// Send a hint in the proof stream.
+    pub fn hint_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
+        self.hash_state.hint()?;
+        let len = u32::try_from(input.len()).expect("Hint size out of bounds");
+        self.narg_string.extend_from_slice(&len.to_le_bytes());
+        // write never fails on Vec<u8>
+        U::write(input, &mut self.narg_string).unwrap();
+        Ok(())
+    }
+
     /// Ratchet the verifier's state.
     pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
         self.hash_state.ratchet()
