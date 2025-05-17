@@ -103,6 +103,14 @@ where
             narg_string: Vec::new(),
         }
     }
+
+    pub fn hint_bytes(&mut self, hint: &[u8]) -> Result<(), DomainSeparatorMismatch> {
+        self.hash_state.hint()?;
+        let len = u32::try_from(hint.len()).expect("Hint size out of bounds");
+        self.narg_string.extend_from_slice(&len.to_le_bytes());
+        self.narg_string.extend_from_slice(hint);
+        Ok(())
+    }
 }
 
 impl<U, H> From<&DomainSeparator<H, U>> for ProverState<H, U, DefaultRng>

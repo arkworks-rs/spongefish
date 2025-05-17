@@ -56,6 +56,10 @@ where
         self.absorb(count, label)
     }
 
+    fn hint(self, label: &str) -> Self {
+        self.hint(label)
+    }
+
     fn challenge_bytes(self, count: usize, label: &str) -> Self {
         let n = crate::codecs::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
         self.squeeze(count.div_ceil(n), label)

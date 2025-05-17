@@ -84,6 +84,15 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
         }
     }
 
+    /// Send or receive a hint from the proof stream.
+    pub fn hint(&mut self) -> Result<(), DomainSeparatorMismatch> {
+        match self.stack.pop_front() {
+            Some(Op::Hint) => Ok(()),
+            Some(op) => Err(format!("Invalid tag. Got Op::Hint, expected {op:?}",).into()),
+            None => Err(format!("Invalid tag. Stack empty, got {:?}", Op::Hint).into()),
+        }
+    }
+
     /// Perform a secure squeeze operation, filling the output buffer with uniformly random bytes.
     ///
     /// For byte-oriented sponges, this operation is equivalent to the squeeze operation.
