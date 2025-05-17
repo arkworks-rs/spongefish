@@ -64,6 +64,8 @@ pub trait ByteDomainSeparator {
     #[must_use]
     fn add_bytes(self, count: usize, label: &str) -> Self;
     #[must_use]
+    fn hint(self, label: &str) -> Self;
+    #[must_use]
     fn challenge_bytes(self, count: usize, label: &str) -> Self;
 }
 

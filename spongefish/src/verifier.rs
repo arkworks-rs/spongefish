@@ -56,22 +56,24 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     }
 
     /// Read a hint from the NARG string. Returns the number of units read.
-    pub fn read_hint(&mut self, out: &mut [U]) -> Result<usize, DomainSeparatorMismatch> {
+    pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
+        self.hash_state.hint()?;
         // Read length prefix
         if self.narg_string.len() < 4 {
             return Err("Insufficient transcript remaining for hint".into());
         }
         let len = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
         self.narg_string = &self.narg_string[4..];
-        if len > out.len() {
-            return Err(
-                format!("Insufficient output buffer, got {}, need {len}", out.len()).into(),
-            );
+        if len > self.narg_string.len() {
+            return Err(format!(
+                "Insufficient transcript remaining, got {}, need {len}",
+                self.narg_string.len()
+            )
+            .into());
         }
-        let out = &mut out[0..len];
-        U::read(&mut self.narg_string, out)?;
-        self.hash_state.hint()?;
-        Ok(len)
+        let bytes = &self.narg_string[..len];
+        self.narg_string = &self.narg_string[len..];
+        Ok(bytes)
     }
 
     /// Signals the end of the statement.

@@ -130,7 +130,7 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
             "Label cannot contain the separator BYTE."
         );
 
-        Self::from_string(self.io + SEP_BYTE + "R" + label)
+        Self::from_string(self.io + SEP_BYTE + "H" + label)
     }
 
     /// Squeeze `count` native elements.
@@ -236,6 +236,10 @@ impl<H: DuplexSpongeInterface> ByteDomainSeparator for DomainSeparator<H> {
     #[inline]
     fn add_bytes(self, count: usize, label: &str) -> Self {
         self.absorb(count, label)
+    }
+
+    fn hint(self, label: &str) -> Self {
+        self.hint(label)
     }
 
     #[inline]
