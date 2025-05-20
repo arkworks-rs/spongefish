@@ -54,7 +54,7 @@ pub enum Op {
     /// In a tag, absorb is indicated with 'A'.
     Absorb(usize),
     /// Indicates processing of out-of-band message
-    /// from prover to verified.
+    /// from prover to verifier.
     ///
     /// This is useful for e.g. adding merkle proofs to the proof.
     Hint,
