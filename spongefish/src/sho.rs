@@ -379,4 +379,34 @@ mod tests {
 
         assert_eq!(&*tag1.ds.absorbed.borrow(), &*tag2.ds.absorbed.borrow());
     }
+
+    #[test]
+    fn test_hint_works_and_removes_stack_entry() {
+        let domsep = DomainSeparator::<DummySponge>::new("test").hint("hint");
+        let mut state = HashStateWithInstructions::<DummySponge>::new(&domsep);
+
+        assert_eq!(state.stack.len(), 1);
+        let result = state.hint();
+        assert!(result.is_ok());
+        assert!(state.stack.is_empty());
+    }
+
+    #[test]
+    fn test_hint_wrong_op_errors_and_clears_stack() {
+        let domsep = DomainSeparator::<DummySponge>::new("test").absorb(1, "x");
+        let mut state = HashStateWithInstructions::<DummySponge>::new(&domsep);
+
+        let result = state.hint(); // Should expect Op::Hint, but see Op::Absorb
+        assert!(result.is_err());
+        assert!(state.stack.is_empty());
+    }
+
+    #[test]
+    fn test_hint_on_empty_stack_errors() {
+        let domsep = DomainSeparator::<DummySponge>::new("test");
+        let mut state = HashStateWithInstructions::<DummySponge>::new(&domsep);
+
+        let result = state.hint(); // Stack is empty
+        assert!(result.is_err());
+    }
 }

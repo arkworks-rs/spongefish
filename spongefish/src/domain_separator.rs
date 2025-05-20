@@ -520,4 +520,34 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn test_hint_is_parsed_correctly() {
+        let ds = DomainSeparator::<H>::new("hint_test").hint("my_hint");
+        let ops = ds.finalize();
+        assert_eq!(ops, vec![Op::Hint]);
+    }
+
+    #[test]
+    fn test_hint_format_is_correct_in_bytes() {
+        let ds = DomainSeparator::<H>::new("proto").hint("my_hint");
+        let expected = b"proto\0Hmy_hint";
+        assert_eq!(ds.as_bytes(), expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_hint_label_with_null_byte_panics() {
+        let _ = DomainSeparator::<H>::new("x").hint("bad\0hint");
+    }
+
+    #[test]
+    fn test_hint_combined_with_absorb_and_squeeze() {
+        let ds = DomainSeparator::<H>::new("combo")
+            .absorb(1, "x")
+            .hint("meta")
+            .squeeze(2, "y");
+        let ops = ds.finalize();
+        assert_eq!(ops, vec![Op::Absorb(1), Op::Hint, Op::Squeeze(2)]);
+    }
 }

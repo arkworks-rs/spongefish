@@ -381,4 +381,65 @@ mod tests {
         let encoded = p.narg_string();
         assert_eq!(encoded, msg);
     }
+
+    #[test]
+    fn test_hint_bytes_appends_hint_length_and_data() {
+        let domsep: DomainSeparator<DefaultHash> =
+            DomainSeparator::new("hint_test").hint("proof_hint");
+        let mut prover = domsep.to_prover_state();
+
+        let hint = b"abc123";
+        prover.hint_bytes(hint).unwrap();
+
+        // Explanation:
+        // - `hint` is "abc123", which has 6 bytes.
+        // - The protocol encodes this as a 4-byte *little-endian* length prefix: 6 = 0x00000006 → [6, 0, 0, 0]
+        // - Then it appends the hint bytes: b"abc123"
+        // - So the full expected value is:
+        let expected = [6, 0, 0, 0, b'a', b'b', b'c', b'1', b'2', b'3'];
+
+        assert_eq!(prover.narg_string(), &expected);
+    }
+
+    #[test]
+    fn test_hint_bytes_empty_hint_is_encoded_correctly() {
+        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("empty_hint").hint("empty");
+        let mut prover = domsep.to_prover_state();
+
+        prover.hint_bytes(b"").unwrap();
+
+        // Length = 0 encoded as 4 zero bytes
+        assert_eq!(prover.narg_string(), &[0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn test_hint_bytes_fails_if_hint_op_missing() {
+        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("no_hint");
+        let mut prover = domsep.to_prover_state();
+
+        // DomainSeparator contains no hint operation
+        let result = prover.hint_bytes(b"some_hint");
+        assert!(
+            result.is_err(),
+            "Should error if no hint op in domain separator"
+        );
+    }
+
+    #[test]
+    fn test_hint_bytes_is_deterministic() {
+        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("det_hint").hint("same");
+
+        let hint = b"zkproof_hint";
+        let mut prover1 = domsep.to_prover_state();
+        let mut prover2 = domsep.to_prover_state();
+
+        prover1.hint_bytes(hint).unwrap();
+        prover2.hint_bytes(hint).unwrap();
+
+        assert_eq!(
+            prover1.narg_string(),
+            prover2.narg_string(),
+            "Encoding should be deterministic"
+        );
+    }
 }

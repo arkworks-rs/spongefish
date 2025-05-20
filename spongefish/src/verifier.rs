@@ -58,22 +58,30 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     /// Read a hint from the NARG string. Returns the number of units read.
     pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
         self.hash_state.hint()?;
-        // Read length prefix
+
+        // Ensure at least 4 bytes are available for the length prefix
         if self.narg_string.len() < 4 {
             return Err("Insufficient transcript remaining for hint".into());
         }
+
+        // Read 4-byte little-endian length prefix
         let len = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
-        self.narg_string = &self.narg_string[4..];
-        if len > self.narg_string.len() {
+        let rest = &self.narg_string[4..];
+
+        // Ensure the rest of the slice has `len` bytes
+        if rest.len() < len {
             return Err(format!(
                 "Insufficient transcript remaining, got {}, need {len}",
-                self.narg_string.len()
+                rest.len()
             )
             .into());
         }
-        let bytes = &self.narg_string[..len];
-        self.narg_string = &self.narg_string[len..];
-        Ok(bytes)
+
+        // Split the hint and advance the transcript
+        let (hint, remaining) = rest.split_at(len);
+        self.narg_string = remaining;
+
+        Ok(hint)
     }
 
     /// Signals the end of the statement.
@@ -241,5 +249,87 @@ mod tests {
         let mut out = [0u8; 3];
         assert!(vs.fill_next_bytes(&mut out).is_ok());
         assert_eq!(out, *b"xyz");
+    }
+
+    #[test]
+    fn test_hint_bytes_verifier_valid_hint() {
+        // Domain separator commits to a hint
+        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("valid").hint("hint");
+
+        let mut prover = domsep.to_prover_state();
+
+        let hint = b"abc123";
+        prover.hint_bytes(hint).unwrap();
+
+        let narg = prover.narg_string();
+
+        let mut verifier = domsep.to_verifier_state(narg);
+        let result = verifier.hint_bytes().unwrap();
+        assert_eq!(result, hint);
+    }
+
+    #[test]
+    fn test_hint_bytes_verifier_empty_hint() {
+        // Commit to a hint instruction
+        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("empty").hint("hint");
+
+        let mut prover = domsep.to_prover_state();
+
+        let hint = b"";
+        prover.hint_bytes(hint).unwrap();
+
+        let narg = prover.narg_string();
+
+        let mut verifier = domsep.to_verifier_state(narg);
+        let result = verifier.hint_bytes().unwrap();
+        assert_eq!(result, b"");
+    }
+
+    #[test]
+    fn test_hint_bytes_verifier_no_hint_op() {
+        // No hint instruction in domain separator
+        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("nohint");
+
+        // Manually construct a hint buffer (length = 6, followed by bytes)
+        let mut narg = vec![6, 0, 0, 0]; // length prefix for 6
+        narg.extend_from_slice(b"abc123");
+
+        let mut verifier = domsep.to_verifier_state(&narg);
+
+        assert!(verifier.hint_bytes().is_err());
+    }
+
+    #[test]
+    fn test_hint_bytes_verifier_length_prefix_too_short() {
+        // Valid hint domain separator
+        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("short").hint("hint");
+
+        // Provide only 3 bytes, which is not enough for a u32 length
+        let narg = &[1, 2, 3]; // less than 4 bytes
+
+        let mut verifier = domsep.to_verifier_state(narg);
+
+        let err = verifier.hint_bytes().unwrap_err();
+        assert!(
+            format!("{err}").contains("Insufficient transcript remaining for hint"),
+            "Expected error for short prefix, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_hint_bytes_verifier_declared_hint_too_long() {
+        // Valid hint domain separator
+        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("loverflow").hint("hint");
+
+        // Prefix says "5 bytes", but we only supply 2
+        let narg = &[5, 0, 0, 0, b'a', b'b'];
+
+        let mut verifier = domsep.to_verifier_state(narg);
+
+        let err = verifier.hint_bytes().unwrap_err();
+        assert!(
+            format!("{err}").contains("Insufficient transcript remaining"),
+            "Expected error for hint length > actual NARG bytes, got: {err}"
+        );
     }
 }
