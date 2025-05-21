@@ -13,6 +13,18 @@ pub mod arkworks_algebra;
 /// This plugin is experimental and has not yet been thoroughly tested.
 pub mod zkcrypto_group;
 
+#[cfg(feature = "zerocopy")]
+/// Use [`zerocopy`] to convert types to/from bytes.
+pub mod zerocopy;
+
+#[cfg(feature = "ark-serialize")]
+/// Use [`ark_serialize`] to convert types to/from bytes.
+pub mod zerocopy;
+
+#[cfg(feature = "serde-postcard")]
+/// Use [`zerocopy`] to convert types to/from bytes.
+pub mod zerocopy;
+
 /// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
 pub(super) const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
     (modulus_bits as usize + 128) / 8

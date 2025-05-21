@@ -1,3 +1,5 @@
+//! Abstract transcripts for interactive protocols.
+
 mod interaction;
 mod transcript_pattern;
 mod transcript_player;
@@ -25,33 +27,29 @@ pub trait TranscriptExt {
     type Error: Error;
 
     /// Scalar prover-to-verifier message.
-    fn message<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn message<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
     /// Fixed size prover-to-verifier message.
-    fn message_array<T: 'static>(
-        &mut self,
-        label: &'static str,
-        length: usize,
-    ) -> Result<(), Self::Error>;
+    fn message_array<T>(&mut self, label: &'static str, length: usize) -> Result<(), Self::Error>;
 
     /// Dynamic size prover-to-verifier message.
-    fn message_slice<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn message_slice<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
-    fn hint<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn hint<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
-    fn challenge<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn challenge<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
     /// Begin of a subprotocol.
-    fn begin<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn begin<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
     /// End of a subprotocol.
-    fn end<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn end<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 }
 
 impl<Tr: Transcript> TranscriptExt for Tr {
     type Error = Tr::Error;
 
-    fn message<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn message<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Message,
             label,
@@ -59,11 +57,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn message_array<T: 'static>(
-        &mut self,
-        label: &'static str,
-        length: usize,
-    ) -> Result<(), Self::Error> {
+    fn message_array<T>(&mut self, label: &'static str, length: usize) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Message,
             label,
@@ -71,7 +65,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn message_slice<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn message_slice<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Message,
             label,
@@ -79,7 +73,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn hint<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn hint<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Hint,
             label,
@@ -87,7 +81,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn challenge<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn challenge<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Challenge,
             label,
@@ -95,7 +89,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn begin<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn begin<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::Begin,
             label,
@@ -103,7 +97,7 @@ impl<Tr: Transcript> TranscriptExt for Tr {
         ))
     }
 
-    fn end<T: 'static>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn end<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
             InteractionKind::End,
             label,

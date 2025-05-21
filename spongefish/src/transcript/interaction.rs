@@ -1,7 +1,4 @@
-use core::{
-    any::{type_name, TypeId},
-    fmt::Display,
-};
+use core::{any::type_name, fmt::Display};
 
 /// A single abstract prover-verifier interaction
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -10,9 +7,12 @@ pub struct Interaction {
     kind: InteractionKind,
     /// A label identifying the purpose of the value.
     label: &'static str,
-    /// The type of the value.
-    type_id: TypeId,
     /// The Rust name of the type of the value.
+    ///
+    /// We use [`core::any::type_name`] here intead of [`core::any::TypeID`] since the latter
+    /// only supports types with a `'static` lifetime. The downside of `type_name` is that
+    /// it is slightly less precise in that it can create more type collisions. But this is
+    /// acceptable here as it only serves as an additional check and as debug information.
     type_name: &'static str,
     /// Length of the value.
     length: Length,
@@ -43,23 +43,23 @@ pub enum Length {
 }
 
 impl Interaction {
-    pub fn new<T: 'static>(kind: InteractionKind, label: &'static str, length: Length) -> Self {
-        let type_id = TypeId::of::<T>();
-        let type_name = type_name::<T>();
+    #[must_use]
+    pub fn new<T>(kind: InteractionKind, label: &'static str, length: Length) -> Self {
         Self {
             kind,
             label,
-            type_id,
-            type_name,
+            type_name: type_name::<T>(),
             length,
         }
     }
 
-    pub fn kind(&self) -> InteractionKind {
+    #[must_use]
+    pub const fn kind(&self) -> InteractionKind {
         self.kind
     }
 
     /// If it is an `InteractionKind::End`, return the corresponding `InteractionKind::Begin`
+    #[must_use]
     pub(super) fn as_begin(self) -> Self {
         assert_eq!(self.kind, InteractionKind::End);
         Self {
