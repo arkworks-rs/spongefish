@@ -21,9 +21,9 @@ pub mod zerocopy;
 /// Use [`ark_serialize`] to convert types to/from bytes.
 pub mod zerocopy;
 
-#[cfg(feature = "serde-postcard")]
-/// Use [`zerocopy`] to convert types to/from bytes.
-pub mod zerocopy;
+// #[cfg(feature = "serde-postcard")]
+// /// Use [`zerocopy`] to convert types to/from bytes.
+// pub mod zerocopy;
 
 /// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
 pub(super) const fn bytes_uniform_modp(modulus_bits: u32) -> usize {

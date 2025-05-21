@@ -82,3 +82,28 @@ impl<T: UnitTranscript<u8>> UnitToBytes for T {
         self.fill_challenge_units(output)
     }
 }
+
+pub trait BytesPattern {
+    fn add_bytes(&mut self, count: usize, label: &str);
+    fn hint(&mut self, label: &str);
+    fn challenge_bytes(&mut self, count: usize, label: &str);
+}
+
+pub trait BytesMessageProver {
+    fn message(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch>;
+}
+
+pub trait BytesMessageVerifier {
+    fn message(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch>;
+}
+pub trait BytesHintProver {
+    fn hint(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch>;
+}
+
+pub trait BytesHintVerifier {
+    fn hint(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch>;
+}
+
+pub trait BytesChallenge {
+    fn challenge(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch>;
+}
