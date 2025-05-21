@@ -2,7 +2,7 @@ use core::fmt::Display;
 
 use thiserror::Error;
 
-use super::{Interaction, InteractionKind};
+use super::{interaction::InteractionHierarchy, Interaction, InteractionKind};
 
 /// Abstract transcript containing prover-verifier interactions
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Default)]
@@ -13,10 +13,19 @@ pub struct TranscriptPattern {
 /// Errors when validating a transcript.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Error)]
 pub enum TranscriptError {
-    #[error("Missing BEGIN for {end} at {position}")]
+    #[error("Missing Begin for {end} at {position}")]
     MissingBegin {
         position: usize,
         end: Box<Interaction>,
+    },
+    #[error(
+        "Invalid kind {interaction} at {interaction_position} for {begin} at {begin_position}"
+    )]
+    InvalidKind {
+        begin_position: usize,
+        begin: Box<Interaction>,
+        interaction_position: usize,
+        interaction: Box<Interaction>,
     },
     #[error("Mismatch {begin} at {begin_position} for {end} at {end_position}")]
     MismatchedBeginEnd {
@@ -25,7 +34,7 @@ pub enum TranscriptError {
         end_position: usize,
         end: Box<Interaction>,
     },
-    #[error("Missing END for {begin} at {position}")]
+    #[error("Missing End for {begin} at {position}")]
     MissingEnd {
         position: usize,
         begin: Box<Interaction>,
@@ -41,13 +50,19 @@ impl TranscriptPattern {
         &self.interactions
     }
 
-    /// Make sure [`InteractionKind::Begin`] and [`InteractionKind::End`] match.
+    /// Validate the transcript.
+    ///
+    /// A valid transcript has:
+    ///
+    /// - Matching [`InteractionHierachy::Begin`] and [`InteractionHierachy::End`] interactions
+    ///   creating a nested hierarchy.
+    /// - Nested interactions are the same [`InteractionKind`] as the last [`InteractionHierachy::Begin`] interaction, except for [`InteractionKind::Protocol`] which can contain any [`InteractionKind`].
     pub fn validate(&self) -> Result<(), TranscriptError> {
         let mut stack = Vec::new();
         for (position, &interaction) in self.interactions.iter().enumerate() {
-            match interaction.kind() {
-                InteractionKind::Begin => stack.push((position, interaction)),
-                InteractionKind::End => {
+            match interaction.hierarchy() {
+                InteractionHierarchy::Begin => stack.push((position, interaction)),
+                InteractionHierarchy::End => {
                     let Some((position, begin)) = stack.pop() else {
                         return Err(TranscriptError::MissingBegin {
                             position,
@@ -64,7 +79,21 @@ impl TranscriptPattern {
                         });
                     }
                 }
-                _ => {}
+                InteractionHierarchy::Atomic => {
+                    let Some((begin_position, begin)) = stack.pop() else {
+                        continue;
+                    };
+                    if begin.kind() != InteractionKind::Protocol
+                        && begin.kind() != interaction.kind()
+                    {
+                        return Err(TranscriptError::InvalidKind {
+                            begin_position,
+                            begin: Box::new(begin),
+                            interaction_position: position,
+                            interaction: Box::new(interaction),
+                        });
+                    }
+                }
             }
         }
         if let Some((position, begin)) = stack.pop() {
@@ -77,24 +106,38 @@ impl TranscriptPattern {
     }
 
     pub(super) fn push(&mut self, interaction: Interaction) -> Result<(), TranscriptError> {
-        if interaction.kind() == InteractionKind::End {
-            let begin = self.last_open_begin();
-            let Some((position, begin)) = begin else {
-                return Err(TranscriptError::MissingBegin {
-                    position: self.interactions.len(),
-                    end: Box::new(interaction),
+        if let Some((begin_position, begin)) = self.last_open_begin() {
+            // Check if the new interaction is of a permissible kind.
+            if begin.kind() != InteractionKind::Protocol && begin.kind() != interaction.kind() {
+                return Err(TranscriptError::InvalidKind {
+                    begin_position,
+                    begin: Box::new(begin),
+                    interaction_position: self.interactions.len(),
+                    interaction: Box::new(interaction),
                 });
-            };
-            let expected = interaction.as_begin();
-            if expected != begin {
+            }
+            // Check if it is a matching End to the current Begin
+            if interaction.hierarchy() == InteractionHierarchy::End
+                && begin != interaction.as_begin()
+            {
                 return Err(TranscriptError::MismatchedBeginEnd {
-                    begin_position: position,
+                    begin_position,
                     begin: Box::new(begin),
                     end_position: self.interactions.len(),
                     end: Box::new(interaction),
                 });
             }
+        } else {
+            // No unclosed Begin interaction. Make sure this is not an end.
+            if interaction.hierarchy() == InteractionHierarchy::End {
+                return Err(TranscriptError::MissingBegin {
+                    position: self.interactions.len(),
+                    end: Box::new(interaction),
+                });
+            }
         }
+
+        // All good, append
         self.interactions.push(interaction);
         Ok(())
     }
@@ -104,9 +147,9 @@ impl TranscriptPattern {
         // Reverse search to find matching begin
         let mut stack = 0;
         for (position, &interaction) in self.interactions.iter().rev().enumerate() {
-            match interaction.kind() {
-                InteractionKind::End => stack += 1,
-                InteractionKind::Begin => {
+            match interaction.hierarchy() {
+                InteractionHierarchy::End => stack += 1,
+                InteractionHierarchy::Begin => {
                     if stack == 0 {
                         return Some((position, interaction));
                     }
@@ -124,14 +167,14 @@ impl Display for TranscriptPattern {
         let mut indentation = 0;
         for (position, interaction) in self.interactions.iter().enumerate() {
             write!(f, "{position:>4} ")?;
-            if interaction.kind() == InteractionKind::End {
+            if interaction.hierarchy() == InteractionHierarchy::End {
                 indentation -= 1;
             }
             for _ in 0..indentation {
                 write!(f, "  ")?;
             }
             writeln!(f, "{interaction}")?;
-            if interaction.kind() == InteractionKind::Begin {
+            if interaction.hierarchy() == InteractionHierarchy::Begin {
                 indentation += 1;
             }
         }

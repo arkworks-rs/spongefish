@@ -8,7 +8,7 @@ mod transcript_recorder;
 use core::error::Error;
 
 pub use self::{
-    interaction::{Interaction, InteractionKind, Length},
+    interaction::{Interaction, InteractionHierarchy, InteractionKind, Length},
     transcript_pattern::{TranscriptError, TranscriptPattern},
     transcript_player::{InteractionError, TranscriptPlayer},
     transcript_recorder::TranscriptRecorder,
@@ -26,80 +26,29 @@ pub trait Transcript {
 pub trait TranscriptExt {
     type Error: Error;
 
-    /// Scalar prover-to-verifier message.
-    fn message<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
-
-    /// Fixed size prover-to-verifier message.
-    fn message_array<T>(&mut self, label: &'static str, length: usize) -> Result<(), Self::Error>;
-
-    /// Dynamic size prover-to-verifier message.
-    fn message_slice<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
-
-    fn hint<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
-
-    fn challenge<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
-
     /// Begin of a subprotocol.
-    fn begin<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn begin_protocol<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 
     /// End of a subprotocol.
-    fn end<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
+    fn end_protocol<T>(&mut self, label: &'static str) -> Result<(), Self::Error>;
 }
 
 impl<Tr: Transcript> TranscriptExt for Tr {
     type Error = Tr::Error;
 
-    fn message<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn begin_protocol<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
-            InteractionKind::Message,
-            label,
-            Length::Scalar,
-        ))
-    }
-
-    fn message_array<T>(&mut self, label: &'static str, length: usize) -> Result<(), Self::Error> {
-        self.interact(Interaction::new::<T>(
-            InteractionKind::Message,
-            label,
-            Length::Fixed(length),
-        ))
-    }
-
-    fn message_slice<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
-        self.interact(Interaction::new::<T>(
-            InteractionKind::Message,
-            label,
-            Length::Dynamic,
-        ))
-    }
-
-    fn hint<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
-        self.interact(Interaction::new::<T>(
-            InteractionKind::Hint,
-            label,
-            Length::Scalar,
-        ))
-    }
-
-    fn challenge<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
-        self.interact(Interaction::new::<T>(
-            InteractionKind::Challenge,
-            label,
-            Length::Scalar,
-        ))
-    }
-
-    fn begin<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
-        self.interact(Interaction::new::<T>(
-            InteractionKind::Begin,
+            InteractionHierarchy::Begin,
+            InteractionKind::Protocol,
             label,
             Length::None,
         ))
     }
 
-    fn end<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
+    fn end_protocol<T>(&mut self, label: &'static str) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<T>(
-            InteractionKind::End,
+            InteractionHierarchy::Begin,
+            InteractionKind::Protocol,
             label,
             Length::None,
         ))
