@@ -24,11 +24,17 @@ ark-ec = { workspace = true, optional = true }
 ark-serialize = { workspace = true, features = ["std"], optional = true }
 group = { workspace = true, optional = true }
 hex = { workspace = true }
+zerocopy = { version = "0.8.25", features = ["std"], optional = true }
+postcard = { version = "1.1.1", optional = true }
+thiserror = "2.0.12"
 
 [features]
-default = []
+default = ["arkworks-algebra", "zerocopy"]
 arkworks-algebra = ["dep:ark-ff", "dep:ark-ec", "dep:ark-serialize"]
 zkcrypto-group = ["dep:group"]
+zerocopy = ["dep:zerocopy"]
+ark-serialize = ["dep:ark-serialize"]
+serde-postcard = ["dep:postcard"]
 asm = ["keccak/asm", "keccak/simd"]
 
 [dev-dependencies]

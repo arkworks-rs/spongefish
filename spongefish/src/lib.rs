@@ -151,6 +151,8 @@ mod tests;
 /// Traits for byte support.
 pub mod traits;
 
+pub mod transcript;
+
 pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
 pub use errors::{DomainSeparatorMismatch, ProofError, ProofResult};
