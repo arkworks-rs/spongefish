@@ -1,14 +1,15 @@
 use core::{any::type_name, fmt::Display};
+use std::borrow::Cow;
 
 /// A single abstract prover-verifier interaction.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct Interaction {
     /// Hierarchical nesting of the interactions.
-    hierarchy: InteractionHierarchy,
+    hierarchy: Hierarchy,
     /// The kind of interaction.
-    kind: InteractionKind,
+    kind: Kind,
     /// A label identifying the purpose of the value.
-    label: &'static str,
+    label: Label,
     /// The Rust name of the type of the value.
     ///
     /// We use [`core::any::type_name`] to verify value types intead of [`core::any::TypeID`] since
@@ -20,9 +21,15 @@ pub struct Interaction {
     length: Length,
 }
 
+/// Labels for interactions.
+///
+/// The type `Cow<'static, str>` optimizes for the common case where labels are
+/// compile time constants, but still allows dynamic labels (e.g. `round-5`).
+pub type Label = Cow<'static, str>;
+
 /// Kinds of prover-verifier interactions
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub enum InteractionKind {
+pub enum Kind {
     /// A protocol containing mixed interactions.
     Protocol,
     /// A message send in-band from prover to verifier.
@@ -35,7 +42,7 @@ pub enum InteractionKind {
 
 /// Kinds of prover-verifier interactions
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub enum InteractionHierarchy {
+pub enum Hierarchy {
     /// A single interaction.
     Atomic,
     /// Start of a sub-protocol.
@@ -59,12 +66,7 @@ pub enum Length {
 
 impl Interaction {
     #[must_use]
-    pub fn new<T>(
-        hierarchy: InteractionHierarchy,
-        kind: InteractionKind,
-        label: &'static str,
-        length: Length,
-    ) -> Self {
+    pub fn new<T>(hierarchy: Hierarchy, kind: Kind, label: Label, length: Length) -> Self {
         Self {
             hierarchy,
             kind,
@@ -75,24 +77,25 @@ impl Interaction {
     }
 
     #[must_use]
-    pub const fn hierarchy(&self) -> InteractionHierarchy {
+    pub const fn hierarchy(&self) -> Hierarchy {
         self.hierarchy
     }
 
     #[must_use]
-    pub const fn kind(&self) -> InteractionKind {
+    pub const fn kind(&self) -> Kind {
         self.kind
     }
 
-    /// If it is an `InteractionHierarchy::End`, return the
-    /// corresponding `InteractionHierarchy::Begin`
+    /// Returns `true` if this is a `Hierarchy::End` that closes the provided
+    /// `Hierarchy::Begin`.
     #[must_use]
-    pub(super) fn as_begin(self) -> Self {
-        assert_eq!(self.hierarchy, InteractionHierarchy::End);
-        Self {
-            hierarchy: InteractionHierarchy::Begin,
-            ..self
-        }
+    pub(super) fn closes(&self, other: &Self) -> bool {
+        self.hierarchy == Hierarchy::End
+            && other.hierarchy == Hierarchy::Begin
+            && self.kind == other.kind
+            && self.label == other.label
+            && self.type_name == other.type_name
+            && self.length == other.length
     }
 }
 
@@ -115,7 +118,7 @@ impl Display for Interaction {
     }
 }
 
-impl Display for InteractionHierarchy {
+impl Display for Hierarchy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Atomic => write!(f, "Atomic"),
@@ -125,7 +128,7 @@ impl Display for InteractionHierarchy {
     }
 }
 
-impl Display for InteractionKind {
+impl Display for Kind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Protocol => write!(f, "Protocol"),
@@ -144,5 +147,29 @@ impl Display for Length {
             Self::Fixed(size) => write!(f, "Fixed({size})"),
             Self::Dynamic => write!(f, "Dynamic"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sizes() {
+        dbg!(size_of::<Interaction>());
+        assert!(size_of::<Interaction>() < 80);
+    }
+
+    #[test]
+    fn test_domain_separator() {
+        let interaction = Interaction::new::<Vec<f64>>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "test-message".into(),
+            Length::Scalar,
+        );
+        let result = format!("{interaction:#}");
+        let expected = "Atomic Message 12test-message Scalar";
+        assert_eq!(result, expected);
     }
 }

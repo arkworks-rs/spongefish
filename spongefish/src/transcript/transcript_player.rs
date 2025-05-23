@@ -13,17 +13,18 @@ pub enum InteractionError {
     #[error("Expected {expected} at {position}, got {got}")]
     UnexpectedInteraction {
         position: usize,
-        got: Box<Interaction>,
-        expected: Box<Interaction>,
+        got: Interaction,
+        expected: Interaction,
     },
     #[error("Expected {expected} at {position}, got nothing")]
     MissingInteraction {
         position: usize,
-        expected: Box<Interaction>,
+        expected: Interaction,
     },
 }
 
 impl<'a> TranscriptPlayer<'a> {
+    #[must_use]
     pub const fn new(pattern: &'a TranscriptPattern) -> Self {
         Self {
             pattern,
@@ -36,7 +37,7 @@ impl<'a> TranscriptPlayer<'a> {
         if self.position < self.pattern.interactions().len() {
             return Err(InteractionError::MissingInteraction {
                 position: self.position,
-                expected: Box::new(self.pattern.interactions()[self.position]),
+                expected: self.pattern.interactions()[self.position].clone(),
             });
         }
         Ok(())
@@ -55,17 +56,17 @@ impl Transcript for TranscriptPlayer<'_> {
     type Error = InteractionError;
 
     fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
-        let Some(&expected) = self.pattern.interactions().get(self.position) else {
+        let Some(expected) = self.pattern.interactions().get(self.position) else {
             return Err(InteractionError::MissingInteraction {
                 position: self.position,
-                expected: Box::new(interaction),
+                expected: interaction,
             });
         };
-        if expected != interaction {
+        if expected != &interaction {
             return Err(InteractionError::UnexpectedInteraction {
                 position: self.position,
-                got: Box::new(interaction),
-                expected: Box::new(expected),
+                got: interaction,
+                expected: expected.clone(),
             });
         }
         self.position += 1;
