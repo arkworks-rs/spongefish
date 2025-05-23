@@ -7,6 +7,8 @@
 //! This is done using the standard duplex sponge construction in overwrite mode (cf. [Wikipedia](https://en.wikipedia.org/wiki/Sponge_function#Duplex_construction)).
 //! - [`legacy::DigestBridge`] takes as input any hash function implementing the NIST API via the standard [`digest::Digest`] trait and makes it suitable for usage in duplex mode for continuous absorb/squeeze.
 
+use std::fmt::Debug;
+
 /// Sponge functions.
 mod interface;
 /// Legacy hash functions support (e.g. [`sha2`](https://crates.io/crates/sha2), [`blake2`](https://crates.io/crates/blake2)).
@@ -60,11 +62,22 @@ pub trait Permutation: Zeroize + Default + Clone + AsRef<[Self::U]> + AsMut<[Sel
 }
 
 /// A cryptographic sponge.
-#[derive(Clone, Default, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Default, Zeroize, ZeroizeOnDrop, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DuplexSponge<C: Permutation> {
     permutation: C,
     absorb_pos: usize,
     squeeze_pos: usize,
+}
+
+/// Censored version of Debug
+impl<C: Permutation> Debug for DuplexSponge<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DuplexSponge")
+            .field("permutation", &"<redacted>")
+            .field("absorb_pos", &self.absorb_pos)
+            .field("squeeze_pos", &self.squeeze_pos)
+            .finish()
+    }
 }
 
 impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C> {

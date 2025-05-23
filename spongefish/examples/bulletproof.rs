@@ -10,13 +10,21 @@
 
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, VariableBaseMSM};
 use ark_ff::Field;
-use ark_std::log2;
-use rand::rngs::OsRng;
+use ark_std::{
+    log2,
+    rand::{rngs::StdRng, SeedableRng},
+};
+use rand::Rng;
 use spongefish::codecs::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, FieldDomainSeparator, FieldToUnitDeserialize,
     FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize, GroupToUnitSerialize,
     ProofError, ProofResult, ProverState, UnitToField, VerifierState,
 };
+
+fn ark_rng() -> ark_std::rand::rngs::StdRng {
+    let seed: [u8; 32] = rand::rng().random();
+    <ark_std::rand::rngs::StdRng as ark_std::rand::SeedableRng>::from_seed(seed)
+}
 
 /// The domain separator of a bulleproof.
 ///
@@ -188,12 +196,12 @@ fn main() {
     let ab = dot_prod(&a, &b);
     // the generators to be used for respectively a, b, ip
     let g = (0..a.len())
-        .map(|_| GAffine::rand(&mut OsRng))
+        .map(|_| GAffine::rand(&mut ark_rng()))
         .collect::<Vec<_>>();
     let h = (0..b.len())
-        .map(|_| GAffine::rand(&mut OsRng))
+        .map(|_| GAffine::rand(&mut ark_rng()))
         .collect::<Vec<_>>();
-    let u = GAffine::rand(&mut OsRng);
+    let u = GAffine::rand(&mut ark_rng());
 
     let generators = (&g[..], &h[..], &u);
     let statement = G::msm_unchecked(&g, &a) + G::msm_unchecked(&h, &b) + u * ab;

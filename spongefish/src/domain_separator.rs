@@ -215,7 +215,7 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
     /// Create an [`crate::ProverState`] instance from the domain separator.
     #[must_use]
     pub fn to_prover_state(&self) -> crate::ProverState<H, U, crate::DefaultRng> {
-        self.into()
+        unimplemented!()
     }
 
     /// Create a [`crate::VerifierState`] instance from the domain separator and the protocol transcript (bytes).

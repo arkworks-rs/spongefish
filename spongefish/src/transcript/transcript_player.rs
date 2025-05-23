@@ -1,10 +1,22 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 
 use super::{Interaction, Transcript, TranscriptPattern};
 
-pub struct TranscriptPlayer<'a> {
-    pattern: &'a TranscriptPattern,
+/// Play back a transcript and make sure all interactions match up.
+///
+/// # Panics
+///
+/// Panics on [`Drop`] if there are unfinished interactions. Please use
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct TranscriptPlayer {
+    /// Shared reference to the transcript.
+    pattern: Arc<TranscriptPattern>,
+    /// Current position in the interaction pattern.
     position: usize,
+    /// Wheter the transcript playback has been finalized.
+    finalized: bool,
 }
 
 /// Errors when using a transcript
@@ -23,16 +35,20 @@ pub enum InteractionError {
     },
 }
 
-impl<'a> TranscriptPlayer<'a> {
+impl TranscriptPlayer {
     #[must_use]
-    pub const fn new(pattern: &'a TranscriptPattern) -> Self {
+    pub const fn new(pattern: Arc<TranscriptPattern>) -> Self {
         Self {
             pattern,
             position: 0,
+            finalized: false,
         }
     }
 
-    pub fn finalize(&mut self) -> Result<(), InteractionError> {
+    /// Finalize the sequence of interactions. Returns an error if there
+    /// are unfinished interactions.
+    pub fn finalize(mut self) -> Result<(), InteractionError> {
+        assert!(!self.finalized);
         assert!(self.position <= self.pattern.interactions().len());
         if self.position < self.pattern.interactions().len() {
             return Err(InteractionError::MissingInteraction {
@@ -40,22 +56,24 @@ impl<'a> TranscriptPlayer<'a> {
                 expected: self.pattern.interactions()[self.position].clone(),
             });
         }
+        self.finalized = true;
         Ok(())
     }
 }
 
-impl Drop for TranscriptPlayer<'_> {
+impl Drop for TranscriptPlayer {
     fn drop(&mut self) {
-        if let Err(e) = self.finalize() {
-            panic!("Dropped unfinalized transcript: {e}");
+        if !self.finalized {
+            panic!("Dropped unfinalized transcript.");
         }
     }
 }
 
-impl Transcript for TranscriptPlayer<'_> {
+impl Transcript for TranscriptPlayer {
     type Error = InteractionError;
 
     fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
+        assert!(!self.finalized, "Transcript is already finalized."); // Or should this be an error?
         let Some(expected) = self.pattern.interactions().get(self.position) else {
             return Err(InteractionError::MissingInteraction {
                 position: self.position,

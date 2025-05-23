@@ -20,7 +20,7 @@
 /// It can be used to verify a proof.
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
-use rand::rngs::OsRng;
+use rand::Rng as _;
 use spongefish::codecs::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
     FieldToUnitDeserialize, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize,
@@ -63,11 +63,16 @@ where
     }
 }
 
+fn ark_rng() -> ark_std::rand::rngs::StdRng {
+    let seed: [u8; 32] = rand::rng().random();
+    <ark_std::rand::rngs::StdRng as ark_std::rand::SeedableRng>::from_seed(seed)
+}
+
 /// The key generation algorithm otuputs
 /// a secret key `sk` in $\mathbb{Z}_p$
 /// and its respective public key `pk` in $\mathbb{G}$.
 fn keygen<G: CurveGroup>() -> (G::ScalarField, G) {
-    let sk = G::ScalarField::rand(&mut OsRng);
+    let sk = G::ScalarField::rand(&mut ark_rng());
     let pk = G::generator() * sk;
     (sk, pk)
 }

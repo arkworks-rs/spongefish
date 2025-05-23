@@ -152,6 +152,7 @@ pub mod traits;
 pub mod domain_separator;
 pub use domain_separator::*;
 
+mod prover_rng;
 pub mod transcript;
 
 pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
@@ -161,8 +162,10 @@ pub use sho::HashStateWithInstructions;
 pub use traits::*;
 pub use verifier::VerifierState;
 
-/// Default random number generator used ([`rand::rngs::OsRng`]).
-pub type DefaultRng = rand::rngs::OsRng;
+pub use crate::prover_rng::ProverPrivateRng;
+
+/// Default random number generator used ([`rand::rngs::StdRng`]).
+pub type DefaultRng = rand::rngs::StdRng;
 
 /// Default hash function used ([`keccak::Keccak`]).
 pub type DefaultHash = keccak::Keccak;

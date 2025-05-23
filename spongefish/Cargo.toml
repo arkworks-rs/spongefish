@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 zeroize = { workspace = true, features = ["zeroize_derive"] }
-rand = { workspace = true, features = ["getrandom"] }
+rand = { workspace = true, features = ["std_rng", "os_rng"] }
 digest = { workspace = true }
 # used as default hasher for the prover
 keccak = { workspace = true }
@@ -22,15 +22,23 @@ keccak = { workspace = true }
 ark-ff = { workspace = true, optional = true }
 ark-ec = { workspace = true, optional = true }
 ark-serialize = { workspace = true, features = ["std"], optional = true }
+ark-std = { workspace = true, optional = true }
 group = { workspace = true, optional = true }
 hex = { workspace = true }
 zerocopy = { version = "0.8", features = ["std"], optional = true }
 postcard = { version = "1.1.1", optional = true }
 thiserror = "2.0.12"
+sha3.workspace = true
+hex-literal = "1.0.0"
 
 [features]
 default = ["arkworks-algebra", "zerocopy"]
-arkworks-algebra = ["dep:ark-ff", "dep:ark-ec", "dep:ark-serialize"]
+arkworks-algebra = [
+    "dep:ark-ff",
+    "dep:ark-ec",
+    "dep:ark-serialize",
+    "dep:ark-std",
+]
 zkcrypto-group = ["dep:group"]
 zerocopy = ["dep:zerocopy"]
 ark-serialize = ["dep:ark-serialize"]
@@ -49,7 +57,6 @@ ark-curve25519 = { workspace = true }
 bls12_381 = { workspace = true }
 ark-bls12-381 = { workspace = true, features = ["std"] }
 ark-pallas = { workspace = true, features = ["std"] }
-pallas = { workspace = true }
 pasta_curves = { workspace = true }
 ark-vesta = { workspace = true, features = ["std"] }
 sha3 = { workspace = true }

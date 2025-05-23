@@ -48,14 +48,18 @@ impl TranscriptPattern {
         &self.interactions
     }
 
-    /// Generate a stable readble string for the transcript useful as domain separator.
+    /// Generate a unique identifier for the protocol.
+    ///
+    /// It is created by taking the SHA3 hash of a stable unambiguous
+    /// string representation of the transcript interactions.
     #[must_use]
-    pub fn domain_separator(&self) -> String {
-        let mut result = String::new();
-        // Use Display in `alternate` mode.
-        // Writing to String is invalible.
-        write!(&mut result, "{self:#}").unwrap();
-        result
+    pub fn domain_separator(&self) -> [u8; 32] {
+        use sha3::{Digest, Sha3_256};
+        let mut hasher = Sha3_256::new();
+        // Use Display in `alternate` mode for stable unambiguous representation.
+        hasher.update(format!("{self:#}").as_bytes());
+        let result = hasher.finalize();
+        result.into()
     }
 
     /// Validate the transcript.
@@ -215,7 +219,7 @@ mod tests {
             .push(Interaction::new::<usize>(
                 Hierarchy::Begin,
                 Kind::Protocol,
-                "test".into(),
+                "test",
                 Length::None,
             ))
             .unwrap();
@@ -223,7 +227,7 @@ mod tests {
             .push(Interaction::new::<Vec<f64>>(
                 Hierarchy::Atomic,
                 Kind::Message,
-                "test-message".into(),
+                "test-message",
                 Length::Scalar,
             ))
             .unwrap();
@@ -231,16 +235,19 @@ mod tests {
             .push(Interaction::new::<usize>(
                 Hierarchy::End,
                 Kind::Protocol,
-                "test".into(),
+                "test",
                 Length::None,
             ))
             .unwrap();
-        let result = transcript.domain_separator();
+        let result = format!("{transcript:#}");
         let expected = r"Spongefish Transcript (3 interactions)
 0 Begin Protocol 4test None
 1   Atomic Message 12test-message Scalar
 2 End Protocol 4test None
 ";
         assert_eq!(result, expected);
+
+        let result = transcript.domain_separator();
+        assert_eq!(hex::encode(result), "asd");
     }
 }

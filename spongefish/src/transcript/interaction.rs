@@ -66,11 +66,16 @@ pub enum Length {
 
 impl Interaction {
     #[must_use]
-    pub fn new<T>(hierarchy: Hierarchy, kind: Kind, label: Label, length: Length) -> Self {
+    pub fn new<T: ?Sized>(
+        hierarchy: Hierarchy,
+        kind: Kind,
+        label: impl Into<Label>,
+        length: Length,
+    ) -> Self {
         Self {
             hierarchy,
             kind,
-            label,
+            label: label.into(),
             type_name: type_name::<T>(),
             length,
         }
@@ -165,7 +170,7 @@ mod tests {
         let interaction = Interaction::new::<Vec<f64>>(
             Hierarchy::Atomic,
             Kind::Message,
-            "test-message".into(),
+            "test-message",
             Length::Scalar,
         );
         let result = format!("{interaction:#}");
