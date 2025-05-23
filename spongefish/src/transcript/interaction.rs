@@ -98,7 +98,20 @@ impl Interaction {
 
 impl Display for Interaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}: {}", self.kind, self.label, self.type_name)
+        if f.alternate() {
+            // Domain separator mode: stable unambigious format.
+            write!(f, "{} {}", self.hierarchy, self.kind)?;
+            // Length prefixed strings for labels to disambiguate
+            write!(f, " {}{}", self.label.len(), self.label)?;
+            write!(f, " {}", self.length)
+            // Leave out type names for domain separators.
+        } else {
+            write!(
+                f,
+                "{} {} {} {} {}",
+                self.hierarchy, self.kind, self.label, self.length, self.type_name,
+            )
+        }
     }
 }
 
@@ -119,6 +132,17 @@ impl Display for InteractionKind {
             Self::Message => write!(f, "Message"),
             Self::Hint => write!(f, "Hint"),
             Self::Challenge => write!(f, "Challenge"),
+        }
+    }
+}
+
+impl Display for Length {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::None => write!(f, "None"),
+            Self::Scalar => write!(f, "Scalar"),
+            Self::Fixed(size) => write!(f, "Fixed({size})"),
+            Self::Dynamic => write!(f, "Dynamic"),
         }
     }
 }

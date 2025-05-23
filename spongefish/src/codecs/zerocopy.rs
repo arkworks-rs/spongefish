@@ -77,7 +77,7 @@ where
     fn message(&mut self, label: &'static str) -> Result<T, Self::Error> {
         self.begin_message::<(Self, T)>(label)?;
         let mut result = T::new_zeroed();
-        self.message(result.as_mut_bytes());
+        self.message(result.as_mut_bytes()).unwrap();
         self.end_message::<(Self, T)>(label)?;
         Ok(result)
     }
@@ -126,6 +126,4 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_type_name() {}
 }

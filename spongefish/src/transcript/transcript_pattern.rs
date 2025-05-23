@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use std::{fmt::Write, result, str::FromStr};
 
 use thiserror::Error;
 
@@ -42,12 +43,25 @@ pub enum TranscriptError {
 }
 
 impl TranscriptPattern {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)] // False positive
     pub fn interactions(&self) -> &[Interaction] {
         &self.interactions
+    }
+
+    /// Generate a stable readble string for the transcript useful as domain separator.
+    #[must_use]
+    pub fn domain_separator(&self) -> String {
+        let mut result = String::new();
+        // Use Display in `alternate` mode.
+        // Writing to String is invalible.
+        write!(&mut result, "{self:#}").unwrap();
+        result
     }
 
     /// Validate the transcript.
@@ -162,9 +176,18 @@ impl TranscriptPattern {
     }
 }
 
+/// Creates a human readable representation of the transcript.
+///
+/// When called in alternate mode `{:#}` it will be a stable format suitable as domain separator.
 impl Display for TranscriptPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut indentation = 0;
+        // Write the total interactions up front so no prefix string can be a valid domain separator.
+        writeln!(
+            f,
+            "Spongefish Transcript ({} interactions)",
+            self.interactions.len()
+        )?;
         for (position, interaction) in self.interactions.iter().enumerate() {
             write!(f, "{position:>4} ")?;
             if interaction.hierarchy() == InteractionHierarchy::End {
