@@ -1,3 +1,6 @@
+//! [`zerocopy`] allows safe and efficient conversion to/from bytes for types that have
+//! simple in-memory representations.
+
 use zerocopy::{FromBytes, Immutable, IntoBytes};
 
 use crate::{
@@ -5,7 +8,7 @@ use crate::{
         BytesChallenge, BytesHintProver, BytesHintVerifier, BytesMessageProver,
         BytesMessageVerifier, BytesPattern,
     },
-    transcript::{Label, Length, Transcript, TranscriptExt as _},
+    transcript::{Label, Length, Transcript},
 };
 
 pub trait ZeroCopyPattern<T>: Transcript {

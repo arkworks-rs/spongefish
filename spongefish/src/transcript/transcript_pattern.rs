@@ -248,6 +248,9 @@ mod tests {
         assert_eq!(result, expected);
 
         let result = transcript.domain_separator();
-        assert_eq!(hex::encode(result), "asd");
+        assert_eq!(
+            hex::encode(result),
+            "7f054d6b7fbd0a6d216d39995a8a761e20015bffa671a7ab7827f1679622a9ab"
+        );
     }
 }

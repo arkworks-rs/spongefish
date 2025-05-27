@@ -1,12 +1,17 @@
+mod rng;
+mod traits;
+
 use std::{marker::PhantomData, sync::Arc};
 
 use rand::{CryptoRng, RngCore, SeedableRng};
 
+pub use self::rng::ProverRng;
 use crate::{
     duplex_sponge::{DuplexSpongeInterface, Unit},
-    transcript::{InteractionError, TranscriptPattern, TranscriptPlayer},
-    BytesToUnitSerialize, DefaultHash, DefaultRng, DomainSeparatorMismatch, ProverPrivateRng,
-    UnitTranscript,
+    transcript::{
+        Hierarchy, Interaction, InteractionError, Kind, Length, TranscriptPattern, TranscriptPlayer,
+    },
+    DefaultHash, DefaultRng, DomainSeparatorMismatch, ProverPrivateRng,
 };
 
 /// [`ProverState`] is the prover state of an interactive proof (IP) system.
@@ -31,13 +36,17 @@ where
     R: RngCore + CryptoRng,
 {
     /// The transcript being followed.
-    pub(crate) transcript: TranscriptPlayer,
+    transcript: TranscriptPlayer,
+
     /// The randomness state of the prover.
-    pub(crate) rng: ProverPrivateRng<R>,
+    rng: ProverRng<R>,
+
     /// The public coins for the protocol
-    pub(crate) duplex_sponge: H,
+    duplex_sponge: H,
+
     /// The encoded data.
-    pub(crate) narg_string: Vec<u8>,
+    narg_string: Vec<u8>,
+
     /// Unit type of the sponge (defaults to `u8`)
     _unit: PhantomData<U>,
 }
@@ -50,6 +59,7 @@ where
 {
     /// Initialize the prover with the private random number generator seeded from operating
     /// system randomness.
+    #[must_use]
     pub fn new(pattern: Arc<TranscriptPattern>) -> Self {
         Self::new_with_rng(pattern, R::from_os_rng())
     }
@@ -65,7 +75,7 @@ where
         let domain_separator = pattern.domain_separator();
         Self {
             transcript: TranscriptPlayer::new(pattern),
-            rng: ProverPrivateRng::new(domain_separator, csrng),
+            rng: ProverRng::new(domain_separator, csrng),
             duplex_sponge: H::new(domain_separator),
             narg_string: Vec::new(),
             _unit: PhantomData,
@@ -78,7 +88,6 @@ where
     pub fn finalize(mut self) -> Result<Vec<u8>, InteractionError> {
         // Zero sensitive state
         self.duplex_sponge.zeroize();
-        // TODO: Zero rng?
 
         // Finalize the transcript (will panic if called twice)
         self.transcript.finalize()?;
@@ -101,23 +110,8 @@ where
     /// prover_state.rng().fill_bytes(&mut challenges);
     /// assert_ne!(challenges, [0u8; 32]);
     /// ```
-    #[cfg(not(feature = "arkworks-algebra"))]
-    pub fn rng(&mut self) -> &mut (impl CryptoRng + RngCore) {
+    pub fn rng(&mut self) -> &mut ProverRng<R> {
         &mut self.rng
-    }
-    #[cfg(feature = "arkworks-algebra")]
-    pub fn rng(
-        &mut self,
-    ) -> &mut (impl CryptoRng + RngCore + ark_std::rand::CryptoRng + ark_std::rand::RngCore) {
-        &mut self.rng
-    }
-
-    pub fn hint_bytes(&mut self, hint: &[u8]) -> Result<(), InteractionError> {
-        todo!(); // self.hash_state.hint()?;
-        let len = u32::try_from(hint.len()).expect("Hint size out of bounds");
-        self.narg_string.extend_from_slice(&len.to_le_bytes());
-        self.narg_string.extend_from_slice(hint);
-        Ok(())
     }
 
     /// Add a slice `[U]` to the protocol transcript.
@@ -133,7 +127,7 @@ where
     /// let result = prover_state.add_units(b"1tbsp every 10 liters");
     /// assert!(result.is_err())
     /// ```
-    pub fn add_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
+    fn add_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
         let old_len = self.narg_string.len();
         todo!(); // self.hash_state.absorb(input)?;
 
@@ -145,8 +139,16 @@ where
     }
 
     /// Ratchet the verifier's state.
-    pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
-        todo!(); // self.hash_state.ratchet()
+    pub fn ratchet(&mut self) -> Result<(), InteractionError> {
+        self.transcript.interact(Interaction::new::<()>(
+            Hierarchy::Atomic,
+            Kind::Protocol,
+            "ratchet",
+            Length::Scalar,
+        ))?;
+        self.duplex_sponge.ratchet();
+        self.rng.ratchet();
+        Ok(())
     }
 
     /// Return the current protocol transcript.
@@ -168,47 +170,6 @@ where
     }
 }
 
-impl<H, U, R> UnitTranscript<U> for ProverState<H, U, R>
-where
-    U: Unit,
-    H: DuplexSpongeInterface<U>,
-    R: RngCore + CryptoRng,
-{
-    /// Add public messages to the protocol transcript.
-    /// Messages input to this function are not added to the protocol transcript.
-    /// They are however absorbed into the verifier's sponge for Fiat-Shamir, and used to re-seed the prover state.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    ///
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(20, "how not to make pasta 🙉");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// assert!(prover_state.public_bytes(&[0u8; 20]).is_ok());
-    /// assert_eq!(prover_state.narg_string(), b"");
-    /// ```
-    fn public_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
-        let len = self.narg_string.len();
-        self.add_units(input)?;
-        self.narg_string.truncate(len);
-        Ok(())
-    }
-
-    /// Fill a slice with uniformly-distributed challenges from the verifier.
-    fn fill_challenge_units(&mut self, output: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
-        todo!(); // self.hash_state.squeeze(output)
-    }
-}
-
-impl<H, R> BytesToUnitSerialize for ProverState<H, u8, R>
-where
-    H: DuplexSpongeInterface<u8>,
-    R: RngCore + CryptoRng,
-{
-    fn add_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
-        self.add_units(input)
-    }
-}
-
 impl<U, H, R> From<&TranscriptPattern> for ProverState<H, U, R>
 where
     U: Unit,
@@ -224,9 +185,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::{
-        Hierarchy, Interaction, Kind, Length, Transcript, TranscriptExt, TranscriptRecorder,
-    };
+    use crate::transcript::{Hierarchy, Interaction, Kind, Length, TranscriptRecorder};
 
     #[test]
     fn test_prover_state_add_units_and_rng_differs() {

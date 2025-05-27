@@ -155,12 +155,12 @@ mod tests {
             Self::new_inner()
         }
 
-        fn absorb_unchecked(&mut self, input: &[u8]) -> &mut Self {
+        fn absorb(&mut self, input: &[u8]) -> &mut Self {
             self.absorbed.borrow_mut().extend_from_slice(input);
             self
         }
 
-        fn squeeze_unchecked(&mut self, output: &mut [u8]) -> &mut Self {
+        fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
             for (i, byte) in output.iter_mut().enumerate() {
                 *byte = i as u8;
             }
@@ -168,7 +168,7 @@ mod tests {
             self
         }
 
-        fn ratchet_unchecked(&mut self) -> &mut Self {
+        fn ratchet(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }

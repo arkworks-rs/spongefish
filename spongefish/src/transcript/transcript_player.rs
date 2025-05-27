@@ -59,20 +59,8 @@ impl TranscriptPlayer {
         self.finalized = true;
         Ok(())
     }
-}
 
-impl Drop for TranscriptPlayer {
-    fn drop(&mut self) {
-        if !self.finalized {
-            panic!("Dropped unfinalized transcript.");
-        }
-    }
-}
-
-impl Transcript for TranscriptPlayer {
-    type Error = InteractionError;
-
-    fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
+    pub fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
         assert!(!self.finalized, "Transcript is already finalized."); // Or should this be an error?
         let Some(expected) = self.pattern.interactions().get(self.position) else {
             return Err(InteractionError::MissingInteraction {
@@ -89,5 +77,13 @@ impl Transcript for TranscriptPlayer {
         }
         self.position += 1;
         Ok(())
+    }
+}
+
+impl Drop for TranscriptPlayer {
+    fn drop(&mut self) {
+        if !self.finalized {
+            panic!("Dropped unfinalized transcript.");
+        }
     }
 }

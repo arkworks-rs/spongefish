@@ -110,7 +110,7 @@ impl Display for Interaction {
             // Domain separator mode: stable unambigious format.
             write!(f, "{} {}", self.hierarchy, self.kind)?;
             // Length prefixed strings for labels to disambiguate
-            write!(f, " {}{}", self.label.len(), self.label)?;
+            write!(f, " {} {}", self.label.len(), self.label)?;
             write!(f, " {}", self.length)
             // Leave out type names for domain separators.
         } else {

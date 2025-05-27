@@ -1,4 +1,165 @@
-use crate::{errors::DomainSeparatorMismatch, Unit};
+use std::{array::from_fn, error::Error, marker::PhantomData};
+
+use crate::{
+    errors::DomainSeparatorMismatch,
+    transcript::{Label, Length},
+    Unit,
+};
+
+// TODO: Ratchet and PublicMessage
+
+pub trait MessagePattern<T> {
+    type Error: Error;
+
+    fn message(&mut self, label: impl Into<Label>, ty: PhantomData<T>) -> Result<(), Self::Error>;
+    fn message_sized(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
+    fn message_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
+}
+
+pub trait MessageProver<T> {
+    type Error: Error;
+
+    /// A single message of type T
+    fn message(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>;
+
+    /// A fixed size message of type [T]
+    fn message_fixed(&mut self, label: impl Into<Label>, value: &[T]) -> Result<(), Self::Error>;
+
+    /// A dynamic sized message of type [T]
+    fn message_dynamic(&mut self, label: impl Into<Label>, value: &[T]) -> Result<(), Self::Error>;
+}
+
+pub trait MessageVerifier<T: ?Sized> {
+    type Error: Error;
+
+    fn message(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    where
+        T: Sized;
+
+    fn message_mut_ref(&mut self, label: impl Into<Label>, out: &mut T) -> Result<(), Self::Error>;
+}
+
+pub trait ChallengePattern<T> {
+    type Error: Error;
+
+    fn challenge(&mut self, label: impl Into<Label>, ty: PhantomData<T>)
+        -> Result<(), Self::Error>;
+    fn challenge_sized(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
+    fn challenge_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
+}
+
+pub trait ChallengeProver<T> {
+    type Error: Error;
+
+    /// A single challenge of type T
+    fn challenge_out(&mut self, label: impl Into<Label>, out: &mut T) -> Result<(), Self::Error>;
+
+    /// A fixed size challenge of type [T]
+    fn challenge_fixed(
+        &mut self,
+        label: impl Into<Label>,
+        value: &mut [T],
+    ) -> Result<(), Self::Error>;
+
+    /// A dynamic sized challenge of type [T]
+    ///
+    /// Dynamic here means that the length was not known at the time of producing pattern, but is
+    /// known to both prover and verifier at the point where it is needed (e.g. it derives from
+    /// previous interactions).
+    fn challenge_dynamic(
+        &mut self,
+        label: impl Into<Label>,
+        value: &mut [T],
+    ) -> Result<(), Self::Error>;
+
+    /// A single challenge of type T
+    fn challenge(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    where
+        T: Default,
+    {
+        let mut result = T::default();
+        self.challenge_out(label, &mut result)?;
+        Ok(result)
+    }
+
+    /// A fixed size challenge of type [T] as [T; N]
+    fn challenge_array<const N: usize>(
+        &mut self,
+        label: impl Into<Label>,
+    ) -> Result<[T; N], Self::Error>
+    where
+        T: Default,
+    {
+        let mut result = from_fn(|_| T::default());
+        self.challenge_fixed(label, &mut result)?;
+        Ok(result)
+    }
+
+    /// A fixed size challenge of type [T] as Vec<T>
+    fn challenge_vec(&mut self, label: impl Into<Label>, size: usize) -> Result<Vec<T>, Self::Error>
+    where
+        T: Default,
+    {
+        let mut result = (0..size).map(|_| T::default()).collect::<Vec<_>>();
+        self.challenge_fixed(label, &mut result)?;
+        Ok(result)
+    }
+
+    /// A dynamic sized challenge of type [T] as Vec<T>
+    fn challenge_dynamic_vec(
+        &mut self,
+        label: impl Into<Label>,
+        size: usize,
+    ) -> Result<Vec<T>, Self::Error>
+    where
+        T: Default,
+    {
+        let mut result = (0..size).map(|_| T::default()).collect::<Vec<_>>();
+        self.challenge_dynamic(label, &mut result)?;
+        Ok(result)
+    }
+}
+
+pub trait ChallengeVerifier<T: ?Sized> {
+    type Error: Error;
+
+    fn message(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    where
+        T: Sized;
+
+    fn message_mut_ref(&mut self, label: impl Into<Label>, out: &mut T) -> Result<(), Self::Error>;
+}
+
+pub trait HintPattern<T> {
+    type Error: Error;
+
+    fn hint(&mut self, label: impl Into<Label>, ty: PhantomData<T>) -> Result<(), Self::Error>;
+    fn hint_sized(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
+    fn hint_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
+}
+
+pub trait HintProver<T> {
+    type Error: Error;
+
+    /// A single hint of type T
+    fn hint(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>;
+
+    /// A fixed size hint of type [T]
+    fn hint_fixed(&mut self, label: impl Into<Label>, value: &[T]) -> Result<(), Self::Error>;
+
+    /// A dynamic sized hint of type [T]
+    fn hint_dynamic(&mut self, label: impl Into<Label>, value: &[T]) -> Result<(), Self::Error>;
+}
+
+pub trait HintVerifier<T: ?Sized> {
+    type Error: Error;
+
+    fn hint(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    where
+        T: Sized;
+
+    fn hint_mut_ref(&mut self, label: impl Into<Label>, out: &mut T) -> Result<(), Self::Error>;
+}
 
 /// Absorbing and squeezing native elements from the sponge.
 ///

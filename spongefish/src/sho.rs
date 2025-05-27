@@ -37,7 +37,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Ratchet) => {
-                self.ds.ratchet_unchecked();
+                self.ds.ratchet();
                 Ok(())
             }
             Some(op) => Err(format!("Expected Ratchet, got {op:?}").into()),
@@ -61,7 +61,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
                 if length > input.len() {
                     self.stack.push_front(Op::Absorb(length - input.len()));
                 }
-                self.ds.absorb_unchecked(input);
+                self.ds.absorb(input);
                 Ok(())
             }
             None => {
@@ -101,7 +101,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     pub fn squeeze(&mut self, output: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Squeeze(length)) if output.len() <= length => {
-                self.ds.squeeze_unchecked(output);
+                self.ds.squeeze(output);
                 if length != output.len() {
                     self.stack.push_front(Op::Squeeze(length - output.len()));
                 }
@@ -130,9 +130,9 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
 
     fn generate_tag(iop_bytes: &[u8]) -> [u8; 32] {
         let mut keccak = Keccak::default();
-        keccak.absorb_unchecked(iop_bytes);
+        keccak.absorb(iop_bytes);
         let mut tag = [0u8; 32];
-        keccak.squeeze_unchecked(&mut tag);
+        keccak.squeeze(&mut tag);
         tag
     }
 
@@ -222,12 +222,12 @@ mod tests {
             Self::new_inner()
         }
 
-        fn absorb_unchecked(&mut self, input: &[u8]) -> &mut Self {
+        fn absorb(&mut self, input: &[u8]) -> &mut Self {
             self.absorbed.borrow_mut().extend_from_slice(input);
             self
         }
 
-        fn squeeze_unchecked(&mut self, output: &mut [u8]) -> &mut Self {
+        fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
             for (i, byte) in output.iter_mut().enumerate() {
                 *byte = i as u8; // Dummy output
             }
@@ -235,7 +235,7 @@ mod tests {
             self
         }
 
-        fn ratchet_unchecked(&mut self) -> &mut Self {
+        fn ratchet(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }
