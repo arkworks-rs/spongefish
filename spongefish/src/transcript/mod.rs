@@ -21,7 +21,7 @@ pub trait Transcript {
     type Error: Error;
 
     /// Begin of a group of interactions.
-    fn begin<T>(
+    fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
@@ -29,7 +29,7 @@ pub trait Transcript {
     ) -> Result<(), Self::Error>;
 
     /// End of a group of interactions.
-    fn end<T>(
+    fn end<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
@@ -37,17 +37,17 @@ pub trait Transcript {
     ) -> Result<(), Self::Error>;
 
     /// Begin of a subprotocol.
-    fn begin_protocol<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
+    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
         self.begin::<T>(label.into(), Kind::Protocol, Length::None)
     }
 
     /// End of a subprotocol.
-    fn end_protocol<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
+    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
         self.end::<T>(label, Kind::Protocol, Length::None)
     }
 
     /// Begin of a message interaction.
-    fn begin_message<T>(
+    fn begin_message<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         length: Length,
@@ -56,7 +56,7 @@ pub trait Transcript {
     }
 
     /// End of a message interaction.
-    fn end_message<T>(
+    fn end_message<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         length: Length,
@@ -65,7 +65,7 @@ pub trait Transcript {
     }
 
     /// Begin of a hint interaction.
-    fn begin_hint<T>(
+    fn begin_hint<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         length: Length,
@@ -74,12 +74,16 @@ pub trait Transcript {
     }
 
     /// End of a hint interaction..
-    fn end_hint<T>(&mut self, label: impl Into<Label>, length: Length) -> Result<(), Self::Error> {
+    fn end_hint<T: ?Sized>(
+        &mut self,
+        label: impl Into<Label>,
+        length: Length,
+    ) -> Result<(), Self::Error> {
         self.end::<T>(label, Kind::Hint, length)
     }
 
     /// Begin of a challenge interaction..
-    fn begin_challenge<T>(
+    fn begin_challenge<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         length: Length,
@@ -88,7 +92,7 @@ pub trait Transcript {
     }
 
     /// End of a challenge interaction..
-    fn end_challenge<T>(
+    fn end_challenge<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         length: Length,

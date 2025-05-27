@@ -4,6 +4,8 @@
 #[cfg(any(feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod traits;
 
+mod bytes;
+
 #[cfg(feature = "arkworks-algebra")]
 /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.
 pub mod arkworks_algebra;

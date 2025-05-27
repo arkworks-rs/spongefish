@@ -169,3 +169,12 @@ pub type DefaultRng = rand::rngs::StdRng;
 
 /// Default hash function used ([`keccak::Keccak`]).
 pub type DefaultHash = keccak::Keccak;
+
+#[cfg(not(feature = "arkworks-rand"))]
+pub trait Rng: rand::RngCore + rand::CryptoRng {}
+
+#[cfg(feature = "arkworks-rand")]
+pub trait Rng:
+    rand::RngCore + rand::CryptoRng + ark_std::rand::RngCore + ark_std::rand::CryptoRng
+{
+}

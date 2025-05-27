@@ -23,7 +23,7 @@ impl TranscriptRecorder {
 impl Transcript for TranscriptRecorder {
     type Error = TranscriptError;
 
-    fn begin<T>(
+    fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
@@ -32,7 +32,7 @@ impl Transcript for TranscriptRecorder {
         self.interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length))
     }
 
-    fn end<T>(
+    fn end<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,

@@ -16,6 +16,19 @@ pub trait MessagePattern<T> {
     fn message_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
 }
 
+/// Add a slice `[U]` to the protocol transcript.
+/// The messages are also internally encoded in the protocol transcript,
+/// and used to re-seed the prover's random number generator.
+///
+/// ```
+/// use spongefish::{DomainSeparator, DefaultHash, BytesToUnitSerialize};
+///
+/// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(20, "how not to make pasta 🤌");
+/// let mut prover_state = domain_separator.to_prover_state();
+/// assert!(prover_state.add_units(&[0u8; 20]).is_ok());
+/// let result = prover_state.add_units(b"1tbsp every 10 liters");
+/// assert!(result.is_err())
+/// ```
 pub trait MessageProver<T> {
     type Error: Error;
 
@@ -133,7 +146,7 @@ pub trait ChallengeVerifier<T: ?Sized> {
 pub trait HintPattern<T> {
     type Error: Error;
 
-    fn hint(&mut self, label: impl Into<Label>, ty: PhantomData<T>) -> Result<(), Self::Error>;
+    fn hint(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
     fn hint_sized(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
     fn hint_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
 }

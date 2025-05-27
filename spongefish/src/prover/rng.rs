@@ -87,6 +87,8 @@ impl<R: RngCore + CryptoRng> ark_std::rand::RngCore for ProverRng<R> {
 #[cfg(feature = "arkworks-rand")]
 impl<R: RngCore + CryptoRng> ark_std::rand::CryptoRng for ProverRng<R> {}
 
+impl<R: RngCore + CryptoRng> crate::Rng for ProverRng<R> {}
+
 #[cfg(test)]
 mod tests {
     use rand::{rngs::StdRng, SeedableRng};

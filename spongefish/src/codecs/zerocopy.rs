@@ -1,132 +1,204 @@
 //! [`zerocopy`] allows safe and efficient conversion to/from bytes for types that have
 //! simple in-memory representations.
 
-use zerocopy::{FromBytes, Immutable, IntoBytes};
+use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes};
 
+use super::bytes::BytesProver;
 use crate::{
-    traits::{
-        BytesChallenge, BytesHintProver, BytesHintVerifier, BytesMessageProver,
-        BytesMessageVerifier, BytesPattern,
-    },
-    transcript::{Label, Length, Transcript},
+    prover::Prover,
+    transcript::{Label, Length},
+    verifier::Verifier,
+    Unit,
 };
 
-pub trait ZeroCopyPattern<T>: Transcript {
-    fn message(&mut self, label: Label) -> Result<(), Self::Error>;
-    fn hint(&mut self, label: Label) -> Result<(), Self::Error>;
-    fn challenge(&mut self, label: Label) -> Result<(), Self::Error>;
-}
-
-pub trait ZeroCopyMessageProver<T: Immutable + IntoBytes>: Transcript {
-    fn message(&mut self, label: Label, value: &T) -> Result<(), Self::Error>;
-}
-
-pub trait ZeroCopyMessageVerifier<T: IntoBytes + FromBytes>: Transcript {
-    fn message(&mut self, label: Label) -> Result<T, Self::Error>;
-}
-
-pub trait ZeroCopyHintProver<T: Immutable + IntoBytes>: Transcript {
-    fn hint(&mut self, label: Label, value: &T) -> Result<(), Self::Error>;
-}
-
-pub trait ZeroCopyHintVerifier<T: IntoBytes + FromBytes>: Transcript {
-    fn hint(&mut self, label: Label) -> Result<T, Self::Error>;
-}
-
-pub trait ZeroCopyChallenge<T: IntoBytes + FromBytes>: Transcript {
-    fn challenge(&mut self, label: Label) -> Result<T, Self::Error>;
-}
-
-impl<State, T> ZeroCopyPattern<T> for State
+pub trait ZeroCopyProver<U, T>: Prover<U>
 where
-    State: Transcript + BytesPattern,
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
 {
-    fn message(&mut self, label: Label) -> Result<(), Self::Error> {
-        self.begin_message::<(Self, T)>(label.clone(), Length::Scalar)?;
-        self.add_bytes(size_of::<T>(), &label);
-        self.end_message::<(Self, T)>(label, Length::Scalar)
-    }
+    fn message_zerocopy(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>;
 
-    fn hint(&mut self, label: Label) -> Result<(), Self::Error> {
-        self.begin_hint::<(Self, T)>(label.clone(), Length::Scalar)?;
-        self.hint(&label);
-        self.end_hint::<(Self, T)>(label, Length::Scalar)
-    }
+    fn message_zerocopy_slice(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[T],
+    ) -> Result<(), Self::Error>;
 
-    fn challenge(&mut self, label: Label) -> Result<(), Self::Error> {
-        self.begin_challenge::<(Self, T)>(label.clone(), Length::Scalar)?;
-        self.challenge_bytes(size_of::<T>(), &label);
-        self.end_challenge::<(Self, T)>(label, Length::Scalar)
-    }
-}
+    fn challenge_zerocopy_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut T,
+    ) -> Result<(), Self::Error>;
 
-impl<State, T> ZeroCopyMessageProver<T> for State
-where
-    State: Transcript + BytesMessageProver,
-    T: Immutable + IntoBytes,
-{
-    fn message(&mut self, label: Label, value: &T) -> Result<(), Self::Error> {
-        self.begin_message::<(Self, T)>(label.clone(), Length::Scalar)?;
-        self.message(value.as_bytes()).unwrap();
-        self.end_message::<(Self, T)>(label, Length::Scalar)
-    }
-}
-
-impl<State, T> ZeroCopyMessageVerifier<T> for State
-where
-    State: Transcript + BytesMessageVerifier,
-    T: IntoBytes + FromBytes,
-{
-    fn message(&mut self, label: Label) -> Result<T, Self::Error> {
-        self.begin_message::<(Self, T)>(label.clone(), Length::Scalar)?;
+    fn challenge_zerocopy(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    where
+        T: FromZeros,
+    {
         let mut result = T::new_zeroed();
-        self.message(result.as_mut_bytes()).unwrap();
-        self.end_message::<(Self, T)>(label, Length::Scalar)?;
+        self.challenge_zerocopy_out(label, &mut result)?;
+        Ok(result)
+    }
+
+    fn challenge_zerocopy_slice_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut [T],
+    ) -> Result<(), Self::Error>;
+
+    fn challenge_zerocopy_array<const N: usize>(
+        &mut self,
+        label: impl Into<Label>,
+    ) -> Result<[T; N], Self::Error>
+    where
+        T: FromZeros,
+    {
+        let mut result = <[T; N]>::new_zeroed();
+        self.challenge_zerocopy_slice_out(label, &mut result)?;
+        Ok(result)
+    }
+
+    fn challenge_zerocopy_vec(
+        &mut self,
+        label: impl Into<Label>,
+        size: usize,
+    ) -> Result<Vec<T>, Self::Error>
+    where
+        T: FromZeros,
+    {
+        let mut result = T::new_vec_zeroed(size).expect("allocation failure");
+        self.challenge_zerocopy_slice_out(label, &mut result)?;
         Ok(result)
     }
 }
 
-impl<State, T> ZeroCopyHintProver<T> for State
+pub trait ZeroCopyVerifier<'a, U, T>: Verifier<'a, U>
 where
-    State: Transcript + BytesHintProver,
-    T: Immutable + IntoBytes,
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
 {
-    fn hint(&mut self, label: Label, value: &T) -> Result<(), Self::Error> {
-        self.begin_hint::<(Self, T)>(label.clone(), Length::Scalar)?;
-        self.hint(value.as_bytes()).unwrap();
-        self.end_hint::<(Self, T)>(label, Length::Scalar)
+    fn message_zerocopy_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut T,
+    ) -> Result<(), Self::Error>;
+
+    fn message_zerocopy_slice_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut [T],
+    ) -> Result<(), Self::Error>;
+
+    fn challenge_zerocopy_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut T,
+    ) -> Result<(), Self::Error>;
+
+    fn challenge_zerocopy_slice_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut [T],
+    ) -> Result<(), Self::Error>;
+}
+
+pub trait ZeroCopyHintProver<U, T>: Prover<U>
+where
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
+{
+    fn hint_zerocopy(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>;
+
+    fn hint_zerocopy_dynamic(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), Self::Error>;
+}
+
+pub trait ZeroCopyHintVerifier<U, T>: Prover<U>
+where
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
+{
+    fn hint_zerocopy(&mut self, label: impl Into<Label>, out: &mut T) -> Result<(), Self::Error>;
+
+    fn hint_zerocopy_dynamic(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut T,
+    ) -> Result<(), Self::Error>;
+}
+
+impl<P, U, T> ZeroCopyProver<U, T> for P
+where
+    P: BytesProver<U>,
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
+{
+    fn message_zerocopy(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_message::<T>(label.clone(), Length::Scalar)?;
+        self.message_bytes("zerocopy-bytes", value.as_bytes())?;
+        self.end_message::<T>(label, Length::Scalar)
+    }
+
+    fn message_zerocopy_slice(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[T],
+    ) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_message::<T>(label.clone(), Length::Fixed(value.len()))?;
+        self.message_bytes("zerocopy-bytes", value.as_bytes())?;
+        self.end_message::<T>(label, Length::Fixed(value.len()))
+    }
+
+    fn challenge_zerocopy_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut T,
+    ) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_challenge::<T>(label.clone(), Length::Scalar)?;
+        self.challenge_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
+        self.end_challenge::<T>(label, Length::Scalar)
+    }
+
+    fn challenge_zerocopy_slice_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut [T],
+    ) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_challenge::<T>(label.clone(), Length::Fixed(out.len()))?;
+        self.challenge_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
+        self.end_challenge::<T>(label, Length::Fixed(out.len()))
     }
 }
 
-impl<State, T> ZeroCopyHintVerifier<T> for State
+impl<P, U, T> ZeroCopyHintProver<U, T> for P
 where
-    State: Transcript + BytesHintVerifier,
-    T: FromBytes + IntoBytes,
+    P: Prover<U>,
+    U: Unit,
+    T: Immutable + FromBytes + IntoBytes,
 {
-    fn hint(&mut self, label: Label) -> Result<T, Self::Error> {
-        self.begin_message::<(Self, T)>(label.clone(), Length::Scalar)?;
-        let mut result = T::new_zeroed();
-        self.hint(result.as_mut_bytes()).unwrap();
-        self.end_message::<(Self, T)>(label, Length::Scalar)?;
-        Ok(result)
+    fn hint_zerocopy(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_hint::<T>(label.clone(), Length::Scalar)?;
+        self.hint_bytes("zerocopy-bytes", value.as_bytes())?;
+        self.end_hint::<T>(label.clone(), Length::Scalar)?;
+        Ok(())
     }
-}
 
-impl<State, T> ZeroCopyChallenge<T> for State
-where
-    State: Transcript + BytesChallenge,
-    T: FromBytes + IntoBytes,
-{
-    fn challenge(&mut self, label: Label) -> Result<T, Self::Error> {
-        self.begin_challenge::<(Self, T)>(label.clone(), Length::Scalar)?;
-        let mut result = T::new_zeroed();
-        self.challenge(result.as_mut_bytes()).unwrap();
-        self.end_challenge::<(Self, T)>(label.clone(), Length::Scalar)?;
-        Ok(result)
+    fn hint_zerocopy_dynamic(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), Self::Error> {
+        let label = label.into();
+        self.begin_hint::<T>(label.clone(), Length::Dynamic)?;
+        self.hint_bytes_dynamic("zerocopy-bytes-dynamic", value.as_bytes())?;
+        self.end_hint::<T>(label.clone(), Length::Dynamic)?;
+        Ok(())
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
 }
