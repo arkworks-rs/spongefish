@@ -6,9 +6,11 @@ mod traits;
 
 mod bytes;
 
-#[cfg(feature = "arkworks-algebra")]
+pub use self::bytes::{BytesChallenge, BytesPattern, BytesProver, BytesVerifier};
+
+//#[cfg(feature = "arkworks-algebra")]
 /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.
-pub mod arkworks_algebra;
+// pub mod arkworks_algebra;
 
 #[cfg(feature = "zkcrypto-group")]
 /// (In-progress) [group](https://github.com/zkcrypto/group) bindings.

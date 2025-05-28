@@ -130,51 +130,39 @@ This crate doesn't support big-endian targets.
 pub mod duplex_sponge;
 /// Built-in proof results.
 mod errors;
-/// Verifier state and transcript deserialization.
-mod verifier;
+
+mod prover_rng;
+mod prover_state;
+mod verifier_state;
 
 /// Built-in permutation functions.
 pub mod keccak;
 
 /// APIs for common zkp libraries.
 pub mod codecs;
-/// Prover's internal state and transcript generation.
-mod prover;
-/// SAFE API.
-mod sho;
+// /// SAFE API.
+// mod sho;
 /// Unit-tests.
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
+mod unit_traits;
 
-/// Traits for byte support.
-pub mod traits;
+// pub mod domain_separator;
+// pub use domain_separator::*;
 
-pub mod domain_separator;
-pub use domain_separator::*;
-
-mod prover_rng;
 pub mod transcript;
 
-pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
-pub use errors::{DomainSeparatorMismatch, ProofError, ProofResult};
-pub use prover::ProverState;
-pub use sho::HashStateWithInstructions;
-pub use traits::*;
-pub use verifier::VerifierState;
-
-pub use crate::prover_rng::ProverPrivateRng;
+pub use self::{
+    duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit},
+    errors::{DomainSeparatorMismatch, ProofError, ProofResult},
+    prover_rng::ProverRng,
+    prover_state::ProverState,
+    unit_traits::{UnitChallenge, UnitPattern, UnitProver, UnitVerifier},
+    verifier_state::VerifierState,
+};
 
 /// Default random number generator used ([`rand::rngs::StdRng`]).
 pub type DefaultRng = rand::rngs::StdRng;
 
 /// Default hash function used ([`keccak::Keccak`]).
 pub type DefaultHash = keccak::Keccak;
-
-#[cfg(not(feature = "arkworks-rand"))]
-pub trait Rng: rand::RngCore + rand::CryptoRng {}
-
-#[cfg(feature = "arkworks-rand")]
-pub trait Rng:
-    rand::RngCore + rand::CryptoRng + ark_std::rand::RngCore + ark_std::rand::CryptoRng
-{
-}

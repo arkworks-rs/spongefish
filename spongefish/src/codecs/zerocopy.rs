@@ -30,10 +30,7 @@ where
         out: &mut T,
     ) -> Result<(), Self::Error>;
 
-    fn challenge_zerocopy(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
-    where
-        T: FromZeros,
-    {
+    fn challenge_zerocopy(&mut self, label: impl Into<Label>) -> Result<T, Self::Error> {
         let mut result = T::new_zeroed();
         self.challenge_zerocopy_out(label, &mut result)?;
         Ok(result)
@@ -48,10 +45,7 @@ where
     fn challenge_zerocopy_array<const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[T; N], Self::Error>
-    where
-        T: FromZeros,
-    {
+    ) -> Result<[T; N], Self::Error> {
         let mut result = <[T; N]>::new_zeroed();
         self.challenge_zerocopy_slice_out(label, &mut result)?;
         Ok(result)
@@ -61,10 +55,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<T>, Self::Error>
-    where
-        T: FromZeros,
-    {
+    ) -> Result<Vec<T>, Self::Error> {
         let mut result = T::new_vec_zeroed(size).expect("allocation failure");
         self.challenge_zerocopy_slice_out(label, &mut result)?;
         Ok(result)

@@ -25,21 +25,20 @@ ark-serialize = { workspace = true, features = ["std"], optional = true }
 ark-std = { workspace = true, optional = true }
 group = { workspace = true, optional = true }
 hex = { workspace = true }
-zerocopy = { version = "0.8", features = ["std"], optional = true }
+zerocopy = { version = "0.8", features = ["std", "derive"] }
 postcard = { version = "1.1.1", optional = true }
 thiserror = "2.0.12"
 sha3.workspace = true
 hex-literal = "1.0.0"
 
 [features]
-default = ["arkworks-algebra", "arkworks-rand", "zerocopy"]
+default = ["arkworks-algebra",  "arkworks-rand"]
 arkworks-rand = [
     # Workaround to also implement arkworks version of rand as exported by ark_std
     "dep:ark-std",
 ]
 arkworks-algebra = ["dep:ark-ff", "dep:ark-ec", "dep:ark-serialize"]
 zkcrypto-group = ["dep:group"]
-zerocopy = ["dep:zerocopy"]
 ark-serialize = ["dep:ark-serialize"]
 serde-postcard = ["dep:postcard"]
 asm = ["keccak/asm", "keccak/simd"]

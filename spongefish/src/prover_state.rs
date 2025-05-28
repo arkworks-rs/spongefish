@@ -6,14 +6,13 @@ use std::{
 
 use rand::{CryptoRng, RngCore, SeedableRng};
 
-use super::{Prover, ProverRng};
 use crate::{
     duplex_sponge::{DuplexSpongeInterface, Unit},
     transcript::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash, DefaultRng, Rng,
+    DefaultHash, DefaultRng, ProverRng, UnitChallenge, UnitProver,
 };
 
 /// [`ProverState`] is the prover state of an interactive proof (IP) system.
@@ -159,7 +158,44 @@ where
     }
 }
 
-impl<H, U, R> Prover<U> for ProverState<H, U, R>
+impl<H, U, R> UnitChallenge<U> for ProverState<H, U, R>
+where
+    U: Unit,
+    H: DuplexSpongeInterface<U>,
+    R: RngCore + CryptoRng,
+{
+    fn challenge_unit_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut U,
+    ) -> Result<(), Self::Error> {
+        self.transcript.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Challenge,
+            label,
+            Length::Scalar,
+        ))?;
+        self.duplex_sponge.squeeze(from_mut(out));
+        Ok(())
+    }
+
+    fn challenge_units_out(
+        &mut self,
+        label: impl Into<Label>,
+        out: &mut [U],
+    ) -> Result<(), Self::Error> {
+        self.transcript.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Challenge,
+            label,
+            Length::Fixed(out.len()),
+        ))?;
+        self.duplex_sponge.squeeze(out);
+        Ok(())
+    }
+}
+
+impl<H, U, R> UnitProver<U> for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -179,7 +215,12 @@ where
     /// prover_state.rng().fill_bytes(&mut challenges);
     /// assert_ne!(challenges, [0u8; 32]);
     /// ```
-    fn rng(&mut self) -> &mut dyn Rng {
+    #[cfg(not(feature = "arkworks-rand"))]
+    fn rng(&mut self) -> impl rand::CryptoRng {
+        &mut self.rng
+    }
+    #[cfg(feature = "arkworks-rand")]
+    fn rng(&mut self) -> impl rand::CryptoRng + ark_std::rand::CryptoRng {
         &mut self.rng
     }
 
@@ -252,36 +293,6 @@ where
         Ok(())
     }
 
-    fn challenge_unit_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut U,
-    ) -> Result<(), Self::Error> {
-        self.transcript.interact(Interaction::new::<U>(
-            Hierarchy::Atomic,
-            Kind::Challenge,
-            label,
-            Length::Scalar,
-        ))?;
-        self.duplex_sponge.squeeze(from_mut(out));
-        Ok(())
-    }
-
-    fn challenge_units_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [U],
-    ) -> Result<(), Self::Error> {
-        self.transcript.interact(Interaction::new::<U>(
-            Hierarchy::Atomic,
-            Kind::Challenge,
-            label,
-            Length::Fixed(out.len()),
-        ))?;
-        self.duplex_sponge.squeeze(out);
-        Ok(())
-    }
-
     fn hint_bytes(
         &mut self,
         label: impl Into<crate::transcript::Label>,
@@ -333,29 +344,35 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use super::*;
-    use crate::transcript::{Hierarchy, Interaction, Kind, Length, TranscriptRecorder};
+    use crate::{
+        codecs::BytesProver,
+        transcript::{Hierarchy, Interaction, Kind, Length, TranscriptRecorder},
+    };
 
     #[test]
-    fn test_prover_state_add_units_and_rng_differs() {
+    fn test_prover_state_add_units_and_rng_differs() -> Result<(), Box<dyn Error>> {
         let mut recorder = TranscriptRecorder::new();
-        recorder.begin_protocol::<ProverState>("test");
+        recorder.begin_protocol::<ProverState>("test")?;
         recorder.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
             "data",
             Length::Fixed(4),
-        ));
-        recorder.end_protocol::<ProverState>("test");
-        let pattern = recorder.finalize().unwrap();
+        ))?;
+        recorder.end_protocol::<ProverState>("test")?;
+        let pattern = recorder.finalize()?;
 
         let mut pstate: ProverState = ProverState::from(&pattern);
 
-        pstate.add_bytes(&[1, 2, 3, 4]).unwrap();
+        pstate.message_bytes("data", &[1, 2, 3, 4])?;
 
         let mut buf = [0u8; 8];
         pstate.rng().fill_bytes(&mut buf);
         assert_ne!(buf, [0; 8]);
+        Ok(())
     }
 
     // #[test]

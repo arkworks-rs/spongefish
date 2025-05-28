@@ -10,10 +10,7 @@
 
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, VariableBaseMSM};
 use ark_ff::Field;
-use ark_std::{
-    log2,
-    rand::{rngs::StdRng, SeedableRng},
-};
+use ark_std::log2;
 use rand::Rng;
 use spongefish::codecs::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, FieldDomainSeparator, FieldToUnitDeserialize,
