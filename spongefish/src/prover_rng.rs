@@ -94,7 +94,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prover_state_clone_doesnt_change_rng_output() {
+    fn test_prover_state_clone_does_not_change_rng_output() {
         let mut ppr1 = ProverRng::new([0; 32], StdRng::from_os_rng());
         let mut ppr2 = ppr1.clone();
 

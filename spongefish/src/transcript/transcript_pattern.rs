@@ -1,5 +1,4 @@
 use core::fmt::Display;
-use std::fmt::Write as _;
 
 use thiserror::Error;
 

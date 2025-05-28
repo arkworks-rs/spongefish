@@ -4,7 +4,7 @@
 //! on the top of it using the `DuplexSponge` trait.
 use std::fmt::Debug;
 
-use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout};
+use zerocopy::{transmute_mut, FromBytes, Immutable, IntoBytes, KnownLayout};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::duplex_sponge::{DuplexSponge, Permutation};
@@ -12,10 +12,6 @@ use crate::duplex_sponge::{DuplexSponge, Permutation};
 /// A duplex sponge based on the permutation [`keccak::f1600`]
 /// using [`DuplexSponge`].
 pub type Keccak = DuplexSponge<AlignedKeccakF1600>;
-
-fn transmute_state(st: &mut AlignedKeccakF1600) -> &mut [u64; 25] {
-    unsafe { &mut *std::ptr::from_mut::<AlignedKeccakF1600>(st).cast::<[u64; 25]>() }
-}
 
 /// This is a wrapper around 200-byte buffer that's always 8-byte aligned
 /// to make pointers to it safely convertible to pointers to [u64; 25]
@@ -58,7 +54,7 @@ impl Permutation for AlignedKeccakF1600 {
     }
 
     fn permute(&mut self) {
-        keccak::f1600(transmute_state(self));
+        keccak::f1600(transmute_mut!(self));
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash, DefaultRng, ProverRng, UnitChallenge, UnitProver,
+    DefaultHash, DefaultRng, ProverRng, UnitCommon, UnitProver,
 };
 
 /// [`ProverState`] is the prover state of an interactive proof (IP) system.
@@ -59,6 +59,7 @@ where
     R: RngCore + CryptoRng,
 {
     pub fn new_with_rng(pattern: Arc<TranscriptPattern>, csrng: R) -> Self {
+        // TODO: It would make sense to start each transcript with the domain_separator.
         let domain_separator = pattern.domain_separator();
         Self {
             transcript: TranscriptPlayer::new(pattern),
@@ -138,6 +139,18 @@ where
     }
 }
 
+/// Convenience conversion when R is Seedable.
+impl<U, H, R> From<TranscriptPattern> for ProverState<H, U, R>
+where
+    U: Unit,
+    H: DuplexSpongeInterface<U>,
+    R: RngCore + CryptoRng + SeedableRng,
+{
+    fn from(pattern: TranscriptPattern) -> Self {
+        Self::from(&pattern)
+    }
+}
+
 impl<H, U, R> Transcript for ProverState<H, U, R>
 where
     U: Unit,
@@ -167,12 +180,54 @@ where
     }
 }
 
-impl<H, U, R> UnitChallenge<U> for ProverState<H, U, R>
+impl<H, U, R> UnitCommon<U> for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
 {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
+        let value = from_ref(value);
+
+        // Update transcript
+        self.transcript.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Scalar,
+        ))?;
+
+        // Add to duplex sponge state
+        self.duplex_sponge.absorb(value);
+
+        // Add to Prover RNG
+        let mut buffer = Vec::new();
+        U::write(value, &mut buffer).unwrap();
+        self.rng.absorb(&buffer);
+
+        Ok(())
+    }
+
+    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error> {
+        // Update transcript
+        self.transcript.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Fixed(value.len()),
+        ))?;
+
+        // Add to duplex sponge state
+        self.duplex_sponge.absorb(value);
+
+        // Add to Prover RNG
+        let mut buffer = Vec::new();
+        U::write(value, &mut buffer).unwrap();
+        self.rng.absorb(&buffer);
+
+        Ok(())
+    }
+
     fn challenge_unit_out(
         &mut self,
         label: impl Into<Label>,
@@ -342,156 +397,209 @@ mod tests {
     use std::error::Error;
 
     use rand::Rng;
+    use zerocopy::IntoBytes;
 
     use super::*;
     use crate::{transcript::TranscriptRecorder, UnitPattern};
 
+    /// Test all operations in UnitPattern.
     #[test]
-    fn test_prover_state_add_units_and_rng_differs() -> Result<(), Box<dyn Error>> {
-        let mut recorder = TranscriptRecorder::<u8>::new();
-        recorder.message_units("data", 4)?;
-        let pattern = recorder.finalize()?;
+    fn test_prover_state_unit_pattern() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.begin_protocol::<ProverState>("test all")?;
+        pattern.ratchet()?;
+        pattern.public_unit("1")?;
+        pattern.public_units("2", 4)?;
+        pattern.message_unit("3")?;
+        pattern.message_units("4", 4)?;
+        pattern.challenge_unit("5")?;
+        pattern.challenge_units("6", 4)?;
+        pattern.hint_bytes("7", 4)?;
+        pattern.hint_bytes_dynamic("8")?;
+        pattern.end_protocol::<ProverState>("test all")?;
+        let pattern = pattern.finalize()?;
 
-        let mut pstate_before: ProverState = ProverState::from(&pattern);
+        let mut prover: ProverState = pattern.into();
+        prover.begin_protocol::<ProverState>("test all")?;
+        prover.ratchet()?;
+        prover.public_unit("1", &1)?;
+        prover.public_units("2", 2_u32.as_bytes())?;
+        prover.message_unit("3", &3)?;
+        prover.message_units("4", 4_u32.as_bytes())?;
+        let _: u8 = prover.challenge_unit("5")?;
+        let _: [u8; 4] = prover.challenge_units_array("6")?;
+        prover.hint_bytes("7", 7_u32.as_bytes())?;
+        prover.hint_bytes_dynamic("8", &[8, 9, 10])?;
+        prover.end_protocol::<ProverState>("test all")?;
+        let proof = prover.finalize()?;
 
-        let mut pstate_after = pstate_before.clone();
-        pstate_after.message_units("data", &[1, 2, 3, 4])?;
-
-        let before: [u8; 32] = pstate_before.rng().random();
-        let after: [u8; 32] = pstate_after.rng().random();
-        assert_ne!(before, after);
-
-        pstate_before.abort();
-        pstate_after.abort();
+        assert_eq!(hex::encode(proof), "0304000000070000000300000008090a");
 
         Ok(())
     }
 
-    // #[test]
-    // fn test_prover_state_public_units_does_not_affect_narg() {
-    //     let mut recorder = TranscriptRecorder::new();
-    //     recorder.begin_protocol("test");
-    //     recorder.interact(Interaction::new::<[u8]>(
-    //         Hierarchy::Atomic,
-    //         Kind::Message,
-    //         "data",
-    //         Length::Fixed(4),
-    //     ));
-    //     recorder.end_protocol("test");
-    //     let pattern = recorder.finalize().unwrap();
+    #[test]
+    fn test_prover_state_add_units_and_rng_differs() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("data", 4)?;
+        let pattern = pattern.finalize()?;
 
-    //     let mut pstate = ProverState::from(&pattern);
+        let mut prover_before: ProverState = pattern.into();
 
-    //     pstate.public_units(&[1, 2, 3, 4]).unwrap();
-    //     assert_eq!(pstate.narg_string(), b"");
-    // }
+        let mut prover_after = prover_before.clone();
+        prover_after.message_units("data", &[1, 2, 3, 4])?;
 
-    // #[test]
-    // fn test_prover_state_ratcheting_changes_rng_output() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-    //     let mut pstate = ProverState::from(&domsep);
+        let before: [u8; 32] = prover_before.rng().random();
+        let after: [u8; 32] = prover_after.rng().random();
+        assert_ne!(before, after);
 
-    //     let mut buf1 = [0u8; 4];
-    //     pstate.rng().fill_bytes(&mut buf1);
+        prover_before.abort();
+        prover_after.abort();
 
-    //     pstate.ratchet().unwrap();
+        Ok(())
+    }
 
-    //     let mut buf2 = [0u8; 4];
-    //     pstate.rng().fill_bytes(&mut buf2);
+    #[test]
+    fn test_prover_state_public_units_does_not_affect_narg() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.public_units("public units", 4)?;
+        let pattern = pattern.finalize()?;
 
-    //     assert_ne!(buf1, buf2);
-    // }
+        let mut prover: ProverState = pattern.into();
+        prover.public_units("public units", &[1_u8, 2, 3, 4])?;
+        let proof = prover.finalize()?;
 
-    // #[test]
-    // fn test_add_units_appends_to_narg_string() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(3, "msg");
-    //     let mut pstate = ProverState::from(&domsep);
-    //     let input = [42, 43, 44];
+        assert_eq!(hex::encode(proof), "");
+        Ok(())
+    }
 
-    //     assert!(pstate.add_units(&input).is_ok());
-    //     assert_eq!(pstate.narg_string(), &input);
-    // }
+    #[test]
+    fn test_prover_state_ratcheting_changes_rng_output() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.ratchet()?;
+        let pattern = pattern.finalize()?;
 
-    // #[test]
-    // fn test_add_units_too_many_elements_should_error() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "short");
-    //     let mut pstate = ProverState::from(&domsep);
+        let mut prover_before: ProverState = pattern.into();
 
-    //     let result = pstate.add_units(&[1, 2, 3]);
-    //     assert!(result.is_err());
-    // }
+        let mut prover_after = prover_before.clone();
+        prover_after.ratchet()?;
 
-    // #[test]
-    // fn test_ratchet_works_when_expected() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-    //     let mut pstate = ProverState::from(&domsep);
-    //     assert!(pstate.ratchet().is_ok());
-    // }
+        let before: [u8; 32] = prover_before.rng().random();
+        let after: [u8; 32] = prover_after.rng().random();
+        assert_ne!(before, after);
 
-    // #[test]
-    // fn test_ratchet_fails_when_not_expected() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(1, "bad");
-    //     let mut pstate = ProverState::from(&domsep);
-    //     assert!(pstate.ratchet().is_err());
-    // }
+        prover_before.abort();
+        prover_after.abort();
+        Ok(())
+    }
 
-    // #[test]
-    // fn test_public_units_does_not_update_transcript() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "p");
-    //     let mut pstate = ProverState::from(&domsep);
-    //     let _ = pstate.public_units(&[0xaa, 0xbb]);
+    #[test]
+    fn test_add_units_appends_to_narg_string() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("message", 3)?;
+        let pattern = pattern.finalize()?;
 
-    //     assert_eq!(pstate.narg_string(), b"");
-    // }
+        let mut prover: ProverState = pattern.into();
+        prover.message_units("message", &[42, 43, 44])?;
+        let proof = prover.finalize()?;
 
-    // #[test]
-    // fn test_fill_challenge_units() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").squeeze(8, "ch");
-    //     let mut pstate = ProverState::from(&domsep);
+        assert_eq!(proof, [42, 43, 44]);
+        Ok(())
+    }
 
-    //     let mut out = [0u8; 8];
-    //     let _ = pstate.fill_challenge_units(&mut out);
-    //     assert_eq!(out, [77, 249, 17, 180, 176, 109, 121, 62]);
-    // }
+    #[test]
+    fn test_add_units_too_many_elements_should_error() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("short", 2)?;
+        let pattern = pattern.finalize()?;
 
-    // #[test]
-    // fn test_rng_entropy_changes_with_transcript() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(3, "init");
-    //     let mut p1 = ProverState::from(&domsep);
-    //     let mut p2 = ProverState::from(&domsep);
+        let mut prover: ProverState = pattern.into();
+        let result = prover.message_units("message", &[1, 2, 3]);
+        assert!(result.is_err());
 
-    //     let mut a = [0u8; 16];
-    //     let mut b = [0u8; 16];
+        // Throwing an error also finalizes the transcript.
+        Ok(())
+    }
 
-    //     p1.rng().fill_bytes(&mut a);
-    //     p2.add_units(&[1, 2, 3]).unwrap();
-    //     p2.rng().fill_bytes(&mut b);
+    #[test]
+    fn test_ratchet_fails_when_not_expected() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("bad", 1)?;
+        let pattern = pattern.finalize()?;
 
-    //     assert_ne!(a, b);
-    // }
+        let mut prover: ProverState = pattern.into();
+        let result = prover.ratchet();
+        assert!(matches!(
+            result,
+            Err(InteractionError::UnexpectedInteraction { .. })
+        ));
+        Ok(())
+    }
 
-    // #[test]
-    // fn test_add_units_multiple_accumulates() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("t")
-    //         .absorb(2, "a")
-    //         .absorb(3, "b");
-    //     let mut p = ProverState::from(&domsep);
+    #[test]
+    fn test_fill_challenge_units() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.challenge_units("ch", 8)?;
+        let pattern = pattern.finalize()?;
 
-    //     p.add_units(&[10, 11]).unwrap();
-    //     p.add_units(&[20, 21, 22]).unwrap();
+        let mut prover: ProverState = pattern.into();
+        let out: [u8; 8] = prover.challenge_units_array("ch")?;
 
-    //     assert_eq!(p.narg_string(), &[10, 11, 20, 21, 22]);
-    // }
+        assert_eq!(out, [55, 59, 25, 201, 150, 155, 112, 182]);
 
-    // #[test]
-    // fn test_narg_string_round_trip_check() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(5, "data");
-    //     let mut p = ProverState::from(&domsep);
+        prover.abort();
+        Ok(())
+    }
 
-    //     let msg = b"zkp42";
-    //     p.add_units(msg).unwrap();
+    #[test]
+    fn test_rng_entropy_changes_with_transcript() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("init", 3)?;
+        let pattern = pattern.finalize()?;
 
-    //     let encoded = p.narg_string();
-    //     assert_eq!(encoded, msg);
-    // }
+        let mut prover_before: ProverState = pattern.into();
+
+        let mut prover_after = prover_before.clone();
+        prover_after.message_units("init", &[1, 2, 3])?;
+
+        let before: [u8; 32] = prover_before.rng().random();
+        let after: [u8; 32] = prover_after.rng().random();
+        assert_ne!(before, after);
+
+        prover_before.abort();
+        prover_after.abort();
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_units_multiple_accumulates() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("a", 2)?;
+        pattern.message_units("b", 3)?;
+        let pattern = pattern.finalize()?;
+
+        let mut prover: ProverState = pattern.into();
+        prover.message_units("a", &[10, 11])?;
+        prover.message_units("b", &[20, 21, 22])?;
+        let proof = prover.finalize()?;
+
+        assert_eq!(proof, [10, 11, 20, 21, 22]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_narg_string_round_trip_check() -> Result<(), Box<dyn Error>> {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("data", 5)?;
+        let pattern = pattern.finalize()?;
+
+        let msg = b"zkp42";
+
+        let mut prover: ProverState = pattern.into();
+        prover.message_units("data", msg)?;
+        let proof = prover.finalize()?;
+
+        assert_eq!(proof, msg);
+        Ok(())
+    }
 }

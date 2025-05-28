@@ -157,7 +157,7 @@ pub use self::{
     errors::{DomainSeparatorMismatch, ProofError, ProofResult},
     prover_rng::ProverRng,
     prover_state::ProverState,
-    unit_traits::{UnitChallenge, UnitPattern, UnitProver, UnitVerifier},
+    unit_traits::{UnitCommon, UnitPattern, UnitProver, UnitVerifier},
     verifier_state::VerifierState,
 };
 

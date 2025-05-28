@@ -5,8 +5,8 @@ use super::{
 };
 use crate::{Unit, UnitPattern};
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-pub struct TranscriptRecorder<U>
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub struct TranscriptRecorder<U = u8>
 where
     U: Unit,
 {
@@ -90,6 +90,24 @@ where
             Kind::Protocol,
             "ratchet",
             Length::Scalar,
+        ))
+    }
+
+    fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Scalar,
+        ))
+    }
+
+    fn public_units(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error> {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Fixed(size),
         ))
     }
 

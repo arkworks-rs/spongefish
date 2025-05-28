@@ -13,7 +13,7 @@ use crate::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash, UnitChallenge, UnitVerifier,
+    DefaultHash, UnitCommon, UnitVerifier,
 };
 
 #[derive(Debug, Error)]
@@ -116,11 +116,19 @@ where
     }
 }
 
-impl<'a, H, U> UnitChallenge<U> for VerifierState<'a, H, U>
+impl<'a, H, U> UnitCommon<U> for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error> {
+        todo!()
+    }
+
     fn challenge_unit_out(
         &mut self,
         label: impl Into<Label>,

@@ -10,6 +10,8 @@ where
     U: Unit,
 {
     fn ratchet(&mut self) -> Result<(), Self::Error>;
+    fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
+    fn public_units(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
     fn message_unit(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
     fn message_units(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
     fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
@@ -18,10 +20,14 @@ where
     fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
 }
 
-pub trait UnitChallenge<U>: Transcript
+pub trait UnitCommon<U>: Transcript
 where
     U: Unit,
 {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error>;
+
+    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error>;
+
     fn challenge_unit_out(
         &mut self,
         label: impl Into<Label>,
@@ -69,7 +75,7 @@ where
     }
 }
 
-pub trait UnitProver<U>: UnitChallenge<U>
+pub trait UnitProver<U>: UnitCommon<U>
 where
     U: Unit,
 {
@@ -123,7 +129,7 @@ where
     ) -> Result<(), Self::Error>;
 }
 
-pub trait UnitVerifier<'a, U>: UnitChallenge<U>
+pub trait UnitVerifier<'a, U>: UnitCommon<U>
 where
     U: Unit,
 {

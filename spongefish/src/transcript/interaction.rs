@@ -32,6 +32,8 @@ pub type Label = Cow<'static, str>;
 pub enum Kind {
     /// A protocol containing mixed interactions.
     Protocol,
+    /// A public message prover and verifier agree on.
+    Public,
     /// A message send in-band from prover to verifier.
     Message,
     /// A hint send out-of-band from prover to verifier.
@@ -107,7 +109,7 @@ impl Interaction {
 impl Display for Interaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            // Domain separator mode: stable unambigious format.
+            // Domain separator mode: stable unambiguous format.
             write!(f, "{} {}", self.hierarchy, self.kind)?;
             // Length prefixed strings for labels to disambiguate
             write!(f, " {} {}", self.label.len(), self.label)?;
@@ -137,6 +139,7 @@ impl Display for Kind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Protocol => write!(f, "Protocol"),
+            Self::Public => write!(f, "Public"),
             Self::Message => write!(f, "Message"),
             Self::Hint => write!(f, "Hint"),
             Self::Challenge => write!(f, "Challenge"),

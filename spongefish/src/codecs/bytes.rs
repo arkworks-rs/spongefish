@@ -1,6 +1,6 @@
 use crate::{
     transcript::{Label, Length},
-    Unit, UnitChallenge, UnitPattern, UnitProver, UnitVerifier,
+    Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
 
 pub trait BytesPattern<U>: UnitPattern<U>
@@ -9,7 +9,7 @@ where
 {
 }
 
-pub trait BytesChallenge<U>: UnitChallenge<U>
+pub trait BytesChallenge<U>: UnitCommon<U>
 where
     U: Unit,
 {
@@ -79,7 +79,7 @@ where
 /// Default implementation of [`BytesProver`] when the native unit is `u8`.
 impl<P> BytesChallenge<u8> for P
 where
-    P: UnitChallenge<u8>,
+    P: UnitCommon<u8>,
 {
     fn challenge_bytes_out(
         &mut self,
