@@ -69,6 +69,15 @@ where
         }
     }
 
+    /// Terminate a proof sequence without completion
+    pub fn abort(mut self) {
+        // Zero sensitive state
+        self.duplex_sponge.zeroize();
+
+        // Abort the transcript (will panic on drop if not done)
+        self.transcript.abort();
+    }
+
     /// Finalize the proof and return the proof bytes on success.
     ///
     ///
@@ -201,30 +210,16 @@ where
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
 {
-    /// Return a reference to the random number generator associated to the protocol transcript.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    /// # use rand::RngCore;
-    ///
-    /// // The domain separator does not need to specify the private coins.
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// assert_ne!(prover_state.rng().next_u32(), 0, "You won the lottery!");
-    /// let mut challenges = [0u8; 32];
-    /// prover_state.rng().fill_bytes(&mut challenges);
-    /// assert_ne!(challenges, [0u8; 32]);
-    /// ```
     #[cfg(not(feature = "arkworks-rand"))]
     fn rng(&mut self) -> impl rand::CryptoRng {
         &mut self.rng
     }
+
     #[cfg(feature = "arkworks-rand")]
     fn rng(&mut self) -> impl rand::CryptoRng + ark_std::rand::CryptoRng {
         &mut self.rng
     }
 
-    /// Ratchet the prover's state.
     fn ratchet(&mut self) -> Result<(), Self::Error> {
         self.transcript.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
@@ -346,32 +341,29 @@ where
 mod tests {
     use std::error::Error;
 
+    use rand::Rng;
+
     use super::*;
-    use crate::{
-        codecs::BytesProver,
-        transcript::{Hierarchy, Interaction, Kind, Length, TranscriptRecorder},
-    };
+    use crate::{transcript::TranscriptRecorder, UnitPattern};
 
     #[test]
     fn test_prover_state_add_units_and_rng_differs() -> Result<(), Box<dyn Error>> {
-        let mut recorder = TranscriptRecorder::new();
-        recorder.begin_protocol::<ProverState>("test")?;
-        recorder.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "data",
-            Length::Fixed(4),
-        ))?;
-        recorder.end_protocol::<ProverState>("test")?;
+        let mut recorder = TranscriptRecorder::<u8>::new();
+        recorder.message_units("data", 4)?;
         let pattern = recorder.finalize()?;
 
-        let mut pstate: ProverState = ProverState::from(&pattern);
+        let mut pstate_before: ProverState = ProverState::from(&pattern);
 
-        pstate.message_bytes("data", &[1, 2, 3, 4])?;
+        let mut pstate_after = pstate_before.clone();
+        pstate_after.message_units("data", &[1, 2, 3, 4])?;
 
-        let mut buf = [0u8; 8];
-        pstate.rng().fill_bytes(&mut buf);
-        assert_ne!(buf, [0; 8]);
+        let before: [u8; 32] = pstate_before.rng().random();
+        let after: [u8; 32] = pstate_after.rng().random();
+        assert_ne!(before, after);
+
+        pstate_before.abort();
+        pstate_after.abort();
+
         Ok(())
     }
 

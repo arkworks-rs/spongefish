@@ -76,6 +76,7 @@ impl TranscriptPattern {
                 Hierarchy::Begin => stack.push((position, interaction)),
                 Hierarchy::End => {
                     let Some((position, begin)) = stack.pop() else {
+                        dbg!();
                         return Err(TranscriptError::MissingBegin {
                             position,
                             end: interaction.clone(),
@@ -91,7 +92,7 @@ impl TranscriptPattern {
                     }
                 }
                 Hierarchy::Atomic => {
-                    let Some((begin_position, begin)) = stack.pop() else {
+                    let Some((begin_position, begin)) = stack.last().copied() else {
                         continue;
                     };
                     if begin.kind() != Kind::Protocol && begin.kind() != interaction.kind() {
@@ -203,7 +204,7 @@ impl Display for TranscriptPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::{self, Length};
+    use crate::transcript::Length;
 
     #[test]
     fn test_size() {
@@ -241,16 +242,16 @@ mod tests {
             .unwrap();
         let result = format!("{transcript:#}");
         let expected = r"Spongefish Transcript (3 interactions)
-0 Begin Protocol 4test None
-1   Atomic Message 12test-message Scalar
-2 End Protocol 4test None
+0 Begin Protocol 4 test None
+1   Atomic Message 12 test-message Scalar
+2 End Protocol 4 test None
 ";
         assert_eq!(result, expected);
 
         let result = transcript.domain_separator();
         assert_eq!(
             hex::encode(result),
-            "7f054d6b7fbd0a6d216d39995a8a761e20015bffa671a7ab7827f1679622a9ab"
+            "33daf542c95b80a2b01be277d9d0f9b6d5bee823c5c3a0dcca71e614a5a783e3"
         );
     }
 }

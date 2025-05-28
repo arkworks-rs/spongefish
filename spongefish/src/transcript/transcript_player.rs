@@ -45,12 +45,21 @@ impl TranscriptPlayer {
         }
     }
 
+    /// Abort the sequence of interactions.
+    ///
+    /// This prevents the unfinalized [`TranscriptPlayer`] from panicking on drop.
+    pub fn abort(mut self) {
+        assert!(!self.finalized);
+        self.finalized = true;
+    }
+
     /// Finalize the sequence of interactions. Returns an error if there
     /// are unfinished interactions.
     pub fn finalize(mut self) -> Result<(), InteractionError> {
         assert!(!self.finalized);
         assert!(self.position <= self.pattern.interactions().len());
         if self.position < self.pattern.interactions().len() {
+            self.finalized = true;
             return Err(InteractionError::MissingInteraction {
                 position: self.position,
                 expected: self.pattern.interactions()[self.position].clone(),
@@ -63,12 +72,14 @@ impl TranscriptPlayer {
     pub fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
         assert!(!self.finalized, "Transcript is already finalized."); // Or should this be an error?
         let Some(expected) = self.pattern.interactions().get(self.position) else {
+            self.finalized = true;
             return Err(InteractionError::MissingInteraction {
                 position: self.position,
                 expected: interaction,
             });
         };
         if expected != &interaction {
+            self.finalized = true;
             return Err(InteractionError::UnexpectedInteraction {
                 position: self.position,
                 got: interaction,
@@ -82,8 +93,6 @@ impl TranscriptPlayer {
 
 impl Drop for TranscriptPlayer {
     fn drop(&mut self) {
-        if !self.finalized {
-            panic!("Dropped unfinalized transcript.");
-        }
+        assert!(self.finalized, "Dropped unfinalized transcript.");
     }
 }

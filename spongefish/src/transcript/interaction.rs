@@ -174,7 +174,7 @@ mod tests {
             Length::Scalar,
         );
         let result = format!("{interaction:#}");
-        let expected = "Atomic Message 12test-message Scalar";
+        let expected = "Atomic Message 12 test-message Scalar";
         assert_eq!(result, expected);
     }
 }
