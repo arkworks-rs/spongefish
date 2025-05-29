@@ -59,7 +59,6 @@ where
     R: RngCore + CryptoRng,
 {
     pub fn new_with_rng(pattern: Arc<TranscriptPattern>, csrng: R) -> Self {
-        // TODO: It would make sense to start each transcript with the domain_separator.
         let domain_separator = pattern.domain_separator();
         Self {
             transcript: TranscriptPlayer::new(pattern),
@@ -426,8 +425,8 @@ mod tests {
         prover.public_units("2", 2_u32.as_bytes())?;
         prover.message_unit("3", &3)?;
         prover.message_units("4", 4_u32.as_bytes())?;
-        let _: u8 = prover.challenge_unit("5")?;
-        let _: [u8; 4] = prover.challenge_units_array("6")?;
+        assert_eq!(prover.challenge_unit("5")?, 128);
+        assert_eq!(prover.challenge_units_array("6")?, [72, 136, 56, 161]);
         prover.hint_bytes("7", 7_u32.as_bytes())?;
         prover.hint_bytes_dynamic("8", &[8, 9, 10])?;
         prover.end_protocol::<ProverState>("test all")?;
@@ -436,6 +435,32 @@ mod tests {
         assert_eq!(hex::encode(proof), "0304000000070000000300000008090a");
 
         Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_drop_unfinalized_panics() {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("data", 4).unwrap();
+        let pattern = pattern.finalize().unwrap();
+
+        let mut prover: ProverState = pattern.into();
+        prover.message_units("data", &[1, 2, 3, 4]).unwrap();
+        // Dropping unfinalized prover state should panic
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ignore_error_panics() {
+        let mut pattern = TranscriptRecorder::<u8>::new();
+        pattern.message_units("data", 4).unwrap();
+        let pattern = pattern.finalize().unwrap();
+
+        let mut prover: ProverState = pattern.into();
+        assert!(prover.message_units("wrong", &[1, 2, 3, 4]).is_err());
+
+        // Resume after error should panic
+        let _ = prover.message_units("data", &[1, 2, 3, 4]);
     }
 
     #[test]

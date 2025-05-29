@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use super::{Interaction, Transcript, TranscriptPattern};
+use super::{Interaction, TranscriptPattern};
 
 /// Play back a transcript and make sure all interactions match up.
 ///
@@ -15,7 +15,7 @@ pub struct TranscriptPlayer {
     pattern: Arc<TranscriptPattern>,
     /// Current position in the interaction pattern.
     position: usize,
-    /// Wheter the transcript playback has been finalized.
+    /// Whether the transcript playback has been finalized.
     finalized: bool,
 }
 

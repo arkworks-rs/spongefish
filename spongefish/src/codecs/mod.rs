@@ -5,8 +5,9 @@
 mod traits;
 
 mod bytes;
+// mod zerocopy;
 
-pub use self::bytes::{BytesChallenge, BytesPattern, BytesProver, BytesVerifier};
+pub use self::bytes::{BytesPattern, BytesProver, BytesVerifier};
 
 //#[cfg(feature = "arkworks-algebra")]
 /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.

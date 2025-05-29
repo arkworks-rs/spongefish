@@ -46,6 +46,23 @@ pub trait Transcript {
         self.end::<T>(label, Kind::Protocol, Length::None)
     }
 
+    /// Begin of a public message interaction.
+    fn begin_public<T: ?Sized>(
+        &mut self,
+        label: impl Into<Label>,
+        length: Length,
+    ) -> Result<(), Self::Error> {
+        self.begin::<T>(label, Kind::Public, length)
+    }
+
+    /// End of a public message interaction.
+    fn end_public<T: ?Sized>(
+        &mut self,
+        label: impl Into<Label>,
+        length: Length,
+    ) -> Result<(), Self::Error> {
+        self.end::<T>(label, Kind::Public, length)
+    }
     /// Begin of a message interaction.
     fn begin_message<T: ?Sized>(
         &mut self,
