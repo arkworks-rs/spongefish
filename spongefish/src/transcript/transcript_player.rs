@@ -22,13 +22,13 @@ pub struct TranscriptPlayer {
 /// Errors when using a transcript
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Error)]
 pub enum InteractionError {
-    #[error("Expected {expected} at {position}, got {got}")]
+    #[error("At {position} expected {expected}, got {got}")]
     UnexpectedInteraction {
         position: usize,
         got: Interaction,
         expected: Interaction,
     },
-    #[error("Expected {expected} at {position}, got nothing")]
+    #[error("At {position} expected {expected}, got nothing")]
     MissingInteraction {
         position: usize,
         expected: Interaction,

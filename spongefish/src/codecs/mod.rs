@@ -5,9 +5,15 @@
 mod traits;
 
 mod bytes;
-// mod zerocopy;
+mod zerocopy;
 
-pub use self::bytes::{BytesPattern, BytesProver, BytesVerifier};
+pub use self::{
+    bytes::{BytesPattern, BytesProver, BytesVerifier},
+    zerocopy::{
+        ZeroCopyHintPattern, ZeroCopyHintProver, ZeroCopyHintVerifier, ZeroCopyPattern,
+        ZeroCopyProver, ZeroCopyVerifier,
+    },
+};
 
 //#[cfg(feature = "arkworks-algebra")]
 /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.
@@ -17,10 +23,6 @@ pub use self::bytes::{BytesPattern, BytesProver, BytesVerifier};
 /// (In-progress) [group](https://github.com/zkcrypto/group) bindings.
 /// This plugin is experimental and has not yet been thoroughly tested.
 pub mod zkcrypto_group;
-
-#[cfg(feature = "zerocopy")]
-/// Use [`zerocopy`] to convert types to/from bytes.
-pub mod zerocopy;
 
 #[cfg(feature = "ark-serialize")]
 /// Use [`ark_serialize`] to convert types to/from bytes.
