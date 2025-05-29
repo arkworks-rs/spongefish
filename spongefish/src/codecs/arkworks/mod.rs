@@ -155,7 +155,10 @@ impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
     fn write(bunch: &[Self], mut w: &mut impl io::Write) -> Result<(), io::Error> {
         for item in bunch {
             item.serialize_compressed(&mut w).map_err(|_| {
-                io::Error::new(io::ErrorKind::Other, "Could not serialize field element.")
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Could not serialize field element.",
+                )
             })?;
         }
         Ok(())
@@ -164,7 +167,10 @@ impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
     fn read(mut r: &mut impl io::Read, bunch: &mut [Self]) -> Result<(), io::Error> {
         for item in bunch {
             *item = Self::deserialize_compressed(&mut r).map_err(|_| {
-                io::Error::new(io::ErrorKind::Other, "Could not deserialize field element.")
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Could not deserialize field element.",
+                )
             })?;
         }
         Ok(())

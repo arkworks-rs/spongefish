@@ -1,8 +1,6 @@
 //! [`zerocopy`] allows safe and efficient conversion to/from bytes for types that have
 //! simple in-memory representations.
 
-use std::result;
-
 use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use super::{

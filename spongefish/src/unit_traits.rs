@@ -168,7 +168,7 @@ where
         Ok(result)
     }
 
-    fn message_units_vec<const N: usize>(
+    fn message_units_vec(
         &mut self,
         label: impl Into<Label>,
         size: usize,
