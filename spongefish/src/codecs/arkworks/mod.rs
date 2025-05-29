@@ -212,3 +212,67 @@ impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
 // impl<'a, P: ark_ec::pairing::Pairing, H, U> PairingWriter<P> for VerifierState<'a, H, U> where
 // U: Unit, H: DuplexSpongeInterface<U>,
 // VerifierState<'a, H, U>:  GroupToUnitSerialize<P::G1> + GroupToUnitSerialize<P::G2>  {}
+
+#[cfg(test)]
+mod tests {
+    use ark_ff::{Field, MontBackend, MontConfig};
+    use zeroize::Zeroize;
+
+    use super::*;
+    use crate::{
+        duplex_sponge::{DuplexSponge, Permutation},
+        DefaultRng, ProverState, VerifierState,
+    };
+
+    /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).
+    #[derive(MontConfig)]
+    #[modulus = "2013265921"]
+    #[generator = "21"]
+    pub struct BabybearMontConfig;
+    pub type BabybearConfig = MontBackend<BabybearMontConfig, 1>;
+    pub type BabyBear = Fp<BabybearConfig, 1>;
+
+    fn test_permute(state: &mut [BabyBear; 4]) {
+        for r in 0..64 {
+            state[0] += BabyBear::from(r);
+            state[0] = state[0].pow(&[7]);
+            let sum: BabyBear = state.iter().sum();
+            state.iter_mut().for_each(|s| *s += sum);
+        }
+    }
+
+    /// *Insecure* dummy permutation
+    #[derive(Clone, Zeroize, Default)]
+    pub struct TestPermutation([BabyBear; 4]);
+
+    impl Permutation for TestPermutation {
+        type U = BabyBear;
+        const N: usize = 4;
+        const R: usize = 2;
+
+        fn new(iv: [u8; 32]) -> Self {
+            let units = field_bytes::to_units::<BabybearConfig, 1>(&iv);
+            Self([units[0], units[1], units[2], units[3]])
+        }
+
+        fn permute(&mut self) {
+            test_permute(&mut self.0);
+        }
+    }
+
+    impl AsRef<[BabyBear]> for TestPermutation {
+        fn as_ref(&self) -> &[BabyBear] {
+            &self.0
+        }
+    }
+
+    impl AsMut<[BabyBear]> for TestPermutation {
+        fn as_mut(&mut self) -> &mut [BabyBear] {
+            &mut self.0
+        }
+    }
+
+    pub type TestSponge = DuplexSponge<TestPermutation>;
+    pub type TestProver = ProverState<TestSponge, BabyBear, DefaultRng>;
+    pub type TestVerifier<'a> = VerifierState<'a, TestSponge, BabyBear>;
+}
