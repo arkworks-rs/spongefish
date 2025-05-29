@@ -1,5 +1,5 @@
 use std::{
-    io::{Error as IOError, ErrorKind, Read},
+    io::{Error as IOError, ErrorKind},
     marker::PhantomData,
     slice::{from_mut, from_ref},
     sync::Arc,

@@ -58,6 +58,7 @@ ark-pallas = { workspace = true, features = ["std"] }
 pasta_curves = { workspace = true }
 ark-vesta = { workspace = true, features = ["std"] }
 sha3 = { workspace = true }
+anyhow = { version = "1.0.98", features = ["backtrace"] }
 
 [package.metadata.docs.rs]
 rustdoc-args = [

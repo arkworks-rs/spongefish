@@ -117,40 +117,44 @@
 //! ```
 //! Now the above code should work with algebraic hashes such as `PoseidonHash` just as well as [`Keccak`][`crate::keccak::Keccak`].
 //!
-/// domain separator utilities.
-mod domain_separator;
-/// Add public elements (field or group elements) to the protocol transcript.
-mod verifier_messages;
 
-/// Veririfer's utilities for decoding a transcript.
-mod deserialize;
-/// Prover's utilities for encoding into a transcript.
-mod prover_messages;
+mod ark_serialize;
+
+pub use self::ark_serialize::{ArkworksHintPattern, ArkworksHintProver, ArkworksHintVerifier};
+
+// /// domain separator utilities.
+// mod domain_separator;
+// /// Add public elements (field or group elements) to the protocol transcript.
+// mod verifier_messages;
+
+// /// Veririfer's utilities for decoding a transcript.
+// mod deserialize;
+// /// Prover's utilities for encoding into a transcript.
+// mod prover_messages;
 
 /// Tests for arkworks.
-#[cfg(test)]
-mod tests;
-
-pub use crate::{
-    duplex_sponge::Unit, traits::*, DomainSeparator, DuplexSpongeInterface,
-    HashStateWithInstructions, ProofError, ProofResult, ProverState, VerifierState,
-};
+// #[cfg(test)]
+// mod tests;
+// pub use crate::{
+//     duplex_sponge::Unit, traits::*, DomainSeparator, DuplexSpongeInterface,
+//     HashStateWithInstructions, ProofError, ProofResult, ProverState, VerifierState,
+// };
 
 super::traits::field_traits!(ark_ff::Field);
 super::traits::group_traits!(ark_ec::CurveGroup, Scalar: ark_ff::PrimeField);
 
-/// Move a value from prime field F1 to prime field F2.
-///
-/// Return an error if the element considered mod |F1| is different, when seen as an integer, mod |F2|.
-/// This in particular happens when element > |F2|.
-pub fn swap_field<F1: ark_ff::PrimeField, F2: ark_ff::PrimeField>(a_f1: F1) -> ProofResult<F2> {
-    use ark_ff::BigInteger;
-    let a_f2 = F2::from_le_bytes_mod_order(&a_f1.into_bigint().to_bytes_le());
-    let a_f1_control = F1::from_le_bytes_mod_order(&a_f2.into_bigint().to_bytes_le());
-    (a_f1 == a_f1_control)
-        .then_some(a_f2)
-        .ok_or(ProofError::SerializationError)
-}
+// /// Move a value from prime field F1 to prime field F2.
+// ///
+// /// Return an error if the element considered mod |F1| is different, when seen as an integer, mod |F2|.
+// /// This in particular happens when element > |F2|.
+// pub fn swap_field<F1: ark_ff::PrimeField, F2: ark_ff::PrimeField>(a_f1: F1) -> ProofResult<F2> {
+//     use ark_ff::BigInteger;
+//     let a_f2 = F2::from_le_bytes_mod_order(&a_f1.into_bigint().to_bytes_le());
+//     let a_f1_control = F1::from_le_bytes_mod_order(&a_f2.into_bigint().to_bytes_le());
+//     (a_f1 == a_f1_control)
+//         .then_some(a_f2)
+//         .ok_or(ProofError::SerializationError)
+// }
 
 // pub trait PairingReader<P: ark_ec::pairing::Pairing>: DeserializeGroup<P::G1> + DeserializeGroup<P::G2>  {
 //     fn fill_next_g1_points(&mut self, input: &mut [P::G1]) -> crate::ProofResult<()> {
