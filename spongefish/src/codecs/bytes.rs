@@ -75,7 +75,7 @@ where
         Ok(result)
     }
 
-    fn message_bytes_vec<const N: usize>(
+    fn message_bytes_vec(
         &mut self,
         label: impl Into<Label>,
         size: usize,

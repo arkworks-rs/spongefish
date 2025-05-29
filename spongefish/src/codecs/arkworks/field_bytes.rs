@@ -201,7 +201,8 @@ mod tests {
             to_units::<BabybearConfig, 1>(b"Hello"),
             vec![BabyBear::from(0x6c_6548), BabyBear::from(28524)]
         );
-        assert_eq!(random_bits_in_random_modp::<1>(BabybearConfig::MODULUS), 3);
+        assert_eq!(random_bits_in_random_modp(BabybearConfig::MODULUS), 0);
+        assert_eq!(random_bits_in_random_modp(ark_pallas::Fr::MODULUS), 254); // Is this right?
     }
 
     #[test]

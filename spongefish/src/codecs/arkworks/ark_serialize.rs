@@ -4,7 +4,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Serializ
 use thiserror::Error;
 
 use crate::{
-    codecs::{bytes::BytesCommon, BytesPattern},
+    codecs::{bytes::BytesCommon, BytesPattern, BytesProver, BytesVerifier},
     transcript::{InteractionError, Label, Length},
     Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
@@ -59,10 +59,6 @@ where
     fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
-
-    fn challenge_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
-    where
-        T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait ArkworksCommon<U>: UnitCommon<U>
@@ -75,11 +71,7 @@ where
         value: &T,
     ) -> Result<(), Error<Self::Error>>
     where
-        T: CanonicalSerialize + CanonicalDeserialize;
-
-    fn challenge_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
-    where
-        T: CanonicalSerialize + CanonicalDeserialize;
+        T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait ArkworksProver<U>: UnitProver<U>
@@ -90,18 +82,18 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), Error<Self::Error>>
     where
-        T: CanonicalSerialize + CanonicalDeserialize;
+        T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait ArkworksVerifier<'a, U>: UnitVerifier<'a, U>
 where
     U: Unit,
 {
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
     where
-        T: CanonicalSerialize + CanonicalDeserialize;
+        T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 impl<U, P> ArkworksHintPattern<U> for P
@@ -191,17 +183,6 @@ where
         self.message_bytes("arkworks-bytes", size)?;
         self.end_message::<T>(label, Length::Scalar)
     }
-
-    fn challenge_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
-    where
-        T: Default + CanonicalSerialize + CanonicalDeserialize,
-    {
-        let label = label.into();
-        let size = T::default().compressed_size();
-        self.begin_challenge::<T>(label.clone(), Length::Scalar)?;
-        self.challenge_bytes("arkworks-bytes", size)?;
-        self.end_challenge::<T>(label, Length::Scalar)
-    }
 }
 
 impl<U, P> ArkworksCommon<U> for P
@@ -215,11 +196,11 @@ where
         value: &T,
     ) -> Result<(), Error<Self::Error>>
     where
-        T: CanonicalSerialize + CanonicalDeserialize,
+        T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
         let label = label.into();
         self.begin_public::<T>(label.clone(), Length::Scalar)?;
-        let size = value.serialized_size(Compress::Yes);
+        let size = value.compressed_size();
         let mut buffer = Vec::with_capacity(size);
         value
             .serialize_compressed(&mut buffer)
@@ -228,12 +209,51 @@ where
         self.end_public::<T>(label.clone(), Length::Scalar)?;
         Ok(())
     }
+}
 
-    fn challenge_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
+impl<U, P> ArkworksProver<U> for P
+where
+    U: Unit,
+    P: BytesProver<U>,
+{
+    fn message_arkworks<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), Error<Self::Error>>
     where
-        T: CanonicalSerialize + CanonicalDeserialize,
+        T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        todo!()
+        let label = label.into();
+        self.begin_message::<T>(label.clone(), Length::Scalar)?;
+        let size = value.serialized_size(Compress::Yes);
+        let mut buffer = Vec::with_capacity(size);
+        value
+            .serialize_compressed(&mut buffer)
+            .map_err(Error::Serialization)?;
+        self.message_bytes("arkworks-bytes", &buffer)?;
+        self.end_message::<T>(label.clone(), Length::Scalar)?;
+        Ok(())
+    }
+}
+
+impl<'a, U, P> ArkworksVerifier<'a, U> for P
+where
+    U: Unit,
+    P: BytesVerifier<'a, U>,
+{
+    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
+    where
+        T: Default + CanonicalSerialize + CanonicalDeserialize,
+    {
+        let label = label.into();
+        self.begin_message::<T>(label.clone(), Length::Scalar)?;
+        let size = T::default().serialized_size(Compress::Yes);
+        let bytes = self.message_bytes_vec("arkworks-bytes", size)?;
+        let mut reader = bytes.as_slice();
+        let value = T::deserialize_compressed(&mut reader).map_err(Error::Serialization)?;
+        self.end_message::<T>(label.clone(), Length::Scalar)?;
+        Ok(value)
     }
 }
 
@@ -249,20 +269,26 @@ mod tests {
     #[test]
     fn test_all_ops() -> anyhow::Result<()> {
         let mut pattern = TranscriptRecorder::<u8>::new();
-        pattern.public_arkworks::<String>("1")?;
-        pattern.message_arkworks::<String>("1")?;
-        pattern.challenge_arkworks::<String>("1")?;
-        pattern.hint_arkworks::<String>("1")?;
+        pattern.public_arkworks::<u64>("1")?;
+        pattern.message_arkworks::<u64>("2")?;
+        pattern.hint_arkworks::<String>("3")?;
         let pattern = pattern.finalize()?;
         eprintln!("{pattern}");
 
         let mut prover: ProverState = ProverState::from(&pattern);
-        prover.hint_arkworks("1", &"Hello".to_string())?;
+        prover.public_arkworks("1", &1_u64)?;
+        prover.message_arkworks("2", &2_u64)?;
+        prover.hint_arkworks("3", &"Hello".to_string())?;
         let proof = prover.finalize()?;
-        assert_eq!(hex::encode(&proof), "0d000000050000000000000048656c6c6f");
+        assert_eq!(
+            hex::encode(&proof),
+            "02000000000000000d000000050000000000000048656c6c6f"
+        );
 
         let mut verifier: VerifierState = VerifierState::new(pattern.into(), &proof);
-        assert_eq!(verifier.hint_arkworks::<String>("1")?, "Hello");
+        verifier.public_arkworks("1", &1_u64)?;
+        assert_eq!(verifier.message_arkworks::<u64>("2")?, 2);
+        assert_eq!(verifier.hint_arkworks::<String>("3")?, "Hello");
         verifier.finalize()?;
 
         Ok(())
@@ -271,17 +297,26 @@ mod tests {
     #[test]
     fn test_all_baby_bear() -> anyhow::Result<()> {
         let mut pattern = TranscriptRecorder::<BabyBear>::new();
-        pattern.hint_arkworks::<String>("1")?;
+        pattern.public_arkworks::<u64>("1")?;
+        pattern.message_arkworks::<u64>("2")?;
+        pattern.hint_arkworks::<String>("3")?;
         let pattern = pattern.finalize()?;
         eprintln!("{pattern}");
 
         let mut prover = TestProver::from(&pattern);
-        prover.hint_arkworks("1", &"Hello".to_string())?;
+        prover.public_arkworks("1", &1_u64)?;
+        prover.message_arkworks("2", &2_u64)?;
+        prover.hint_arkworks("3", &"Hello".to_string())?;
         let proof = prover.finalize()?;
-        assert_eq!(hex::encode(&proof), "0d000000050000000000000048656c6c6f");
+        assert_eq!(
+            hex::encode(&proof),
+            "0200000000000000000000000d000000050000000000000048656c6c6f"
+        );
 
         let mut verifier = TestVerifier::new(pattern.into(), &proof);
-        assert_eq!(verifier.hint_arkworks::<String>("1")?, "Hello");
+        verifier.public_arkworks("1", &1_u64)?;
+        assert_eq!(verifier.message_arkworks::<u64>("2")?, 2);
+        assert_eq!(verifier.hint_arkworks::<String>("3")?, "Hello");
         verifier.finalize()?;
 
         Ok(())
