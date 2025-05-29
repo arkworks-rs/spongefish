@@ -61,7 +61,7 @@ where
         Ok(result)
     }
 
-    fn challenge_units_vec<const N: usize>(
+    fn challenge_units_vec(
         &mut self,
         label: impl Into<Label>,
         size: usize,

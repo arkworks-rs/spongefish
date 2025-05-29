@@ -1,3 +1,5 @@
+//! Use ark_serialize to convert types to/from bytes.
+
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError};
 use thiserror::Error;
 

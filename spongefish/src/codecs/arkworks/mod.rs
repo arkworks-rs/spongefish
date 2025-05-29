@@ -119,8 +119,15 @@
 //!
 
 mod ark_serialize;
+mod field_bytes;
+
+use std::io;
+
+use ::ark_serialize::{CanonicalDeserialize as _, CanonicalSerialize as _};
+use ark_ff::{Fp, FpConfig};
 
 pub use self::ark_serialize::{ArkworksHintPattern, ArkworksHintProver, ArkworksHintVerifier};
+use crate::Unit;
 
 // /// domain separator utilities.
 // mod domain_separator;
@@ -142,6 +149,27 @@ pub use self::ark_serialize::{ArkworksHintPattern, ArkworksHintProver, ArkworksH
 
 super::traits::field_traits!(ark_ff::Field);
 super::traits::group_traits!(ark_ec::CurveGroup, Scalar: ark_ff::PrimeField);
+
+/// Implement the [`Unit`] trait for all arkworks prime fields [`Fp`].
+impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
+    fn write(bunch: &[Self], mut w: &mut impl io::Write) -> Result<(), io::Error> {
+        for item in bunch {
+            item.serialize_compressed(&mut w).map_err(|_| {
+                io::Error::new(io::ErrorKind::Other, "Could not serialize field element.")
+            })?;
+        }
+        Ok(())
+    }
+
+    fn read(mut r: &mut impl io::Read, bunch: &mut [Self]) -> Result<(), io::Error> {
+        for item in bunch {
+            *item = Self::deserialize_compressed(&mut r).map_err(|_| {
+                io::Error::new(io::ErrorKind::Other, "Could not deserialize field element.")
+            })?;
+        }
+        Ok(())
+    }
+}
 
 // /// Move a value from prime field F1 to prime field F2.
 // ///
