@@ -119,14 +119,21 @@
 //!
 
 mod ark_serialize;
-mod field_bytes;
+mod bytes;
+mod field;
 
 use std::io;
 
 use ::ark_serialize::{CanonicalDeserialize as _, CanonicalSerialize as _};
 use ark_ff::{Fp, FpConfig};
 
-pub use self::ark_serialize::{ArkworksHintPattern, ArkworksHintProver, ArkworksHintVerifier};
+pub use self::{
+    ark_serialize::{
+        ArkworksCommon, ArkworksHintPattern, ArkworksHintProver, ArkworksHintVerifier,
+        ArkworksPattern, ArkworksProver, ArkworksVerifier,
+    },
+    field::{ArkFieldCommon, ArkFieldPattern},
+};
 use crate::Unit;
 
 // /// domain separator utilities.
@@ -139,7 +146,7 @@ use crate::Unit;
 // /// Prover's utilities for encoding into a transcript.
 // mod prover_messages;
 
-/// Tests for arkworks.
+// /// Tests for arkworks.
 // #[cfg(test)]
 // mod tests;
 // pub use crate::{
@@ -251,7 +258,7 @@ mod tests {
         const R: usize = 2;
 
         fn new(iv: [u8; 32]) -> Self {
-            let units = field_bytes::to_units::<BabybearConfig, 1>(&iv);
+            let units = bytes::to_units::<BabybearConfig, 1>(&iv);
             Self([units[0], units[1], units[2], units[3]])
         }
 

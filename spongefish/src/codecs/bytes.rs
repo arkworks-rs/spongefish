@@ -36,7 +36,7 @@ where
         Ok(result)
     }
 
-    fn challenge_bytes_vec<const N: usize>(
+    fn challenge_bytes_vec(
         &mut self,
         label: impl Into<Label>,
         size: usize,

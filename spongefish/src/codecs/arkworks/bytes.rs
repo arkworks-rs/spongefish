@@ -9,62 +9,6 @@ use crate::{
     UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
 
-/// Number of bytes that can unambiguously be packed into a field element.
-pub(super) const fn pack_bytes<C: FpConfig<N>, const N: usize>() -> usize {
-    let safe_bits = C::MODULUS.const_num_bits() - 1;
-    assert!(safe_bits >= 8, "Can not safely pack bytes into this field.");
-    (safe_bits / 8) as usize
-}
-
-pub(super) fn to_units<C: FpConfig<N>, const N: usize>(bytes: &[u8]) -> Vec<Fp<C, N>> {
-    bytes
-        .chunks(pack_bytes::<C, N>())
-        .map(|chunk| {
-            let mut limbs = [0_u64; N];
-            limbs.as_mut_bytes()[..chunk.len()].copy_from_slice(chunk);
-            Fp::from_bigint(BigInt(limbs)).expect("packing can not produce unreduced elements")
-        })
-        .collect::<Vec<_>>()
-}
-
-pub(super) fn from_units_out<C: FpConfig<N>, const N: usize>(units: &[Fp<C, N>], out: &mut [u8]) {
-    for (unit, chunk) in units.iter().zip(out.chunks_mut(pack_bytes::<C, N>())) {
-        let limbs = unit.into_bigint().0;
-        chunk.copy_from_slice(&limbs.as_bytes()[..chunk.len()]);
-    }
-}
-
-/// Number of uniformly random bytes of in a uniformly-distributed element in `[0, b)`.
-///
-/// This function returns the maximum n for which
-/// `Uniform([b]) mod 2^n`
-/// and
-/// `Uniform([2^n])`
-/// are statistically indistinguishable.
-/// Given \(b = q 2^n + r\) the statistical distance
-/// is \(\frac{2r}{ab}(a-r)\).
-// TODO: For small fields this will always return zero. Instead we should combine multiple elements
-// to get enough combined entropy.
-fn random_bits_in_random_modp<const N: usize>(b: BigInt<N>) -> usize {
-    use ark_ff::{BigInt, BigInteger};
-    // XXX. is it correct to have num_bits+1 here?
-    for n in (0..=b.num_bits()).rev() {
-        // compute the remainder of b by 2^n
-        let r_bits = &b.to_bits_le()[..n as usize];
-        let r = BigInt::<N>::from_bits_le(r_bits);
-        let log2_a_minus_r = r_bits.iter().rev().skip_while(|&&bit| bit).count() as u32;
-        if b.num_bits() + n - 1 - r.num_bits() - log2_a_minus_r >= 128 {
-            return n as usize;
-        }
-    }
-    0
-}
-
-/// Same as above, but for bytes
-fn random_bytes_in_random_modp<const N: usize>(modulus: BigInt<N>) -> usize {
-    random_bits_in_random_modp(modulus) / 8
-}
-
 impl<P, C, const N: usize> BytesPattern<Fp<C, N>> for P
 where
     P: UnitPattern<Fp<C, N>>,
@@ -182,6 +126,63 @@ where
         from_units_out::<C, N>(&units, out);
         self.end_message::<[u8]>(label, Length::Fixed(out.len()))
     }
+}
+
+/// Number of bytes that can unambiguously be packed into a field element.
+pub(super) const fn pack_bytes<C: FpConfig<N>, const N: usize>() -> usize {
+    let safe_bits = C::MODULUS.const_num_bits() - 1;
+    assert!(safe_bits >= 8, "Can not safely pack bytes into this field.");
+    (safe_bits / 8) as usize
+}
+
+pub(super) fn to_units<C: FpConfig<N>, const N: usize>(bytes: &[u8]) -> Vec<Fp<C, N>> {
+    bytes
+        .chunks(pack_bytes::<C, N>())
+        .map(|chunk| {
+            let mut limbs = [0_u64; N];
+            limbs.as_mut_bytes()[..chunk.len()].copy_from_slice(chunk);
+            Fp::from_bigint(BigInt(limbs)).expect("packing can not produce unreduced elements")
+        })
+        .collect::<Vec<_>>()
+}
+
+pub(super) fn from_units_out<C: FpConfig<N>, const N: usize>(units: &[Fp<C, N>], out: &mut [u8]) {
+    for (unit, chunk) in units.iter().zip(out.chunks_mut(pack_bytes::<C, N>())) {
+        let limbs = unit.into_bigint().0;
+        chunk.copy_from_slice(&limbs.as_bytes()[..chunk.len()]);
+    }
+}
+
+/// Number of uniformly random bytes of in a uniformly-distributed element in `[0, b)`.
+///
+/// This function returns the maximum n for which
+/// `Uniform([b]) mod 2^n`
+/// and
+/// `Uniform([2^n])`
+/// are statistically indistinguishable.
+/// Given \(b = q 2^n + r\) the statistical distance
+/// is \(\frac{2r}{ab}(a-r)\).
+// TODO: For small fields this will always return zero. Instead we should combine multiple elements
+// to get enough combined entropy. For this we need to find k such that p^k > 2^{8*k + 128} and then
+// compute sum_i f_i * p^i mod 2^{8*k} to get random bytes.
+fn random_bits_in_random_modp<const N: usize>(b: BigInt<N>) -> usize {
+    use ark_ff::{BigInt, BigInteger};
+    // XXX. is it correct to have num_bits+1 here?
+    for n in (0..=b.num_bits()).rev() {
+        // compute the remainder of b by 2^n
+        let r_bits = &b.to_bits_le()[..n as usize];
+        let r = BigInt::<N>::from_bits_le(r_bits);
+        let log2_a_minus_r = r_bits.iter().rev().skip_while(|&&bit| bit).count() as u32;
+        if b.num_bits() + n - 1 - r.num_bits() - log2_a_minus_r >= 128 {
+            return n as usize;
+        }
+    }
+    0
+}
+
+/// Same as above, but for bytes
+fn random_bytes_in_random_modp<const N: usize>(modulus: BigInt<N>) -> usize {
+    random_bits_in_random_modp(modulus) / 8
 }
 
 #[cfg(test)]
