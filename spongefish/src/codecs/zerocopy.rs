@@ -7,7 +7,6 @@ use crate::{
     codecs::{bytes, unit},
     transcript::{self, InteractionError, Label, Length, TranscriptError},
     verifier_state::VerifierError,
-    Unit,
 };
 
 pub trait HintPattern {

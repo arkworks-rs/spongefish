@@ -5,8 +5,6 @@ mod transcript_pattern;
 mod transcript_player;
 mod transcript_recorder;
 
-use core::error::Error;
-
 pub use self::{
     interaction::{Hierarchy, Interaction, Kind, Label, Length},
     transcript_pattern::{TranscriptError, TranscriptPattern},

@@ -48,12 +48,12 @@ where
     }
 
     fn pack_bytes(bytes: &[u8]) -> Cow<[Self]> {
-        let mut out = vec![Fp::ZERO; Self::pack_units_required(bytes.len())];
+        let mut out = vec![Self::ZERO; Self::pack_units_required(bytes.len())];
         for (chunk, out) in bytes.chunks(pack_bytes::<C, N>()).zip(out.iter_mut()) {
             let mut limbs = [0_u64; N];
             limbs.as_mut_bytes()[..chunk.len()].copy_from_slice(chunk);
-            *out =
-                Fp::from_bigint(BigInt(limbs)).expect("packing can not produce unreduced elements");
+            *out = Self::from_bigint(BigInt(limbs))
+                .expect("packing can not produce unreduced elements");
         }
         Cow::Owned(out)
     }

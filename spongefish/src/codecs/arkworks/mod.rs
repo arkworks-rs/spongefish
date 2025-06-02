@@ -118,16 +118,9 @@
 //! Now the above code should work with algebraic hashes such as `PoseidonHash` just as well as [`Keccak`][`crate::keccak::Keccak`].
 //!
 
-pub mod serialize;
-// mod field;
+pub mod field;
 mod fp_unit;
-
-use std::io;
-
-use ::ark_serialize::{CanonicalDeserialize as _, CanonicalSerialize as _};
-use ark_ff::{Fp, FpConfig};
-
-use crate::Unit;
+pub mod serialize;
 
 // /// domain separator utilities.
 // mod domain_separator;
@@ -188,7 +181,7 @@ super::traits::group_traits!(ark_ec::CurveGroup, Scalar: ark_ff::PrimeField);
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{Field, MontBackend, MontConfig};
+    use ark_ff::{Field, Fp, MontBackend, MontConfig};
     use zeroize::Zeroize;
 
     use super::*;

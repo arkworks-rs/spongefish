@@ -6,7 +6,6 @@ use thiserror::Error;
 use crate::{
     codecs::{bytes, unit},
     transcript::{self, InteractionError, Label, Length, TranscriptError},
-    Unit,
 };
 
 #[derive(Debug, Error)]
@@ -27,25 +26,25 @@ pub enum VerifierError {
     Serialization(#[from] SerializationError),
 }
 
-pub trait ArkworksHintPattern {
+pub trait HintPattern {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintProver {
+pub trait HintProver {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), ProverError>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintVerifier {
+pub trait HintVerifier {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksPattern {
+pub trait Pattern {
     fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
@@ -55,13 +54,13 @@ pub trait ArkworksPattern {
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksCommon {
+pub trait Common {
     fn public_arkworks<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), ProverError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksProver: ArkworksCommon + ArkworksHintProver {
+pub trait Prover: Common + HintProver {
     fn message_arkworks<T>(
         &mut self,
         label: impl Into<Label>,
@@ -71,13 +70,13 @@ pub trait ArkworksProver: ArkworksCommon + ArkworksHintProver {
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksVerifier: ArkworksCommon + ArkworksHintVerifier {
+pub trait Verifier: Common + HintVerifier {
     fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-impl<P> ArkworksHintPattern for P
+impl<P> HintPattern for P
 where
     P: transcript::Pattern + unit::Pattern,
 {
@@ -93,7 +92,7 @@ where
     }
 }
 
-impl<P> ArkworksHintProver for P
+impl<P> HintProver for P
 where
     P: transcript::Prover + unit::Prover,
 {
@@ -112,7 +111,7 @@ where
     }
 }
 
-impl<'a, P> ArkworksHintVerifier for P
+impl<'a, P> HintVerifier for P
 where
     P: transcript::Verifier + unit::Verifier<'a>,
 {
@@ -129,7 +128,7 @@ where
     }
 }
 
-impl<P> ArkworksPattern for P
+impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
@@ -156,7 +155,7 @@ where
     }
 }
 
-impl<P> ArkworksCommon for P
+impl<P> Common for P
 where
     P: transcript::Common + bytes::Common,
 {
@@ -175,9 +174,9 @@ where
     }
 }
 
-impl<P> ArkworksProver for P
+impl<P> Prover for P
 where
-    P: ArkworksCommon + ArkworksHintProver + transcript::Prover + bytes::Prover,
+    P: Common + HintProver + transcript::Prover + bytes::Prover,
 {
     fn message_arkworks<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), ProverError>
     where
@@ -194,9 +193,9 @@ where
     }
 }
 
-impl<P> ArkworksVerifier for P
+impl<P> Verifier for P
 where
-    P: ArkworksCommon + ArkworksHintVerifier + transcript::Verifier + bytes::Verifier,
+    P: Common + HintVerifier + transcript::Verifier + bytes::Verifier,
 {
     fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
     where

@@ -6,13 +6,12 @@
 use ark_ff::{Field, PrimeField};
 
 use crate::{
-    codecs::{bytes, unit},
-    transcript::{Label, Length},
-    Unit,
+    codecs::bytes,
+    transcript::{self, InteractionError, Label, Length, TranscriptError},
 };
 
-pub trait ArkFieldPattern: unit::Pattern {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+pub trait ArkFieldPattern {
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         F: Field;
 
@@ -20,16 +19,13 @@ pub trait ArkFieldPattern: unit::Pattern {
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         F: Field;
 }
 
-pub trait ArkFieldCommon<U>: unit::Common<U>
-where
-    U: Unit,
-{
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, Self::Error>
+pub trait ArkFieldCommon {
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, InteractionError>
     where
         F: Field;
 
@@ -37,14 +33,14 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [F],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         F: Field;
 
     fn challenge_ark_fels_array<F, const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[F; N], Self::Error>
+    ) -> Result<[F; N], InteractionError>
     where
         F: Field,
     {
@@ -57,7 +53,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<F>, Self::Error>
+    ) -> Result<Vec<F>, InteractionError>
     where
         F: Field,
     {
@@ -69,9 +65,9 @@ where
 
 impl<P> ArkFieldPattern for P
 where
-    P: bytes::Pattern,
+    P: transcript::Pattern + bytes::Pattern,
 {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         F: Field,
     {
@@ -87,7 +83,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         F: Field,
     {
@@ -100,13 +96,11 @@ where
     }
 }
 
-/// Specialization for
-impl<U, P> ArkFieldCommon<U> for P
+impl<P> ArkFieldCommon for P
 where
-    U: Unit,
-    P: bytes::Common<U>,
+    P: transcript::Common + bytes::Common,
 {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, Self::Error>
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, InteractionError>
     where
         F: Field,
     {
@@ -129,7 +123,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [F],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         F: Field,
     {
@@ -176,14 +170,14 @@ mod tests {
         let mut prover: ProverState = ProverState::from(&pattern);
         assert_eq!(
             prover.challenge_ark_fel::<BabyBear>("1")?,
-            BabyBear::from(106_269_666)
+            BabyBear::from(303345864)
         );
         assert_eq!(
             prover.challenge_ark_fels_array::<BabyBear, 3>("2")?,
             [
-                BabyBear::from(5_194_426),
-                BabyBear::from(1_429_459_101),
-                BabyBear::from(121_990_574)
+                BabyBear::from(1634935281),
+                BabyBear::from(928942326),
+                BabyBear::from(42987044)
             ]
         );
         let proof = prover.finalize()?;
@@ -192,14 +186,14 @@ mod tests {
         let mut verifier: VerifierState = VerifierState::new(pattern.into(), &proof);
         assert_eq!(
             verifier.challenge_ark_fel::<BabyBear>("1")?,
-            BabyBear::from(106_269_666)
+            BabyBear::from(303345864)
         );
         assert_eq!(
             verifier.challenge_ark_fels_array::<BabyBear, 3>("2")?,
             [
-                BabyBear::from(5_194_426),
-                BabyBear::from(1_429_459_101),
-                BabyBear::from(121_990_574)
+                BabyBear::from(1634935281),
+                BabyBear::from(928942326),
+                BabyBear::from(42987044)
             ]
         );
         verifier.finalize()?;
