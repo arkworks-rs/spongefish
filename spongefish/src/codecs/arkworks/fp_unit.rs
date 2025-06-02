@@ -1,8 +1,9 @@
 //! Implementations tu use an arkworks prime field [`Fp`] as a unit in the transcript.
-use std::io;
+use std::{borrow::Cow, io};
 
-use ark_ff::{BigInt, Fp, FpConfig};
+use ark_ff::{AdditiveGroup, BigInt, Fp, FpConfig, PrimeField as _};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use zerocopy::IntoBytes as _;
 
 use crate::{codecs::bytes, Unit};
 
@@ -46,14 +47,15 @@ where
         bytes.div_ceil(random_bytes_in_random_modp::<N>(C::MODULUS))
     }
 
-    fn pack_bytes(bytes: &[u8], out: &mut [Self]) {
-        assert_eq!(out.len(), Self::pack_units_required(bytes.len()));
+    fn pack_bytes(bytes: &[u8]) -> Cow<[Self]> {
+        let mut out = vec![Fp::ZERO; Self::pack_units_required(bytes.len())];
         for (chunk, out) in bytes.chunks(pack_bytes::<C, N>()).zip(out.iter_mut()) {
             let mut limbs = [0_u64; N];
             limbs.as_mut_bytes()[..chunk.len()].copy_from_slice(chunk);
             *out =
                 Fp::from_bigint(BigInt(limbs)).expect("packing can not produce unreduced elements");
         }
+        Cow::Owned(out)
     }
 
     fn unpack_bytes(units: &[Self], out: &mut [u8]) {

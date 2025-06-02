@@ -190,8 +190,8 @@ where
     ) -> Result<(), InteractionError> {
         let label = label.into();
         self.begin_public::<[u8]>(label.clone(), Length::Fixed(value.len()))?;
-        let value = P::Unit::pack_bytes(value);
-        self.public_units("bytes", &value)?;
+        let units = P::Unit::pack_bytes(value);
+        self.public_units("bytes", &units)?;
         self.end_public::<[u8]>(label, Length::Fixed(value.len()))
     }
 
@@ -221,8 +221,8 @@ where
     ) -> Result<(), InteractionError> {
         let label = label.into();
         self.begin_message::<[u8]>(label.clone(), Length::Fixed(value.len()))?;
-        let value = P::Unit::pack_bytes(value);
-        self.message_units("bytes", &value)?;
+        let units = P::Unit::pack_bytes(value);
+        self.message_units("bytes", &units)?;
         self.end_message::<[u8]>(label, Length::Fixed(value.len()))
     }
 }

@@ -4,7 +4,7 @@
 #[cfg(any(feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod traits;
 
-// pub mod arkworks;
+pub mod arkworks;
 pub mod bytes;
 pub mod unit;
 pub mod zerocopy;

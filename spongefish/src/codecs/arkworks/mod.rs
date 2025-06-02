@@ -118,8 +118,8 @@
 //! Now the above code should work with algebraic hashes such as `PoseidonHash` just as well as [`Keccak`][`crate::keccak::Keccak`].
 //!
 
-mod ark_serialize;
-mod field;
+pub mod serialize;
+// mod field;
 mod fp_unit;
 
 use std::io;
@@ -127,13 +127,6 @@ use std::io;
 use ::ark_serialize::{CanonicalDeserialize as _, CanonicalSerialize as _};
 use ark_ff::{Fp, FpConfig};
 
-pub use self::{
-    ark_serialize::{
-        ArkworksCommon, ArkworksHintPattern, ArkworksHintProver, ArkworksHintVerifier,
-        ArkworksPattern, ArkworksProver, ArkworksVerifier,
-    },
-    field::{ArkFieldCommon, ArkFieldPattern},
-};
 use crate::Unit;
 
 // /// domain separator utilities.
@@ -200,6 +193,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        codecs::bytes::UnitBytes,
         duplex_sponge::{DuplexSponge, Permutation},
         DefaultRng, ProverState, VerifierState,
     };
@@ -231,7 +225,7 @@ mod tests {
         const R: usize = 2;
 
         fn new(iv: [u8; 32]) -> Self {
-            let units = bytes::to_units::<BabybearConfig, 1>(&iv);
+            let units = BabyBear::pack_bytes(&iv);
             Self([units[0], units[1], units[2], units[3]])
         }
 
