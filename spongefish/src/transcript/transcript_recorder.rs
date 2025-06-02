@@ -3,7 +3,7 @@ use std::{fmt::Display, marker::PhantomData};
 use super::{
     Hierarchy, Interaction, Kind, Label, Length, Transcript, TranscriptError, TranscriptPattern,
 };
-use crate::{unit, Unit};
+use crate::{codecs::unit, Unit};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct TranscriptRecorder<U = u8>

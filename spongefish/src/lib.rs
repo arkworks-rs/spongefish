@@ -145,11 +145,9 @@ pub mod codecs;
 /// Unit-tests.
 // #[cfg(test)]
 // mod tests;
-pub mod unit;
 
 // pub mod domain_separator;
 // pub use domain_separator::*;
-
 pub mod transcript;
 
 pub use self::{

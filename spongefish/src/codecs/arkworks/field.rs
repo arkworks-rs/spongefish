@@ -6,9 +6,9 @@
 use ark_ff::{Field, PrimeField};
 
 use crate::{
-    codecs::bytes,
+    codecs::{bytes, unit},
     transcript::{Label, Length},
-    unit, Unit,
+    Unit,
 };
 
 pub trait ArkFieldPattern<U>: unit::Pattern<U>

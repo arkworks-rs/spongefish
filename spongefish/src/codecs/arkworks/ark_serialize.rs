@@ -4,9 +4,9 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Serializ
 use thiserror::Error;
 
 use crate::{
-    codecs::bytes,
+    codecs::{bytes, unit},
     transcript::{InteractionError, Label, Length},
-    unit, Unit,
+    Unit,
 };
 
 #[derive(Debug, Error)]

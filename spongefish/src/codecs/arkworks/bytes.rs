@@ -3,7 +3,10 @@
 use ark_ff::{BigInt, Fp, FpConfig, PrimeField};
 use zerocopy::IntoBytes;
 
-use crate::{codecs::bytes, transcript::Length, unit};
+use crate::{
+    codecs::{bytes, unit},
+    transcript::Length,
+};
 
 impl<P, C, const N: usize> bytes::Pattern<Fp<C, N>> for P
 where

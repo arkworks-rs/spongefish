@@ -6,6 +6,7 @@ mod traits;
 
 pub mod arkworks;
 pub mod bytes;
+pub mod unit;
 pub mod zerocopy;
 
 //#[cfg(feature = "arkworks-algebra")]

@@ -4,9 +4,9 @@
 use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
-    codecs::bytes,
+    codecs::{bytes, unit},
     transcript::{Label, Length},
-    unit, Unit,
+    Unit,
 };
 
 pub trait HintPattern<U>: unit::Pattern<U>

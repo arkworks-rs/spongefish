@@ -8,12 +8,13 @@ use std::{
 use thiserror::Error;
 
 use crate::{
+    codecs::unit,
     duplex_sponge::{DuplexSpongeInterface, Unit},
     transcript::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    unit, DefaultHash,
+    DefaultHash,
 };
 
 #[derive(Debug, Error)]
@@ -284,7 +285,7 @@ mod tests {
     use std::{cell::RefCell, error::Error, rc::Rc};
 
     use super::*;
-    use crate::{transcript::TranscriptRecorder, unit::*};
+    use crate::{codecs::unit::*, transcript::TranscriptRecorder};
 
     #[derive(Default, Clone)]
     pub struct DummySponge {

@@ -7,12 +7,13 @@ use std::{
 use rand::{CryptoRng, RngCore, SeedableRng};
 
 use crate::{
+    codecs::unit,
     duplex_sponge::{DuplexSpongeInterface, Unit},
     transcript::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    unit, DefaultHash, DefaultRng, ProverRng,
+    DefaultHash, DefaultRng, ProverRng,
 };
 
 /// [`ProverState`] is the prover state of an interactive proof (IP) system.
@@ -399,7 +400,7 @@ mod tests {
     use zerocopy::IntoBytes;
 
     use super::*;
-    use crate::{transcript::TranscriptRecorder, unit::*};
+    use crate::{codecs::unit::*, transcript::TranscriptRecorder};
 
     /// Test all operations in UnitPattern.
     #[test]

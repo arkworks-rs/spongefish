@@ -1,7 +1,8 @@
 //! Traits that convert between byte arrays and units.
 use crate::{
+    codecs::unit,
     transcript::{Label, Length},
-    unit, Unit,
+    Unit,
 };
 
 /// Traits for patterns that handle byte arrays in a transcript.
