@@ -12,7 +12,7 @@ use crate::{
     Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
 
-pub trait ZeroCopyHintPattern<U>: UnitPattern<U>
+pub trait HintPattern<U>: UnitPattern<U>
 where
     U: Unit,
 {
@@ -52,7 +52,7 @@ where
     }
 }
 
-pub trait ZeroCopyHintProver<U>: UnitProver<U>
+pub trait HintProver<U>: UnitProver<U>
 where
     U: Unit,
 {
@@ -77,7 +77,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait ZeroCopyHintVerifier<'a, U>: UnitVerifier<'a, U>
+pub trait HintVerifier<'a, U>: UnitVerifier<'a, U>
 where
     U: Unit,
 {
@@ -161,7 +161,7 @@ where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait ZeroCopyPattern<U>: ZeroCopyHintPattern<U>
+pub trait Pattern<U>: HintPattern<U>
 where
     U: Unit,
 {
@@ -202,7 +202,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait ZeroCopyCommon<U>: UnitCommon<U>
+pub trait Common<U>: UnitCommon<U>
 where
     U: Unit,
 {
@@ -269,7 +269,7 @@ where
     }
 }
 
-pub trait ZeroCopyProver<U>: UnitProver<U> + ZeroCopyCommon<U>
+pub trait Prover<U>: UnitProver<U> + Common<U>
 where
     U: Unit,
 {
@@ -290,7 +290,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait ZeroCopyVerifier<'a, U>: UnitVerifier<'a, U> + ZeroCopyCommon<U>
+pub trait Verifier<'a, U>: UnitVerifier<'a, U> + Common<U>
 where
     U: Unit,
 {
@@ -346,7 +346,7 @@ where
 }
 
 /// Implementation of [`ZeroCopyHintPattern`] for all [`UnitPattern`].
-impl<P, U> ZeroCopyHintPattern<U> for P
+impl<P, U> HintPattern<U> for P
 where
     P: UnitPattern<U>,
     U: Unit,
@@ -387,7 +387,7 @@ where
     }
 }
 
-impl<P, U> ZeroCopyHintProver<U> for P
+impl<P, U> HintProver<U> for P
 where
     P: UnitProver<U>,
     U: Unit,
@@ -431,7 +431,7 @@ where
     }
 }
 
-impl<'a, P, U> ZeroCopyHintVerifier<'a, U> for P
+impl<'a, P, U> HintVerifier<'a, U> for P
 where
     P: UnitVerifier<'a, U>,
     U: Unit,
@@ -533,7 +533,7 @@ where
 }
 
 /// Implementation of [`ZeroCopyPattern`] for [`BytesPattern`].
-impl<P, U> ZeroCopyPattern<U> for P
+impl<P, U> Pattern<U> for P
 where
     P: BytesPattern<U>,
     U: Unit,
@@ -612,7 +612,7 @@ where
 }
 
 /// Implementation of [`ZeroCopyCommon`] for [`BytesCommon`].
-impl<P, U> ZeroCopyCommon<U> for P
+impl<P, U> Common<U> for P
 where
     P: BytesCommon<U>,
     U: Unit,
@@ -671,7 +671,7 @@ where
 }
 
 /// Implementation of [`ZeroCopyProver`] for  [`BytesProver`]s.
-impl<P, U> ZeroCopyProver<U> for P
+impl<P, U> Prover<U> for P
 where
     P: BytesProver<U>,
     U: Unit,
@@ -702,7 +702,7 @@ where
 }
 
 /// Implementation of [`ZeroCopyVerifier`] for  [`BytesVerifier`]s.
-impl<'a, P, U> ZeroCopyVerifier<'a, U> for P
+impl<'a, P, U> Verifier<'a, U> for P
 where
     P: BytesVerifier<'a, U>,
     U: Unit,
