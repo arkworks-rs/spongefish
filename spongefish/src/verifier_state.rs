@@ -87,19 +87,17 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     }
 }
 
-impl<'a, H, U> Transcript for VerifierState<'a, H, U>
+impl<'a, H, U> Transcript<InteractionError> for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
-    type Error = VerifierError;
-
     fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length))?;
         Ok(())
@@ -110,7 +108,7 @@ where
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::End, kind, label, length))?;
         Ok(())
@@ -124,7 +122,7 @@ where
 {
     type Unit = U;
 
-    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), InteractionError> {
         let value = from_ref(value);
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
@@ -136,7 +134,11 @@ where
         Ok(())
     }
 
-    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error> {
+    fn public_units(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[U],
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
@@ -151,7 +153,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut U,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -166,7 +168,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [U],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -183,7 +185,7 @@ where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
-    fn ratchet(&mut self) -> Result<(), Self::Error> {
+    fn ratchet(&mut self) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
             Kind::Protocol,
@@ -198,7 +200,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &mut U,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), VerifierError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -215,7 +217,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &mut [U],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), VerifierError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -231,7 +233,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         size: usize,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<&'a [u8], VerifierError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
@@ -252,7 +254,7 @@ where
     fn hint_bytes_dynamic(
         &mut self,
         label: impl Into<crate::transcript::Label>,
-    ) -> Result<&'a [u8], Self::Error> {
+    ) -> Result<&'a [u8], VerifierError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,

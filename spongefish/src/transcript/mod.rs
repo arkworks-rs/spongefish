@@ -17,16 +17,14 @@ pub use self::{
 /// Trait for objects that implement hierarchy operations.
 ///
 /// It does not offer any [`Kind::Atomic`] operations, these need to be implemented specifically.
-pub trait Transcript {
-    type Error: Error;
-
+pub trait Transcript<Error> {
     /// Begin of a group of interactions.
     fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Error>;
 
     /// End of a group of interactions.
     fn end<T: ?Sized>(
@@ -34,15 +32,15 @@ pub trait Transcript {
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), Error>;
 
     /// Begin of a subprotocol.
-    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
+    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Error> {
         self.begin::<T>(label.into(), Kind::Protocol, Length::None)
     }
 
     /// End of a subprotocol.
-    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error> {
+    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Error> {
         self.end::<T>(label, Kind::Protocol, Length::None)
     }
 
@@ -51,7 +49,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.begin::<T>(label, Kind::Public, length)
     }
 
@@ -60,7 +58,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.end::<T>(label, Kind::Public, length)
     }
     /// Begin of a message interaction.
@@ -68,7 +66,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.begin::<T>(label, Kind::Message, length)
     }
 
@@ -77,7 +75,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.end::<T>(label, Kind::Message, length)
     }
 
@@ -86,7 +84,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.begin::<T>(label, Kind::Hint, length)
     }
 
@@ -95,7 +93,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.end::<T>(label, Kind::Hint, length)
     }
 
@@ -104,7 +102,7 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.begin::<T>(label, Kind::Challenge, length)
     }
 
@@ -113,7 +111,15 @@ pub trait Transcript {
         &mut self,
         label: impl Into<Label>,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), Error> {
         self.end::<T>(label, Kind::Challenge, length)
     }
 }
+
+pub trait Pattern: Transcript<TranscriptError> {}
+
+pub trait Common: Transcript<InteractionError> {}
+
+impl<T> Pattern for T where T: Transcript<TranscriptError> {}
+
+impl<T> Common for T where T: Transcript<InteractionError> {}

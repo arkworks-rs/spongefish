@@ -151,20 +151,18 @@ where
     }
 }
 
-impl<H, U, R> Transcript for ProverState<H, U, R>
+impl<H, U, R> Transcript<InteractionError> for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
 {
-    type Error = InteractionError;
-
     fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length))
     }
@@ -174,7 +172,7 @@ where
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::End, kind, label, length))
     }
@@ -188,7 +186,7 @@ where
 {
     type Unit = U;
 
-    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), InteractionError> {
         let value = from_ref(value);
 
         // Update transcript
@@ -210,7 +208,11 @@ where
         Ok(())
     }
 
-    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error> {
+    fn public_units(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[U],
+    ) -> Result<(), InteractionError> {
         // Update transcript
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
@@ -234,7 +236,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut U,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -249,7 +251,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [U],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -277,7 +279,7 @@ where
         &mut self.rng
     }
 
-    fn ratchet(&mut self) -> Result<(), Self::Error> {
+    fn ratchet(&mut self) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
             Kind::Protocol,
@@ -293,7 +295,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &U,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         let value = from_ref(value);
 
         // Update transcript
@@ -322,7 +324,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &[U],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         // Update transcript
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
@@ -349,7 +351,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &[u8],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
@@ -370,7 +372,7 @@ where
         &mut self,
         label: impl Into<crate::transcript::Label>,
         value: &[u8],
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), InteractionError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
