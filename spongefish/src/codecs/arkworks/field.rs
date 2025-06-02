@@ -10,7 +10,7 @@ use crate::{
     transcript::{self, InteractionError, Label, Length, TranscriptError},
 };
 
-pub trait ArkFieldPattern {
+pub trait Pattern {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         F: Field;
@@ -24,7 +24,7 @@ pub trait ArkFieldPattern {
         F: Field;
 }
 
-pub trait ArkFieldCommon {
+pub trait Common {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, InteractionError>
     where
         F: Field;
@@ -63,7 +63,7 @@ pub trait ArkFieldCommon {
     }
 }
 
-impl<P> ArkFieldPattern for P
+impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
@@ -96,7 +96,7 @@ where
     }
 }
 
-impl<P> ArkFieldCommon for P
+impl<P> Common for P
 where
     P: transcript::Common + bytes::Common,
 {
