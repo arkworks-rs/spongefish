@@ -145,7 +145,7 @@ pub mod codecs;
 /// Unit-tests.
 // #[cfg(test)]
 // mod tests;
-mod unit_traits;
+pub mod unit;
 
 // pub mod domain_separator;
 // pub use domain_separator::*;
@@ -157,7 +157,6 @@ pub use self::{
     errors::{DomainSeparatorMismatch, ProofError, ProofResult},
     prover_rng::ProverRng,
     prover_state::ProverState,
-    unit_traits::{UnitCommon, UnitPattern, UnitProver, UnitVerifier},
     verifier_state::VerifierState,
 };
 

@@ -3,7 +3,7 @@ use std::{fmt::Display, marker::PhantomData};
 use super::{
     Hierarchy, Interaction, Kind, Label, Length, Transcript, TranscriptError, TranscriptPattern,
 };
-use crate::{Unit, UnitPattern};
+use crate::{unit, Unit};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct TranscriptRecorder<U = u8>
@@ -80,7 +80,7 @@ where
     }
 }
 
-impl<U> UnitPattern<U> for TranscriptRecorder<U>
+impl<U> unit::Pattern<U> for TranscriptRecorder<U>
 where
     U: Unit,
 {

@@ -13,7 +13,7 @@ use crate::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash, UnitCommon, UnitVerifier,
+    unit, DefaultHash,
 };
 
 #[derive(Debug, Error)]
@@ -116,7 +116,7 @@ where
     }
 }
 
-impl<'a, H, U> UnitCommon<U> for VerifierState<'a, H, U>
+impl<'a, H, U> unit::Common<U> for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -175,7 +175,7 @@ where
     }
 }
 
-impl<'a, H, U> UnitVerifier<'a, U> for VerifierState<'a, H, U>
+impl<'a, H, U> unit::Verifier<'a, U> for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -284,7 +284,7 @@ mod tests {
     use std::{cell::RefCell, error::Error, rc::Rc};
 
     use super::*;
-    use crate::{transcript::TranscriptRecorder, UnitPattern};
+    use crate::{transcript::TranscriptRecorder, unit::*};
 
     #[derive(Default, Clone)]
     pub struct DummySponge {

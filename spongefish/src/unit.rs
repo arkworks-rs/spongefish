@@ -5,7 +5,7 @@ use crate::{
     Unit,
 };
 
-pub trait UnitPattern<U>: Transcript
+pub trait Pattern<U>: Transcript
 where
     U: Unit,
 {
@@ -20,7 +20,7 @@ where
     fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
 }
 
-pub trait UnitCommon<U>: Transcript
+pub trait Common<U>: Transcript
 where
     U: Unit,
 {
@@ -75,7 +75,7 @@ where
     }
 }
 
-pub trait UnitProver<U>: UnitCommon<U>
+pub trait Prover<U>: Common<U>
 where
     U: Unit,
 {
@@ -129,7 +129,7 @@ where
     ) -> Result<(), Self::Error>;
 }
 
-pub trait UnitVerifier<'a, U>: UnitCommon<U>
+pub trait Verifier<'a, U>: Common<U>
 where
     U: Unit,
 {

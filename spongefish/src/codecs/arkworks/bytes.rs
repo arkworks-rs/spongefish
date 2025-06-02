@@ -3,11 +3,11 @@
 use ark_ff::{BigInt, Fp, FpConfig, PrimeField};
 use zerocopy::IntoBytes;
 
-use crate::{codecs::bytes, transcript::Length, UnitCommon, UnitPattern, UnitProver, UnitVerifier};
+use crate::{codecs::bytes, transcript::Length, unit};
 
 impl<P, C, const N: usize> bytes::Pattern<Fp<C, N>> for P
 where
-    P: UnitPattern<Fp<C, N>>,
+    P: unit::Pattern<Fp<C, N>>,
     C: FpConfig<N>,
 {
     fn public_bytes(
@@ -52,7 +52,7 @@ where
 
 impl<P, C, const N: usize> bytes::Common<Fp<C, N>> for P
 where
-    P: UnitCommon<Fp<C, N>>,
+    P: unit::Common<Fp<C, N>>,
     C: FpConfig<N>,
 {
     fn public_bytes(
@@ -88,7 +88,7 @@ where
 
 impl<P, C, const N: usize> bytes::Prover<Fp<C, N>> for P
 where
-    P: UnitProver<Fp<C, N>>,
+    P: unit::Prover<Fp<C, N>>,
     C: FpConfig<N>,
 {
     fn message_bytes(
@@ -105,7 +105,7 @@ where
 
 impl<'a, P, C, const N: usize> bytes::Verifier<'a, Fp<C, N>> for P
 where
-    P: UnitVerifier<'a, Fp<C, N>>,
+    P: unit::Verifier<'a, Fp<C, N>>,
     C: FpConfig<N>,
 {
     fn message_bytes_out(

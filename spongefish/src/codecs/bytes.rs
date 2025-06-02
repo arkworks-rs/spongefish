@@ -1,11 +1,11 @@
 //! Traits that convert between byte arrays and units.
 use crate::{
     transcript::{Label, Length},
-    Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
+    unit, Unit,
 };
 
 /// Traits for patterns that handle byte arrays in a transcript.
-pub trait Pattern<U>: UnitPattern<U>
+pub trait Pattern<U>: unit::Pattern<U>
 where
     U: Unit,
 {
@@ -15,7 +15,7 @@ where
 }
 
 /// Traits for prover/verifier common byte operations in a transcript.
-pub trait Common<U>: UnitCommon<U>
+pub trait Common<U>: unit::Common<U>
 where
     U: Unit,
 {
@@ -48,7 +48,7 @@ where
 }
 
 /// Prover trait for handling byte arrays in a transcript.
-pub trait Prover<U>: UnitProver<U> + Common<U>
+pub trait Prover<U>: unit::Prover<U> + Common<U>
 where
     U: Unit,
 {
@@ -56,7 +56,7 @@ where
 }
 
 /// Verifier trait for handling byte arrays in a transcript.
-pub trait Verifier<'a, U>: UnitVerifier<'a, U> + Common<U>
+pub trait Verifier<'a, U>: unit::Verifier<'a, U> + Common<U>
 where
     U: Unit,
 {
@@ -89,7 +89,7 @@ where
 /// Default implementation of [`BytesPattern`] when the native unit is `u8`.
 impl<P> Pattern<u8> for P
 where
-    P: UnitPattern<u8>,
+    P: unit::Pattern<u8>,
 {
     fn public_bytes(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error> {
         let label = label.into();
@@ -116,7 +116,7 @@ where
 /// Default implementation of [`BytesCommon`] when the native unit is `u8`.
 impl<P> Common<u8> for P
 where
-    P: UnitCommon<u8>,
+    P: unit::Common<u8>,
 {
     fn public_bytes(&mut self, label: impl Into<Label>, value: &[u8]) -> Result<(), Self::Error> {
         let label = label.into();
@@ -140,7 +140,7 @@ where
 /// Default implementation of [`BytesProver`] when the native unit is `u8`.
 impl<P> Prover<u8> for P
 where
-    P: UnitProver<u8>,
+    P: unit::Prover<u8>,
 {
     fn message_bytes(&mut self, label: impl Into<Label>, value: &[u8]) -> Result<(), Self::Error> {
         let label = label.into();
@@ -153,7 +153,7 @@ where
 /// Default implementation of [`BytesVerifier`] when the native unit is `u8`.
 impl<'a, P> Verifier<'a, u8> for P
 where
-    P: UnitVerifier<'a, u8>,
+    P: unit::Verifier<'a, u8>,
 {
     fn message_bytes_out(
         &mut self,

@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::{
     codecs::bytes,
     transcript::{InteractionError, Label, Length},
-    Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
+    unit, Unit,
 };
 
 #[derive(Debug, Error)]
@@ -17,7 +17,7 @@ pub enum Error<E> {
     Serialization(SerializationError),
 }
 
-pub trait ArkworksHintPattern<U>: UnitPattern<U>
+pub trait ArkworksHintPattern<U>: unit::Pattern<U>
 where
     U: Unit,
 {
@@ -26,7 +26,7 @@ where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintProver<U>: UnitProver<U>
+pub trait ArkworksHintProver<U>: unit::Prover<U>
 where
     U: Unit,
 {
@@ -39,7 +39,7 @@ where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintVerifier<'a, U>: UnitVerifier<'a, U>
+pub trait ArkworksHintVerifier<'a, U>: unit::Verifier<'a, U>
 where
     U: Unit,
 {
@@ -48,7 +48,7 @@ where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksPattern<U>: UnitPattern<U>
+pub trait ArkworksPattern<U>: unit::Pattern<U>
 where
     U: Unit,
 {
@@ -61,7 +61,7 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksCommon<U>: UnitCommon<U>
+pub trait ArkworksCommon<U>: unit::Common<U>
 where
     U: Unit,
 {
@@ -74,7 +74,7 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksProver<U>: UnitProver<U>
+pub trait ArkworksProver<U>: unit::Prover<U>
 where
     U: Unit,
 {
@@ -87,7 +87,7 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksVerifier<'a, U>: UnitVerifier<'a, U>
+pub trait ArkworksVerifier<'a, U>: unit::Verifier<'a, U>
 where
     U: Unit,
 {
@@ -99,7 +99,7 @@ where
 impl<U, P> ArkworksHintPattern<U> for P
 where
     U: Unit,
-    P: UnitPattern<U>,
+    P: unit::Pattern<U>,
 {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
@@ -116,7 +116,7 @@ where
 impl<U, P> ArkworksHintProver<U> for P
 where
     U: Unit,
-    P: UnitProver<U, Error = InteractionError>,
+    P: unit::Prover<U, Error = InteractionError>,
 {
     fn hint_arkworks<T>(
         &mut self,
@@ -142,7 +142,7 @@ where
 impl<'a, U, P> ArkworksHintVerifier<'a, U> for P
 where
     U: Unit,
-    P: UnitVerifier<'a, U>,
+    P: unit::Verifier<'a, U>,
 {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
     where

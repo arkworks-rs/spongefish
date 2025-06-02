@@ -12,7 +12,7 @@ use crate::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash, DefaultRng, ProverRng, UnitCommon, UnitProver,
+    unit, DefaultHash, DefaultRng, ProverRng,
 };
 
 /// [`ProverState`] is the prover state of an interactive proof (IP) system.
@@ -179,7 +179,7 @@ where
     }
 }
 
-impl<H, U, R> UnitCommon<U> for ProverState<H, U, R>
+impl<H, U, R> unit::Common<U> for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -258,7 +258,7 @@ where
     }
 }
 
-impl<H, U, R> UnitProver<U> for ProverState<H, U, R>
+impl<H, U, R> unit::Prover<U> for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -399,7 +399,7 @@ mod tests {
     use zerocopy::IntoBytes;
 
     use super::*;
-    use crate::{transcript::TranscriptRecorder, UnitPattern};
+    use crate::{transcript::TranscriptRecorder, unit::*};
 
     /// Test all operations in UnitPattern.
     #[test]

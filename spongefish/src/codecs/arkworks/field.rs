@@ -8,10 +8,10 @@ use ark_ff::{Field, PrimeField};
 use crate::{
     codecs::bytes,
     transcript::{Label, Length},
-    Unit, UnitCommon, UnitPattern,
+    unit, Unit,
 };
 
-pub trait ArkFieldPattern<U>: UnitPattern<U>
+pub trait ArkFieldPattern<U>: unit::Pattern<U>
 where
     U: Unit,
 {
@@ -28,7 +28,7 @@ where
         F: Field;
 }
 
-pub trait ArkFieldCommon<U>: UnitCommon<U>
+pub trait ArkFieldCommon<U>: unit::Common<U>
 where
     U: Unit,
 {

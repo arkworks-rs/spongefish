@@ -6,10 +6,10 @@ use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligne
 use crate::{
     codecs::bytes,
     transcript::{Label, Length},
-    Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
+    unit, Unit,
 };
 
-pub trait HintPattern<U>: UnitPattern<U>
+pub trait HintPattern<U>: unit::Pattern<U>
 where
     U: Unit,
 {
@@ -49,7 +49,7 @@ where
     }
 }
 
-pub trait HintProver<U>: UnitProver<U>
+pub trait HintProver<U>: unit::Prover<U>
 where
     U: Unit,
 {
@@ -74,7 +74,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait HintVerifier<'a, U>: UnitVerifier<'a, U>
+pub trait HintVerifier<'a, U>: unit::Verifier<'a, U>
 where
     U: Unit,
 {
@@ -199,7 +199,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait Common<U>: UnitCommon<U>
+pub trait Common<U>: unit::Common<U>
 where
     U: Unit,
 {
@@ -266,7 +266,7 @@ where
     }
 }
 
-pub trait Prover<U>: UnitProver<U> + Common<U>
+pub trait Prover<U>: unit::Prover<U> + Common<U>
 where
     U: Unit,
 {
@@ -287,7 +287,7 @@ where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait Verifier<'a, U>: UnitVerifier<'a, U> + Common<U>
+pub trait Verifier<'a, U>: unit::Verifier<'a, U> + Common<U>
 where
     U: Unit,
 {
@@ -345,7 +345,7 @@ where
 /// Implementation of [`ZeroCopyHintPattern`] for all [`UnitPattern`].
 impl<P, U> HintPattern<U> for P
 where
-    P: UnitPattern<U>,
+    P: unit::Pattern<U>,
     U: Unit,
 {
     fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
@@ -386,7 +386,7 @@ where
 
 impl<P, U> HintProver<U> for P
 where
-    P: UnitProver<U>,
+    P: unit::Prover<U>,
     U: Unit,
 {
     fn hint_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
@@ -430,7 +430,7 @@ where
 
 impl<'a, P, U> HintVerifier<'a, U> for P
 where
-    P: UnitVerifier<'a, U>,
+    P: unit::Verifier<'a, U>,
     U: Unit,
 {
     fn hint_zerocopy_out<T>(
