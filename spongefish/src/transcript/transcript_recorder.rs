@@ -80,10 +80,12 @@ where
     }
 }
 
-impl<U> unit::Pattern<U> for TranscriptRecorder<U>
+impl<U> unit::Pattern for TranscriptRecorder<U>
 where
     U: Unit,
 {
+    type Unit = U;
+
     fn ratchet(&mut self) -> Result<(), Self::Error> {
         self.interact(Interaction::new::<()>(
             Hierarchy::Atomic,

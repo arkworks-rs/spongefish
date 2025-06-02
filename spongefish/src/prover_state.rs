@@ -180,12 +180,14 @@ where
     }
 }
 
-impl<H, U, R> unit::Common<U> for ProverState<H, U, R>
+impl<H, U, R> unit::Common for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
 {
+    type Unit = U;
+
     fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
         let value = from_ref(value);
 
@@ -259,7 +261,7 @@ where
     }
 }
 
-impl<H, U, R> unit::Prover<U> for ProverState<H, U, R>
+impl<H, U, R> unit::Prover for ProverState<H, U, R>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,

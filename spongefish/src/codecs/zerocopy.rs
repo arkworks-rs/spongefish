@@ -9,10 +9,7 @@ use crate::{
     Unit,
 };
 
-pub trait HintPattern<U>: unit::Pattern<U>
-where
-    U: Unit,
-{
+pub trait HintPattern: unit::Pattern {
     fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
@@ -158,10 +155,7 @@ where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait Pattern<U>: HintPattern<U>
-where
-    U: Unit,
-{
+pub trait Pattern: HintPattern {
     fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
@@ -343,10 +337,9 @@ where
 }
 
 /// Implementation of [`ZeroCopyHintPattern`] for all [`UnitPattern`].
-impl<P, U> HintPattern<U> for P
+impl<P> HintPattern for P
 where
-    P: unit::Pattern<U>,
-    U: Unit,
+    P: unit::Pattern,
 {
     fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
@@ -530,10 +523,9 @@ where
 }
 
 /// Implementation of [`ZeroCopyPattern`] for [`BytesPattern`].
-impl<P, U> Pattern<U> for P
+impl<P> Pattern for P
 where
-    P: bytes::Pattern<U>,
-    U: Unit,
+    P: bytes::Pattern,
 {
     fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where

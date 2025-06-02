@@ -17,19 +17,13 @@ pub enum Error<E> {
     Serialization(SerializationError),
 }
 
-pub trait ArkworksHintPattern<U>: unit::Pattern<U>
-where
-    U: Unit,
-{
+pub trait ArkworksHintPattern: unit::Pattern {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintProver<U>: unit::Prover<U>
-where
-    U: Unit,
-{
+pub trait ArkworksHintProver: unit::Prover {
     fn hint_arkworks<T>(
         &mut self,
         label: impl Into<Label>,
@@ -39,19 +33,13 @@ where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksHintVerifier<'a, U>: unit::Verifier<'a, U>
-where
-    U: Unit,
-{
+pub trait ArkworksHintVerifier<'a>: unit::Verifier<'a> {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksPattern<U>: unit::Pattern<U>
-where
-    U: Unit,
-{
+pub trait ArkworksPattern: unit::Pattern {
     fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
@@ -61,10 +49,7 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksCommon<U>: unit::Common<U>
-where
-    U: Unit,
-{
+pub trait ArkworksCommon: unit::Common {
     fn public_arkworks<T>(
         &mut self,
         label: impl Into<Label>,
@@ -74,10 +59,7 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksProver<U>: unit::Prover<U>
-where
-    U: Unit,
-{
+pub trait ArkworksProver: unit::Prover {
     fn message_arkworks<T>(
         &mut self,
         label: impl Into<Label>,
@@ -87,19 +69,15 @@ where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-pub trait ArkworksVerifier<'a, U>: unit::Verifier<'a, U>
-where
-    U: Unit,
-{
+pub trait ArkworksVerifier<'a>: unit::Verifier<'a> {
     fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
-impl<U, P> ArkworksHintPattern<U> for P
+impl<P> ArkworksHintPattern for P
 where
-    U: Unit,
-    P: unit::Pattern<U>,
+    P: unit::Pattern,
 {
     fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
@@ -113,9 +91,8 @@ where
     }
 }
 
-impl<U, P> ArkworksHintProver<U> for P
+impl<P> ArkworksHintProver for P
 where
-    U: Unit,
     P: unit::Prover<U, Error = InteractionError>,
 {
     fn hint_arkworks<T>(
@@ -157,10 +134,9 @@ where
     }
 }
 
-impl<U, P> ArkworksPattern<U> for P
+impl<P> ArkworksPattern for P
 where
-    U: Unit,
-    P: bytes::Pattern<U>,
+    P: bytes::Pattern,
 {
     fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where

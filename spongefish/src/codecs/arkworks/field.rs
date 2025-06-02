@@ -11,10 +11,7 @@ use crate::{
     Unit,
 };
 
-pub trait ArkFieldPattern<U>: unit::Pattern<U>
-where
-    U: Unit,
-{
+pub trait ArkFieldPattern: unit::Pattern {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
         F: Field;
@@ -70,10 +67,9 @@ where
     }
 }
 
-impl<U, P> ArkFieldPattern<U> for P
+impl<P> ArkFieldPattern for P
 where
-    U: Unit,
-    P: bytes::Pattern<U>,
+    P: bytes::Pattern,
 {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where

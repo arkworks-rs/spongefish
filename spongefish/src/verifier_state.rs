@@ -117,11 +117,13 @@ where
     }
 }
 
-impl<'a, H, U> unit::Common<U> for VerifierState<'a, H, U>
+impl<'a, H, U> unit::Common for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
+    type Unit = U;
+
     fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error> {
         let value = from_ref(value);
         self.transcript.interact(Interaction::new::<U>(
@@ -176,7 +178,7 @@ where
     }
 }
 
-impl<'a, H, U> unit::Verifier<'a, U> for VerifierState<'a, H, U>
+impl<'a, H, U> unit::Verifier<'a> for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,

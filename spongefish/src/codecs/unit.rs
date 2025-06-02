@@ -5,10 +5,9 @@ use crate::{
     Unit,
 };
 
-pub trait Pattern<U>: Transcript
-where
-    U: Unit,
-{
+pub trait Pattern: Transcript {
+    type Unit: Unit;
+
     fn ratchet(&mut self) -> Result<(), Self::Error>;
     fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
     fn public_units(&mut self, label: impl Into<Label>, size: usize) -> Result<(), Self::Error>;
@@ -20,25 +19,32 @@ where
     fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>;
 }
 
-pub trait Common<U>: Transcript
-where
-    U: Unit,
-{
-    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error>;
+pub trait Common: Transcript {
+    type Unit: Unit;
 
-    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error>;
+    fn public_unit(
+        &mut self,
+        label: impl Into<Label>,
+        value: &Self::Unit,
+    ) -> Result<(), Self::Error>;
+
+    fn public_units(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[Self::Unit],
+    ) -> Result<(), Self::Error>;
 
     fn challenge_unit_out(
         &mut self,
         label: impl Into<Label>,
-        out: &mut U,
+        out: &mut Self::Unit,
     ) -> Result<(), Self::Error>;
 
-    fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<U, Self::Error>
+    fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<Self::Unit, Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = U::default();
+        let mut result = Self::Unit::default();
         self.challenge_unit_out(label, &mut result)?;
         Ok(result)
     }
@@ -46,17 +52,17 @@ where
     fn challenge_units_out(
         &mut self,
         label: impl Into<Label>,
-        out: &mut [U],
+        out: &mut [Self::Unit],
     ) -> Result<(), Self::Error>;
 
     fn challenge_units_array<const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[U; N], Self::Error>
+    ) -> Result<[Self::Unit; N], Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = from_fn(|_| U::default());
+        let mut result = from_fn(|_| Self::Unit::default());
         self.challenge_units_out(label, &mut result)?;
         Ok(result)
     }
@@ -65,20 +71,19 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<U>, Self::Error>
+    ) -> Result<Vec<Self::Unit>, Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = repeat_with(|| U::default()).take(size).collect::<Vec<_>>();
+        let mut result = repeat_with(|| Self::Unit::default())
+            .take(size)
+            .collect::<Vec<_>>();
         self.challenge_units_out(label, &mut result)?;
         Ok(result)
     }
 }
 
-pub trait Prover<U>: Common<U>
-where
-    U: Unit,
-{
+pub trait Prover: Common {
     /// Return a reference to the random number generator associated to the protocol transcript.
     ///
     /// ```
@@ -116,9 +121,17 @@ where
     /// Ratchet the prover's state.
     fn ratchet(&mut self) -> Result<(), Self::Error>;
 
-    fn message_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), Self::Error>;
+    fn message_unit(
+        &mut self,
+        label: impl Into<Label>,
+        value: &Self::Unit,
+    ) -> Result<(), Self::Error>;
 
-    fn message_units(&mut self, label: impl Into<Label>, value: &[U]) -> Result<(), Self::Error>;
+    fn message_units(
+        &mut self,
+        label: impl Into<Label>,
+        value: &[Self::Unit],
+    ) -> Result<(), Self::Error>;
 
     fn hint_bytes(&mut self, label: impl Into<Label>, value: &[u8]) -> Result<(), Self::Error>;
 
@@ -129,23 +142,20 @@ where
     ) -> Result<(), Self::Error>;
 }
 
-pub trait Verifier<'a, U>: Common<U>
-where
-    U: Unit,
-{
+pub trait Verifier<'a>: Common {
     fn ratchet(&mut self) -> Result<(), Self::Error>;
 
     fn message_unit_out(
         &mut self,
         label: impl Into<Label>,
-        value: &mut U,
+        value: &mut Self::Unit,
     ) -> Result<(), Self::Error>;
 
-    fn message_unit(&mut self, label: impl Into<Label>) -> Result<U, Self::Error>
+    fn message_unit(&mut self, label: impl Into<Label>) -> Result<Self::Unit, Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = U::default();
+        let mut result = Self::Unit::default();
         self.message_unit_out(label, &mut result)?;
         Ok(result)
     }
@@ -153,17 +163,17 @@ where
     fn message_units_out(
         &mut self,
         label: impl Into<Label>,
-        value: &mut [U],
+        value: &mut [Self::Unit],
     ) -> Result<(), Self::Error>;
 
     fn message_units_array<const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[U; N], Self::Error>
+    ) -> Result<[Self::Unit; N], Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = from_fn(|_| U::default());
+        let mut result = from_fn(|_| Self::Unit::default());
         self.message_units_out(label, &mut result)?;
         Ok(result)
     }
@@ -172,11 +182,13 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<U>, Self::Error>
+    ) -> Result<Vec<Self::Unit>, Self::Error>
     where
-        U: Default,
+        Self::Unit: Default,
     {
-        let mut result = repeat_with(|| U::default()).take(size).collect::<Vec<_>>();
+        let mut result = repeat_with(Self::Unit::default)
+            .take(size)
+            .collect::<Vec<_>>();
         self.message_units_out(label, &mut result)?;
         Ok(result)
     }
