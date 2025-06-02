@@ -120,6 +120,9 @@ pub trait Pattern: Transcript<TranscriptError> {}
 
 pub trait Common: Transcript<InteractionError> {}
 
+pub use Common as Prover;
+pub use Common as Verifier;
+
 impl<T> Pattern for T where T: Transcript<TranscriptError> {}
 
 impl<T> Common for T where T: Transcript<InteractionError> {}

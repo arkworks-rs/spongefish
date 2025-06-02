@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use crate::{
     codecs::unit,
-    transcript::{self, InteractionError, Label, Length, Transcript, TranscriptError},
+    transcript::{self, InteractionError, Label, Length, TranscriptError},
     verifier_state::VerifierError,
 };
 
@@ -24,7 +24,7 @@ where
     // random.
     fn random_units_required(bytes: usize) -> usize;
 
-    fn pack_bytes<'a>(bytes: &'a [u8]) -> Cow<'a, [Self]>;
+    fn pack_bytes(bytes: &[u8]) -> Cow<[Self]>;
     fn unpack_bytes(units: &[Self], out: &mut [u8]);
     fn random_bytes(units: &[Self], out: &mut [u8]);
 }
@@ -80,7 +80,7 @@ pub trait Common {
 }
 
 /// Prover trait for handling byte arrays in a transcript.
-pub trait Prover: unit::Prover + Common {
+pub trait Prover {
     fn message_bytes(
         &mut self,
         label: impl Into<Label>,
@@ -89,7 +89,7 @@ pub trait Prover: unit::Prover + Common {
 }
 
 /// Verifier trait for handling byte arrays in a transcript.
-pub trait Verifier<'a>: unit::Verifier<'a> + Common {
+pub trait Verifier {
     fn message_bytes_out(
         &mut self,
         label: impl Into<Label>,
@@ -227,7 +227,7 @@ where
     }
 }
 
-impl<'a, P> Verifier<'a> for P
+impl<'a, P> Verifier for P
 where
     P: transcript::Common + Common + unit::Verifier<'a>,
     P::Unit: UnitBytes,

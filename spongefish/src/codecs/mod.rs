@@ -7,7 +7,7 @@ mod traits;
 // pub mod arkworks;
 pub mod bytes;
 pub mod unit;
-// pub mod zerocopy;
+pub mod zerocopy;
 
 //#[cfg(feature = "arkworks-algebra")]
 /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.

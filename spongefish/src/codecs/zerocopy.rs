@@ -5,52 +5,38 @@ use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligne
 
 use crate::{
     codecs::{bytes, unit},
-    transcript::{Label, Length},
+    transcript::{self, InteractionError, Label, Length, TranscriptError},
+    verifier_state::VerifierError,
     Unit,
 };
 
-pub trait HintPattern: unit::Pattern {
-    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+pub trait HintPattern {
+    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
-        T: Immutable + KnownLayout + FromBytes + IntoBytes,
-    {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar)?;
-        self.hint_bytes("zerocopy-bytes", size_of::<T>())?;
-        self.end_hint::<T>(label.clone(), Length::Scalar)?;
-        Ok(())
-    }
+        T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
     fn hint_zerocopies<T>(
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
-        T: Immutable + KnownLayout + FromBytes + IntoBytes,
-    {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Dynamic)?;
-        self.hint_bytes("zerocopy-bytes-dynamic", size * size_of::<T>())?;
-        self.end_hint::<T>(label.clone(), Length::Dynamic)
-    }
+        T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn hint_zerocopies_dynamic<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn hint_zerocopies_dynamic<T>(
+        &mut self,
+        label: impl Into<Label>,
+    ) -> Result<(), TranscriptError>
     where
-        T: Immutable + KnownLayout + FromBytes + IntoBytes,
-    {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Dynamic)?;
-        self.hint_bytes_dynamic("zerocopy-bytes-dynamic")?;
-        self.end_hint::<T>(label.clone(), Length::Dynamic)
-    }
+        T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait HintProver<U>: unit::Prover<U>
-where
-    U: Unit,
-{
-    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
+pub trait HintProver {
+    fn hint_zerocopy<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -58,7 +44,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -66,24 +52,21 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait HintVerifier<'a, U>: unit::Verifier<'a, U>
-where
-    U: Unit,
-{
+pub trait HintVerifier<'a> {
     fn hint_zerocopy_out<T>(
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -93,7 +76,7 @@ where
     }
 
     /// Return a direct reference to the transcript bytes if [`T`] is an [`Unaligned`] type.
-    fn hint_zerocopy_ref<T>(&mut self, label: impl Into<Label>) -> Result<&'a T, Self::Error>
+    fn hint_zerocopy_ref<T>(&mut self, label: impl Into<Label>) -> Result<&'a T, VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -101,14 +84,14 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
     fn hint_zerocopy_array<T, const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[T; N], Self::Error>
+    ) -> Result<[T; N], VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -121,7 +104,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<T>, Self::Error>
+    ) -> Result<Vec<T>, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -135,14 +118,14 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<&'a [T], Self::Error>
+    ) -> Result<&'a [T], VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes;
 
     fn hint_zerocopy_dynamic_vec<T>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<Vec<T>, Self::Error>
+    ) -> Result<Vec<T>, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -150,13 +133,13 @@ where
     fn hint_zerocopy_dynamic_slice_ref<T>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<&'a [T], Self::Error>
+    ) -> Result<&'a [T], VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
 pub trait Pattern: HintPattern {
-    fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -164,11 +147,11 @@ pub trait Pattern: HintPattern {
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -176,11 +159,11 @@ pub trait Pattern: HintPattern {
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -188,16 +171,17 @@ pub trait Pattern: HintPattern {
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait Common<U>: unit::Common<U>
-where
-    U: Unit,
-{
-    fn public_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
+pub trait Common {
+    fn public_zerocopy<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -205,7 +189,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -213,11 +197,11 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -230,14 +214,14 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
     fn challenge_zerocopy_array<T, const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[T; N], Self::Error>
+    ) -> Result<[T; N], InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -250,7 +234,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<T>, Self::Error>
+    ) -> Result<Vec<T>, InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -260,15 +244,12 @@ where
     }
 }
 
-pub trait Prover<U>: unit::Prover<U> + Common<U>
-where
-    U: Unit,
-{
+pub trait Prover: Common + HintProver {
     fn message_zerocopy<T>(
         &mut self,
         label: impl Into<Label>,
         value: &T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
@@ -276,24 +257,21 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 }
 
-pub trait Verifier<'a, U>: unit::Verifier<'a, U> + Common<U>
-where
-    U: Unit,
-{
+pub trait Verifier<'a>: Common + HintVerifier<'a> {
     fn message_zerocopy_out<T>(
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
-    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, Self::Error>
+    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -306,14 +284,14 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes;
 
     fn message_zerocopy_array<T, const N: usize>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<[T; N], Self::Error>
+    ) -> Result<[T; N], VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -326,7 +304,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<Vec<T>, Self::Error>
+    ) -> Result<Vec<T>, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -339,9 +317,9 @@ where
 /// Implementation of [`ZeroCopyHintPattern`] for all [`UnitPattern`].
 impl<P> HintPattern for P
 where
-    P: unit::Pattern,
+    P: transcript::Pattern + unit::Pattern,
 {
-    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -356,7 +334,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -366,7 +344,7 @@ where
         self.end_hint::<[T]>(label.clone(), Length::Fixed(size))
     }
 
-    fn hint_zerocopies_dynamic<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn hint_zerocopies_dynamic<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -377,12 +355,15 @@ where
     }
 }
 
-impl<P, U> HintProver<U> for P
+impl<P> HintProver for P
 where
-    P: unit::Prover<U>,
-    U: Unit,
+    P: transcript::Prover + unit::Prover,
 {
-    fn hint_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
+    fn hint_zerocopy<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -396,7 +377,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -410,7 +391,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -421,16 +402,15 @@ where
     }
 }
 
-impl<'a, P, U> HintVerifier<'a, U> for P
+impl<'a, P> HintVerifier<'a> for P
 where
-    P: unit::Verifier<'a, U>,
-    U: Unit,
+    P: transcript::Verifier + unit::Verifier<'a>,
 {
     fn hint_zerocopy_out<T>(
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -439,17 +419,18 @@ where
         let bytes = out.as_mut_bytes();
         let slice = self.hint_bytes("zerocopy-bytes", bytes.len())?;
         bytes.copy_from_slice(slice);
-        self.end_hint::<T>(label, Length::Scalar)
+        self.end_hint::<T>(label, Length::Scalar)?;
+        Ok(())
     }
 
-    fn hint_zerocopy_ref<T>(&mut self, label: impl Into<Label>) -> Result<&'a T, Self::Error>
+    fn hint_zerocopy_ref<T>(&mut self, label: impl Into<Label>) -> Result<&'a T, VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes,
     {
         let label = label.into();
         self.begin_hint::<T>(label.clone(), Length::Scalar)?;
         let slice = self.hint_bytes("zerocopy-bytes", size_of::<T>())?;
-        let result = T::ref_from_bytes(slice).map_err(|_| todo!())?;
+        let result = T::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<T>(label, Length::Scalar)?;
         Ok(result)
     }
@@ -458,7 +439,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -467,21 +448,22 @@ where
         let bytes = out.as_mut_bytes();
         let slice = self.hint_bytes("zerocopy-bytes", bytes.len())?;
         bytes.copy_from_slice(slice);
-        self.end_hint::<[T]>(label, Length::Fixed(out.len()))
+        self.end_hint::<[T]>(label, Length::Fixed(out.len()))?;
+        Ok(())
     }
 
     fn hint_zerocopy_slice_ref<T>(
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<&'a [T], Self::Error>
+    ) -> Result<&'a [T], VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes,
     {
         let label = label.into();
         self.begin_hint::<[T]>(label.clone(), Length::Fixed(size))?;
         let slice = self.hint_bytes("zerocopy-bytes", size * size_of::<T>())?;
-        let result = <[T]>::ref_from_bytes(slice).map_err(|_| todo!())?;
+        let result = <[T]>::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<[T]>(label, Length::Fixed(size))?;
         Ok(result)
     }
@@ -489,7 +471,7 @@ where
     fn hint_zerocopy_dynamic_vec<T>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<Vec<T>, Self::Error>
+    ) -> Result<Vec<T>, VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -509,14 +491,14 @@ where
     fn hint_zerocopy_dynamic_slice_ref<T>(
         &mut self,
         label: impl Into<Label>,
-    ) -> Result<&'a [T], Self::Error>
+    ) -> Result<&'a [T], VerifierError>
     where
         T: Unaligned + Immutable + KnownLayout + FromBytes + IntoBytes,
     {
         let label = label.into();
         self.begin_hint::<[T]>(label.clone(), Length::Dynamic)?;
         let slice = self.hint_bytes_dynamic("zerocopy-bytes-dynamic")?;
-        let result = <[T]>::ref_from_bytes(slice).map_err(|_| todo!())?;
+        let result = <[T]>::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<[T]>(label, Length::Dynamic)?;
         Ok(result)
     }
@@ -525,9 +507,9 @@ where
 /// Implementation of [`ZeroCopyPattern`] for [`BytesPattern`].
 impl<P> Pattern for P
 where
-    P: bytes::Pattern,
+    P: HintPattern + transcript::Pattern + bytes::Pattern,
 {
-    fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -541,7 +523,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -551,7 +533,7 @@ where
         self.end_public::<[T]>(label, Length::Fixed(size))
     }
 
-    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn message_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -565,7 +547,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -575,7 +557,7 @@ where
         self.end_message::<[T]>(label, Length::Fixed(size))
     }
 
-    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
+    fn challenge_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -589,7 +571,7 @@ where
         &mut self,
         label: impl Into<Label>,
         size: usize,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), TranscriptError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -601,12 +583,15 @@ where
 }
 
 /// Implementation of [`ZeroCopyCommon`] for [`BytesCommon`].
-impl<P, U> Common<U> for P
+impl<P> Common for P
 where
-    P: bytes::Common<U>,
-    U: Unit,
+    P: transcript::Common + bytes::Common,
 {
-    fn public_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
+    fn public_zerocopy<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -620,7 +605,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -634,7 +619,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -648,7 +633,7 @@ where
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -660,12 +645,15 @@ where
 }
 
 /// Implementation of [`ZeroCopyProver`] for  [`BytesProver`]s.
-impl<P, U> Prover<U> for P
+impl<P> Prover for P
 where
-    P: bytes::Prover<U>,
-    U: Unit,
+    P: Common + HintProver + transcript::Prover + bytes::Prover,
 {
-    fn message_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
+    fn message_zerocopy<T>(
+        &mut self,
+        label: impl Into<Label>,
+        value: &T,
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -679,7 +667,7 @@ where
         &mut self,
         label: impl Into<Label>,
         value: &[T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), InteractionError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
@@ -691,37 +679,38 @@ where
 }
 
 /// Implementation of [`ZeroCopyVerifier`] for  [`BytesVerifier`]s.
-impl<'a, P, U> Verifier<'a, U> for P
+impl<'a, P> Verifier<'a> for P
 where
-    P: bytes::Verifier<'a, U>,
-    U: Unit,
+    P: Common + HintVerifier<'a> + transcript::Verifier + bytes::Verifier,
 {
     fn message_zerocopy_out<T>(
         &mut self,
         label: impl Into<Label>,
         out: &mut T,
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
         let label = label.into();
         self.begin_message::<T>(label.clone(), Length::Scalar)?;
         self.message_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
-        self.end_message::<T>(label, Length::Scalar)
+        self.end_message::<T>(label, Length::Scalar)?;
+        Ok(())
     }
 
     fn message_zerocopy_slice_out<T>(
         &mut self,
         label: impl Into<Label>,
         out: &mut [T],
-    ) -> Result<(), Self::Error>
+    ) -> Result<(), VerifierError>
     where
         T: Immutable + KnownLayout + FromBytes + IntoBytes,
     {
         let label = label.into();
         self.begin_message::<[T]>(label.clone(), Length::Fixed(out.len()))?;
         self.message_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
-        self.end_message::<[T]>(label, Length::Fixed(out.len()))
+        self.end_message::<[T]>(label, Length::Fixed(out.len()))?;
+        Ok(())
     }
 }
 
@@ -757,10 +746,10 @@ mod tests {
         prover.public_zerocopy_slice::<f32>("2", &[2.0, 3.0])?;
         prover.message_zerocopy("3", &3.0_f32)?;
         prover.message_zerocopy_slice("4", &[4.0_f32, 5.0])?;
-        assert_eq!(prover.challenge_zerocopy::<u32>("5")?, 1082477391);
+        assert_eq!(prover.challenge_zerocopy::<u32>("5")?, 1621126262);
         assert_eq!(
             prover.challenge_zerocopy_array::<u32, 2>("6")?,
-            [341654301, 3531851372]
+            [1464286757, 1603471595]
         );
         prover.hint_zerocopy("7", &7_u16)?;
         prover.hint_zerocopy_slice("8", &[8_u16, 9])?;
@@ -785,10 +774,10 @@ mod tests {
             .iter()
             .zip(&[4.0, 5.0])
             .all(|(l, r)| l.total_cmp(r).is_eq()));
-        assert_eq!(verifier.challenge_zerocopy::<u32>("5")?, 1082477391);
+        assert_eq!(verifier.challenge_zerocopy::<u32>("5")?, 1621126262);
         assert_eq!(
             verifier.challenge_zerocopy_array::<u32, 2>("6")?,
-            [341654301, 3531851372]
+            [1464286757, 1603471595]
         );
         assert_eq!(verifier.hint_zerocopy::<u16>("7")?, 7);
         assert_eq!(verifier.hint_zerocopy_array::<u16, 2>("8")?, [8, 9]);
