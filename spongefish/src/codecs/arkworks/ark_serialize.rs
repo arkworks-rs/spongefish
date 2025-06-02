@@ -4,7 +4,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, Compress, Serializ
 use thiserror::Error;
 
 use crate::{
-    codecs::{bytes::BytesCommon, BytesPattern, BytesProver, BytesVerifier},
+    codecs::bytes,
     transcript::{InteractionError, Label, Length},
     Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
@@ -160,7 +160,7 @@ where
 impl<U, P> ArkworksPattern<U> for P
 where
     U: Unit,
-    P: BytesPattern<U>,
+    P: bytes::Pattern<U>,
 {
     fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
@@ -188,7 +188,7 @@ where
 impl<U, P> ArkworksCommon<U> for P
 where
     U: Unit,
-    P: BytesCommon<U>,
+    P: bytes::Common<U>,
 {
     fn public_arkworks<T>(
         &mut self,
@@ -214,7 +214,7 @@ where
 impl<U, P> ArkworksProver<U> for P
 where
     U: Unit,
-    P: BytesProver<U>,
+    P: bytes::Prover<U>,
 {
     fn message_arkworks<T>(
         &mut self,
@@ -240,7 +240,7 @@ where
 impl<'a, U, P> ArkworksVerifier<'a, U> for P
 where
     U: Unit,
-    P: BytesVerifier<'a, U>,
+    P: bytes::Verifier<'a, U>,
 {
     fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, Error<Self::Error>>
     where

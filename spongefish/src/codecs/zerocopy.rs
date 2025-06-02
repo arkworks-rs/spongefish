@@ -3,11 +3,8 @@
 
 use zerocopy::{FromBytes, FromZeros, Immutable, IntoBytes, KnownLayout, Unaligned};
 
-use super::{
-    bytes::{BytesCommon, BytesProver},
-    BytesPattern, BytesVerifier,
-};
 use crate::{
+    codecs::bytes,
     transcript::{Label, Length},
     Unit, UnitCommon, UnitPattern, UnitProver, UnitVerifier,
 };
@@ -535,7 +532,7 @@ where
 /// Implementation of [`ZeroCopyPattern`] for [`BytesPattern`].
 impl<P, U> Pattern<U> for P
 where
-    P: BytesPattern<U>,
+    P: bytes::Pattern<U>,
     U: Unit,
 {
     fn public_zerocopy<T>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
@@ -614,7 +611,7 @@ where
 /// Implementation of [`ZeroCopyCommon`] for [`BytesCommon`].
 impl<P, U> Common<U> for P
 where
-    P: BytesCommon<U>,
+    P: bytes::Common<U>,
     U: Unit,
 {
     fn public_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
@@ -673,7 +670,7 @@ where
 /// Implementation of [`ZeroCopyProver`] for  [`BytesProver`]s.
 impl<P, U> Prover<U> for P
 where
-    P: BytesProver<U>,
+    P: bytes::Prover<U>,
     U: Unit,
 {
     fn message_zerocopy<T>(&mut self, label: impl Into<Label>, value: &T) -> Result<(), Self::Error>
@@ -704,7 +701,7 @@ where
 /// Implementation of [`ZeroCopyVerifier`] for  [`BytesVerifier`]s.
 impl<'a, P, U> Verifier<'a, U> for P
 where
-    P: BytesVerifier<'a, U>,
+    P: bytes::Verifier<'a, U>,
     U: Unit,
 {
     fn message_zerocopy_out<T>(

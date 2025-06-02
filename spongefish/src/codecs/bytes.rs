@@ -5,7 +5,7 @@ use crate::{
 };
 
 /// Traits for patterns that handle byte arrays in a transcript.
-pub trait BytesPattern<U>: UnitPattern<U>
+pub trait Pattern<U>: UnitPattern<U>
 where
     U: Unit,
 {
@@ -15,7 +15,7 @@ where
 }
 
 /// Traits for prover/verifier common byte operations in a transcript.
-pub trait BytesCommon<U>: UnitCommon<U>
+pub trait Common<U>: UnitCommon<U>
 where
     U: Unit,
 {
@@ -48,7 +48,7 @@ where
 }
 
 /// Prover trait for handling byte arrays in a transcript.
-pub trait BytesProver<U>: UnitProver<U> + BytesCommon<U>
+pub trait Prover<U>: UnitProver<U> + Common<U>
 where
     U: Unit,
 {
@@ -56,7 +56,7 @@ where
 }
 
 /// Verifier trait for handling byte arrays in a transcript.
-pub trait BytesVerifier<'a, U>: UnitVerifier<'a, U> + BytesCommon<U>
+pub trait Verifier<'a, U>: UnitVerifier<'a, U> + Common<U>
 where
     U: Unit,
 {
@@ -87,7 +87,7 @@ where
 }
 
 /// Default implementation of [`BytesPattern`] when the native unit is `u8`.
-impl<P> BytesPattern<u8> for P
+impl<P> Pattern<u8> for P
 where
     P: UnitPattern<u8>,
 {
@@ -114,7 +114,7 @@ where
 }
 
 /// Default implementation of [`BytesCommon`] when the native unit is `u8`.
-impl<P> BytesCommon<u8> for P
+impl<P> Common<u8> for P
 where
     P: UnitCommon<u8>,
 {
@@ -138,7 +138,7 @@ where
 }
 
 /// Default implementation of [`BytesProver`] when the native unit is `u8`.
-impl<P> BytesProver<u8> for P
+impl<P> Prover<u8> for P
 where
     P: UnitProver<u8>,
 {
@@ -151,7 +151,7 @@ where
 }
 
 /// Default implementation of [`BytesVerifier`] when the native unit is `u8`.
-impl<'a, P> BytesVerifier<'a, u8> for P
+impl<'a, P> Verifier<'a, u8> for P
 where
     P: UnitVerifier<'a, u8>,
 {

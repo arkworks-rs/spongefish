@@ -3,13 +3,9 @@
 use ark_ff::{BigInt, Fp, FpConfig, PrimeField};
 use zerocopy::IntoBytes;
 
-use crate::{
-    codecs::{bytes::BytesCommon, BytesPattern, BytesProver, BytesVerifier},
-    transcript::Length,
-    UnitCommon, UnitPattern, UnitProver, UnitVerifier,
-};
+use crate::{codecs::bytes, transcript::Length, UnitCommon, UnitPattern, UnitProver, UnitVerifier};
 
-impl<P, C, const N: usize> BytesPattern<Fp<C, N>> for P
+impl<P, C, const N: usize> bytes::Pattern<Fp<C, N>> for P
 where
     P: UnitPattern<Fp<C, N>>,
     C: FpConfig<N>,
@@ -54,7 +50,7 @@ where
     }
 }
 
-impl<P, C, const N: usize> BytesCommon<Fp<C, N>> for P
+impl<P, C, const N: usize> bytes::Common<Fp<C, N>> for P
 where
     P: UnitCommon<Fp<C, N>>,
     C: FpConfig<N>,
@@ -90,7 +86,7 @@ where
     }
 }
 
-impl<P, C, const N: usize> BytesProver<Fp<C, N>> for P
+impl<P, C, const N: usize> bytes::Prover<Fp<C, N>> for P
 where
     P: UnitProver<Fp<C, N>>,
     C: FpConfig<N>,
@@ -107,7 +103,7 @@ where
     }
 }
 
-impl<'a, P, C, const N: usize> BytesVerifier<'a, Fp<C, N>> for P
+impl<'a, P, C, const N: usize> bytes::Verifier<'a, Fp<C, N>> for P
 where
     P: UnitVerifier<'a, Fp<C, N>>,
     C: FpConfig<N>,
@@ -193,7 +189,10 @@ mod tests {
         super::tests::{BabyBear, BabybearConfig, TestProver, TestVerifier},
         *,
     };
-    use crate::transcript::{Transcript, TranscriptRecorder};
+    use crate::{
+        codecs::bytes::*,
+        transcript::{Transcript, TranscriptRecorder},
+    };
 
     #[test]
     fn test_packing() {

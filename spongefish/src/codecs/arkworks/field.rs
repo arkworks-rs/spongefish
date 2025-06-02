@@ -6,7 +6,7 @@
 use ark_ff::{Field, PrimeField};
 
 use crate::{
-    codecs::{bytes::BytesCommon, BytesPattern},
+    codecs::bytes,
     transcript::{Label, Length},
     Unit, UnitCommon, UnitPattern,
 };
@@ -73,7 +73,7 @@ where
 impl<U, P> ArkFieldPattern<U> for P
 where
     U: Unit,
-    P: BytesPattern<U>,
+    P: bytes::Pattern<U>,
 {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), Self::Error>
     where
@@ -108,7 +108,7 @@ where
 impl<U, P> ArkFieldCommon<U> for P
 where
     U: Unit,
-    P: BytesCommon<U>,
+    P: bytes::Common<U>,
 {
     fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<F, Self::Error>
     where
