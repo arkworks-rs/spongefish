@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use rand::{CryptoRng, RngCore};
 
 use crate::{duplex_sponge::DuplexSpongeInterface, keccak::Keccak};
@@ -58,6 +60,17 @@ impl<R: RngCore + CryptoRng> RngCore for ProverRng<R> {
         self.ds.squeeze(dest);
         // erase the state from the sponge so that it can't be reverted
         self.ds.ratchet();
+    }
+}
+
+impl<R: RngCore + CryptoRng> Write for ProverRng<R> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.absorb(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

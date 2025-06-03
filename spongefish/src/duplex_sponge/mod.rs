@@ -17,7 +17,10 @@ mod unit;
 
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub use self::{interface::DuplexSpongeInterface, unit::Unit};
+pub use self::{
+    interface::DuplexSpongeInterface,
+    unit::{ReadError, Unit},
+};
 
 /// The basic state of a cryptographic sponge.
 ///

@@ -151,11 +151,11 @@ pub mod codecs;
 pub mod transcript;
 
 pub use self::{
-    duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit},
+    duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, ReadError, Unit},
     errors::{DomainSeparatorMismatch, ProofError, ProofResult},
     prover_rng::ProverRng,
     prover_state::ProverState,
-    verifier_state::VerifierState,
+    verifier_state::{VerifierError, VerifierState},
 };
 
 /// Default random number generator used ([`rand::rngs::StdRng`]).
@@ -163,3 +163,12 @@ pub type DefaultRng = rand::rngs::StdRng;
 
 /// Default hash function used ([`keccak::Keccak`]).
 pub type DefaultHash = keccak::Keccak;
+
+#[macro_export]
+macro_rules! ensure {
+    ($cond:expr, $err:expr) => {
+        if !$cond {
+            return Err($err.into());
+        }
+    };
+}

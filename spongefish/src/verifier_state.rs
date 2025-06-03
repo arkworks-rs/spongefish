@@ -1,5 +1,4 @@
 use std::{
-    io::{Error as IOError, ErrorKind},
     marker::PhantomData,
     slice::{from_mut, from_ref},
     sync::Arc,
@@ -10,19 +9,20 @@ use thiserror::Error;
 use crate::{
     codecs::unit,
     duplex_sponge::{DuplexSpongeInterface, Unit},
+    ensure,
     transcript::{
         Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
         TranscriptPattern, TranscriptPlayer,
     },
-    DefaultHash,
+    DefaultHash, ReadError,
 };
 
-#[derive(Debug, Error)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Error)]
 pub enum VerifierError {
     #[error("Interaction error: {}", .0)]
     Interaction(#[from] InteractionError),
-    #[error("Error parsing narg_string: {}", .0)]
-    IO(#[from] IOError),
+    #[error("Error reading unit from transcript: {}", .0)]
+    Read(#[from] ReadError),
 }
 
 /// [`VerifierState`] is the verifier state.
@@ -208,7 +208,8 @@ where
             Length::Scalar,
         ))?;
         let value = from_mut(value);
-        U::read(&mut self.narg_string, value)?;
+        let size = U::read(self.narg_string, value)?;
+        self.narg_string = &self.narg_string[size..];
         self.duplex_sponge.absorb(value);
         Ok(())
     }
@@ -224,7 +225,8 @@ where
             label,
             Length::Fixed(value.len()),
         ))?;
-        U::read(&mut self.narg_string, value)?;
+        let size = U::read(&mut self.narg_string, value)?;
+        self.narg_string = &self.narg_string[size..];
         self.duplex_sponge.absorb(value);
         Ok(())
     }
@@ -240,12 +242,10 @@ where
             label,
             Length::Fixed(size),
         ))?;
-        if self.narg_string.len() < size {
-            return Err(VerifierError::IO(std::io::Error::new(
-                ErrorKind::UnexpectedEof,
-                "insufficient bytes remaining in narg_string",
-            )));
-        }
+        ensure!(
+            self.narg_string.len() >= size,
+            ReadError::UnexpectEndOfTranscript
+        );
         let bytes = &self.narg_string[..size];
         self.narg_string = &self.narg_string[size..];
         Ok(bytes)
@@ -262,22 +262,18 @@ where
             Length::Dynamic,
         ))?;
         // Read length prefix
-        if self.narg_string.len() < 4 {
-            return Err(VerifierError::IO(std::io::Error::new(
-                ErrorKind::UnexpectedEof,
-                "insufficient bytes remaining in narg_string",
-            )));
-        }
+        ensure!(
+            self.narg_string.len() >= 4,
+            ReadError::UnexpectEndOfTranscript
+        );
         let size = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
         self.narg_string = &self.narg_string[4..];
 
         // Read bytes
-        if self.narg_string.len() < size {
-            return Err(VerifierError::IO(std::io::Error::new(
-                ErrorKind::UnexpectedEof,
-                "insufficient bytes remaining in narg_string",
-            )));
-        }
+        ensure!(
+            self.narg_string.len() >= size,
+            ReadError::UnexpectEndOfTranscript
+        );
         let bytes = &self.narg_string[..size];
         self.narg_string = &self.narg_string[size..];
         Ok(bytes)

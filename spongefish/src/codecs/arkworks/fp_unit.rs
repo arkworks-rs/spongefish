@@ -1,36 +1,39 @@
 //! Implementations tu use an arkworks prime field [`Fp`] as a unit in the transcript.
-use std::{borrow::Cow, io};
+use std::{
+    borrow::Cow,
+    io::{self, ErrorKind},
+};
 
 use ark_ff::{AdditiveGroup, BigInt, Fp, FpConfig, PrimeField as _};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use zerocopy::IntoBytes as _;
 
-use crate::{codecs::bytes, Unit};
+use crate::{codecs::bytes, ReadError, Unit};
 
 /// Implement the [`Unit`] trait for all arkworks prime fields [`Fp`].
 impl<C: FpConfig<N>, const N: usize> Unit for Fp<C, N> {
-    fn write(bunch: &[Self], mut w: &mut impl io::Write) -> Result<(), io::Error> {
+    fn write(bunch: &[Self], mut w: impl io::Write) {
+        // Loop over the bunch to avoid the length prefix that
+        // comes from serializing &[Self] directly.
         for item in bunch {
-            item.serialize_compressed(&mut w).map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Could not serialize field element.",
-                )
-            })?;
+            item.serialize_compressed(&mut w)
+                .expect("Writer is infallible");
         }
-        Ok(())
     }
 
-    fn read(mut r: &mut impl io::Read, bunch: &mut [Self]) -> Result<(), io::Error> {
+    fn read(mut bytes: &[u8], bunch: &mut [Self]) -> Result<usize, ReadError> {
+        let old_len = bytes.len();
         for item in bunch {
-            *item = Self::deserialize_compressed(&mut r).map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "Could not deserialize field element.",
-                )
+            *item = Self::deserialize_compressed(&mut bytes).map_err(|e| match e {
+                SerializationError::IoError(io_err) => match io_err.kind() {
+                    ErrorKind::UnexpectedEof => ReadError::UnexpectEndOfTranscript,
+                    _ => ReadError::IvalidData,
+                },
+                SerializationError::NotEnoughSpace => ReadError::UnexpectEndOfTranscript,
+                _ => ReadError::IvalidData,
             })?;
         }
-        Ok(())
+        Ok(old_len - bytes.len())
     }
 }
 

@@ -197,13 +197,11 @@ where
             Length::Scalar,
         ))?;
 
-        // Add to duplex sponge state
+        // Add to duplex sponge state (implements infallible Write)
         self.duplex_sponge.absorb(value);
 
         // Add to Prover RNG
-        let mut buffer = Vec::new();
-        U::write(value, &mut buffer).unwrap();
-        self.rng.absorb(&buffer);
+        U::write(value, &mut self.rng);
 
         Ok(())
     }
@@ -221,13 +219,11 @@ where
             Length::Fixed(value.len()),
         ))?;
 
-        // Add to duplex sponge state
+        // Add to duplex sponge state (implements infallible Write)
         self.duplex_sponge.absorb(value);
 
         // Add to Prover RNG
-        let mut buffer = Vec::new();
-        U::write(value, &mut buffer).unwrap();
-        self.rng.absorb(&buffer);
+        U::write(value, &mut self.rng);
 
         Ok(())
     }
@@ -311,7 +307,7 @@ where
 
         // Add to proof string (writing to Vec<u8> is infallible)
         let old_len = self.narg_string.len();
-        U::write(value, &mut self.narg_string).unwrap();
+        U::write(value, &mut self.narg_string);
         let written = &self.narg_string[old_len..];
 
         // Add to Prover RNG
@@ -338,7 +334,7 @@ where
 
         // Add to proof string (writing to Vec<u8> is infallible)
         let old_len = self.narg_string.len();
-        U::write(value, &mut self.narg_string).unwrap();
+        U::write(value, &mut self.narg_string);
         let written = &self.narg_string[old_len..];
 
         // Add to Prover RNG
