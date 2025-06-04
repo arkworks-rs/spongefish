@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
-use super::{Interaction, TranscriptPattern};
+use super::{Interaction, InteractionPattern};
 
 /// Play back a transcript and make sure all interactions match up.
 ///
@@ -12,7 +12,7 @@ use super::{Interaction, TranscriptPattern};
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct TranscriptPlayer {
     /// Shared reference to the transcript.
-    pattern: Arc<TranscriptPattern>,
+    pattern: Arc<InteractionPattern>,
     /// Current position in the interaction pattern.
     position: usize,
     /// Whether the transcript playback has been finalized.
@@ -37,7 +37,7 @@ pub enum InteractionError {
 
 impl TranscriptPlayer {
     #[must_use]
-    pub const fn new(pattern: Arc<TranscriptPattern>) -> Self {
+    pub const fn new(pattern: Arc<InteractionPattern>) -> Self {
         Self {
             pattern,
             position: 0,
@@ -48,7 +48,7 @@ impl TranscriptPlayer {
     /// Abort the sequence of interactions.
     ///
     /// This prevents the unfinalized [`TranscriptPlayer`] from panicking on drop.
-    pub fn abort(mut self) {
+    pub fn abort(&mut self) {
         assert!(!self.finalized);
         self.finalized = true;
     }

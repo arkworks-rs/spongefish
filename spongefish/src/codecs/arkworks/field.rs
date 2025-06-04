@@ -157,14 +157,14 @@ mod tests {
     use anyhow::Result;
 
     use super::{super::tests::BabyBear, *};
-    use crate::{transcript::TranscriptRecorder, ProverState, VerifierState};
+    use crate::{transcript::PatternState, ProverState, VerifierState};
 
     #[test]
     fn test_all_ops() -> Result<()> {
-        let mut pattern: TranscriptRecorder = TranscriptRecorder::new();
+        let mut pattern: PatternState = PatternState::new();
         pattern.challenge_ark_fel::<BabyBear>("1")?;
         pattern.challenge_ark_fels::<BabyBear>("2", 3)?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
         eprintln!("{pattern}");
 
         let mut prover: ProverState = ProverState::from(&pattern);

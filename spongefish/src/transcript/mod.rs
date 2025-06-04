@@ -1,21 +1,24 @@
 //! Abstract transcripts for interactive protocols.
 
 mod interaction;
+mod pattern_state;
 mod transcript_pattern;
 mod transcript_player;
-mod transcript_recorder;
 
 pub use self::{
     interaction::{Hierarchy, Interaction, Kind, Label, Length},
-    transcript_pattern::{TranscriptError, TranscriptPattern},
+    pattern_state::PatternState,
+    transcript_pattern::{InteractionPattern, TranscriptError},
     transcript_player::{InteractionError, TranscriptPlayer},
-    transcript_recorder::TranscriptRecorder,
 };
 
 /// Trait for objects that implement hierarchy operations.
 ///
 /// It does not offer any [`Kind::Atomic`] operations, these need to be implemented specifically.
 pub trait Transcript<Error> {
+    /// End a transcript without finalizing it.
+    fn abort(&mut self);
+
     /// Begin of a group of interactions.
     fn begin<T: ?Sized>(
         &mut self,

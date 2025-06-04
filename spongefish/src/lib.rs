@@ -163,12 +163,3 @@ pub type DefaultRng = rand::rngs::StdRng;
 
 /// Default hash function used ([`keccak::Keccak`]).
 pub type DefaultHash = keccak::Keccak;
-
-#[macro_export]
-macro_rules! ensure {
-    ($cond:expr, $err:expr) => {
-        if !$cond {
-            return Err($err.into());
-        }
-    };
-}

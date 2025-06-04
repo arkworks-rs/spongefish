@@ -2,8 +2,6 @@ use std::io::Write;
 
 use thiserror::Error;
 
-use crate::ensure;
-
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Error)]
 pub enum ReadError {
     #[error("Transcript string ended unexpectedly.")]
@@ -31,10 +29,9 @@ impl Unit for u8 {
     }
 
     fn read(bytes: &[u8], bunch: &mut [Self]) -> Result<usize, ReadError> {
-        ensure!(
-            bytes.len() >= bunch.len(),
-            ReadError::UnexpectEndOfTranscript
-        );
+        if bytes.len() < bunch.len() {
+            return Err(ReadError::UnexpectEndOfTranscript);
+        }
         bunch.copy_from_slice(&bytes[..bunch.len()]);
         Ok(bunch.len())
     }

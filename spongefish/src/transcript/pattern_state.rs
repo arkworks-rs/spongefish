@@ -1,42 +1,84 @@
-use std::{fmt::Display, marker::PhantomData};
+use std::marker::PhantomData;
 
 use super::{
-    Hierarchy, Interaction, Kind, Label, Length, Transcript, TranscriptError, TranscriptPattern,
+    Hierarchy, Interaction, InteractionPattern, Kind, Label, Length, Transcript, TranscriptError,
 };
 use crate::{codecs::unit, Unit};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct TranscriptRecorder<U = u8>
+pub struct PatternState<U = u8>
 where
     U: Unit,
 {
-    transcript: TranscriptPattern,
+    interactions: Vec<Interaction>,
     _unit: PhantomData<U>,
 }
 
-impl<U> TranscriptRecorder<U>
+impl<U> PatternState<U>
 where
     U: Unit,
 {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            transcript: TranscriptPattern::new(),
+            interactions: Vec::new(),
             _unit: PhantomData,
         }
     }
 
-    pub fn finalize(self) -> Result<TranscriptPattern, TranscriptError> {
-        self.transcript.validate()?;
-        Ok(self.transcript)
+    pub fn finalize(self) -> InteractionPattern {
+        match InteractionPattern::new(self.interactions) {
+            Ok(transcript) => transcript,
+            Err(e) => panic!("Error validating interaction pattern: {e}"),
+        }
     }
 
-    pub fn interact(&mut self, interaction: Interaction) -> Result<(), TranscriptError> {
-        self.transcript.push(interaction)
+    pub fn interact(&mut self, interaction: Interaction) {
+        if let Some(begin) = self.last_open_begin() {
+            // Check if the new interaction is of a permissible kind.
+            if begin.kind() != Kind::Protocol && begin.kind() != interaction.kind() {
+                panic!(
+                    "Invalid interaction kind: expected {}, got {}",
+                    begin.kind(),
+                    interaction.kind()
+                );
+            }
+            // Check if it is a matching End to the current Begin
+            if interaction.hierarchy() == Hierarchy::End && !interaction.closes(begin) {
+                panic!("Mismatched begin and end: {begin}, {interaction}");
+            }
+        } else {
+            // No unclosed Begin interaction. Make sure this is not an end.
+            if interaction.hierarchy() == Hierarchy::End {
+                panic!("Missing begin for {interaction}");
+            }
+        }
+
+        // All good, append
+        self.interactions.push(interaction);
+    }
+
+    /// Return the last unclosed BEGIN interaction.
+    fn last_open_begin(&self) -> Option<&Interaction> {
+        // Reverse search to find matching begin
+        let mut stack = 0;
+        for interaction in self.interactions.iter().rev() {
+            match interaction.hierarchy() {
+                Hierarchy::End => stack += 1,
+                Hierarchy::Begin => {
+                    if stack == 0 {
+                        return Some(interaction);
+                    }
+                    stack -= 1;
+                }
+                _ => {}
+            }
+        }
+        None
     }
 }
 
-impl<U> Default for TranscriptRecorder<U>
+impl<U> Default for PatternState<U>
 where
     U: Unit,
 {
@@ -45,27 +87,22 @@ where
     }
 }
 
-/// Allow printing of partial transcripts.
-impl<U> Display for TranscriptRecorder<U>
+impl<U> Transcript<TranscriptError> for PatternState<U>
 where
     U: Unit,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Unfinalized Transcript: {}", self.transcript)
+    fn abort(&mut self) {
+        todo!()
     }
-}
 
-impl<U> Transcript<TranscriptError> for TranscriptRecorder<U>
-where
-    U: Unit,
-{
     fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
         kind: Kind,
         length: Length,
     ) -> Result<(), TranscriptError> {
-        self.interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length))
+        self.interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length));
+        Ok(())
     }
 
     fn end<T: ?Sized>(
@@ -74,11 +111,12 @@ where
         kind: Kind,
         length: Length,
     ) -> Result<(), TranscriptError> {
-        self.interact(Interaction::new::<T>(Hierarchy::End, kind, label, length))
+        self.interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
+        Ok(())
     }
 }
 
-impl<U> unit::Pattern for TranscriptRecorder<U>
+impl<U> unit::Pattern for PatternState<U>
 where
     U: Unit,
 {
@@ -90,7 +128,8 @@ where
             Kind::Protocol,
             "ratchet",
             Length::Scalar,
-        ))
+        ));
+        Ok(())
     }
 
     fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
@@ -99,7 +138,8 @@ where
             Kind::Public,
             label,
             Length::Scalar,
-        ))
+        ));
+        Ok(())
     }
 
     fn public_units(
@@ -112,7 +152,8 @@ where
             Kind::Public,
             label,
             Length::Fixed(size),
-        ))
+        ));
+        Ok(())
     }
 
     fn message_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
@@ -121,7 +162,8 @@ where
             Kind::Message,
             label,
             Length::Scalar,
-        ))
+        ));
+        Ok(())
     }
 
     fn message_units(
@@ -134,7 +176,8 @@ where
             Kind::Message,
             label,
             Length::Fixed(size),
-        ))
+        ));
+        Ok(())
     }
 
     fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
@@ -143,7 +186,8 @@ where
             Kind::Challenge,
             label,
             Length::Scalar,
-        ))
+        ));
+        Ok(())
     }
 
     fn challenge_units(
@@ -156,7 +200,8 @@ where
             Kind::Challenge,
             label,
             Length::Fixed(size),
-        ))
+        ));
+        Ok(())
     }
 
     fn hint_bytes(&mut self, label: impl Into<Label>, size: usize) -> Result<(), TranscriptError> {
@@ -165,7 +210,8 @@ where
             Kind::Hint,
             label,
             Length::Fixed(size),
-        ))
+        ));
+        Ok(())
     }
 
     fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
@@ -174,6 +220,7 @@ where
             Kind::Hint,
             label,
             Length::Dynamic,
-        ))
+        ));
+        Ok(())
     }
 }

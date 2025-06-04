@@ -6,7 +6,7 @@ use super::{interaction::Hierarchy, Interaction, Kind};
 
 /// Abstract transcript containing prover-verifier interactions
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug, Default)]
-pub struct TranscriptPattern {
+pub struct InteractionPattern {
     interactions: Vec<Interaction>,
 }
 
@@ -35,10 +35,12 @@ pub enum TranscriptError {
     MissingEnd { position: usize, begin: Interaction },
 }
 
-impl TranscriptPattern {
+impl InteractionPattern {
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(interactions: Vec<Interaction>) -> Result<Self, TranscriptError> {
+        let result = Self { interactions };
+        result.validate()?;
+        Ok(result)
     }
 
     #[must_use]
@@ -68,7 +70,7 @@ impl TranscriptPattern {
     /// - Matching [`InteractionHierachy::Begin`] and [`InteractionHierachy::End`] interactions
     ///   creating a nested hierarchy.
     /// - Nested interactions are the same [`InteractionKind`] as the last [`InteractionHierachy::Begin`] interaction, except for [`InteractionKind::Protocol`] which can contain any [`InteractionKind`].
-    pub fn validate(&self) -> Result<(), TranscriptError> {
+    fn validate(&self) -> Result<(), TranscriptError> {
         let mut stack = Vec::new();
         for (position, interaction) in self.interactions.iter().enumerate() {
             match interaction.hierarchy() {
@@ -113,66 +115,12 @@ impl TranscriptPattern {
         }
         Ok(())
     }
-
-    pub(super) fn push(&mut self, interaction: Interaction) -> Result<(), TranscriptError> {
-        if let Some((begin_position, begin)) = self.last_open_begin() {
-            // Check if the new interaction is of a permissible kind.
-            if begin.kind() != Kind::Protocol && begin.kind() != interaction.kind() {
-                return Err(TranscriptError::InvalidKind {
-                    begin_position,
-                    begin: begin.clone(),
-                    interaction_position: self.interactions.len(),
-                    interaction: interaction.clone(),
-                });
-            }
-            // Check if it is a matching End to the current Begin
-            if interaction.hierarchy() == Hierarchy::End && !interaction.closes(begin) {
-                return Err(TranscriptError::MismatchedBeginEnd {
-                    begin_position,
-                    begin: begin.clone(),
-                    end_position: self.interactions.len(),
-                    end: interaction.clone(),
-                });
-            }
-        } else {
-            // No unclosed Begin interaction. Make sure this is not an end.
-            if interaction.hierarchy() == Hierarchy::End {
-                return Err(TranscriptError::MissingBegin {
-                    position: self.interactions.len(),
-                    end: interaction.clone(),
-                });
-            }
-        }
-
-        // All good, append
-        self.interactions.push(interaction);
-        Ok(())
-    }
-
-    /// Return the last unclosed BEGIN interaction.
-    fn last_open_begin(&self) -> Option<(usize, &Interaction)> {
-        // Reverse search to find matching begin
-        let mut stack = 0;
-        for (position, interaction) in self.interactions.iter().rev().enumerate() {
-            match interaction.hierarchy() {
-                Hierarchy::End => stack += 1,
-                Hierarchy::Begin => {
-                    if stack == 0 {
-                        return Some((position, interaction));
-                    }
-                    stack -= 1;
-                }
-                _ => {}
-            }
-        }
-        None
-    }
 }
 
 /// Creates a human readable representation of the transcript.
 ///
 /// When called in alternate mode `{:#}` it will be a stable format suitable as domain separator.
-impl Display for TranscriptPattern {
+impl Display for InteractionPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Write the total interactions up front so no prefix string can be a valid domain separator.
         let length = self.interactions.len();
@@ -203,7 +151,7 @@ impl Display for TranscriptPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::Length;
+    use crate::transcript::{Length, PatternState};
 
     #[test]
     fn test_size() {
@@ -213,32 +161,18 @@ mod tests {
 
     #[test]
     fn test_domain_separator() {
-        let mut transcript = TranscriptPattern::new();
-
-        transcript
-            .push(Interaction::new::<usize>(
-                Hierarchy::Begin,
-                Kind::Protocol,
-                "test",
-                Length::None,
-            ))
-            .unwrap();
-        transcript
-            .push(Interaction::new::<Vec<f64>>(
+        let mut transcript = InteractionPattern::new(vec![
+            Interaction::new::<usize>(Hierarchy::Begin, Kind::Protocol, "test", Length::None),
+            Interaction::new::<Vec<f64>>(
                 Hierarchy::Atomic,
                 Kind::Message,
                 "test-message",
                 Length::Scalar,
-            ))
-            .unwrap();
-        transcript
-            .push(Interaction::new::<usize>(
-                Hierarchy::End,
-                Kind::Protocol,
-                "test",
-                Length::None,
-            ))
-            .unwrap();
+            ),
+            Interaction::new::<usize>(Hierarchy::End, Kind::Protocol, "test", Length::None),
+        ])
+        .unwrap();
+
         let result = format!("{transcript:#}");
         let expected = r"Spongefish Transcript (3 interactions)
 0 Begin Protocol 4 test None

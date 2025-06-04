@@ -219,15 +219,15 @@ mod tests {
         super::tests::{BabyBear, TestProver, TestVerifier},
         *,
     };
-    use crate::{transcript::TranscriptRecorder, ProverState, VerifierState};
+    use crate::{transcript::PatternState, ProverState, VerifierState};
 
     #[test]
     fn test_all_ops() -> anyhow::Result<()> {
-        let mut pattern = TranscriptRecorder::<u8>::new();
+        let mut pattern = PatternState::<u8>::new();
         pattern.public_arkworks::<u64>("1")?;
         pattern.message_arkworks::<u64>("2")?;
         pattern.hint_arkworks::<String>("3")?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
         eprintln!("{pattern}");
 
         let mut prover: ProverState = ProverState::from(&pattern);
@@ -251,11 +251,11 @@ mod tests {
 
     #[test]
     fn test_all_baby_bear() -> anyhow::Result<()> {
-        let mut pattern = TranscriptRecorder::<BabyBear>::new();
+        let mut pattern = PatternState::<BabyBear>::new();
         pattern.public_arkworks::<u64>("1")?;
         pattern.message_arkworks::<u64>("2")?;
         pattern.hint_arkworks::<String>("3")?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
         eprintln!("{pattern}");
 
         let mut prover = TestProver::from(&pattern);

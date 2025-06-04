@@ -718,13 +718,13 @@ mod tests {
 
     use super::*;
     use crate::{
-        transcript::{Transcript, TranscriptRecorder},
+        transcript::{PatternState, Transcript},
         ProverState, VerifierState,
     };
 
     #[test]
     fn test_all_ops() -> anyhow::Result<()> {
-        let mut pattern = TranscriptRecorder::<u8>::new();
+        let mut pattern = PatternState::<u8>::new();
         pattern.begin_protocol::<ProverState>("test all")?;
         pattern.public_zerocopy::<f32>("1")?;
         pattern.public_zerocopies::<f32>("2", 2)?;
@@ -736,7 +736,7 @@ mod tests {
         pattern.hint_zerocopies::<u16>("8", 2)?;
         pattern.hint_zerocopies_dynamic::<u16>("9")?;
         pattern.end_protocol::<ProverState>("test all")?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
         eprintln!("{pattern}");
 
         let mut prover: ProverState = ProverState::from(&pattern);

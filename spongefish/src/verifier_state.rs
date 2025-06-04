@@ -9,19 +9,18 @@ use thiserror::Error;
 use crate::{
     codecs::unit,
     duplex_sponge::{DuplexSpongeInterface, Unit},
-    ensure,
     transcript::{
-        Hierarchy, Interaction, InteractionError, Kind, Label, Length, Transcript,
-        TranscriptPattern, TranscriptPlayer,
+        Hierarchy, Interaction, InteractionError, InteractionPattern, Kind, Label, Length,
+        Transcript, TranscriptPlayer,
     },
     DefaultHash, ReadError,
 };
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Error)]
 pub enum VerifierError {
-    #[error("Interaction error: {}", .0)]
+    #[error(transparent)]
     Interaction(#[from] InteractionError),
-    #[error("Error reading unit from transcript: {}", .0)]
+    #[error(transparent)]
     Read(#[from] ReadError),
 }
 
@@ -67,7 +66,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     /// assert_ne!(challenge.unwrap(), [0; 32]);
     /// ```
     #[must_use]
-    pub fn new(pattern: Arc<TranscriptPattern>, narg_string: &'a [u8]) -> Self {
+    pub fn new(pattern: Arc<InteractionPattern>, narg_string: &'a [u8]) -> Self {
         let domain_separator = pattern.domain_separator();
         Self {
             transcript: TranscriptPlayer::new(pattern),
@@ -92,6 +91,11 @@ where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
+    fn abort(&mut self) {
+        self.duplex_sponge.zeroize();
+        self.transcript.abort();
+    }
+
     fn begin<T: ?Sized>(
         &mut self,
         label: impl Into<Label>,
@@ -242,10 +246,9 @@ where
             label,
             Length::Fixed(size),
         ))?;
-        ensure!(
-            self.narg_string.len() >= size,
-            ReadError::UnexpectEndOfTranscript
-        );
+        if self.narg_string.len() < size {
+            return Err(ReadError::UnexpectEndOfTranscript.into());
+        }
         let bytes = &self.narg_string[..size];
         self.narg_string = &self.narg_string[size..];
         Ok(bytes)
@@ -262,18 +265,16 @@ where
             Length::Dynamic,
         ))?;
         // Read length prefix
-        ensure!(
-            self.narg_string.len() >= 4,
-            ReadError::UnexpectEndOfTranscript
-        );
+        if self.narg_string.len() < 4 {
+            return Err(ReadError::UnexpectEndOfTranscript.into());
+        }
         let size = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
         self.narg_string = &self.narg_string[4..];
 
         // Read bytes
-        ensure!(
-            self.narg_string.len() >= size,
-            ReadError::UnexpectEndOfTranscript
-        );
+        if self.narg_string.len() < size {
+            return Err(ReadError::UnexpectEndOfTranscript.into());
+        }
         let bytes = &self.narg_string[..size];
         self.narg_string = &self.narg_string[size..];
         Ok(bytes)
@@ -285,7 +286,7 @@ mod tests {
     use std::{cell::RefCell, error::Error, rc::Rc};
 
     use super::*;
-    use crate::{codecs::unit::*, transcript::TranscriptRecorder};
+    use crate::{codecs::unit::*, transcript::PatternState};
 
     #[derive(Default, Clone)]
     pub struct DummySponge {
@@ -339,7 +340,7 @@ mod tests {
     /// Test all operations in UnitPattern.
     #[test]
     fn test_prover_state_unit_pattern() -> Result<(), Box<dyn Error>> {
-        let mut pattern = TranscriptRecorder::<u8>::new();
+        let mut pattern = PatternState::<u8>::new();
         pattern.begin_protocol::<VerifierState>("test all")?;
         pattern.ratchet()?;
         pattern.public_unit("1")?;
@@ -351,7 +352,7 @@ mod tests {
         pattern.hint_bytes("7", 4)?;
         pattern.hint_bytes_dynamic("8")?;
         pattern.end_protocol::<VerifierState>("test all")?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
 
         let proof = hex::decode("0304000000070000000300000008090a")?;
         let mut verifier: VerifierState = VerifierState::new(pattern.into(), &proof);

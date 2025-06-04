@@ -253,19 +253,19 @@ mod tests {
 
     use super::*;
     use crate::{
-        transcript::{Transcript, TranscriptRecorder},
+        transcript::{PatternState, Transcript},
         ProverState, VerifierState,
     };
 
     #[test]
     fn test_all_ops() -> Result<(), Box<dyn Error>> {
-        let mut pattern = TranscriptRecorder::<u8>::new();
+        let mut pattern = PatternState::<u8>::new();
         pattern.begin_protocol::<()>("test all")?;
         pattern.public_bytes("1", 4)?;
         pattern.message_bytes("2", 4)?;
         pattern.challenge_bytes("3", 4)?;
         pattern.end_protocol::<()>("test all")?;
-        let pattern = pattern.finalize()?;
+        let pattern = pattern.finalize();
 
         let mut prover: ProverState = ProverState::from(&pattern);
         prover.begin_protocol::<()>("test all")?;
