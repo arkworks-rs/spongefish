@@ -1,95 +1,59 @@
 use std::{array::from_fn, iter::repeat_with};
 
-use crate::{
-    transcript::{InteractionError, Label, TranscriptError},
-    verifier_state::VerifierError,
-    Unit,
-};
+use crate::{transcript::Label, verifier_state::VerifierError, Unit};
 
 pub trait Pattern {
     type Unit: Unit;
 
-    fn ratchet(&mut self) -> Result<(), TranscriptError>;
-    fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>;
-    fn public_units(&mut self, label: impl Into<Label>, size: usize)
-        -> Result<(), TranscriptError>;
-    fn message_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>;
-    fn message_units(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError>;
-    fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>;
-    fn challenge_units(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError>;
-    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize) -> Result<(), TranscriptError>;
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>;
+    fn ratchet(&mut self);
+    fn public_unit(&mut self, label: impl Into<Label>);
+    fn public_units(&mut self, label: impl Into<Label>, size: usize);
+    fn message_unit(&mut self, label: impl Into<Label>);
+    fn message_units(&mut self, label: impl Into<Label>, size: usize);
+    fn challenge_unit(&mut self, label: impl Into<Label>);
+    fn challenge_units(&mut self, label: impl Into<Label>, size: usize);
+    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize);
+    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>);
 }
 
 pub trait Common {
     type Unit: Unit;
 
-    fn public_unit(
-        &mut self,
-        label: impl Into<Label>,
-        value: &Self::Unit,
-    ) -> Result<(), InteractionError>;
+    fn public_unit(&mut self, label: impl Into<Label>, value: &Self::Unit);
 
-    fn public_units(
-        &mut self,
-        label: impl Into<Label>,
-        value: &[Self::Unit],
-    ) -> Result<(), InteractionError>;
+    fn public_units(&mut self, label: impl Into<Label>, value: &[Self::Unit]);
 
-    fn challenge_unit_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut Self::Unit,
-    ) -> Result<(), InteractionError>;
+    fn challenge_unit_out(&mut self, label: impl Into<Label>, out: &mut Self::Unit);
 
-    fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<Self::Unit, InteractionError>
+    fn challenge_unit(&mut self, label: impl Into<Label>) -> Self::Unit
     where
         Self::Unit: Default,
     {
         let mut result = Self::Unit::default();
-        self.challenge_unit_out(label, &mut result)?;
-        Ok(result)
+        self.challenge_unit_out(label, &mut result);
+        result
     }
 
-    fn challenge_units_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [Self::Unit],
-    ) -> Result<(), InteractionError>;
+    fn challenge_units_out(&mut self, label: impl Into<Label>, out: &mut [Self::Unit]);
 
-    fn challenge_units_array<const N: usize>(
-        &mut self,
-        label: impl Into<Label>,
-    ) -> Result<[Self::Unit; N], InteractionError>
+    fn challenge_units_array<const N: usize>(&mut self, label: impl Into<Label>) -> [Self::Unit; N]
     where
         Self::Unit: Default,
     {
         let mut result = from_fn(|_| Self::Unit::default());
-        self.challenge_units_out(label, &mut result)?;
-        Ok(result)
+        self.challenge_units_out(label, &mut result);
+        result
     }
 
-    fn challenge_units_vec(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<Vec<Self::Unit>, InteractionError>
+    fn challenge_units_vec(&mut self, label: impl Into<Label>, size: usize) -> Vec<Self::Unit>
     where
         Self::Unit: Default,
     {
         let mut result = repeat_with(|| Self::Unit::default())
             .take(size)
             .collect::<Vec<_>>();
-        self.challenge_units_out(label, &mut result)?;
-        Ok(result)
+        self.challenge_units_out(label, &mut result);
+        result
     }
 }
 
@@ -129,32 +93,19 @@ pub trait Prover: Common {
     fn rng(&mut self) -> impl rand::CryptoRng + ark_std::rand::CryptoRng;
 
     /// Ratchet the prover's state.
-    fn ratchet(&mut self) -> Result<(), InteractionError>;
+    fn ratchet(&mut self);
 
-    fn message_unit(
-        &mut self,
-        label: impl Into<Label>,
-        value: &Self::Unit,
-    ) -> Result<(), InteractionError>;
+    fn message_unit(&mut self, label: impl Into<Label>, value: &Self::Unit);
 
-    fn message_units(
-        &mut self,
-        label: impl Into<Label>,
-        value: &[Self::Unit],
-    ) -> Result<(), InteractionError>;
+    fn message_units(&mut self, label: impl Into<Label>, value: &[Self::Unit]);
 
-    fn hint_bytes(&mut self, label: impl Into<Label>, value: &[u8])
-        -> Result<(), InteractionError>;
+    fn hint_bytes(&mut self, label: impl Into<Label>, value: &[u8]);
 
-    fn hint_bytes_dynamic(
-        &mut self,
-        label: impl Into<Label>,
-        value: &[u8],
-    ) -> Result<(), InteractionError>;
+    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>, value: &[u8]);
 }
 
 pub trait Verifier<'a>: Common {
-    fn ratchet(&mut self) -> Result<(), InteractionError>;
+    fn ratchet(&mut self);
 
     fn message_unit_out(
         &mut self,

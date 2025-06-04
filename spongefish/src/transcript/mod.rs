@@ -9,121 +9,128 @@ pub use self::{
     interaction::{Hierarchy, Interaction, Kind, Label, Length},
     pattern_state::PatternState,
     transcript_pattern::{InteractionPattern, TranscriptError},
-    transcript_player::{InteractionError, TranscriptPlayer},
+    transcript_player::TranscriptPlayer,
 };
 
 /// Trait for objects that implement hierarchy operations.
 ///
 /// It does not offer any [`Kind::Atomic`] operations, these need to be implemented specifically.
-pub trait Transcript<Error> {
+pub trait Pattern {
     /// End a transcript without finalizing it.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the interaction is already finalized or aborted.
     fn abort(&mut self);
 
     /// Begin of a group of interactions.
-    fn begin<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), Error>;
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length);
 
     /// End of a group of interactions.
-    fn end<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), Error>;
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length);
 
     /// Begin of a subprotocol.
-    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) {
         self.begin::<T>(label.into(), Kind::Protocol, Length::None)
     }
 
     /// End of a subprotocol.
-    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) {
         self.end::<T>(label, Kind::Protocol, Length::None)
     }
 
     /// Begin of a public message interaction.
-    fn begin_public<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin_public<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.begin::<T>(label, Kind::Public, length)
     }
 
     /// End of a public message interaction.
-    fn end_public<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end_public<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.end::<T>(label, Kind::Public, length)
     }
+
     /// Begin of a message interaction.
-    fn begin_message<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin_message<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.begin::<T>(label, Kind::Message, length)
     }
 
     /// End of a message interaction.
-    fn end_message<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end_message<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.end::<T>(label, Kind::Message, length)
     }
 
     /// Begin of a hint interaction.
-    fn begin_hint<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin_hint<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.begin::<T>(label, Kind::Hint, length)
     }
 
     /// End of a hint interaction..
-    fn end_hint<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end_hint<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.end::<T>(label, Kind::Hint, length)
     }
 
     /// Begin of a challenge interaction..
-    fn begin_challenge<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn begin_challenge<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.begin::<T>(label, Kind::Challenge, length)
     }
 
     /// End of a challenge interaction..
-    fn end_challenge<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Result<(), Error> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the interaction violates interaction pattern consistency rules.
+    fn end_challenge<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
         self.end::<T>(label, Kind::Challenge, length)
     }
 }
 
-pub trait Pattern: Transcript<TranscriptError> {}
-
-pub trait Common: Transcript<InteractionError> {}
-
-pub use Common as Prover;
-pub use Common as Verifier;
-
-impl<T> Pattern for T where T: Transcript<TranscriptError> {}
-
-impl<T> Common for T where T: Transcript<InteractionError> {}
+/// Aliases offered for convenience.
+pub use Pattern as Common;
+/// Aliases offered for convenience.
+pub use Pattern as Verifier;
+/// Aliases offered for convenience.
+pub use Pattern as Prover;

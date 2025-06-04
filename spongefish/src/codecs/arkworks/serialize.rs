@@ -27,7 +27,7 @@ pub enum VerifierError {
 }
 
 pub trait HintPattern {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn hint_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
@@ -45,11 +45,11 @@ pub trait HintVerifier {
 }
 
 pub trait Pattern {
-    fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn public_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn message_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
@@ -80,7 +80,7 @@ impl<P> HintPattern for P
 where
     P: transcript::Pattern + unit::Pattern,
 {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn hint_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: CanonicalSerialize + CanonicalDeserialize,
     {
@@ -132,7 +132,7 @@ impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
-    fn public_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn public_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
@@ -143,7 +143,7 @@ where
         self.end_public::<T>(label, Length::Scalar)
     }
 
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn message_arkworks<T>(&mut self, label: impl Into<Label>)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {

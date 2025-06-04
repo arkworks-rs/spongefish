@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use thiserror::Error;
-
 use super::{Interaction, InteractionPattern};
 
 /// Play back a transcript and make sure all interactions match up.
@@ -19,22 +17,9 @@ pub struct TranscriptPlayer {
     finalized: bool,
 }
 
-/// Errors when using a transcript
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Error)]
-pub enum InteractionError {
-    #[error("At {position} expected {expected}, got {got}")]
-    UnexpectedInteraction {
-        position: usize,
-        got: Interaction,
-        expected: Interaction,
-    },
-    #[error("At {position} expected {expected}, got nothing")]
-    MissingInteraction {
-        position: usize,
-        expected: Interaction,
-    },
-}
-
+/// # Panics
+///
+/// Panics if dropped without finalizing or aborting.
 impl TranscriptPlayer {
     #[must_use]
     pub const fn new(pattern: Arc<InteractionPattern>) -> Self {
@@ -48,46 +33,48 @@ impl TranscriptPlayer {
     /// Abort the sequence of interactions.
     ///
     /// This prevents the unfinalized [`TranscriptPlayer`] from panicking on drop.
+    ///
+    /// # Panics
+    ///
+    /// Panics if already finalized or aborted.
     pub fn abort(&mut self) {
-        assert!(!self.finalized);
+        assert!(!self.finalized, "Transcript is already finalized.");
         self.finalized = true;
     }
 
     /// Finalize the sequence of interactions. Returns an error if there
     /// are unfinished interactions.
-    pub fn finalize(mut self) -> Result<(), InteractionError> {
-        assert!(!self.finalized);
+    ///
+    /// # Panics
+    ///
+    /// Panics if the transcript is already finalized or if there are expected interactions left.
+    pub fn finalize(mut self) {
         assert!(self.position <= self.pattern.interactions().len());
-        if self.position < self.pattern.interactions().len() {
-            self.finalized = true;
-            return Err(InteractionError::MissingInteraction {
-                position: self.position,
-                expected: self.pattern.interactions()[self.position].clone(),
-            });
-        }
+        assert!(!self.finalized, "Transcript is already finalized.");
+        assert!(
+            self.position >= self.pattern.interactions().len(),
+            "Transcript not finished, expecting {}",
+            self.pattern.interactions()[self.position]
+        );
         self.finalized = true;
-        Ok(())
     }
 
-    pub fn interact(&mut self, interaction: Interaction) -> Result<(), InteractionError> {
-        assert!(!self.finalized, "Transcript is already finalized."); // Or should this be an error?
+    /// Play the next interaction in the pattern.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the transcript is already finalized or if the interaction does not match the expected one.
+    pub fn interact(&mut self, interaction: Interaction) {
+        assert!(!self.finalized, "Transcript is already finalized.");
         let Some(expected) = self.pattern.interactions().get(self.position) else {
             self.finalized = true;
-            return Err(InteractionError::MissingInteraction {
-                position: self.position,
-                expected: interaction,
-            });
+            panic!("Received interaction, but no more expected interactions: {interaction}");
         };
         if expected != &interaction {
             self.finalized = true;
-            return Err(InteractionError::UnexpectedInteraction {
-                position: self.position,
-                got: interaction,
-                expected: expected.clone(),
-            });
+            panic!("Received interaction {interaction}, but expected {expected}");
         }
         self.position += 1;
-        Ok(())
     }
 }
 

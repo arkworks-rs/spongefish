@@ -11,15 +11,11 @@ use crate::{
 };
 
 pub trait Pattern {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>)
     where
         F: Field;
 
-    fn challenge_ark_fels<F>(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError>
+    fn challenge_ark_fels<F>(&mut self, label: impl Into<Label>, size: usize)
     where
         F: Field;
 }
@@ -29,11 +25,7 @@ pub trait Common {
     where
         F: Field;
 
-    fn challenge_ark_fels_out<F>(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [F],
-    ) -> Result<(), InteractionError>
+    fn challenge_ark_fels_out<F>(&mut self, label: impl Into<Label>, out: &mut [F])
     where
         F: Field;
 
@@ -67,7 +59,7 @@ impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError>
+    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>)
     where
         F: Field,
     {
@@ -79,11 +71,7 @@ where
         self.end_challenge::<F>(label, Length::Scalar)
     }
 
-    fn challenge_ark_fels<F>(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError>
+    fn challenge_ark_fels<F>(&mut self, label: impl Into<Label>, size: usize)
     where
         F: Field,
     {
@@ -119,11 +107,7 @@ where
         Ok(result)
     }
 
-    fn challenge_ark_fels_out<F>(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [F],
-    ) -> Result<(), InteractionError>
+    fn challenge_ark_fels_out<F>(&mut self, label: impl Into<Label>, out: &mut [F])
     where
         F: Field,
     {

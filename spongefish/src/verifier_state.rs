@@ -10,16 +10,13 @@ use crate::{
     codecs::unit,
     duplex_sponge::{DuplexSpongeInterface, Unit},
     transcript::{
-        Hierarchy, Interaction, InteractionError, InteractionPattern, Kind, Label, Length,
-        Transcript, TranscriptPlayer,
+        self, Hierarchy, Interaction, InteractionPattern, Kind, Label, Length, TranscriptPlayer,
     },
     DefaultHash, ReadError,
 };
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Error)]
 pub enum VerifierError {
-    #[error(transparent)]
-    Interaction(#[from] InteractionError),
     #[error(transparent)]
     Read(#[from] ReadError),
 }
@@ -76,17 +73,16 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
         }
     }
 
-    pub fn finalize(mut self) -> Result<(), InteractionError> {
+    pub fn finalize(mut self) {
         // Zero sensitive state
         self.duplex_sponge.zeroize();
 
         // Finalize the transcript (will panic if called twice)
-        self.transcript.finalize()?;
-        Ok(())
+        self.transcript.finalize();
     }
 }
 
-impl<'a, H, U> Transcript<InteractionError> for VerifierState<'a, H, U>
+impl<'a, H, U> transcript::Verifier for VerifierState<'a, H, U>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
@@ -96,26 +92,14 @@ where
         self.transcript.abort();
     }
 
-    fn begin<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), InteractionError> {
+    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
         self.transcript
-            .interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length))?;
-        Ok(())
+            .interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length));
     }
 
-    fn end<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), InteractionError> {
+    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
         self.transcript
-            .interact(Interaction::new::<T>(Hierarchy::End, kind, label, length))?;
-        Ok(())
+            .interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
     }
 }
 
@@ -126,61 +110,45 @@ where
 {
     type Unit = U;
 
-    fn public_unit(&mut self, label: impl Into<Label>, value: &U) -> Result<(), InteractionError> {
+    fn public_unit(&mut self, label: impl Into<Label>, value: &U) {
         let value = from_ref(value);
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             label,
             Length::Scalar,
-        ))?;
+        ));
         self.duplex_sponge.absorb(value);
-        Ok(())
     }
 
-    fn public_units(
-        &mut self,
-        label: impl Into<Label>,
-        value: &[U],
-    ) -> Result<(), InteractionError> {
+    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             label,
             Length::Fixed(value.len()),
-        ))?;
+        ));
         self.duplex_sponge.absorb(value);
-        Ok(())
     }
 
-    fn challenge_unit_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut U,
-    ) -> Result<(), InteractionError> {
+    fn challenge_unit_out(&mut self, label: impl Into<Label>, out: &mut U) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             label,
             Length::Scalar,
-        ))?;
+        ));
         self.duplex_sponge.squeeze(from_mut(out));
-        Ok(())
     }
 
-    fn challenge_units_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [U],
-    ) -> Result<(), InteractionError> {
+    fn challenge_units_out(&mut self, label: impl Into<Label>, out: &mut [U]) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             label,
             Length::Fixed(out.len()),
-        ))?;
+        ));
         self.duplex_sponge.squeeze(out);
-        Ok(())
     }
 }
 
@@ -189,15 +157,14 @@ where
     U: Unit,
     H: DuplexSpongeInterface<U>,
 {
-    fn ratchet(&mut self) -> Result<(), InteractionError> {
+    fn ratchet(&mut self) {
         self.transcript.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
             Kind::Protocol,
             "ratchet",
             Length::Scalar,
-        ))?;
+        ));
         self.duplex_sponge.ratchet();
-        Ok(())
     }
 
     fn message_unit_out(
@@ -210,7 +177,7 @@ where
             Kind::Message,
             label,
             Length::Scalar,
-        ))?;
+        ));
         let value = from_mut(value);
         let size = U::read(self.narg_string, value)?;
         self.narg_string = &self.narg_string[size..];
@@ -228,7 +195,7 @@ where
             Kind::Message,
             label,
             Length::Fixed(value.len()),
-        ))?;
+        ));
         let size = U::read(&mut self.narg_string, value)?;
         self.narg_string = &self.narg_string[size..];
         self.duplex_sponge.absorb(value);
@@ -245,7 +212,7 @@ where
             Kind::Hint,
             label,
             Length::Fixed(size),
-        ))?;
+        ));
         if self.narg_string.len() < size {
             return Err(ReadError::UnexpectEndOfTranscript.into());
         }
@@ -263,7 +230,7 @@ where
             Kind::Hint,
             label,
             Length::Dynamic,
-        ))?;
+        ));
         // Read length prefix
         if self.narg_string.len() < 4 {
             return Err(ReadError::UnexpectEndOfTranscript.into());
@@ -286,7 +253,10 @@ mod tests {
     use std::{cell::RefCell, error::Error, rc::Rc};
 
     use super::*;
-    use crate::{codecs::unit::*, transcript::PatternState};
+    use crate::{
+        codecs::unit::{Pattern as _, *},
+        transcript::{Pattern as _, *},
+    };
 
     #[derive(Default, Clone)]
     pub struct DummySponge {
@@ -341,33 +311,33 @@ mod tests {
     #[test]
     fn test_prover_state_unit_pattern() -> Result<(), Box<dyn Error>> {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_protocol::<VerifierState>("test all")?;
-        pattern.ratchet()?;
-        pattern.public_unit("1")?;
-        pattern.public_units("2", 4)?;
-        pattern.message_unit("3")?;
-        pattern.message_units("4", 4)?;
-        pattern.challenge_unit("5")?;
-        pattern.challenge_units("6", 4)?;
-        pattern.hint_bytes("7", 4)?;
-        pattern.hint_bytes_dynamic("8")?;
-        pattern.end_protocol::<VerifierState>("test all")?;
+        pattern.begin_protocol::<VerifierState>("test all");
+        pattern.ratchet();
+        pattern.public_unit("1");
+        pattern.public_units("2", 4);
+        pattern.message_unit("3");
+        pattern.message_units("4", 4);
+        pattern.challenge_unit("5");
+        pattern.challenge_units("6", 4);
+        pattern.hint_bytes("7", 4);
+        pattern.hint_bytes_dynamic("8");
+        pattern.end_protocol::<VerifierState>("test all");
         let pattern = pattern.finalize();
 
         let proof = hex::decode("0304000000070000000300000008090a")?;
         let mut verifier: VerifierState = VerifierState::new(pattern.into(), &proof);
-        verifier.begin_protocol::<VerifierState>("test all")?;
-        verifier.ratchet()?;
-        verifier.public_unit("1", &1)?;
-        verifier.public_units("2", &2_u32.to_le_bytes())?;
+        verifier.begin_protocol::<VerifierState>("test all");
+        verifier.ratchet();
+        verifier.public_unit("1", &1);
+        verifier.public_units("2", &2_u32.to_le_bytes());
         assert_eq!(verifier.message_unit("3")?, 3);
         assert_eq!(verifier.message_units_array("4")?, 4_u32.to_le_bytes());
-        assert_eq!(verifier.challenge_unit("5")?, 128);
-        assert_eq!(verifier.challenge_units_array("6")?, [72, 136, 56, 161]);
+        assert_eq!(verifier.challenge_unit("5"), 128);
+        assert_eq!(verifier.challenge_units_array("6"), [72, 136, 56, 161]);
         assert_eq!(verifier.hint_bytes("7", 4)?, 7_u32.to_le_bytes());
         assert_eq!(verifier.hint_bytes_dynamic("8")?, [8, 9, 10]);
-        verifier.end_protocol::<VerifierState>("test all")?;
-        verifier.finalize()?;
+        verifier.end_protocol::<VerifierState>("test all");
+        verifier.finalize();
 
         Ok(())
     }

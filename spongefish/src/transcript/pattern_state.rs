@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{
-    Hierarchy, Interaction, InteractionPattern, Kind, Label, Length, Transcript, TranscriptError,
-};
+use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length, TranscriptError};
 use crate::{codecs::unit, Unit};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -87,7 +85,7 @@ where
     }
 }
 
-impl<U> Transcript<TranscriptError> for PatternState<U>
+impl<U> super::Pattern for PatternState<U>
 where
     U: Unit,
 {
@@ -95,24 +93,12 @@ where
         todo!()
     }
 
-    fn begin<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), TranscriptError> {
+    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
         self.interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length));
-        Ok(())
     }
 
-    fn end<T: ?Sized>(
-        &mut self,
-        label: impl Into<Label>,
-        kind: Kind,
-        length: Length,
-    ) -> Result<(), TranscriptError> {
+    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
         self.interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
-        Ok(())
     }
 }
 
@@ -122,105 +108,84 @@ where
 {
     type Unit = U;
 
-    fn ratchet(&mut self) -> Result<(), TranscriptError> {
+    fn ratchet(&mut self) {
         self.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
             Kind::Protocol,
             "ratchet",
             Length::Scalar,
         ));
-        Ok(())
     }
 
-    fn public_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
+    fn public_unit(&mut self, label: impl Into<Label>) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             label,
             Length::Scalar,
         ));
-        Ok(())
     }
 
-    fn public_units(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError> {
+    fn public_units(&mut self, label: impl Into<Label>, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             label,
             Length::Fixed(size),
         ));
-        Ok(())
     }
 
-    fn message_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
+    fn message_unit(&mut self, label: impl Into<Label>) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
             label,
             Length::Scalar,
         ));
-        Ok(())
     }
 
-    fn message_units(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError> {
+    fn message_units(&mut self, label: impl Into<Label>, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
             label,
             Length::Fixed(size),
         ));
-        Ok(())
     }
 
-    fn challenge_unit(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
+    fn challenge_unit(&mut self, label: impl Into<Label>) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             label,
             Length::Scalar,
         ));
-        Ok(())
     }
 
-    fn challenge_units(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<(), TranscriptError> {
+    fn challenge_units(&mut self, label: impl Into<Label>, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             label,
             Length::Fixed(size),
         ));
-        Ok(())
     }
 
-    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize) -> Result<(), TranscriptError> {
+    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize) {
         self.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
             label,
             Length::Fixed(size),
         ));
-        Ok(())
     }
 
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<(), TranscriptError> {
+    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) {
         self.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
             label,
             Length::Dynamic,
         ));
-        Ok(())
     }
 }
