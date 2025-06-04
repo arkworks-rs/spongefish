@@ -184,7 +184,6 @@ mod tests {
     use ark_ff::{Field, Fp, MontBackend, MontConfig};
     use zeroize::Zeroize;
 
-    use super::*;
     use crate::{
         codecs::bytes::UnitBytes,
         duplex_sponge::{DuplexSponge, Permutation},

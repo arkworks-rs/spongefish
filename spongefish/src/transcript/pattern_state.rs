@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length, TranscriptError};
+use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length};
 use crate::{codecs::unit, Unit};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -17,13 +17,14 @@ where
     U: Unit,
 {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             interactions: Vec::new(),
             _unit: PhantomData,
         }
     }
 
+    #[must_use]
     pub fn finalize(self) -> InteractionPattern {
         match InteractionPattern::new(self.interactions) {
             Ok(transcript) => transcript,
@@ -34,22 +35,23 @@ where
     pub fn interact(&mut self, interaction: Interaction) {
         if let Some(begin) = self.last_open_begin() {
             // Check if the new interaction is of a permissible kind.
-            if begin.kind() != Kind::Protocol && begin.kind() != interaction.kind() {
-                panic!(
-                    "Invalid interaction kind: expected {}, got {}",
-                    begin.kind(),
-                    interaction.kind()
-                );
-            }
+            assert!(
+                begin.kind() == Kind::Protocol || begin.kind() == interaction.kind(),
+                "Invalid interaction kind: expected {}, got {}",
+                begin.kind(),
+                interaction.kind()
+            );
             // Check if it is a matching End to the current Begin
-            if interaction.hierarchy() == Hierarchy::End && !interaction.closes(begin) {
-                panic!("Mismatched begin and end: {begin}, {interaction}");
-            }
+            assert!(
+                interaction.hierarchy() != Hierarchy::End || interaction.closes(begin),
+                "Mismatched begin and end: {begin}, {interaction}"
+            );
         } else {
             // No unclosed Begin interaction. Make sure this is not an end.
-            if interaction.hierarchy() == Hierarchy::End {
-                panic!("Missing begin for {interaction}");
-            }
+            assert!(
+                interaction.hierarchy() != Hierarchy::End,
+                "Missing begin for {interaction}"
+            );
         }
 
         // All good, append

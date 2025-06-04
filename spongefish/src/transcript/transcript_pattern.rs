@@ -151,7 +151,7 @@ impl Display for InteractionPattern {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcript::{Length, PatternState};
+    use crate::transcript::Length;
 
     #[test]
     fn test_size() {
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_domain_separator() {
-        let mut transcript = InteractionPattern::new(vec![
+        let transcript = InteractionPattern::new(vec![
             Interaction::new::<usize>(Hierarchy::Begin, Kind::Protocol, "test", Length::None),
             Interaction::new::<Vec<f64>>(
                 Hierarchy::Atomic,

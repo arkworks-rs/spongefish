@@ -49,7 +49,7 @@ pub trait Common {
     where
         Self::Unit: Default,
     {
-        let mut result = repeat_with(|| Self::Unit::default())
+        let mut result = repeat_with(Self::Unit::default)
             .take(size)
             .collect::<Vec<_>>();
         self.challenge_units_out(label, &mut result);
