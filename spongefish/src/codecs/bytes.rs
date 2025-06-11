@@ -7,6 +7,8 @@ use crate::{
     verifier_state::VerifierError,
 };
 
+/// Trait for conversion between bytes and units.
+///
 /// Rust allows only one generalized implementation (i.e. `impl<T> Trait for T where `), so to
 /// get dispatch on the Unit type we need to define a trait that on the Unit itself.
 ///
@@ -31,24 +33,24 @@ where
 
 /// Traits for patterns that handle byte arrays in a transcript.
 pub trait Pattern {
-    fn public_bytes(&mut self, label: impl Into<Label>, size: usize);
-    fn message_bytes(&mut self, label: impl Into<Label>, size: usize);
-    fn challenge_bytes(&mut self, label: impl Into<Label>, size: usize);
+    fn public_bytes(&mut self, label: Label, size: usize);
+    fn message_bytes(&mut self, label: Label, size: usize);
+    fn challenge_bytes(&mut self, label: Label, size: usize);
 }
 
 /// Traits for prover/verifier common byte operations in a transcript.
 pub trait Common {
-    fn public_bytes(&mut self, label: impl Into<Label>, value: &[u8]);
+    fn public_bytes(&mut self, label: Label, value: &[u8]);
 
-    fn challenge_bytes_out(&mut self, label: impl Into<Label>, out: &mut [u8]);
+    fn challenge_bytes_out(&mut self, label: Label, out: &mut [u8]);
 
-    fn challenge_bytes_array<const N: usize>(&mut self, label: impl Into<Label>) -> [u8; N] {
+    fn challenge_bytes_array<const N: usize>(&mut self, label: Label) -> [u8; N] {
         let mut result = [0; N];
         self.challenge_bytes_out(label, &mut result);
         result
     }
 
-    fn challenge_bytes_vec(&mut self, label: impl Into<Label>, size: usize) -> Vec<u8> {
+    fn challenge_bytes_vec(&mut self, label: Label, size: usize) -> Vec<u8> {
         let mut result = vec![0; size];
         self.challenge_bytes_out(label, &mut result);
         result
@@ -57,31 +59,23 @@ pub trait Common {
 
 /// Prover trait for handling byte arrays in a transcript.
 pub trait Prover {
-    fn message_bytes(&mut self, label: impl Into<Label>, value: &[u8]);
+    fn message_bytes(&mut self, label: Label, value: &[u8]);
 }
 
 /// Verifier trait for handling byte arrays in a transcript.
 pub trait Verifier {
-    fn message_bytes_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [u8],
-    ) -> Result<(), VerifierError>;
+    fn message_bytes_out(&mut self, label: Label, out: &mut [u8]) -> Result<(), VerifierError>;
 
     fn message_bytes_array<const N: usize>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<[u8; N], VerifierError> {
         let mut result = [0; N];
         self.message_bytes_out(label, &mut result)?;
         Ok(result)
     }
 
-    fn message_bytes_vec(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<Vec<u8>, VerifierError> {
+    fn message_bytes_vec(&mut self, label: Label, size: usize) -> Result<Vec<u8>, VerifierError> {
         let mut result = vec![0; size];
         self.message_bytes_out(label, &mut result)?;
         Ok(result)
@@ -116,23 +110,20 @@ where
     P: transcript::Pattern + unit::Pattern,
     P::Unit: UnitBytes,
 {
-    fn public_bytes(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_public::<[u8]>(label.clone(), Length::Fixed(size));
+    fn public_bytes(&mut self, label: Label, size: usize) {
+        self.begin_public::<[u8]>(label, Length::Fixed(size));
         self.public_units("bytes", P::Unit::pack_units_required(size));
         self.end_public::<[u8]>(label, Length::Fixed(size))
     }
 
-    fn message_bytes(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_message::<[u8]>(label.clone(), Length::Fixed(size));
+    fn message_bytes(&mut self, label: Label, size: usize) {
+        self.begin_message::<[u8]>(label, Length::Fixed(size));
         self.message_units("bytes", P::Unit::pack_units_required(size));
         self.end_message::<[u8]>(label, Length::Fixed(size))
     }
 
-    fn challenge_bytes(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_challenge::<[u8]>(label.clone(), Length::Fixed(size));
+    fn challenge_bytes(&mut self, label: Label, size: usize) {
+        self.begin_challenge::<[u8]>(label, Length::Fixed(size));
         self.challenge_units("bytes", P::Unit::random_units_required(size));
         self.end_challenge::<[u8]>(label, Length::Fixed(size))
     }
@@ -143,17 +134,15 @@ where
     P: transcript::Common + unit::Common,
     P::Unit: UnitBytes,
 {
-    fn public_bytes(&mut self, label: impl Into<Label>, value: &[u8]) {
-        let label = label.into();
-        self.begin_public::<[u8]>(label.clone(), Length::Fixed(value.len()));
+    fn public_bytes(&mut self, label: Label, value: &[u8]) {
+        self.begin_public::<[u8]>(label, Length::Fixed(value.len()));
         let units = P::Unit::pack_bytes(value);
         self.public_units("bytes", &units);
         self.end_public::<[u8]>(label, Length::Fixed(value.len()));
     }
 
-    fn challenge_bytes_out(&mut self, label: impl Into<Label>, out: &mut [u8]) {
-        let label = label.into();
-        self.begin_challenge::<[u8]>(label.clone(), Length::Fixed(out.len()));
+    fn challenge_bytes_out(&mut self, label: Label, out: &mut [u8]) {
+        self.begin_challenge::<[u8]>(label, Length::Fixed(out.len()));
         let units_required = P::Unit::random_units_required(out.len());
         let units = self.challenge_units_vec("bytes", units_required);
         P::Unit::random_bytes(&units, out);
@@ -166,9 +155,8 @@ where
     P: transcript::Common + Common + unit::Prover,
     P::Unit: UnitBytes,
 {
-    fn message_bytes(&mut self, label: impl Into<Label>, value: &[u8]) {
-        let label = label.into();
-        self.begin_message::<[u8]>(label.clone(), Length::Fixed(value.len()));
+    fn message_bytes(&mut self, label: Label, value: &[u8]) {
+        self.begin_message::<[u8]>(label, Length::Fixed(value.len()));
         let units = P::Unit::pack_bytes(value);
         self.message_units("bytes", &units);
         self.end_message::<[u8]>(label, Length::Fixed(value.len()));
@@ -180,13 +168,8 @@ where
     P: transcript::Common + Common + unit::Verifier<'a>,
     P::Unit: UnitBytes,
 {
-    fn message_bytes_out(
-        &mut self,
-        label: impl Into<Label>,
-        out: &mut [u8],
-    ) -> Result<(), VerifierError> {
-        let label = label.into();
-        self.begin_message::<[u8]>(label.clone(), Length::Fixed(out.len()));
+    fn message_bytes_out(&mut self, label: Label, out: &mut [u8]) -> Result<(), VerifierError> {
+        self.begin_message::<[u8]>(label, Length::Fixed(out.len()));
         let units_required = P::Unit::pack_units_required(out.len());
         let units = self.message_units_vec("bytes", units_required)?;
         P::Unit::unpack_bytes(&units, out);

@@ -6,26 +6,26 @@ pub trait Pattern {
     type Unit: Unit;
 
     fn ratchet(&mut self);
-    fn public_unit(&mut self, label: impl Into<Label>);
-    fn public_units(&mut self, label: impl Into<Label>, size: usize);
-    fn message_unit(&mut self, label: impl Into<Label>);
-    fn message_units(&mut self, label: impl Into<Label>, size: usize);
-    fn challenge_unit(&mut self, label: impl Into<Label>);
-    fn challenge_units(&mut self, label: impl Into<Label>, size: usize);
-    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize);
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>);
+    fn public_unit(&mut self, label: Label);
+    fn public_units(&mut self, label: Label, size: usize);
+    fn message_unit(&mut self, label: Label);
+    fn message_units(&mut self, label: Label, size: usize);
+    fn challenge_unit(&mut self, label: Label);
+    fn challenge_units(&mut self, label: Label, size: usize);
+    fn hint_bytes(&mut self, label: Label, size: usize);
+    fn hint_bytes_dynamic(&mut self, label: Label);
 }
 
 pub trait Common {
     type Unit: Unit;
 
-    fn public_unit(&mut self, label: impl Into<Label>, value: &Self::Unit);
+    fn public_unit(&mut self, label: Label, value: &Self::Unit);
 
-    fn public_units(&mut self, label: impl Into<Label>, value: &[Self::Unit]);
+    fn public_units(&mut self, label: Label, value: &[Self::Unit]);
 
-    fn challenge_unit_out(&mut self, label: impl Into<Label>, out: &mut Self::Unit);
+    fn challenge_unit_out(&mut self, label: Label, out: &mut Self::Unit);
 
-    fn challenge_unit(&mut self, label: impl Into<Label>) -> Self::Unit
+    fn challenge_unit(&mut self, label: Label) -> Self::Unit
     where
         Self::Unit: Default,
     {
@@ -34,9 +34,9 @@ pub trait Common {
         result
     }
 
-    fn challenge_units_out(&mut self, label: impl Into<Label>, out: &mut [Self::Unit]);
+    fn challenge_units_out(&mut self, label: Label, out: &mut [Self::Unit]);
 
-    fn challenge_units_array<const N: usize>(&mut self, label: impl Into<Label>) -> [Self::Unit; N]
+    fn challenge_units_array<const N: usize>(&mut self, label: Label) -> [Self::Unit; N]
     where
         Self::Unit: Default,
     {
@@ -45,7 +45,7 @@ pub trait Common {
         result
     }
 
-    fn challenge_units_vec(&mut self, label: impl Into<Label>, size: usize) -> Vec<Self::Unit>
+    fn challenge_units_vec(&mut self, label: Label, size: usize) -> Vec<Self::Unit>
     where
         Self::Unit: Default,
     {
@@ -95,13 +95,13 @@ pub trait Prover: Common {
     /// Ratchet the prover's state.
     fn ratchet(&mut self);
 
-    fn message_unit(&mut self, label: impl Into<Label>, value: &Self::Unit);
+    fn message_unit(&mut self, label: Label, value: &Self::Unit);
 
-    fn message_units(&mut self, label: impl Into<Label>, value: &[Self::Unit]);
+    fn message_units(&mut self, label: Label, value: &[Self::Unit]);
 
-    fn hint_bytes(&mut self, label: impl Into<Label>, value: &[u8]);
+    fn hint_bytes(&mut self, label: Label, value: &[u8]);
 
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>, value: &[u8]);
+    fn hint_bytes_dynamic(&mut self, label: Label, value: &[u8]);
 }
 
 pub trait Verifier<'a>: Common {
@@ -109,11 +109,11 @@ pub trait Verifier<'a>: Common {
 
     fn message_unit_out(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         value: &mut Self::Unit,
     ) -> Result<(), VerifierError>;
 
-    fn message_unit(&mut self, label: impl Into<Label>) -> Result<Self::Unit, VerifierError>
+    fn message_unit(&mut self, label: Label) -> Result<Self::Unit, VerifierError>
     where
         Self::Unit: Default,
     {
@@ -124,13 +124,13 @@ pub trait Verifier<'a>: Common {
 
     fn message_units_out(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         value: &mut [Self::Unit],
     ) -> Result<(), VerifierError>;
 
     fn message_units_array<const N: usize>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<[Self::Unit; N], VerifierError>
     where
         Self::Unit: Default,
@@ -142,7 +142,7 @@ pub trait Verifier<'a>: Common {
 
     fn message_units_vec(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         size: usize,
     ) -> Result<Vec<Self::Unit>, VerifierError>
     where
@@ -155,11 +155,7 @@ pub trait Verifier<'a>: Common {
         Ok(result)
     }
 
-    fn hint_bytes(
-        &mut self,
-        label: impl Into<Label>,
-        size: usize,
-    ) -> Result<&'a [u8], VerifierError>;
+    fn hint_bytes(&mut self, label: Label, size: usize) -> Result<&'a [u8], VerifierError>;
 
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) -> Result<&'a [u8], VerifierError>;
+    fn hint_bytes_dynamic(&mut self, label: Label) -> Result<&'a [u8], VerifierError>;
 }

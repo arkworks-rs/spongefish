@@ -9,9 +9,9 @@
 //!
 //! ```ignore
 //! pub trait HintPattern<T: Item> {
-//!     fn hint_zerocopy(&mut self, label: impl Into<Label>);
-//!     fn hint_zerocopy_many(&mut self, label: impl Into<Label>, size: usize);
-//!     fn hint_zerocopy_dynamic(&mut self, label: impl Into<Label>);
+//!     fn hint_zerocopy(&mut self, label: Label);
+//!     fn hint_zerocopy_many(&mut self, label: Label, size: usize);
+//!     fn hint_zerocopy_dynamic(&mut self, label: Label);
 //! }
 //! ```
 //!
@@ -42,25 +42,25 @@ use crate::{
 pub trait Item: Immutable + KnownLayout + FromBytes + IntoBytes {}
 
 pub trait HintPattern {
-    fn hint_zerocopy<T: Item>(&mut self, label: impl Into<Label>);
-    fn hint_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize);
-    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: impl Into<Label>);
+    fn hint_zerocopy<T: Item>(&mut self, label: Label);
+    fn hint_zerocopy_many<T: Item>(&mut self, label: Label, size: usize);
+    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: Label);
 }
 
 pub trait HintProver {
-    fn hint_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T);
-    fn hint_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]);
-    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: impl Into<Label>, value: &[T]);
+    fn hint_zerocopy<T: Item>(&mut self, label: Label, value: &T);
+    fn hint_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]);
+    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: Label, value: &[T]);
 }
 
 pub trait HintVerifier<'a> {
     fn hint_zerocopy_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut T,
     ) -> Result<(), VerifierError>;
 
-    fn hint_zerocopy<T: Item>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError> {
+    fn hint_zerocopy<T: Item>(&mut self, label: Label) -> Result<T, VerifierError> {
         let mut result = T::new_zeroed();
         self.hint_zerocopy_out(label, &mut result)?;
         Ok(result)
@@ -69,18 +69,18 @@ pub trait HintVerifier<'a> {
     /// Return a direct reference to the transcript bytes if [`T`] is an [`Unaligned`] type.
     fn hint_zerocopy_ref<T: Item + Unaligned>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<&'a T, VerifierError>;
 
     fn hint_zerocopy_slice_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut [T],
     ) -> Result<(), VerifierError>;
 
     fn hint_zerocopy_array<T: Item, const N: usize>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<[T; N], VerifierError> {
         let mut result = <[T; N]>::new_zeroed();
         self.hint_zerocopy_slice_out(label, &mut result)?;
@@ -89,7 +89,7 @@ pub trait HintVerifier<'a> {
 
     fn hint_zerocopy_vec<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         size: usize,
     ) -> Result<Vec<T>, VerifierError> {
         let mut result = T::new_vec_zeroed(size).expect("allocation failure");
@@ -100,50 +100,45 @@ pub trait HintVerifier<'a> {
     /// Return a direct reference to the transcript bytes if [`T`] is an [`Unaligned`] type.
     fn hint_zerocopy_slice_ref<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         size: usize,
     ) -> Result<&'a [T], VerifierError>;
 
-    fn hint_zerocopy_dynamic_vec<T: Item>(
-        &mut self,
-        label: impl Into<Label>,
-    ) -> Result<Vec<T>, VerifierError>;
+    fn hint_zerocopy_dynamic_vec<T: Item>(&mut self, label: Label)
+        -> Result<Vec<T>, VerifierError>;
 
     /// Return a direct reference to the transcript bytes if [`T`] is an [`Unaligned`] type.
     fn hint_zerocopy_dynamic_slice_ref<T: Item + Unaligned>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<&'a [T], VerifierError>;
 }
 
 pub trait Pattern: HintPattern {
-    fn public_zerocopy<T: Item>(&mut self, label: impl Into<Label>);
-    fn public_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize);
-    fn message_zerocopy<T: Item>(&mut self, label: impl Into<Label>);
-    fn message_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize);
-    fn challenge_zerocopy<T: Item>(&mut self, label: impl Into<Label>);
-    fn challenge_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize);
+    fn public_zerocopy<T: Item>(&mut self, label: Label);
+    fn public_zerocopy_many<T: Item>(&mut self, label: Label, size: usize);
+    fn message_zerocopy<T: Item>(&mut self, label: Label);
+    fn message_zerocopy_many<T: Item>(&mut self, label: Label, size: usize);
+    fn challenge_zerocopy<T: Item>(&mut self, label: Label);
+    fn challenge_zerocopy_many<T: Item>(&mut self, label: Label, size: usize);
 }
 
 pub trait Common {
-    fn public_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T);
-    fn public_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]);
-    fn challenge_zerocopy_out<T: Item>(&mut self, label: impl Into<Label>, out: &mut T);
-    fn challenge_zerocopy<T: Item>(&mut self, label: impl Into<Label>) -> T {
+    fn public_zerocopy<T: Item>(&mut self, label: Label, value: &T);
+    fn public_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]);
+    fn challenge_zerocopy_out<T: Item>(&mut self, label: Label, out: &mut T);
+    fn challenge_zerocopy<T: Item>(&mut self, label: Label) -> T {
         let mut result = T::new_zeroed();
         self.challenge_zerocopy_out(label, &mut result);
         result
     }
-    fn challenge_zerocopy_slice_out<T: Item>(&mut self, label: impl Into<Label>, out: &mut [T]);
-    fn challenge_zerocopy_array<T: Item, const N: usize>(
-        &mut self,
-        label: impl Into<Label>,
-    ) -> [T; N] {
+    fn challenge_zerocopy_slice_out<T: Item>(&mut self, label: Label, out: &mut [T]);
+    fn challenge_zerocopy_array<T: Item, const N: usize>(&mut self, label: Label) -> [T; N] {
         let mut result = <[T; N]>::new_zeroed();
         self.challenge_zerocopy_slice_out(label, &mut result);
         result
     }
-    fn challenge_zerocopy_vec<T: Item>(&mut self, label: impl Into<Label>, size: usize) -> Vec<T> {
+    fn challenge_zerocopy_vec<T: Item>(&mut self, label: Label, size: usize) -> Vec<T> {
         let mut result = T::new_vec_zeroed(size).expect("allocation failure");
         self.challenge_zerocopy_slice_out(label, &mut result);
         result
@@ -151,18 +146,18 @@ pub trait Common {
 }
 
 pub trait Prover: Common + HintProver {
-    fn message_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T);
-    fn message_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]);
+    fn message_zerocopy<T: Item>(&mut self, label: Label, value: &T);
+    fn message_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]);
 }
 
 pub trait Verifier<'a>: Common + HintVerifier<'a> {
     fn message_zerocopy_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut T,
     ) -> Result<(), VerifierError>;
 
-    fn message_zerocopy<T: Item>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError> {
+    fn message_zerocopy<T: Item>(&mut self, label: Label) -> Result<T, VerifierError> {
         let mut result = T::new_zeroed();
         self.message_zerocopy_out(label, &mut result)?;
         Ok(result)
@@ -170,13 +165,13 @@ pub trait Verifier<'a>: Common + HintVerifier<'a> {
 
     fn message_zerocopy_slice_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut [T],
     ) -> Result<(), VerifierError>;
 
     fn message_zerocopy_array<T: Item, const N: usize>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<[T; N], VerifierError> {
         let mut result = <[T; N]>::new_zeroed();
         self.message_zerocopy_slice_out(label, &mut result)?;
@@ -185,7 +180,7 @@ pub trait Verifier<'a>: Common + HintVerifier<'a> {
 
     fn message_zerocopy_vec<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         size: usize,
     ) -> Result<Vec<T>, VerifierError> {
         let mut result = T::new_vec_zeroed(size).expect("allocation failure");
@@ -201,25 +196,22 @@ impl<P> HintPattern for P
 where
     P: transcript::Pattern + unit::Pattern,
 {
-    fn hint_zerocopy<T: Item>(&mut self, label: impl Into<Label>) {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+    fn hint_zerocopy<T: Item>(&mut self, label: Label) {
+        self.begin_hint::<T>(label, Length::Scalar);
         self.hint_bytes("zerocopy-bytes", size_of::<T>());
-        self.end_hint::<T>(label.clone(), Length::Scalar);
+        self.end_hint::<T>(label, Length::Scalar);
     }
 
-    fn hint_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Fixed(size));
+    fn hint_zerocopy_many<T: Item>(&mut self, label: Label, size: usize) {
+        self.begin_hint::<[T]>(label, Length::Fixed(size));
         self.hint_bytes("zerocopy-bytes", size * size_of::<T>());
-        self.end_hint::<[T]>(label.clone(), Length::Fixed(size));
+        self.end_hint::<[T]>(label, Length::Fixed(size));
     }
 
-    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: impl Into<Label>) {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Dynamic);
+    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: Label) {
+        self.begin_hint::<[T]>(label, Length::Dynamic);
         self.hint_bytes_dynamic("zerocopy-bytes-dynamic");
-        self.end_hint::<[T]>(label.clone(), Length::Dynamic);
+        self.end_hint::<[T]>(label, Length::Dynamic);
     }
 }
 
@@ -227,23 +219,20 @@ impl<P> HintProver for P
 where
     P: transcript::Prover + unit::Prover,
 {
-    fn hint_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T) {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+    fn hint_zerocopy<T: Item>(&mut self, label: Label, value: &T) {
+        self.begin_hint::<T>(label, Length::Scalar);
         self.hint_bytes("zerocopy-bytes", value.as_bytes());
         self.end_hint::<T>(label, Length::Scalar);
     }
 
-    fn hint_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]) {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Fixed(value.len()));
+    fn hint_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]) {
+        self.begin_hint::<[T]>(label, Length::Fixed(value.len()));
         self.hint_bytes("zerocopy-bytes", value.as_bytes());
         self.end_hint::<[T]>(label, Length::Fixed(value.len()));
     }
 
-    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: impl Into<Label>, value: &[T]) {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Dynamic);
+    fn hint_zerocopy_dynamic<T: Item>(&mut self, label: Label, value: &[T]) {
+        self.begin_hint::<[T]>(label, Length::Dynamic);
         self.hint_bytes_dynamic("zerocopy-bytes-dynamic", value.as_bytes());
         self.end_hint::<[T]>(label, Length::Dynamic);
     }
@@ -255,11 +244,10 @@ where
 {
     fn hint_zerocopy_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut T,
     ) -> Result<(), VerifierError> {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+        self.begin_hint::<T>(label, Length::Scalar);
         let bytes = out.as_mut_bytes();
         let slice = self.hint_bytes("zerocopy-bytes", bytes.len())?;
         bytes.copy_from_slice(slice);
@@ -267,12 +255,8 @@ where
         Ok(())
     }
 
-    fn hint_zerocopy_ref<T: Item>(
-        &mut self,
-        label: impl Into<Label>,
-    ) -> Result<&'a T, VerifierError> {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+    fn hint_zerocopy_ref<T: Item>(&mut self, label: Label) -> Result<&'a T, VerifierError> {
+        self.begin_hint::<T>(label, Length::Scalar);
         let slice = self.hint_bytes("zerocopy-bytes", size_of::<T>())?;
         let result = T::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<T>(label, Length::Scalar);
@@ -281,11 +265,10 @@ where
 
     fn hint_zerocopy_slice_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut [T],
     ) -> Result<(), VerifierError> {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Fixed(out.len()));
+        self.begin_hint::<[T]>(label, Length::Fixed(out.len()));
         let bytes = out.as_mut_bytes();
         let slice = self.hint_bytes("zerocopy-bytes", bytes.len())?;
         bytes.copy_from_slice(slice);
@@ -295,11 +278,10 @@ where
 
     fn hint_zerocopy_slice_ref<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         size: usize,
     ) -> Result<&'a [T], VerifierError> {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Fixed(size));
+        self.begin_hint::<[T]>(label, Length::Fixed(size));
         let slice = self.hint_bytes("zerocopy-bytes", size * size_of::<T>())?;
         let result = <[T]>::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<[T]>(label, Length::Fixed(size));
@@ -308,10 +290,9 @@ where
 
     fn hint_zerocopy_dynamic_vec<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<Vec<T>, VerifierError> {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Dynamic);
+        self.begin_hint::<[T]>(label, Length::Dynamic);
         let slice = self.hint_bytes_dynamic("zerocopy-bytes-dynamic")?;
         if slice.len() % size_of::<T>() != 0 {
             todo!()
@@ -325,10 +306,9 @@ where
 
     fn hint_zerocopy_dynamic_slice_ref<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
     ) -> Result<&'a [T], VerifierError> {
-        let label = label.into();
-        self.begin_hint::<[T]>(label.clone(), Length::Dynamic);
+        self.begin_hint::<[T]>(label, Length::Dynamic);
         let slice = self.hint_bytes_dynamic("zerocopy-bytes-dynamic")?;
         let result = <[T]>::ref_from_bytes(slice).expect("TODO"); // TODO
         self.end_hint::<[T]>(label, Length::Dynamic);
@@ -341,44 +321,38 @@ impl<P> Pattern for P
 where
     P: HintPattern + transcript::Pattern + bytes::Pattern,
 {
-    fn public_zerocopy<T: Item>(&mut self, label: impl Into<Label>) {
-        let label = label.into();
-        self.begin_public::<T>(label.clone(), Length::Scalar);
+    fn public_zerocopy<T: Item>(&mut self, label: Label) {
+        self.begin_public::<T>(label, Length::Scalar);
         self.public_bytes("zerocopy-bytes", size_of::<T>());
         self.end_public::<T>(label, Length::Scalar);
     }
 
-    fn public_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_public::<[T]>(label.clone(), Length::Fixed(size));
+    fn public_zerocopy_many<T: Item>(&mut self, label: Label, size: usize) {
+        self.begin_public::<[T]>(label, Length::Fixed(size));
         self.public_bytes("zerocopy-bytes", size * size_of::<T>());
         self.end_public::<[T]>(label, Length::Fixed(size));
     }
 
-    fn message_zerocopy<T: Item>(&mut self, label: impl Into<Label>) {
-        let label = label.into();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+    fn message_zerocopy<T: Item>(&mut self, label: Label) {
+        self.begin_message::<T>(label, Length::Scalar);
         self.message_bytes("zerocopy-bytes", size_of::<T>());
         self.end_message::<T>(label, Length::Scalar);
     }
 
-    fn message_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_message::<[T]>(label.clone(), Length::Fixed(size));
+    fn message_zerocopy_many<T: Item>(&mut self, label: Label, size: usize) {
+        self.begin_message::<[T]>(label, Length::Fixed(size));
         self.message_bytes("zerocopy-bytes", size * size_of::<T>());
         self.end_message::<[T]>(label, Length::Fixed(size));
     }
 
-    fn challenge_zerocopy<T: Item>(&mut self, label: impl Into<Label>) {
-        let label = label.into();
-        self.begin_challenge::<T>(label.clone(), Length::Scalar);
+    fn challenge_zerocopy<T: Item>(&mut self, label: Label) {
+        self.begin_challenge::<T>(label, Length::Scalar);
         self.challenge_bytes("zerocopy-bytes", size_of::<T>());
         self.end_challenge::<T>(label, Length::Scalar);
     }
 
-    fn challenge_zerocopy_many<T: Item>(&mut self, label: impl Into<Label>, size: usize) {
-        let label = label.into();
-        self.begin_challenge::<[T]>(label.clone(), Length::Fixed(size));
+    fn challenge_zerocopy_many<T: Item>(&mut self, label: Label, size: usize) {
+        self.begin_challenge::<[T]>(label, Length::Fixed(size));
         self.challenge_bytes("zerocopy-bytes", size * size_of::<T>());
         self.end_challenge::<[T]>(label, Length::Fixed(size));
     }
@@ -389,30 +363,26 @@ impl<P> Common for P
 where
     P: transcript::Common + bytes::Common,
 {
-    fn public_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T) {
-        let label = label.into();
-        self.begin_public::<T>(label.clone(), Length::Scalar);
+    fn public_zerocopy<T: Item>(&mut self, label: Label, value: &T) {
+        self.begin_public::<T>(label, Length::Scalar);
         self.public_bytes("zerocopy-bytes", value.as_bytes());
         self.end_public::<T>(label, Length::Scalar);
     }
 
-    fn public_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]) {
-        let label = label.into();
-        self.begin_public::<[T]>(label.clone(), Length::Fixed(value.len()));
+    fn public_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]) {
+        self.begin_public::<[T]>(label, Length::Fixed(value.len()));
         self.public_bytes("zerocopy-bytes", value.as_bytes());
         self.end_public::<[T]>(label, Length::Fixed(value.len()));
     }
 
-    fn challenge_zerocopy_out<T: Item>(&mut self, label: impl Into<Label>, out: &mut T) {
-        let label = label.into();
-        self.begin_challenge::<T>(label.clone(), Length::Scalar);
+    fn challenge_zerocopy_out<T: Item>(&mut self, label: Label, out: &mut T) {
+        self.begin_challenge::<T>(label, Length::Scalar);
         self.challenge_bytes_out("zerocopy-bytes", out.as_mut_bytes());
         self.end_challenge::<T>(label, Length::Scalar);
     }
 
-    fn challenge_zerocopy_slice_out<T: Item>(&mut self, label: impl Into<Label>, out: &mut [T]) {
-        let label = label.into();
-        self.begin_challenge::<[T]>(label.clone(), Length::Fixed(out.len()));
+    fn challenge_zerocopy_slice_out<T: Item>(&mut self, label: Label, out: &mut [T]) {
+        self.begin_challenge::<[T]>(label, Length::Fixed(out.len()));
         self.challenge_bytes_out("zerocopy-bytes", out.as_mut_bytes());
         self.end_challenge::<[T]>(label, Length::Fixed(out.len()));
     }
@@ -423,16 +393,14 @@ impl<P> Prover for P
 where
     P: Common + HintProver + transcript::Prover + bytes::Prover,
 {
-    fn message_zerocopy<T: Item>(&mut self, label: impl Into<Label>, value: &T) {
-        let label = label.into();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+    fn message_zerocopy<T: Item>(&mut self, label: Label, value: &T) {
+        self.begin_message::<T>(label, Length::Scalar);
         self.message_bytes("zerocopy-bytes", value.as_bytes());
         self.end_message::<T>(label, Length::Scalar);
     }
 
-    fn message_zerocopy_slice<T: Item>(&mut self, label: impl Into<Label>, value: &[T]) {
-        let label = label.into();
-        self.begin_message::<[T]>(label.clone(), Length::Fixed(value.len()));
+    fn message_zerocopy_slice<T: Item>(&mut self, label: Label, value: &[T]) {
+        self.begin_message::<[T]>(label, Length::Fixed(value.len()));
         self.message_bytes("zerocopy-bytes", value.as_bytes());
         self.end_message::<[T]>(label, Length::Fixed(value.len()));
     }
@@ -445,11 +413,10 @@ where
 {
     fn message_zerocopy_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut T,
     ) -> Result<(), VerifierError> {
-        let label = label.into();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+        self.begin_message::<T>(label, Length::Scalar);
         self.message_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
         self.end_message::<T>(label, Length::Scalar);
         Ok(())
@@ -457,11 +424,10 @@ where
 
     fn message_zerocopy_slice_out<T: Item>(
         &mut self,
-        label: impl Into<Label>,
+        label: Label,
         out: &mut [T],
     ) -> Result<(), VerifierError> {
-        let label = label.into();
-        self.begin_message::<[T]>(label.clone(), Length::Fixed(out.len()));
+        self.begin_message::<[T]>(label, Length::Fixed(out.len()));
         self.message_bytes_out("zerocopy-bytes", out.as_mut_bytes())?;
         self.end_message::<[T]>(label, Length::Fixed(out.len()));
         Ok(())

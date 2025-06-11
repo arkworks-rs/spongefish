@@ -92,12 +92,12 @@ where
         self.transcript.abort();
     }
 
-    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
+    fn begin<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length) {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length));
     }
 
-    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
+    fn end<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length) {
         self.transcript
             .interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
     }
@@ -110,7 +110,7 @@ where
 {
     type Unit = U;
 
-    fn public_unit(&mut self, label: impl Into<Label>, value: &U) {
+    fn public_unit(&mut self, label: Label, value: &U) {
         let value = from_ref(value);
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
@@ -121,7 +121,7 @@ where
         self.duplex_sponge.absorb(value);
     }
 
-    fn public_units(&mut self, label: impl Into<Label>, value: &[U]) {
+    fn public_units(&mut self, label: Label, value: &[U]) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
@@ -131,7 +131,7 @@ where
         self.duplex_sponge.absorb(value);
     }
 
-    fn challenge_unit_out(&mut self, label: impl Into<Label>, out: &mut U) {
+    fn challenge_unit_out(&mut self, label: Label, out: &mut U) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -141,7 +141,7 @@ where
         self.duplex_sponge.squeeze(from_mut(out));
     }
 
-    fn challenge_units_out(&mut self, label: impl Into<Label>, out: &mut [U]) {
+    fn challenge_units_out(&mut self, label: Label, out: &mut [U]) {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -167,11 +167,7 @@ where
         self.duplex_sponge.ratchet();
     }
 
-    fn message_unit_out(
-        &mut self,
-        label: impl Into<crate::transcript::Label>,
-        value: &mut U,
-    ) -> Result<(), VerifierError> {
+    fn message_unit_out(&mut self, label: Label, value: &mut U) -> Result<(), VerifierError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -185,11 +181,7 @@ where
         Ok(())
     }
 
-    fn message_units_out(
-        &mut self,
-        label: impl Into<crate::transcript::Label>,
-        value: &mut [U],
-    ) -> Result<(), VerifierError> {
+    fn message_units_out(&mut self, label: Label, value: &mut [U]) -> Result<(), VerifierError> {
         self.transcript.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -202,11 +194,7 @@ where
         Ok(())
     }
 
-    fn hint_bytes(
-        &mut self,
-        label: impl Into<crate::transcript::Label>,
-        size: usize,
-    ) -> Result<&'a [u8], VerifierError> {
+    fn hint_bytes(&mut self, label: Label, size: usize) -> Result<&'a [u8], VerifierError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
@@ -221,10 +209,7 @@ where
         Ok(bytes)
     }
 
-    fn hint_bytes_dynamic(
-        &mut self,
-        label: impl Into<crate::transcript::Label>,
-    ) -> Result<&'a [u8], VerifierError> {
+    fn hint_bytes_dynamic(&mut self, label: Label) -> Result<&'a [u8], VerifierError> {
         self.transcript.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,

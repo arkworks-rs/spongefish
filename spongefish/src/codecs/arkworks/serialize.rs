@@ -17,59 +17,47 @@ pub enum VerifierError {
 }
 
 pub trait HintPattern {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn hint_arkworks<T>(&mut self, label: Label)
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait HintProver {
-    fn hint_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn hint_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait HintVerifier {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
+    fn hint_arkworks<T>(&mut self, label: Label) -> Result<T, VerifierError>
     where
         T: CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait Pattern {
-    fn public_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn public_arkworks<T>(&mut self, label: Label)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn message_arkworks<T>(&mut self, label: Label)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait Common {
-    fn public_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn public_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait Prover: Common + HintProver {
-    fn message_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn message_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
 
 pub trait Verifier: Common + HintVerifier {
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
+    fn message_arkworks<T>(&mut self, label: Label) -> Result<T, VerifierError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize;
 }
@@ -78,14 +66,13 @@ impl<P> HintPattern for P
 where
     P: transcript::Pattern + unit::Pattern,
 {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn hint_arkworks<T>(&mut self, label: Label)
     where
         T: CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+        self.begin_hint::<T>(label, Length::Scalar);
         self.hint_bytes_dynamic("arkworks-bytes");
-        self.end_hint::<T>(label.clone(), Length::Scalar);
+        self.end_hint::<T>(label, Length::Scalar);
     }
 }
 
@@ -93,21 +80,16 @@ impl<P> HintProver for P
 where
     P: transcript::Prover + unit::Prover,
 {
-    fn hint_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn hint_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+        self.begin_hint::<T>(label, Length::Scalar);
         let size = value.serialized_size(Compress::Yes);
         let mut buffer = Vec::with_capacity(size);
         value.serialize_compressed(&mut buffer)?;
         self.hint_bytes_dynamic("arkworks-bytes", &buffer);
-        self.end_hint::<T>(label.clone(), Length::Scalar);
+        self.end_hint::<T>(label, Length::Scalar);
         Ok(())
     }
 }
@@ -116,15 +98,14 @@ impl<'a, P> HintVerifier for P
 where
     P: transcript::Verifier + unit::Verifier<'a>,
 {
-    fn hint_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
+    fn hint_arkworks<T>(&mut self, label: Label) -> Result<T, VerifierError>
     where
         T: CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_hint::<T>(label.clone(), Length::Scalar);
+        self.begin_hint::<T>(label, Length::Scalar);
         let slice = self.hint_bytes_dynamic("arkworks-bytes")?;
         let value = T::deserialize_compressed(slice)?;
-        self.end_hint::<T>(label.clone(), Length::Scalar);
+        self.end_hint::<T>(label, Length::Scalar);
         Ok(value)
     }
 }
@@ -133,24 +114,22 @@ impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
-    fn public_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn public_arkworks<T>(&mut self, label: Label)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
         let size = T::default().compressed_size();
-        self.begin_public::<T>(label.clone(), Length::Scalar);
+        self.begin_public::<T>(label, Length::Scalar);
         self.public_bytes("arkworks-bytes", size);
         self.end_public::<T>(label, Length::Scalar);
     }
 
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>)
+    fn message_arkworks<T>(&mut self, label: Label)
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
         let size = T::default().compressed_size();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+        self.begin_message::<T>(label, Length::Scalar);
         self.message_bytes("arkworks-bytes", size);
         self.end_message::<T>(label, Length::Scalar);
     }
@@ -160,21 +139,16 @@ impl<P> Common for P
 where
     P: transcript::Common + bytes::Common,
 {
-    fn public_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn public_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_public::<T>(label.clone(), Length::Scalar);
+        self.begin_public::<T>(label, Length::Scalar);
         let size = value.compressed_size();
         let mut buffer = Vec::with_capacity(size);
         value.serialize_compressed(&mut buffer)?;
         self.public_bytes("arkworks-bytes", &buffer);
-        self.end_public::<T>(label.clone(), Length::Scalar);
+        self.end_public::<T>(label, Length::Scalar);
         Ok(())
     }
 }
@@ -183,21 +157,16 @@ impl<P> Prover for P
 where
     P: Common + HintProver + transcript::Prover + bytes::Prover,
 {
-    fn message_arkworks<T>(
-        &mut self,
-        label: impl Into<Label>,
-        value: &T,
-    ) -> Result<(), SerializationError>
+    fn message_arkworks<T>(&mut self, label: Label, value: &T) -> Result<(), SerializationError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+        self.begin_message::<T>(label, Length::Scalar);
         let size = value.serialized_size(Compress::Yes);
         let mut buffer = Vec::with_capacity(size);
         value.serialize_compressed(&mut buffer)?;
         self.message_bytes("arkworks-bytes", &buffer);
-        self.end_message::<T>(label.clone(), Length::Scalar);
+        self.end_message::<T>(label, Length::Scalar);
         Ok(())
     }
 }
@@ -206,17 +175,16 @@ impl<P> Verifier for P
 where
     P: Common + HintVerifier + transcript::Verifier + bytes::Verifier,
 {
-    fn message_arkworks<T>(&mut self, label: impl Into<Label>) -> Result<T, VerifierError>
+    fn message_arkworks<T>(&mut self, label: Label) -> Result<T, VerifierError>
     where
         T: Default + CanonicalSerialize + CanonicalDeserialize,
     {
-        let label = label.into();
-        self.begin_message::<T>(label.clone(), Length::Scalar);
+        self.begin_message::<T>(label, Length::Scalar);
         let size = T::default().serialized_size(Compress::Yes);
         let bytes = self.message_bytes_vec("arkworks-bytes", size)?;
         let mut reader = bytes.as_slice();
         let value = T::deserialize_compressed(&mut reader)?;
-        self.end_message::<T>(label.clone(), Length::Scalar);
+        self.end_message::<T>(label, Length::Scalar);
         Ok(value)
     }
 }

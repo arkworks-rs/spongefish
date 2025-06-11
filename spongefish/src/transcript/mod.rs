@@ -28,22 +28,22 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length);
+    fn begin<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length);
 
     /// End of a group of interactions.
     ///
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length);
+    fn end<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length);
 
     /// Begin of a subprotocol.
     ///
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) {
-        self.begin::<T>(label.into(), Kind::Protocol, Length::None)
+    fn begin_protocol<T: ?Sized>(&mut self, label: Label) {
+        self.begin::<T>(label.into(), Kind::Protocol, Length::None);
     }
 
     /// End of a subprotocol.
@@ -51,8 +51,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end_protocol<T: ?Sized>(&mut self, label: impl Into<Label>) {
-        self.end::<T>(label, Kind::Protocol, Length::None)
+    fn end_protocol<T: ?Sized>(&mut self, label: Label) {
+        self.end::<T>(label, Kind::Protocol, Length::None);
     }
 
     /// Begin of a public message interaction.
@@ -60,8 +60,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin_public<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.begin::<T>(label, Kind::Public, length)
+    fn begin_public<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.begin::<T>(label, Kind::Public, length);
     }
 
     /// End of a public message interaction.
@@ -69,8 +69,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end_public<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.end::<T>(label, Kind::Public, length)
+    fn end_public<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.end::<T>(label, Kind::Public, length);
     }
 
     /// Begin of a message interaction.
@@ -78,8 +78,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin_message<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.begin::<T>(label, Kind::Message, length)
+    fn begin_message<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.begin::<T>(label, Kind::Message, length);
     }
 
     /// End of a message interaction.
@@ -87,8 +87,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end_message<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.end::<T>(label, Kind::Message, length)
+    fn end_message<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.end::<T>(label, Kind::Message, length);
     }
 
     /// Begin of a hint interaction.
@@ -96,8 +96,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin_hint<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.begin::<T>(label, Kind::Hint, length)
+    fn begin_hint<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.begin::<T>(label, Kind::Hint, length);
     }
 
     /// End of a hint interaction..
@@ -105,8 +105,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end_hint<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.end::<T>(label, Kind::Hint, length)
+    fn end_hint<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.end::<T>(label, Kind::Hint, length);
     }
 
     /// Begin of a challenge interaction..
@@ -114,8 +114,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn begin_challenge<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.begin::<T>(label, Kind::Challenge, length)
+    fn begin_challenge<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.begin::<T>(label, Kind::Challenge, length);
     }
 
     /// End of a challenge interaction..
@@ -123,8 +123,8 @@ pub trait Pattern {
     /// # Panics
     ///
     /// Panics if the interaction violates interaction pattern consistency rules.
-    fn end_challenge<T: ?Sized>(&mut self, label: impl Into<Label>, length: Length) {
-        self.end::<T>(label, Kind::Challenge, length)
+    fn end_challenge<T: ?Sized>(&mut self, label: Label, length: Length) {
+        self.end::<T>(label, Kind::Challenge, length);
     }
 }
 

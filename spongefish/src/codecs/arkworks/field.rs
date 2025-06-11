@@ -8,43 +8,72 @@ use ark_ff::{Field, PrimeField};
 use crate::{
     codecs::bytes,
     transcript::{self, Label, Length},
+    VerifierError,
 };
 
 pub trait Pattern {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>)
-    where
-        F: Field;
-
-    fn challenge_ark_fels<F>(&mut self, label: impl Into<Label>, size: usize)
-    where
-        F: Field;
+    fn public_ark_field<F: Field>(&mut self, label: Label);
+    fn public_ark_field_many<F: Field>(&mut self, label: Label, count: usize);
+    fn message_ark_field<F: Field>(&mut self, label: Label);
+    fn message_ark_field_many<F: Field>(&mut self, label: Label, count: usize);
+    fn challenge_ark_field<F: Field>(&mut self, label: Label);
+    fn challenge_ark_field_many<F: Field>(&mut self, label: Label, count: usize);
 }
 
 pub trait Common {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> F
-    where
-        F: Field;
+    fn public_ark_field<F: Field>(&mut self, label: Label, value: F) -> F;
 
-    fn challenge_ark_fels_out<F>(&mut self, label: impl Into<Label>, out: &mut [F])
-    where
-        F: Field;
+    fn public_ark_field_slice<F: Field>(&mut self, label: Label, values: &[F]);
 
-    fn challenge_ark_fels_array<F, const N: usize>(&mut self, label: impl Into<Label>) -> [F; N]
-    where
-        F: Field,
-    {
+    fn challenge_ark_field<F: Field>(&mut self, label: Label) -> F;
+
+    fn challenge_ark_field_out<F: Field>(&mut self, label: Label, out: &mut [F]);
+
+    fn challenge_ark_field_array<F: Field, const N: usize>(&mut self, label: Label) -> [F; N] {
         let mut result = [F::ZERO; N];
-        self.challenge_ark_fels_out(label, &mut result);
+        self.challenge_ark_field_out(label, &mut result);
         result
     }
 
-    fn challenge_ark_fels_vec<F>(&mut self, label: impl Into<Label>, size: usize) -> Vec<F>
-    where
-        F: Field,
-    {
+    fn challenge_ark_field_vec<F: Field>(&mut self, label: Label, size: usize) -> Vec<F> {
         let mut result = vec![F::ZERO; size];
-        self.challenge_ark_fels_out(label, &mut result);
+        self.challenge_ark_field_out(label, &mut result);
         result
+    }
+}
+
+pub trait Prover: Common {
+    fn message_ark_field<F: Field>(&mut self, label: Label, value: F) -> F;
+
+    fn message_ark_field_slice<F: Field>(&mut self, label: Label, values: &[F]);
+}
+
+pub trait Verifier: Common {
+    fn message_ark_field<F: Field>(&mut self, label: Label) -> Result<F, VerifierError>;
+
+    fn message_ark_field_out<F: Field>(
+        &mut self,
+        label: Label,
+        out: &mut [F],
+    ) -> Result<(), VerifierError>;
+
+    fn message_ark_field_array<F: Field, const N: usize>(
+        &mut self,
+        label: Label,
+    ) -> Result<[F; N], VerifierError> {
+        let mut result = [F::ZERO; N];
+        self.message_ark_field_out(label, &mut result)?;
+        Ok(result)
+    }
+
+    fn message_ark_field_vec<F: Field>(
+        &mut self,
+        label: Label,
+        size: usize,
+    ) -> Result<Vec<F>, VerifierError> {
+        let mut result = vec![F::ZERO; size];
+        self.message_ark_field_out(label, &mut result)?;
+        Ok(result)
     }
 }
 
@@ -52,28 +81,36 @@ impl<P> Pattern for P
 where
     P: transcript::Pattern + bytes::Pattern,
 {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>)
-    where
-        F: Field,
-    {
-        let label = label.into();
-        self.begin_challenge::<F>(label.clone(), Length::Scalar);
+    fn challenge_ark_field<F: Field>(&mut self, label: Label) {
+        self.begin_challenge::<F>(label, Length::Scalar);
         let base_field_size = bytes_uniform_modp::<F::BasePrimeField>();
         let size = F::extension_degree() as usize * base_field_size;
         self.challenge_bytes("ark-field", size);
-        self.end_challenge::<F>(label, Length::Scalar)
+        self.end_challenge::<F>(label, Length::Scalar);
     }
 
-    fn challenge_ark_fels<F>(&mut self, label: impl Into<Label>, size: usize)
-    where
-        F: Field,
-    {
-        let label = label.into();
-        self.begin_challenge::<F>(label.clone(), Length::Fixed(size));
+    fn challenge_ark_field_many<F: Field>(&mut self, label: Label, count: usize) {
+        self.begin_challenge::<F>(label, Length::Fixed(count));
         let base_field_size = bytes_uniform_modp::<F::BasePrimeField>();
         let field_size = F::extension_degree() as usize * base_field_size;
-        self.challenge_bytes("ark-field", size * field_size);
-        self.end_challenge::<F>(label, Length::Fixed(size))
+        self.challenge_bytes("ark-field", count * field_size);
+        self.end_challenge::<F>(label, Length::Fixed(count));
+    }
+
+    fn public_ark_field<F: Field>(&mut self, label: Label) {
+        todo!()
+    }
+
+    fn public_ark_field_many<F: Field>(&mut self, label: Label, count: usize) {
+        todo!()
+    }
+
+    fn message_ark_field<F: Field>(&mut self, label: Label) {
+        todo!()
+    }
+
+    fn message_ark_field_many<F: Field>(&mut self, label: Label, count: usize) {
+        todo!()
     }
 }
 
@@ -81,12 +118,8 @@ impl<P> Common for P
 where
     P: transcript::Common + bytes::Common,
 {
-    fn challenge_ark_fel<F>(&mut self, label: impl Into<Label>) -> F
-    where
-        F: Field,
-    {
-        let label = label.into();
-        self.begin_challenge::<F>(label.clone(), Length::Scalar);
+    fn challenge_ark_field<F: Field>(&mut self, label: Label) -> F {
+        self.begin_challenge::<F>(label, Length::Scalar);
         let base_field_size = bytes_uniform_modp::<F::BasePrimeField>();
         let size = F::extension_degree() as usize * base_field_size;
         let bytes = self.challenge_bytes_vec("ark-field", size);
@@ -100,12 +133,8 @@ where
         result
     }
 
-    fn challenge_ark_fels_out<F>(&mut self, label: impl Into<Label>, out: &mut [F])
-    where
-        F: Field,
-    {
-        let label = label.into();
-        self.begin_challenge::<F>(label.clone(), Length::Fixed(out.len()));
+    fn challenge_ark_field_out<F: Field>(&mut self, label: Label, out: &mut [F]) {
+        self.begin_challenge::<F>(label, Length::Fixed(out.len()));
         let base_field_size = bytes_uniform_modp::<F::BasePrimeField>();
         let field_size = F::extension_degree() as usize * base_field_size;
         let bytes = self.challenge_bytes_vec("ark-field", out.len() * field_size);
@@ -117,7 +146,15 @@ where
             )
             .expect("Number of field elements should match extension degree");
         }
-        self.end_challenge::<F>(label, Length::Fixed(out.len()))
+        self.end_challenge::<F>(label, Length::Fixed(out.len()));
+    }
+
+    fn public_ark_field<F: Field>(&mut self, label: Label, value: F) -> F {
+        todo!()
+    }
+
+    fn public_ark_field_slice<F: Field>(&mut self, label: Label, values: &[F]) {
+        todo!()
     }
 }
 
@@ -139,18 +176,18 @@ mod tests {
     #[test]
     fn test_all_ops() -> Result<()> {
         let mut pattern: PatternState = PatternState::new();
-        pattern.challenge_ark_fel::<BabyBear>("1");
-        pattern.challenge_ark_fels::<BabyBear>("2", 3);
+        pattern.challenge_ark_field::<BabyBear>("1");
+        pattern.challenge_ark_field_many::<BabyBear>("2", 3);
         let pattern = pattern.finalize();
         eprintln!("{pattern}");
 
         let mut prover: ProverState = ProverState::from(&pattern);
         assert_eq!(
-            prover.challenge_ark_fel::<BabyBear>("1"),
+            prover.challenge_ark_field::<BabyBear>("1"),
             BabyBear::from(303345864)
         );
         assert_eq!(
-            prover.challenge_ark_fels_array::<BabyBear, 3>("2"),
+            prover.challenge_ark_field_array::<BabyBear, 3>("2"),
             [
                 BabyBear::from(1634935281),
                 BabyBear::from(928942326),
@@ -162,11 +199,11 @@ mod tests {
 
         let mut verifier: VerifierState = VerifierState::new(pattern.into(), &proof);
         assert_eq!(
-            verifier.challenge_ark_fel::<BabyBear>("1"),
+            verifier.challenge_ark_field::<BabyBear>("1"),
             BabyBear::from(303345864)
         );
         assert_eq!(
-            verifier.challenge_ark_fels_array::<BabyBear, 3>("2"),
+            verifier.challenge_ark_field_array::<BabyBear, 3>("2"),
             [
                 BabyBear::from(1634935281),
                 BabyBear::from(928942326),

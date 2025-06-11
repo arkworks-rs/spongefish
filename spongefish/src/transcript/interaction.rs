@@ -1,5 +1,4 @@
 use core::{any::type_name, fmt::Display};
-use std::borrow::Cow;
 
 /// A single abstract prover-verifier interaction.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -22,10 +21,7 @@ pub struct Interaction {
 }
 
 /// Labels for interactions.
-///
-/// The type `Cow<'static, str>` optimizes for the common case where labels are
-/// compile time constants, but still allows dynamic labels (e.g. `round-5`).
-pub type Label = Cow<'static, str>;
+pub type Label = &'static str;
 
 /// Kinds of prover-verifier interactions
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -68,17 +64,13 @@ pub enum Length {
 
 impl Interaction {
     #[must_use]
-    pub fn new<T: ?Sized>(
-        hierarchy: Hierarchy,
-        kind: Kind,
-        label: impl Into<Label>,
-        length: Length,
-    ) -> Self {
+    pub fn new<T: ?Sized>(hierarchy: Hierarchy, kind: Kind, label: Label, length: Length) -> Self {
+        let type_name = type_name::<T>();
         Self {
             hierarchy,
             kind,
-            label: label.into(),
-            type_name: type_name::<T>(),
+            label,
+            type_name,
             length,
         }
     }

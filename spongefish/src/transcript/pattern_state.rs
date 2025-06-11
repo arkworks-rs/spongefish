@@ -95,11 +95,11 @@ where
         todo!()
     }
 
-    fn begin<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
+    fn begin<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length) {
         self.interact(Interaction::new::<T>(Hierarchy::Begin, kind, label, length));
     }
 
-    fn end<T: ?Sized>(&mut self, label: impl Into<Label>, kind: Kind, length: Length) {
+    fn end<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length) {
         self.interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
     }
 }
@@ -119,7 +119,7 @@ where
         ));
     }
 
-    fn public_unit(&mut self, label: impl Into<Label>) {
+    fn public_unit(&mut self, label: Label) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
@@ -128,7 +128,7 @@ where
         ));
     }
 
-    fn public_units(&mut self, label: impl Into<Label>, size: usize) {
+    fn public_units(&mut self, label: Label, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
@@ -137,7 +137,7 @@ where
         ));
     }
 
-    fn message_unit(&mut self, label: impl Into<Label>) {
+    fn message_unit(&mut self, label: Label) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -146,7 +146,7 @@ where
         ));
     }
 
-    fn message_units(&mut self, label: impl Into<Label>, size: usize) {
+    fn message_units(&mut self, label: Label, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
@@ -155,7 +155,7 @@ where
         ));
     }
 
-    fn challenge_unit(&mut self, label: impl Into<Label>) {
+    fn challenge_unit(&mut self, label: Label) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -164,7 +164,7 @@ where
         ));
     }
 
-    fn challenge_units(&mut self, label: impl Into<Label>, size: usize) {
+    fn challenge_units(&mut self, label: Label, size: usize) {
         self.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
@@ -173,7 +173,7 @@ where
         ));
     }
 
-    fn hint_bytes(&mut self, label: impl Into<Label>, size: usize) {
+    fn hint_bytes(&mut self, label: Label, size: usize) {
         self.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
@@ -182,7 +182,7 @@ where
         ));
     }
 
-    fn hint_bytes_dynamic(&mut self, label: impl Into<Label>) {
+    fn hint_bytes_dynamic(&mut self, label: Label) {
         self.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Hint,
