@@ -60,7 +60,7 @@ pub trait Permutation: Zeroize + Default + Clone + AsRef<[Self::U]> + AsMut<[Sel
 }
 
 /// A cryptographic sponge.
-#[derive(Clone, Default, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct DuplexSponge<C: Permutation> {
     permutation: C,
     absorb_pos: usize,
