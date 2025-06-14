@@ -20,7 +20,7 @@ pub type Keccak = DuplexSponge<KeccakF1600>;
 
 /// Keccak permutation internal state: 25 64-bit words,
 /// or equivalently 200 bytes in little-endian order.
-#[derive(Clone, PartialEq, Eq, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
 pub struct KeccakF1600([u64; 25]);
 
 impl Permutation for KeccakF1600 {
@@ -36,12 +36,6 @@ impl Permutation for KeccakF1600 {
 
     fn permute(&mut self) {
         keccak::f1600(&mut self.0);
-    }
-}
-
-impl Default for KeccakF1600 {
-    fn default() -> Self {
-        Self([0u64; 25])
     }
 }
 
