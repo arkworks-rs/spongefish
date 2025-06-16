@@ -148,6 +148,9 @@ mod sho;
 #[cfg(test)]
 mod tests;
 
+/// Proposed alternative domain separator
+pub mod pattern;
+
 /// Traits for byte support.
 pub mod traits;
 
