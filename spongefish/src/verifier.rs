@@ -413,7 +413,9 @@ mod tests {
     fn test_hint_bytes_verifier_no_hint_op() {
         let pattern = PatternState::<u8>::new().finalize();
 
+        // Manually construct a hint buffer (length = 6, followed by bytes)
         let narg = hex::decode("06000000616263313233").unwrap();
+
         let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &narg);
         vs.hint_bytes().unwrap();
     }
@@ -428,7 +430,11 @@ mod tests {
             Length::Dynamic,
         ));
         let pattern = pattern.finalize();
-        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &[1, 2, 3]);
+
+        // Provide only 3 bytes, which is not enough for a u32 length
+        let narg = &[1, 2, 3]; // less than 4 bytes
+
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), narg);
         let err = vs.hint_bytes().unwrap_err();
         assert!(format!("{err}").contains("Insufficient transcript remaining for hint"));
         vs.abort();
@@ -444,6 +450,7 @@ mod tests {
             Length::Dynamic,
         ));
         let pattern = pattern.finalize();
+
         let narg = [5u8, 0, 0, 0, b'a', b'b'];
         let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &narg);
         let err = vs.hint_bytes().unwrap_err();
