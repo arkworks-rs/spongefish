@@ -50,7 +50,7 @@ pub trait BytesToUnitDeserialize {
 
     fn next_bytes<const N: usize>(&mut self) -> Result<[u8; N], std::io::Error> {
         let mut input = [0u8; N];
-        self.fill_next_bytes(&mut input);
+        self.fill_next_bytes(&mut input)?;
         Ok(input)
     }
 }

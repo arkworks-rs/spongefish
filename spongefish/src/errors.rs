@@ -17,7 +17,7 @@
 ///   An error to signal that the verification equation has failed. Destined for end users.
 ///
 /// A [`core::Result::Result`] wrapper called [`ProofResult`] (having error fixed to [`ProofError`]) is also provided.
-use std::{borrow::Borrow, error::Error, fmt::Display};
+use std::{error::Error, fmt::Display};
 
 /// An error happened when creating or verifying a proof.
 #[derive(Debug, Clone)]

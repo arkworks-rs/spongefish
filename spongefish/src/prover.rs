@@ -185,7 +185,7 @@ where
 
     /// Ratchet the verifier's state.
     pub fn ratchet(&mut self) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<()>(
             Hierarchy::Atomic,
             Kind::Protocol,
             "ratchet",
@@ -306,7 +306,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pattern::{self, PatternState};
+    use crate::pattern::PatternState;
 
     #[test]
     fn test_prover_state_add_units_and_rng_differs() {
@@ -331,63 +331,117 @@ mod tests {
         let _proof = pstate.finalize();
     }
 
-    // #[test]
-    // fn test_prover_state_public_units_does_not_affect_narg() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(4, "data");
-    //     let mut pstate = ProverState::from(&domsep);
+    #[test]
+    fn test_prover_state_public_units_does_not_affect_narg() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            "public_units",
+            Length::Fixed(4),
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
 
-    //     pstate.public_units(&[1, 2, 3, 4]).unwrap();
-    //     assert_eq!(pstate.narg_string(), b"");
-    // }
+        pstate.public_units(&[1, 2, 3, 4]);
+        assert_eq!(pstate.narg_string(), b"");
+        let _proof = pstate.finalize();
+    }
 
-    // #[test]
-    // fn test_prover_state_ratcheting_changes_rng_output() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-    //     let mut pstate = ProverState::from(&domsep);
+    #[test]
+    fn test_prover_state_ratcheting_changes_rng_output() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<()>(
+            Hierarchy::Atomic,
+            Kind::Protocol,
+            "ratchet",
+            Length::None,
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
 
-    //     let mut buf1 = [0u8; 4];
-    //     pstate.rng().fill_bytes(&mut buf1);
+        let mut buf1 = [0u8; 4];
+        pstate.rng().fill_bytes(&mut buf1);
 
-    //     pstate.ratchet().unwrap();
+        pstate.ratchet();
 
-    //     let mut buf2 = [0u8; 4];
-    //     pstate.rng().fill_bytes(&mut buf2);
+        let mut buf2 = [0u8; 4];
+        pstate.rng().fill_bytes(&mut buf2);
 
-    //     assert_ne!(buf1, buf2);
-    // }
+        // TODO: This test is broken. You'd expect these to be different even without the ratchet.
+        assert_ne!(buf1, buf2);
+        let _proof = pstate.finalize();
+    }
 
-    // #[test]
-    // fn test_add_units_appends_to_narg_string() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(3, "msg");
-    //     let mut pstate = ProverState::from(&domsep);
-    //     let input = [42, 43, 44];
+    #[test]
+    fn test_add_units_appends_to_narg_string() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "add_units",
+            Length::Fixed(3),
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
 
-    //     assert!(pstate.add_units(&input).is_ok());
-    //     assert_eq!(pstate.narg_string(), &input);
-    // }
+        let input = [42, 43, 44];
 
-    // #[test]
-    // fn test_add_units_too_many_elements_should_error() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "short");
-    //     let mut pstate = ProverState::from(&domsep);
+        pstate.add_units(&input);
+        let proof = pstate.finalize();
+        assert_eq!(proof, &input);
+    }
 
-    //     let result = pstate.add_units(&[1, 2, 3]);
-    //     assert!(result.is_err());
-    // }
+    #[test]
+    #[should_panic(
+        expected = "Received interaction Atomic Message add_units Fixed(3) [u8], but expected Atomic Message add_units Fixed(2) [u8]"
+    )]
+    fn test_add_units_too_many_elements_should_panic() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "add_units",
+            Length::Fixed(2),
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
 
-    // #[test]
-    // fn test_ratchet_works_when_expected() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-    //     let mut pstate = ProverState::from(&domsep);
-    //     assert!(pstate.ratchet().is_ok());
-    // }
+        pstate.add_units(&[1, 2, 3]);
+    }
 
-    // #[test]
-    // fn test_ratchet_fails_when_not_expected() {
-    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(1, "bad");
-    //     let mut pstate = ProverState::from(&domsep);
-    //     assert!(pstate.ratchet().is_err());
-    // }
+    #[test]
+    fn test_ratchet_works_when_expected() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<()>(
+            Hierarchy::Atomic,
+            Kind::Protocol,
+            "ratchet",
+            Length::None,
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
+        pstate.ratchet();
+        let _proof = pstate.finalize();
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message add_units Fixed(4) [u8]"
+    )]
+    fn test_ratchet_fails_when_not_expected() {
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "add_units",
+            Length::Fixed(4),
+        ));
+        let pattern = pattern.finalize();
+        let mut pstate: ProverState = ProverState::from(&pattern);
+        pstate.ratchet();
+        let _proof = pstate.finalize();
+    }
 
     // #[test]
     // fn test_public_units_does_not_update_transcript() {
