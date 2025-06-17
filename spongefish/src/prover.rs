@@ -1,6 +1,7 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use rand::{CryptoRng, RngCore};
+use zeroize::Zeroize;
 
 use super::{duplex_sponge::DuplexSpongeInterface, keccak::Keccak, DefaultHash, DefaultRng};
 use crate::{
@@ -108,6 +109,22 @@ where
             narg_string: Vec::new(),
             _unit_type: PhantomData,
         }
+    }
+
+    /// Abort the proof without completing.
+    pub fn abort(mut self) {
+        self.pattern.abort();
+        self.duplex_sponge.zeroize();
+        self.rng.ds.zeroize();
+        self.narg_string.zeroize();
+    }
+
+    /// Finish the proof and return the proof bytes.
+    pub fn finalize(mut self) -> Vec<u8> {
+        self.pattern.finalize();
+        self.duplex_sponge.zeroize();
+        self.rng.ds.zeroize();
+        self.narg_string
     }
 
     pub fn hint_bytes(&mut self, hint: &[u8]) {
@@ -286,199 +303,210 @@ where
     }
 }
 
-// #[cfg(test)]
-#[cfg(feature = "disabled")]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pattern::{self, PatternState};
 
     #[test]
     fn test_prover_state_add_units_and_rng_differs() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(4, "data");
-        let mut pstate = ProverState::from(&domsep);
+        let mut pattern = PatternState::<u8>::new();
+        pattern.begin_message::<[u8]>("add_bytes", Length::Fixed(4));
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "add_units",
+            Length::Fixed(4),
+        ));
+        pattern.end_message::<[u8]>("add_bytes", Length::Fixed(4));
+        let pattern = pattern.finalize();
 
-        pstate.add_bytes(&[1, 2, 3, 4]).unwrap();
+        let mut pstate: ProverState = ProverState::from(&pattern);
+
+        pstate.add_bytes(&[1, 2, 3, 4]);
 
         let mut buf = [0u8; 8];
         pstate.rng().fill_bytes(&mut buf);
         assert_ne!(buf, [0; 8]);
+        let _proof = pstate.finalize();
     }
 
-    #[test]
-    fn test_prover_state_public_units_does_not_affect_narg() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(4, "data");
-        let mut pstate = ProverState::from(&domsep);
+    // #[test]
+    // fn test_prover_state_public_units_does_not_affect_narg() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(4, "data");
+    //     let mut pstate = ProverState::from(&domsep);
 
-        pstate.public_units(&[1, 2, 3, 4]).unwrap();
-        assert_eq!(pstate.narg_string(), b"");
-    }
+    //     pstate.public_units(&[1, 2, 3, 4]).unwrap();
+    //     assert_eq!(pstate.narg_string(), b"");
+    // }
 
-    #[test]
-    fn test_prover_state_ratcheting_changes_rng_output() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-        let mut pstate = ProverState::from(&domsep);
+    // #[test]
+    // fn test_prover_state_ratcheting_changes_rng_output() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
+    //     let mut pstate = ProverState::from(&domsep);
 
-        let mut buf1 = [0u8; 4];
-        pstate.rng().fill_bytes(&mut buf1);
+    //     let mut buf1 = [0u8; 4];
+    //     pstate.rng().fill_bytes(&mut buf1);
 
-        pstate.ratchet().unwrap();
+    //     pstate.ratchet().unwrap();
 
-        let mut buf2 = [0u8; 4];
-        pstate.rng().fill_bytes(&mut buf2);
+    //     let mut buf2 = [0u8; 4];
+    //     pstate.rng().fill_bytes(&mut buf2);
 
-        assert_ne!(buf1, buf2);
-    }
+    //     assert_ne!(buf1, buf2);
+    // }
 
-    #[test]
-    fn test_add_units_appends_to_narg_string() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(3, "msg");
-        let mut pstate = ProverState::from(&domsep);
-        let input = [42, 43, 44];
+    // #[test]
+    // fn test_add_units_appends_to_narg_string() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(3, "msg");
+    //     let mut pstate = ProverState::from(&domsep);
+    //     let input = [42, 43, 44];
 
-        assert!(pstate.add_units(&input).is_ok());
-        assert_eq!(pstate.narg_string(), &input);
-    }
+    //     assert!(pstate.add_units(&input).is_ok());
+    //     assert_eq!(pstate.narg_string(), &input);
+    // }
 
-    #[test]
-    fn test_add_units_too_many_elements_should_error() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "short");
-        let mut pstate = ProverState::from(&domsep);
+    // #[test]
+    // fn test_add_units_too_many_elements_should_error() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "short");
+    //     let mut pstate = ProverState::from(&domsep);
 
-        let result = pstate.add_units(&[1, 2, 3]);
-        assert!(result.is_err());
-    }
+    //     let result = pstate.add_units(&[1, 2, 3]);
+    //     assert!(result.is_err());
+    // }
 
-    #[test]
-    fn test_ratchet_works_when_expected() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
-        let mut pstate = ProverState::from(&domsep);
-        assert!(pstate.ratchet().is_ok());
-    }
+    // #[test]
+    // fn test_ratchet_works_when_expected() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").ratchet();
+    //     let mut pstate = ProverState::from(&domsep);
+    //     assert!(pstate.ratchet().is_ok());
+    // }
 
-    #[test]
-    fn test_ratchet_fails_when_not_expected() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(1, "bad");
-        let mut pstate = ProverState::from(&domsep);
-        assert!(pstate.ratchet().is_err());
-    }
+    // #[test]
+    // fn test_ratchet_fails_when_not_expected() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(1, "bad");
+    //     let mut pstate = ProverState::from(&domsep);
+    //     assert!(pstate.ratchet().is_err());
+    // }
 
-    #[test]
-    fn test_public_units_does_not_update_transcript() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "p");
-        let mut pstate = ProverState::from(&domsep);
-        let _ = pstate.public_units(&[0xaa, 0xbb]);
+    // #[test]
+    // fn test_public_units_does_not_update_transcript() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").absorb(2, "p");
+    //     let mut pstate = ProverState::from(&domsep);
+    //     let _ = pstate.public_units(&[0xaa, 0xbb]);
 
-        assert_eq!(pstate.narg_string(), b"");
-    }
+    //     assert_eq!(pstate.narg_string(), b"");
+    // }
 
-    #[test]
-    fn test_fill_challenge_units() {
-        let domsep = DomainSeparator::<DefaultHash>::new("test").squeeze(8, "ch");
-        let mut pstate = ProverState::from(&domsep);
+    // #[test]
+    // fn test_fill_challenge_units() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("test").squeeze(8, "ch");
+    //     let mut pstate = ProverState::from(&domsep);
 
-        let mut out = [0u8; 8];
-        let _ = pstate.fill_challenge_units(&mut out);
-        assert_eq!(out, [77, 249, 17, 180, 176, 109, 121, 62]);
-    }
+    //     let mut out = [0u8; 8];
+    //     let _ = pstate.fill_challenge_units(&mut out);
+    //     assert_eq!(out, [77, 249, 17, 180, 176, 109, 121, 62]);
+    // }
 
-    #[test]
-    fn test_rng_entropy_changes_with_transcript() {
-        let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(3, "init");
-        let mut p1 = ProverState::from(&domsep);
-        let mut p2 = ProverState::from(&domsep);
+    // #[test]
+    // fn test_rng_entropy_changes_with_transcript() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(3, "init");
+    //     let mut p1 = ProverState::from(&domsep);
+    //     let mut p2 = ProverState::from(&domsep);
 
-        let mut a = [0u8; 16];
-        let mut b = [0u8; 16];
+    //     let mut a = [0u8; 16];
+    //     let mut b = [0u8; 16];
 
-        p1.rng().fill_bytes(&mut a);
-        p2.add_units(&[1, 2, 3]).unwrap();
-        p2.rng().fill_bytes(&mut b);
+    //     p1.rng().fill_bytes(&mut a);
+    //     p2.add_units(&[1, 2, 3]).unwrap();
+    //     p2.rng().fill_bytes(&mut b);
 
-        assert_ne!(a, b);
-    }
+    //     assert_ne!(a, b);
+    // }
 
-    #[test]
-    fn test_add_units_multiple_accumulates() {
-        let domsep = DomainSeparator::<DefaultHash>::new("t")
-            .absorb(2, "a")
-            .absorb(3, "b");
-        let mut p = ProverState::from(&domsep);
+    // #[test]
+    // fn test_add_units_multiple_accumulates() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("t")
+    //         .absorb(2, "a")
+    //         .absorb(3, "b");
+    //     let mut p = ProverState::from(&domsep);
 
-        p.add_units(&[10, 11]).unwrap();
-        p.add_units(&[20, 21, 22]).unwrap();
+    //     p.add_units(&[10, 11]).unwrap();
+    //     p.add_units(&[20, 21, 22]).unwrap();
 
-        assert_eq!(p.narg_string(), &[10, 11, 20, 21, 22]);
-    }
+    //     assert_eq!(p.narg_string(), &[10, 11, 20, 21, 22]);
+    // }
 
-    #[test]
-    fn test_narg_string_round_trip_check() {
-        let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(5, "data");
-        let mut p = ProverState::from(&domsep);
+    // #[test]
+    // fn test_narg_string_round_trip_check() {
+    //     let domsep = DomainSeparator::<DefaultHash>::new("t").absorb(5, "data");
+    //     let mut p = ProverState::from(&domsep);
 
-        let msg = b"zkp42";
-        p.add_units(msg).unwrap();
+    //     let msg = b"zkp42";
+    //     p.add_units(msg).unwrap();
 
-        let encoded = p.narg_string();
-        assert_eq!(encoded, msg);
-    }
+    //     let encoded = p.narg_string();
+    //     assert_eq!(encoded, msg);
+    // }
 
-    #[test]
-    fn test_hint_bytes_appends_hint_length_and_data() {
-        let domsep: DomainSeparator<DefaultHash> =
-            DomainSeparator::new("hint_test").hint("proof_hint");
-        let mut prover = domsep.to_prover_state();
+    // #[test]
+    // fn test_hint_bytes_appends_hint_length_and_data() {
+    //     let domsep: DomainSeparator<DefaultHash> =
+    //         DomainSeparator::new("hint_test").hint("proof_hint");
+    //     let mut prover = domsep.to_prover_state();
 
-        let hint = b"abc123";
-        prover.hint_bytes(hint).unwrap();
+    //     let hint = b"abc123";
+    //     prover.hint_bytes(hint).unwrap();
 
-        // Explanation:
-        // - `hint` is "abc123", which has 6 bytes.
-        // - The protocol encodes this as a 4-byte *little-endian* length prefix: 6 = 0x00000006 → [6, 0, 0, 0]
-        // - Then it appends the hint bytes: b"abc123"
-        // - So the full expected value is:
-        let expected = [6, 0, 0, 0, b'a', b'b', b'c', b'1', b'2', b'3'];
+    //     // Explanation:
+    //     // - `hint` is "abc123", which has 6 bytes.
+    //     // - The protocol encodes this as a 4-byte *little-endian* length prefix: 6 = 0x00000006 → [6, 0, 0, 0]
+    //     // - Then it appends the hint bytes: b"abc123"
+    //     // - So the full expected value is:
+    //     let expected = [6, 0, 0, 0, b'a', b'b', b'c', b'1', b'2', b'3'];
 
-        assert_eq!(prover.narg_string(), &expected);
-    }
+    //     assert_eq!(prover.narg_string(), &expected);
+    // }
 
-    #[test]
-    fn test_hint_bytes_empty_hint_is_encoded_correctly() {
-        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("empty_hint").hint("empty");
-        let mut prover = domsep.to_prover_state();
+    // #[test]
+    // fn test_hint_bytes_empty_hint_is_encoded_correctly() {
+    //     let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("empty_hint").hint("empty");
+    //     let mut prover = domsep.to_prover_state();
 
-        prover.hint_bytes(b"").unwrap();
+    //     prover.hint_bytes(b"").unwrap();
 
-        // Length = 0 encoded as 4 zero bytes
-        assert_eq!(prover.narg_string(), &[0, 0, 0, 0]);
-    }
+    //     // Length = 0 encoded as 4 zero bytes
+    //     assert_eq!(prover.narg_string(), &[0, 0, 0, 0]);
+    // }
 
-    #[test]
-    fn test_hint_bytes_fails_if_hint_op_missing() {
-        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("no_hint");
-        let mut prover = domsep.to_prover_state();
+    // #[test]
+    // fn test_hint_bytes_fails_if_hint_op_missing() {
+    //     let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("no_hint");
+    //     let mut prover = domsep.to_prover_state();
 
-        // DomainSeparator contains no hint operation
-        let result = prover.hint_bytes(b"some_hint");
-        assert!(
-            result.is_err(),
-            "Should error if no hint op in domain separator"
-        );
-    }
+    //     // DomainSeparator contains no hint operation
+    //     let result = prover.hint_bytes(b"some_hint");
+    //     assert!(
+    //         result.is_err(),
+    //         "Should error if no hint op in domain separator"
+    //     );
+    // }
 
-    #[test]
-    fn test_hint_bytes_is_deterministic() {
-        let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("det_hint").hint("same");
+    // #[test]
+    // fn test_hint_bytes_is_deterministic() {
+    //     let domsep: DomainSeparator<DefaultHash> = DomainSeparator::new("det_hint").hint("same");
 
-        let hint = b"zkproof_hint";
-        let mut prover1 = domsep.to_prover_state();
-        let mut prover2 = domsep.to_prover_state();
+    //     let hint = b"zkproof_hint";
+    //     let mut prover1 = domsep.to_prover_state();
+    //     let mut prover2 = domsep.to_prover_state();
 
-        prover1.hint_bytes(hint).unwrap();
-        prover2.hint_bytes(hint).unwrap();
+    //     prover1.hint_bytes(hint).unwrap();
+    //     prover2.hint_bytes(hint).unwrap();
 
-        assert_eq!(
-            prover1.narg_string(),
-            prover2.narg_string(),
-            "Encoding should be deterministic"
-        );
-    }
+    //     assert_eq!(
+    //         prover1.narg_string(),
+    //         prover2.narg_string(),
+    //         "Encoding should be deterministic"
+    //     );
+    // }
 }
