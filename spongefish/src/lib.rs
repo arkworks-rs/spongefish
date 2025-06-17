@@ -139,10 +139,10 @@ pub mod keccak;
 /// APIs for common zkp libraries.
 pub mod codecs;
 
-/// Unit-tests.
-//#[cfg(test)]
-//mod tests;
 pub mod pattern;
+/// Unit-tests.
+#[cfg(test)]
+mod tests;
 
 /// Prover's internal state and transcript generation.
 mod prover;

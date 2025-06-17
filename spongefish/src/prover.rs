@@ -173,7 +173,7 @@ where
         self.pattern.interact(Interaction::new::<[U]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(input.len()),
         ));
         self.duplex_sponge.absorb_unchecked(input);
@@ -296,10 +296,10 @@ where
 {
     fn add_bytes(&mut self, input: &[u8]) {
         self.pattern
-            .begin_message::<[u8]>("add_bytes", Length::Fixed(input.len()));
+            .begin_message::<[u8]>("bytes", Length::Fixed(input.len()));
         self.add_units(input);
         self.pattern
-            .end_message::<[u8]>("add_bytes", Length::Fixed(input.len()));
+            .end_message::<[u8]>("bytes", Length::Fixed(input.len()));
     }
 }
 
@@ -311,14 +311,14 @@ mod tests {
     #[test]
     fn test_prover_state_add_units_and_rng_differs() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("add_bytes", Length::Fixed(4));
+        pattern.begin_message::<[u8]>("bytes", Length::Fixed(4));
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(4),
         ));
-        pattern.end_message::<[u8]>("add_bytes", Length::Fixed(4));
+        pattern.end_message::<[u8]>("bytes", Length::Fixed(4));
         let pattern = pattern.finalize();
 
         let mut pstate: ProverState = ProverState::from(&pattern);
@@ -379,7 +379,7 @@ mod tests {
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(3),
         ));
         let pattern = pattern.finalize();
@@ -394,14 +394,14 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Message add_units Fixed(3) [u8], but expected Atomic Message add_units Fixed(2) [u8]"
+        expected = "Received interaction Atomic Message units Fixed(3) [u8], but expected Atomic Message units Fixed(2) [u8]"
     )]
     fn test_add_units_too_many_elements_should_panic() {
         let mut pattern = PatternState::<u8>::new();
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(2),
         ));
         let pattern = pattern.finalize();
@@ -427,14 +427,14 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message add_units Fixed(4) [u8]"
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(4) [u8]"
     )]
     fn test_ratchet_fails_when_not_expected() {
         let mut pattern = PatternState::<u8>::new();
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(4),
         ));
         let pattern = pattern.finalize();
@@ -464,14 +464,14 @@ mod tests {
     #[test]
     fn test_rng_entropy_changes_with_transcript() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("add_bytes", Length::Fixed(3));
+        pattern.begin_message::<[u8]>("bytes", Length::Fixed(3));
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(3),
         ));
-        pattern.end_message::<[u8]>("add_bytes", Length::Fixed(3));
+        pattern.end_message::<[u8]>("bytes", Length::Fixed(3));
         let pattern = pattern.finalize();
         let mut p1: ProverState = ProverState::from(&pattern);
         let mut p2: ProverState = ProverState::from(&pattern);
@@ -494,13 +494,13 @@ mod tests {
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(2),
         ));
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(3),
         ));
         let pattern = pattern.finalize();
@@ -519,7 +519,7 @@ mod tests {
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "add_units",
+            "units",
             Length::Fixed(5),
         ));
         let pattern = pattern.finalize();

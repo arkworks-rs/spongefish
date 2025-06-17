@@ -57,7 +57,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
         self.pattern.interact(Interaction::new::<[U]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "fill_next_units",
+            "units",
             Length::Fixed(input.len()),
         ));
         U::read(&mut self.narg_string, input)?;
@@ -166,10 +166,10 @@ impl<H: DuplexSpongeInterface<u8>> BytesToUnitDeserialize for VerifierState<'_, 
     #[inline]
     fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), std::io::Error> {
         self.pattern
-            .begin_message::<[u8]>("fill_next_bytes", Length::Fixed(input.len()));
+            .begin_message::<[u8]>("bytes", Length::Fixed(input.len()));
         self.fill_next_units(input)?;
         self.pattern
-            .end_message::<[u8]>("fill_next_bytes", Length::Fixed(input.len()));
+            .end_message::<[u8]>("bytes", Length::Fixed(input.len()));
         Ok(())
     }
 }
@@ -248,7 +248,7 @@ mod tests {
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "fill_next_units",
+            "units",
             Length::Fixed(3),
         ));
         let pattern = pattern.finalize();
@@ -266,7 +266,7 @@ mod tests {
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "fill_next_units",
+            "units",
             Length::Fixed(4),
         ));
         let pattern = pattern.finalize();
@@ -294,14 +294,14 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message fill_next_units Fixed(1) [u8]"
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(1) [u8]"
     )]
     fn test_ratcheting_wrong_op_errors() {
         let mut pattern = PatternState::<u8>::new();
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "fill_next_units",
+            "units",
             Length::Fixed(1),
         ));
         let pattern = pattern.finalize();
@@ -345,14 +345,14 @@ mod tests {
     #[test]
     fn test_fill_next_bytes_impl() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("fill_next_bytes", Length::Fixed(3));
+        pattern.begin_message::<[u8]>("bytes", Length::Fixed(3));
         pattern.interact(Interaction::new::<[u8]>(
             Hierarchy::Atomic,
             Kind::Message,
-            "fill_next_units",
+            "units",
             Length::Fixed(3),
         ));
-        pattern.end_message::<[u8]>("fill_next_bytes", Length::Fixed(3));
+        pattern.end_message::<[u8]>("bytes", Length::Fixed(3));
         let pattern = pattern.finalize();
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"xyz");
         let mut out = [0u8; 3];
