@@ -25,7 +25,7 @@ ark-ec = { workspace = true, optional = true }
 ark-serialize = { workspace = true, features = ["std"], optional = true }
 group = { workspace = true, optional = true }
 hex = { workspace = true }
-thiserror.workspace = true
+thiserror = { workspace = true }
 
 [features]
 default = []
