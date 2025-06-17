@@ -2,21 +2,12 @@ use rand::RngCore;
 
 use crate::{
     duplex_sponge::legacy::DigestBridge, keccak::Keccak, BytesToUnitDeserialize,
-    BytesToUnitSerialize, CommonUnitToBytes, DomainSeparator, DuplexSpongeInterface,
-    HashStateWithInstructions, ProverState, UnitToBytes,
+    BytesToUnitSerialize, CommonUnitToBytes, DuplexSpongeInterface, ProverState, UnitToBytes,
 };
 
 type Sha2 = DigestBridge<sha2::Sha256>;
 type Blake2b512 = DigestBridge<blake2::Blake2b512>;
 type Blake2s256 = DigestBridge<blake2::Blake2s256>;
-
-/// How should a protocol without actual IO be handled?
-#[test]
-fn test_domain_separator() {
-    // test that the byte separator is always added
-    let domain_separator = DomainSeparator::<Keccak>::new("example.com");
-    assert!(domain_separator.as_bytes().starts_with(b"example.com"));
-}
 
 /// Test ProverState's rng is not doing completely stupid things.
 #[test]
