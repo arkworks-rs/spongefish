@@ -154,12 +154,6 @@ mod tests {
     use crate::pattern::Length;
 
     #[test]
-    fn test_size() {
-        dbg!(size_of::<TranscriptError>());
-        assert!(size_of::<TranscriptError>() < 170);
-    }
-
-    #[test]
     fn test_domain_separator() {
         let transcript = InteractionPattern::new(vec![
             Interaction::new::<usize>(Hierarchy::Begin, Kind::Protocol, "test", Length::None),

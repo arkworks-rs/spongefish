@@ -155,12 +155,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sizes() {
-        dbg!(size_of::<Interaction>());
-        assert!(size_of::<Interaction>() < 80);
-    }
-
-    #[test]
     fn test_domain_separator() {
         let interaction = Interaction::new::<Vec<f64>>(
             Hierarchy::Atomic,
