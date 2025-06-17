@@ -115,6 +115,18 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
         ));
         self.duplex_sponge.ratchet_unchecked();
     }
+
+    /// Abort the verifier session without completing playback.
+    ///
+    /// Any remaining expected interactions are discarded.
+    pub fn abort(mut self) {
+        self.pattern.abort();
+    }
+
+    /// Finalize the verifier session, asserting all interactions were consumed.
+    pub fn finalize(mut self) {
+        self.pattern.finalize();
+    }
 }
 
 impl<H: DuplexSpongeInterface<U>, U: Unit> UnitTranscript<U> for VerifierState<'_, H, U> {
@@ -162,11 +174,10 @@ impl<H: DuplexSpongeInterface<u8>> BytesToUnitDeserialize for VerifierState<'_, 
     }
 }
 
-// #[cfg(test)]
-#[cfg(feature = "disabled")]
+#[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
-
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use crate::pattern::{PatternState, Interaction, Hierarchy, Kind, Length};
     use super::*;
 
     #[derive(Default, Clone)]
@@ -220,152 +231,215 @@ mod tests {
 
     #[test]
     fn test_new_verifier_state_constructs_correctly() {
-        let ds = DomainSeparator::<DummySponge>::new("test");
+        let pattern = PatternState::<u8>::new().finalize();
         let transcript = b"abc";
-        let vs = VerifierState::<DummySponge>::new(&ds, transcript);
+        let vs = VerifierState::<DummySponge>::new(Arc::new(pattern), transcript);
         assert_eq!(vs.narg_string, b"abc");
+        vs.finalize();
     }
 
     #[test]
     fn test_fill_next_units_reads_and_absorbs() {
-        let ds = DomainSeparator::<DummySponge>::new("x").absorb(3, "input");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"abc");
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "fill_next_units",
+            Length::Fixed(3),
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"abc");
         let mut buf = [0u8; 3];
-        let res = vs.fill_next_units(&mut buf);
-        assert!(res.is_ok());
+        assert!(vs.fill_next_units(&mut buf).is_ok());
         assert_eq!(buf, *b"abc");
-        assert_eq!(*vs.hash_state.ds().absorbed.borrow(), b"abc");
+        assert_eq!(*vs.duplex_sponge.absorbed.borrow(), b"abc");
+        vs.finalize();
     }
 
     #[test]
     fn test_fill_next_units_with_insufficient_data_errors() {
-        let ds = DomainSeparator::<DummySponge>::new("x").absorb(4, "fail");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"xy");
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "fill_next_units",
+            Length::Fixed(4),
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"xy");
         let mut buf = [0u8; 4];
-        let res = vs.fill_next_units(&mut buf);
-        assert!(res.is_err());
+        assert!(vs.fill_next_units(&mut buf).is_err());
+        vs.abort();
     }
 
     #[test]
     fn test_ratcheting_success() {
-        let ds = DomainSeparator::<DummySponge>::new("x").ratchet();
-        let mut vs = VerifierState::<DummySponge>::new(&ds, &[]);
-        assert!(vs.ratchet().is_ok());
-        assert!(*vs.hash_state.ds().ratcheted.borrow());
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<()>(
+            Hierarchy::Atomic,
+            Kind::Protocol,
+            "ratchet",
+            Length::None,
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[]);
+        vs.ratchet();
+        assert!(*vs.duplex_sponge.ratcheted.borrow());
+        vs.finalize();
     }
 
     #[test]
+    #[should_panic(
+    expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message fill_next_units Fixed(1) [u8]"
+    )]
     fn test_ratcheting_wrong_op_errors() {
-        let ds = DomainSeparator::<DummySponge>::new("x").absorb(1, "wrong");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"z");
-        assert!(vs.ratchet().is_err());
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "fill_next_units",
+            Length::Fixed(1),
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[]);
+        vs.ratchet();
     }
 
     #[test]
     fn test_unit_transcript_public_units() {
-        let ds = DomainSeparator::<DummySponge>::new("x").absorb(2, "public");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"..");
-        assert!(vs.public_units(&[1, 2]).is_ok());
-        assert_eq!(*vs.hash_state.ds().absorbed.borrow(), &[1, 2]);
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            "public_units",
+            Length::Fixed(2),
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"..");
+        vs.public_units(&[1, 2]);
+        assert_eq!(*vs.duplex_sponge.absorbed.borrow(), &[1, 2]);
+        vs.finalize();
     }
 
     #[test]
     fn test_unit_transcript_fill_challenge_units() {
-        let ds = DomainSeparator::<DummySponge>::new("x").squeeze(4, "c");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"abcd");
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Challenge,
+            "fill_challenge_units",
+            Length::Fixed(4),
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"abcd");
         let mut out = [0u8; 4];
-        assert!(vs.fill_challenge_units(&mut out).is_ok());
+        vs.fill_challenge_units(&mut out);
         assert_eq!(out, [0, 1, 2, 3]);
+        vs.finalize();
     }
 
     #[test]
     fn test_fill_next_bytes_impl() {
-        let ds = DomainSeparator::<DummySponge>::new("x").absorb(3, "byte");
-        let mut vs = VerifierState::<DummySponge>::new(&ds, b"xyz");
+        let mut pattern = PatternState::<u8>::new();
+        pattern.begin_message::<[u8]>("fill_next_bytes", Length::Fixed(3));
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            "fill_next_units",
+            Length::Fixed(3),
+        ));
+        pattern.end_message::<[u8]>("fill_next_bytes", Length::Fixed(3));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"xyz");
         let mut out = [0u8; 3];
         assert!(vs.fill_next_bytes(&mut out).is_ok());
         assert_eq!(out, *b"xyz");
+        vs.finalize();
     }
 
     #[test]
     fn test_hint_bytes_verifier_valid_hint() {
-        // Domain separator commits to a hint
-        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("valid").hint("hint");
-
-        let mut prover = domsep.to_prover_state();
-
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            "hint_bytes",
+            Length::Dynamic,
+        ));
+        let pattern = pattern.finalize();
         let hint = b"abc123";
-        prover.hint_bytes(hint).unwrap();
-
-        let narg = prover.narg_string();
-
-        let mut verifier = domsep.to_verifier_state(narg);
-        let result = verifier.hint_bytes().unwrap();
+        let narg = build_hint(hint);
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern.clone()), &narg);
+        let result = vs.hint_bytes().unwrap();
         assert_eq!(result, hint);
+        vs.finalize();
     }
 
     #[test]
     fn test_hint_bytes_verifier_empty_hint() {
-        // Commit to a hint instruction
-        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("empty").hint("hint");
-
-        let mut prover = domsep.to_prover_state();
-
-        let hint = b"";
-        prover.hint_bytes(hint).unwrap();
-
-        let narg = prover.narg_string();
-
-        let mut verifier = domsep.to_verifier_state(narg);
-        let result = verifier.hint_bytes().unwrap();
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            "hint_bytes",
+            Length::Dynamic,
+        ));
+        let pattern = pattern.finalize();
+        let narg = build_hint(b"");
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern.clone()), &narg);
+        let result = vs.hint_bytes().unwrap();
         assert_eq!(result, b"");
+        vs.finalize();
     }
 
     #[test]
+    #[should_panic(
+    expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic [u8]"
+    )]
     fn test_hint_bytes_verifier_no_hint_op() {
-        // No hint instruction in domain separator
-        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("nohint");
-
-        // Manually construct a hint buffer (length = 6, followed by bytes)
-        let mut narg = vec![6, 0, 0, 0]; // length prefix for 6
-        narg.extend_from_slice(b"abc123");
-
-        let mut verifier = domsep.to_verifier_state(&narg);
-
-        assert!(verifier.hint_bytes().is_err());
+        let pattern = PatternState::<u8>::new().finalize();
+        let narg = build_hint(b"abc123");
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &narg);
+        vs.hint_bytes().unwrap();
     }
 
     #[test]
     fn test_hint_bytes_verifier_length_prefix_too_short() {
-        // Valid hint domain separator
-        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("short").hint("hint");
-
-        // Provide only 3 bytes, which is not enough for a u32 length
-        let narg = &[1, 2, 3]; // less than 4 bytes
-
-        let mut verifier = domsep.to_verifier_state(narg);
-
-        let err = verifier.hint_bytes().unwrap_err();
-        assert!(
-            format!("{err}").contains("Insufficient transcript remaining for hint"),
-            "Expected error for short prefix, got: {err}"
-        );
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            "hint_bytes",
+            Length::Dynamic,
+        ));
+        let pattern = pattern.finalize();
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[1, 2, 3]);
+        let err = vs.hint_bytes().unwrap_err();
+        assert!(format!("{err}").contains("Insufficient transcript remaining for hint"));
+        vs.abort();
     }
 
     #[test]
     fn test_hint_bytes_verifier_declared_hint_too_long() {
-        // Valid hint domain separator
-        let domsep: DomainSeparator<DummySponge> = DomainSeparator::new("loverflow").hint("hint");
+        let mut pattern = PatternState::<u8>::new();
+        pattern.interact(Interaction::new::<[u8]>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            "hint_bytes",
+            Length::Dynamic,
+        ));
+        let pattern = pattern.finalize();
+        let narg = [5u8, 0, 0, 0, b'a', b'b'];
+        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &narg);
+        let err = vs.hint_bytes().unwrap_err();
+        assert!(format!("{err}").contains("Insufficient transcript remaining"));
+        vs.abort();
+    }
 
-        // Prefix says "5 bytes", but we only supply 2
-        let narg = &[5, 0, 0, 0, b'a', b'b'];
-
-        let mut verifier = domsep.to_verifier_state(narg);
-
-        let err = verifier.hint_bytes().unwrap_err();
-        assert!(
-            format!("{err}").contains("Insufficient transcript remaining"),
-            "Expected error for hint length > actual NARG bytes, got: {err}"
-        );
+    fn build_hint(data: &[u8]) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        buf.extend_from_slice(data);
+        buf
     }
 }
