@@ -13,6 +13,7 @@ license = "BSD-3-Clause"
 workspace = true
 
 [dependencies]
+zerocopy = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive"] }
 rand = { workspace = true, features = ["getrandom"] }
 digest = { workspace = true }

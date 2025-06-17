@@ -45,11 +45,11 @@ where
     Self: BytesToUnitSerialize + UnitToBytes,
 {
     fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> ProofResult<()> {
-        let challenge = self.challenge_bytes()?;
+        let challenge = self.challenge_bytes();
         let nonce = S::new(challenge, bits)
             .solve()
             .ok_or(ProofError::InvalidProof)?;
-        self.add_bytes(&nonce.to_be_bytes())?;
+        self.add_bytes(&nonce.to_be_bytes());
         Ok(())
     }
 }
@@ -61,7 +61,7 @@ where
     Self: BytesToUnitDeserialize + UnitToBytes,
 {
     fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> ProofResult<()> {
-        let challenge = self.challenge_bytes()?;
+        let challenge = self.challenge_bytes();
         let nonce = u64::from_be_bytes(self.next_bytes()?);
         if S::new(challenge, bits).check(nonce) {
             Ok(())

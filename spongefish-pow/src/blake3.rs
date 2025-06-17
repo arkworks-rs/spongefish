@@ -202,7 +202,7 @@ impl Blake3PoW {
 
 #[cfg(test)]
 mod tests {
-    use spongefish::{DefaultHash, DomainSeparator};
+    use spongefish::DefaultHash;
 
     use super::*;
     use crate::{
