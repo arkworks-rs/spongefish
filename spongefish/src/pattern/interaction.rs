@@ -11,7 +11,7 @@ pub struct Interaction {
     label: Label,
     /// The Rust name of the type of the value.
     ///
-    /// We use [`core::any::type_name`] to verify value types intead of [`core::any::TypeID`] since
+    /// We use [`core::any::type_name`] to verify value types instead of [`core::any::TypeID`] since
     /// the latter only supports types with a `'static` lifetime. The downside of `type_name` is
     /// that it is slightly less precise in that it can create more type collisions. But this is
     /// acceptable here as it only serves as an additional check and as debug information.

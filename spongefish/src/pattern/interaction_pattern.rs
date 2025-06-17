@@ -67,9 +67,9 @@ impl InteractionPattern {
     ///
     /// A valid transcript has:
     ///
-    /// - Matching [`InteractionHierachy::Begin`] and [`InteractionHierachy::End`] interactions
+    /// - Matching [`InteractionHierarchy::Begin`] and [`InteractionHierarchy::End`] interactions
     ///   creating a nested hierarchy.
-    /// - Nested interactions are the same [`InteractionKind`] as the last [`InteractionHierachy::Begin`] interaction, except for [`InteractionKind::Protocol`] which can contain any [`InteractionKind`].
+    /// - Nested interactions are the same [`InteractionKind`] as the last [`InteractionHierarchy::Begin`] interaction, except for [`InteractionKind::Protocol`] which can contain any [`InteractionKind`].
     fn validate(&self) -> Result<(), TranscriptError> {
         let mut stack = Vec::new();
         for (position, interaction) in self.interactions.iter().enumerate() {

@@ -78,7 +78,7 @@ where
         self.interactions.push(interaction);
     }
 
-    /// Return the last unclosed [`Hierachy::Begin`] interaction.
+    /// Return the last unclosed [`Hierarchy::Begin`] interaction.
     fn last_open_begin(&self) -> Option<&Interaction> {
         // Reverse search to find matching begin
         let mut stack = 0;
