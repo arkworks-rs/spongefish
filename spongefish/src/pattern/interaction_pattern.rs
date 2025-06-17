@@ -54,7 +54,7 @@ impl InteractionPattern {
     /// string representation of the transcript interactions.
     // TODO: A more neutral implementation would use ASN.1 DER.
     #[must_use]
-    pub fn domain_separator(&self) -> [u8; 32] {
+    pub fn pattern_hash(&self) -> [u8; 32] {
         use sha3::{Digest, Sha3_256};
         let mut hasher = Sha3_256::new();
         // Use Display in `alternate` mode for stable unambiguous representation.
@@ -153,7 +153,7 @@ mod tests {
     use crate::pattern::Length;
 
     #[test]
-    fn test_domain_separator() {
+    fn test_pattern_hash() {
         let transcript = InteractionPattern::new(vec![
             Interaction::new::<usize>(Hierarchy::Begin, Kind::Protocol, "test", Length::None),
             Interaction::new::<Vec<f64>>(
@@ -174,7 +174,7 @@ mod tests {
 ";
         assert_eq!(result, expected);
 
-        let result = transcript.domain_separator();
+        let result = transcript.pattern_hash();
         assert_eq!(
             hex::encode(result),
             "33daf542c95b80a2b01be277d9d0f9b6d5bee823c5c3a0dcca71e614a5a783e3"
