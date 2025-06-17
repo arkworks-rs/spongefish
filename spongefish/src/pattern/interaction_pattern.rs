@@ -77,7 +77,6 @@ impl InteractionPattern {
                 Hierarchy::Begin => stack.push((position, interaction)),
                 Hierarchy::End => {
                     let Some((position, begin)) = stack.pop() else {
-                        dbg!();
                         return Err(TranscriptError::MissingBegin {
                             position,
                             end: interaction.clone(),
