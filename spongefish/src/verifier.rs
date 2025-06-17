@@ -124,7 +124,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     }
 
     /// Finalize the verifier session, asserting all interactions were consumed.
-    pub fn finalize(mut self) {
+    pub fn finalize(self) {
         self.pattern.finalize();
     }
 }
@@ -177,8 +177,12 @@ impl<H: DuplexSpongeInterface<u8>> BytesToUnitDeserialize for VerifierState<'_, 
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc, sync::Arc};
-    use crate::pattern::{PatternState, Interaction, Hierarchy, Kind, Length};
+
     use super::*;
+    use crate::{
+        pattern::{Hierarchy, Interaction, Kind, Length, PatternState},
+        ProverState,
+    };
 
     #[derive(Default, Clone)]
     pub struct DummySponge {
@@ -290,7 +294,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-    expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message fill_next_units Fixed(1) [u8]"
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message fill_next_units Fixed(1) [u8]"
     )]
     fn test_ratcheting_wrong_op_errors() {
         let mut pattern = PatternState::<u8>::new();
@@ -367,9 +371,14 @@ mod tests {
             Length::Dynamic,
         ));
         let pattern = pattern.finalize();
+
         let hint = b"abc123";
-        let narg = build_hint(hint);
-        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern.clone()), &narg);
+        let mut prover: ProverState = ProverState::from(&pattern);
+        prover.hint_bytes(hint);
+        let narg = prover.finalize();
+        assert_eq!(hex::encode(&narg), "06000000616263313233");
+
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern.clone()), &narg);
         let result = vs.hint_bytes().unwrap();
         assert_eq!(result, hint);
         vs.finalize();
@@ -385,8 +394,13 @@ mod tests {
             Length::Dynamic,
         ));
         let pattern = pattern.finalize();
-        let narg = build_hint(b"");
-        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern.clone()), &narg);
+
+        let hint = b"";
+        let mut prover: ProverState = ProverState::from(&pattern);
+        prover.hint_bytes(hint);
+        let narg = prover.finalize();
+
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern.clone()), &narg);
         let result = vs.hint_bytes().unwrap();
         assert_eq!(result, b"");
         vs.finalize();
@@ -394,12 +408,13 @@ mod tests {
 
     #[test]
     #[should_panic(
-    expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic [u8]"
+        expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic [u8]"
     )]
     fn test_hint_bytes_verifier_no_hint_op() {
         let pattern = PatternState::<u8>::new().finalize();
-        let narg = build_hint(b"abc123");
-        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &narg);
+
+        let narg = hex::decode("06000000616263313233").unwrap();
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &narg);
         vs.hint_bytes().unwrap();
     }
 
@@ -413,7 +428,7 @@ mod tests {
             Length::Dynamic,
         ));
         let pattern = pattern.finalize();
-        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[1, 2, 3]);
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &[1, 2, 3]);
         let err = vs.hint_bytes().unwrap_err();
         assert!(format!("{err}").contains("Insufficient transcript remaining for hint"));
         vs.abort();
@@ -430,16 +445,9 @@ mod tests {
         ));
         let pattern = pattern.finalize();
         let narg = [5u8, 0, 0, 0, b'a', b'b'];
-        let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &narg);
+        let mut vs: VerifierState = VerifierState::new(Arc::new(pattern), &narg);
         let err = vs.hint_bytes().unwrap_err();
         assert!(format!("{err}").contains("Insufficient transcript remaining"));
         vs.abort();
-    }
-
-    fn build_hint(data: &[u8]) -> Vec<u8> {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        buf.extend_from_slice(data);
-        buf
     }
 }
