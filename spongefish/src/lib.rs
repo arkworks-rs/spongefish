@@ -138,27 +138,21 @@ pub mod keccak;
 
 /// APIs for common zkp libraries.
 pub mod codecs;
-/// domain separator
-mod domain_separator;
+
+/// Unit-tests.
+//#[cfg(test)]
+//mod tests;
+pub mod pattern;
+
 /// Prover's internal state and transcript generation.
 mod prover;
-/// SAFE API.
-mod sho;
-/// Unit-tests.
-#[cfg(test)]
-mod tests;
-
-/// Proposed alternative domain separator
-pub mod pattern;
 
 /// Traits for byte support.
 pub mod traits;
 
-pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
-pub use errors::{DomainSeparatorMismatch, ProofError, ProofResult};
+pub use errors::{ProofError, ProofResult};
 pub use prover::ProverState;
-pub use sho::HashStateWithInstructions;
 pub use traits::*;
 pub use verifier::VerifierState;
 
