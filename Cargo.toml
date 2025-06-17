@@ -62,9 +62,9 @@ rand = "0.8.5"
 rayon = "1.10.0"
 sha2 = "0.10.7"
 sha3 = "0.10.8"
+thiserror = "2.0.12"
 zerocopy = "0.8"
 zeroize = "1.8.1"
-
 
 # Un-comment below for latest arkworks libraries.
 # [patch.crates-io]
