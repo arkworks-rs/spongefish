@@ -67,7 +67,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
 
     /// Read a hint from the NARG string. Returns the number of units read.
     pub fn hint_bytes(&mut self) -> Result<&'a [u8], std::io::Error> {
-        self.pattern.interact(Interaction::new::<U>(
+        self.pattern.interact(Interaction::new::<u8>(
             Hierarchy::Atomic,
             Kind::Hint,
             "hint_bytes",
@@ -180,7 +180,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        pattern::{Hierarchy, Interaction, Kind, Length, PatternState},
+        codecs::{bytes::Pattern as _, unit::Pattern},
+        pattern::{Hierarchy, Interaction, Kind, Length, Pattern as _, PatternState},
         ProverState,
     };
 
@@ -245,13 +246,9 @@ mod tests {
     #[test]
     fn test_fill_next_units_reads_and_absorbs() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(3),
-        ));
+        pattern.message_units("units", 3);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"abc");
         let mut buf = [0u8; 3];
         assert!(vs.fill_next_units(&mut buf).is_ok());
@@ -263,13 +260,9 @@ mod tests {
     #[test]
     fn test_fill_next_units_with_insufficient_data_errors() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(4),
-        ));
+        pattern.message_units("units", 4);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"xy");
         let mut buf = [0u8; 4];
         assert!(vs.fill_next_units(&mut buf).is_err());
@@ -279,13 +272,9 @@ mod tests {
     #[test]
     fn test_ratcheting_success() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<()>(
-            Hierarchy::Atomic,
-            Kind::Protocol,
-            "ratchet",
-            Length::None,
-        ));
+        pattern.ratchet();
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[]);
         vs.ratchet();
         assert!(*vs.duplex_sponge.ratcheted.borrow());
@@ -294,17 +283,13 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(1) [u8]"
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(1) u8"
     )]
     fn test_ratcheting_wrong_op_errors() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(1),
-        ));
+        pattern.message_units("units", 1);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), &[]);
         vs.ratchet();
     }
@@ -312,13 +297,9 @@ mod tests {
     #[test]
     fn test_unit_transcript_public_units() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Public,
-            "public_units",
-            Length::Fixed(2),
-        ));
+        pattern.public_units("public_units", 2);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"..");
         vs.public_units(&[1, 2]);
         assert_eq!(*vs.duplex_sponge.absorbed.borrow(), &[1, 2]);
@@ -328,13 +309,9 @@ mod tests {
     #[test]
     fn test_unit_transcript_fill_challenge_units() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Challenge,
-            "fill_challenge_units",
-            Length::Fixed(4),
-        ));
+        pattern.challenge_units("fill_challenge_units", 4);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"abcd");
         let mut out = [0u8; 4];
         vs.fill_challenge_units(&mut out);
@@ -345,15 +322,9 @@ mod tests {
     #[test]
     fn test_fill_next_bytes_impl() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("bytes", Length::Fixed(3));
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(3),
-        ));
-        pattern.end_message::<[u8]>("bytes", Length::Fixed(3));
+        pattern.message_bytes("bytes", 3);
         let pattern = pattern.finalize();
+
         let mut vs = VerifierState::<DummySponge>::new(Arc::new(pattern), b"xyz");
         let mut out = [0u8; 3];
         assert!(vs.fill_next_bytes(&mut out).is_ok());
@@ -364,12 +335,7 @@ mod tests {
     #[test]
     fn test_hint_bytes_verifier_valid_hint() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
 
         let hint = b"abc123";
@@ -387,12 +353,7 @@ mod tests {
     #[test]
     fn test_hint_bytes_verifier_empty_hint() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
 
         let hint = b"";
@@ -408,7 +369,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic [u8]"
+        expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic u8"
     )]
     fn test_hint_bytes_verifier_no_hint_op() {
         let pattern = PatternState::<u8>::new().finalize();
@@ -423,12 +384,7 @@ mod tests {
     #[test]
     fn test_hint_bytes_verifier_length_prefix_too_short() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
 
         // Provide only 3 bytes, which is not enough for a u32 length
@@ -443,12 +399,7 @@ mod tests {
     #[test]
     fn test_hint_bytes_verifier_declared_hint_too_long() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
 
         let narg = [5u8, 0, 0, 0, b'a', b'b'];

@@ -296,10 +296,10 @@ where
 {
     fn add_bytes(&mut self, input: &[u8]) {
         self.pattern
-            .begin_message::<[u8]>("bytes", Length::Fixed(input.len()));
+            .begin_message::<u8>("bytes", Length::Fixed(input.len()));
         self.add_units(input);
         self.pattern
-            .end_message::<[u8]>("bytes", Length::Fixed(input.len()));
+            .end_message::<u8>("bytes", Length::Fixed(input.len()));
     }
 }
 
@@ -387,13 +387,9 @@ mod tests {
     #[test]
     fn test_ratchet_works_when_expected() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<()>(
-            Hierarchy::Atomic,
-            Kind::Protocol,
-            "ratchet",
-            Length::None,
-        ));
+        pattern.ratchet();
         let pattern = pattern.finalize();
+
         let mut pstate: ProverState = ProverState::from(&pattern);
         pstate.ratchet();
         let _proof = pstate.finalize();
@@ -490,8 +486,8 @@ mod tests {
         let mut pattern = PatternState::<u8>::new();
         pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
-        let mut prover: ProverState = ProverState::from(&pattern);
 
+        let mut prover: ProverState = ProverState::from(&pattern);
         prover.hint_bytes(b"");
         assert_eq!(prover.finalize(), &[0, 0, 0, 0]);
     }
@@ -502,6 +498,7 @@ mod tests {
     )]
     fn test_hint_bytes_fails_if_hint_op_missing() {
         let pattern = PatternState::<u8>::new().finalize();
+
         let mut prover: ProverState = ProverState::from(&pattern);
         // indicate a hint without a matching hint_bytes interaction
         prover.hint_bytes(b"some_hint");
