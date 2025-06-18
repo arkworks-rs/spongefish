@@ -5,17 +5,16 @@ use rand::{CryptoRng, RngCore};
 
 use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnitSerialize, GroupToUnitSerialize};
 use crate::{
-    BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DomainSeparatorMismatch,
-    DuplexSpongeInterface, ProofResult, ProverState, Unit, UnitTranscript, VerifierState,
+    BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DuplexSpongeInterface,
+    ProofResult, ProverState, Unit, UnitTranscript, VerifierState,
 };
 
 impl<F: Field, H: DuplexSpongeInterface, R: RngCore + CryptoRng> FieldToUnitSerialize<F>
     for ProverState<H, u8, R>
 {
-    fn add_scalars(&mut self, input: &[F]) -> ProofResult<()> {
+    fn add_scalars(&mut self, input: &[F]) {
         let serialized = self.public_scalars(input);
         self.narg_string.extend(serialized?);
-        Ok(())
     }
 }
 
@@ -26,12 +25,13 @@ impl<
         const N: usize,
     > FieldToUnitSerialize<Fp<C, N>> for ProverState<H, Fp<C, N>, R>
 {
-    fn add_scalars(&mut self, input: &[Fp<C, N>]) -> ProofResult<()> {
-        self.public_units(input)?;
+    fn add_scalars(&mut self, input: &[Fp<C, N>]) {
+        self.public_units(input);
         for i in input {
-            i.serialize_compressed(&mut self.narg_string)?;
+            // Serialization should be infallible.
+            i.serialize_compressed(&mut self.narg_string)
+                .expect("Serialization failed");
         }
-        Ok(())
     }
 }
 
@@ -102,7 +102,7 @@ mod tests {
         codecs::arkworks_algebra::{
             FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator,
         },
-        ByteDomainSeparator, DefaultHash, DomainSeparator,
+        ByteDomainSeparator, DefaultHash,
     };
 
     /// Curve used for tests

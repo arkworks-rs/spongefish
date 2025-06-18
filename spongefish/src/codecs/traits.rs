@@ -13,24 +13,24 @@ macro_rules! field_traits {
         /// The implementation of this trait **MUST** ensure that the field elements
         /// are uniformly distributed and valid.
         pub trait UnitToField<F: $Field> {
-            fn fill_challenge_scalars(&mut self, output: &mut [F]) -> $crate::ProofResult<()>;
+            fn fill_challenge_scalars(&mut self, output: &mut [F]);
 
-            fn challenge_scalars<const N: usize>(&mut self) -> crate::ProofResult<[F; N]> {
+            fn challenge_scalars<const N: usize>(&mut self) -> [F; N] {
                 let mut output = [F::default(); N];
-                self.fill_challenge_scalars(&mut output)?;
-                Ok(output)
+                self.fill_challenge_scalars(&mut output);
+                output
             }
         }
 
         /// Add field elements as shared public information.
         pub trait CommonFieldToUnit<F: $Field> {
             type Repr;
-            fn public_scalars(&mut self, input: &[F]) -> crate::ProofResult<Self::Repr>;
+            fn public_scalars(&mut self, input: &[F]) -> Repr;
         }
 
         /// Add field elements to the protocol transcript.
         pub trait FieldToUnitSerialize<F: $Field>: CommonFieldToUnit<F> {
-            fn add_scalars(&mut self, input: &[F]) -> crate::ProofResult<()>;
+            fn add_scalars(&mut self, input: &[F]);
         }
 
         /// Deserialize field elements from the protocol transcript.
@@ -60,7 +60,7 @@ macro_rules! group_traits {
 
         /// Adds a new prover message consisting of an EC element.
         pub trait GroupToUnitSerialize<G: $Group>: CommonGroupToUnit<G> {
-            fn add_points(&mut self, input: &[G]) -> $crate::ProofResult<()>;
+            fn add_points(&mut self, input: &[G]);
         }
 
         /// Receive (and deserialize) group elements from the domain separator.
@@ -87,7 +87,7 @@ macro_rules! group_traits {
             type Repr;
 
             /// Incorporate group elements into the proof without adding them to the final protocol transcript.
-            fn public_points(&mut self, input: &[G]) -> $crate::ProofResult<Self::Repr>;
+            fn public_points(&mut self, input: &[G]) -> Self::Repr;
         }
     };
 }

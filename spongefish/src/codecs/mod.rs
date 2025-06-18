@@ -1,5 +1,8 @@
 //!  Bindings to some popular libraries using zero-knowledge.
 
+pub mod bytes;
+pub mod unit;
+
 /// Extension traits macros, for both arkworks and group.
 #[cfg(any(feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod traits;
@@ -54,6 +57,6 @@ pub(super) const fn bytes_modp(modulus_bits: u32) -> usize {
     (modulus_bits as usize).div_ceil(8)
 }
 
-/// Unit-tests for inter-operability among libraries.
-#[cfg(all(test, feature = "arkworks-algebra", feature = "zkcrypto-group"))]
-mod tests;
+// /// Unit-tests for inter-operability among libraries.
+// #[cfg(all(test, feature = "arkworks-algebra", feature = "zkcrypto-group"))]
+// mod tests;

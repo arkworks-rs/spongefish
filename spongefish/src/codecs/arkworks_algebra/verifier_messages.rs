@@ -7,8 +7,8 @@ use rand::{CryptoRng, RngCore};
 
 use super::{CommonFieldToUnit, CommonGroupToUnit, UnitToField};
 use crate::{
-    codecs::bytes_uniform_modp, CommonUnitToBytes, DomainSeparatorMismatch, DuplexSpongeInterface,
-    ProofError, ProofResult, ProverState, Unit, UnitToBytes, UnitTranscript, VerifierState,
+    codecs::bytes_uniform_modp, CommonUnitToBytes, DuplexSpongeInterface, ProofError, ProofResult,
+    ProverState, Unit, UnitToBytes, UnitTranscript, VerifierState,
 };
 
 // Implementation of basic traits for bridging arkworks and spongefish
@@ -46,13 +46,15 @@ where
 {
     type Repr = Vec<u8>;
 
-    fn public_points(&mut self, input: &[G]) -> ProofResult<Self::Repr> {
+    fn public_points(&mut self, input: &[G]) -> Self::Repr {
         let mut buf = Vec::new();
         for i in input {
-            i.serialize_compressed(&mut buf)?;
+            // Serialization should be infallible
+            i.serialize_compressed(&mut buf)
+                .expect("Serialization failed.");
         }
-        self.public_bytes(&buf)?;
-        Ok(buf)
+        self.public_bytes(&buf);
+        buf
     }
 }
 
@@ -68,7 +70,7 @@ where
         for i in input {
             i.serialize_compressed(&mut buf)?;
         }
-        self.public_bytes(&buf)?;
+        self.public_bytes(&buf);
         Ok(buf)
     }
 }
@@ -78,19 +80,19 @@ where
     F: Field,
     T: UnitTranscript<u8>,
 {
-    fn fill_challenge_scalars(&mut self, output: &mut [F]) -> ProofResult<()> {
+    fn fill_challenge_scalars(&mut self, output: &mut [F]) {
         let base_field_size = bytes_uniform_modp(F::BasePrimeField::MODULUS_BIT_SIZE);
         let mut buf = vec![0u8; F::extension_degree() as usize * base_field_size];
 
         for o in output.iter_mut() {
-            self.fill_challenge_bytes(&mut buf)?;
+            self.fill_challenge_bytes(&mut buf);
             *o = F::from_base_prime_field_elems(
                 buf.chunks(base_field_size)
                     .map(F::BasePrimeField::from_be_bytes_mod_order),
             )
             .expect("Could not convert");
         }
-        Ok(())
+        ()
     }
 }
 
@@ -99,9 +101,8 @@ where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
-    fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
-        self.fill_challenge_units(output)
-            .map_err(ProofError::InvalidDomainSeparator)
+    fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) {
+        self.fill_challenge_units(output);
     }
 }
 
@@ -111,9 +112,8 @@ where
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
-    fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
-        self.fill_challenge_units(output)
-            .map_err(ProofError::InvalidDomainSeparator)
+    fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) {
+        self.fill_challenge_units(output);
     }
 }
 
@@ -128,13 +128,13 @@ where
 {
     type Repr = ();
 
-    fn public_scalars(&mut self, input: &[F]) -> ProofResult<Self::Repr> {
+    fn public_scalars(&mut self, input: &[F]) -> Self::Repr {
         let flattened: Vec<_> = input
             .iter()
             .flat_map(Field::to_base_prime_field_elements)
             .collect();
-        self.public_units(&flattened)?;
-        Ok(())
+        self.public_units(&flattened);
+        ()
     }
 }
 
@@ -165,13 +165,13 @@ where
 {
     type Repr = ();
 
-    fn public_scalars(&mut self, input: &[F]) -> ProofResult<Self::Repr> {
+    fn public_scalars(&mut self, input: &[F]) -> Self::Repr {
         let flattened: Vec<_> = input
             .iter()
             .flat_map(Field::to_base_prime_field_elements)
             .collect();
-        self.public_units(&flattened)?;
-        Ok(())
+        self.public_units(&flattened);
+        ()
     }
 }
 
@@ -184,12 +184,12 @@ where
 {
     type Repr = ();
 
-    fn public_points(&mut self, input: &[G]) -> ProofResult<Self::Repr> {
+    fn public_points(&mut self, input: &[G]) -> Self::Repr {
         for point in input {
             let (x, y) = point.into_affine().xy().unwrap();
-            self.public_units(&[x, y])?;
+            self.public_units(&[x, y]);
         }
-        Ok(())
+        ()
     }
 }
 
@@ -201,12 +201,12 @@ where
 {
     type Repr = ();
 
-    fn public_points(&mut self, input: &[G]) -> ProofResult<Self::Repr> {
+    fn public_points(&mut self, input: &[G]) -> Self::Repr {
         for point in input {
             let (x, y) = point.into_affine().xy().unwrap();
-            self.public_units(&[x, y])?;
+            self.public_units(&[x, y]);
         }
-        Ok(())
+        ()
     }
 }
 
@@ -217,11 +217,10 @@ where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
-    fn public_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
+    fn public_bytes(&mut self, input: &[u8]) {
         for &byte in input {
-            self.public_units(&[Fp::from(byte)])?;
+            self.public_units(&[Fp::from(byte)]);
         }
-        Ok(())
     }
 }
 
@@ -231,11 +230,10 @@ where
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + rand::RngCore,
 {
-    fn public_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
+    fn public_bytes(&mut self, input: &[u8]) {
         for &byte in input {
-            self.public_units(&[Fp::from(byte)])?;
+            self.public_units(&[Fp::from(byte)]);
         }
-        Ok(())
     }
 }
 
@@ -245,21 +243,19 @@ where
     H: DuplexSpongeInterface<Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
-    fn fill_challenge_bytes(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
-        if output.is_empty() {
-            Ok(())
-        } else {
+    fn fill_challenge_bytes(&mut self, output: &mut [u8]) {
+        if !output.is_empty() {
             let len_good = usize::min(
                 crate::codecs::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
-            self.fill_challenge_units(&mut tmp)?;
+            self.fill_challenge_units(&mut tmp);
             let buf = tmp[0].into_bigint().to_bytes_le();
             output[..len_good].copy_from_slice(&buf[..len_good]);
 
             // recursively fill the rest of the buffer
-            self.fill_challenge_bytes(&mut output[len_good..])
+            self.fill_challenge_bytes(&mut output[len_good..]);
         }
     }
 }
@@ -270,21 +266,19 @@ where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
-    fn fill_challenge_bytes(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
-        if output.is_empty() {
-            Ok(())
-        } else {
+    fn fill_challenge_bytes(&mut self, output: &mut [u8]) {
+        if !output.is_empty() {
             let len_good = usize::min(
                 crate::codecs::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
-            self.fill_challenge_units(&mut tmp)?;
+            self.fill_challenge_units(&mut tmp);
             let buf = tmp[0].into_bigint().to_bytes_le();
             output[..len_good].copy_from_slice(&buf[..len_good]);
 
             // recursively fill the rest of the buffer
-            self.fill_challenge_bytes(&mut output[len_good..])
+            self.fill_challenge_bytes(&mut output[len_good..]);
         }
     }
 }
@@ -298,7 +292,7 @@ mod tests {
     use super::*;
     use crate::{
         codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
-        DefaultHash, DomainSeparator,
+        DefaultHash,
     };
 
     /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).

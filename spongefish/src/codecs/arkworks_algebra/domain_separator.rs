@@ -2,8 +2,7 @@ use ark_ec::CurveGroup;
 use ark_ff::{Field, Fp, FpConfig, PrimeField};
 
 use super::{
-    ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
-    GroupDomainSeparator,
+    ByteDomainSeparator, DuplexSpongeInterface, FieldDomainSeparator, GroupDomainSeparator,
 };
 use crate::codecs::{bytes_modp, bytes_uniform_modp};
 

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length};
-use crate::Unit;
+use crate::{codecs::unit, Unit};
 
 /// Records an interaction pattern.
 ///
@@ -113,5 +113,94 @@ where
 
     fn end<T: ?Sized>(&mut self, label: Label, kind: Kind, length: Length) {
         self.interact(Interaction::new::<T>(Hierarchy::End, kind, label, length));
+    }
+}
+
+// TODO: We will turn this into `unit::Pattern` later.
+impl<U> unit::Pattern for PatternState<U>
+where
+    U: Unit,
+{
+    type Unit = U;
+
+    fn ratchet(&mut self) {
+        self.interact(Interaction::new::<()>(
+            Hierarchy::Atomic,
+            Kind::Protocol,
+            "ratchet",
+            Length::None,
+        ));
+    }
+
+    fn public_unit(&mut self, label: Label) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Scalar,
+        ));
+    }
+
+    fn public_units(&mut self, label: Label, size: usize) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Public,
+            label,
+            Length::Fixed(size),
+        ));
+    }
+
+    fn message_unit(&mut self, label: Label) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            label,
+            Length::Scalar,
+        ));
+    }
+
+    fn message_units(&mut self, label: Label, size: usize) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Message,
+            label,
+            Length::Fixed(size),
+        ));
+    }
+
+    fn challenge_unit(&mut self, label: Label) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Challenge,
+            label,
+            Length::Scalar,
+        ));
+    }
+
+    fn challenge_units(&mut self, label: Label, size: usize) {
+        self.interact(Interaction::new::<U>(
+            Hierarchy::Atomic,
+            Kind::Challenge,
+            label,
+            Length::Fixed(size),
+        ));
+    }
+
+    fn hint_bytes(&mut self, label: Label, size: usize) {
+        self.interact(Interaction::new::<u8>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            label,
+            Length::Fixed(size),
+        ));
+    }
+
+    fn hint_bytes_dynamic(&mut self, label: Label) {
+        self.interact(Interaction::new::<u8>(
+            Hierarchy::Atomic,
+            Kind::Hint,
+            label,
+            Length::Dynamic,
+        ));
     }
 }

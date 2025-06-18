@@ -41,3 +41,9 @@ impl Display for ProofError {
 }
 
 impl Error for ProofError {}
+
+impl From<std::io::Error> for ProofError {
+    fn from(_value: std::io::Error) -> Self {
+        Self::SerializationError
+    }
+}

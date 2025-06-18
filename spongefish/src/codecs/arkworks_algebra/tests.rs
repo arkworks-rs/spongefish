@@ -2,7 +2,7 @@ use ark_ff::Field;
 
 use crate::{
     ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
-    DomainSeparator, DuplexSpongeInterface, ProofResult, Unit, UnitToBytes, UnitTranscript,
+    DuplexSpongeInterface, ProofResult, Unit, UnitToBytes, UnitTranscript,
 };
 
 /// Test that the algebraic hashes do use the IV generated from the domain separator.

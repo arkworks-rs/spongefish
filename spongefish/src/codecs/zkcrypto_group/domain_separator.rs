@@ -3,7 +3,7 @@ use group::{ff::PrimeField, Group, GroupEncoding};
 use super::{FieldDomainSeparator, GroupDomainSeparator};
 use crate::{
     codecs::{bytes_modp, bytes_uniform_modp},
-    ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface,
+    ByteDomainSeparator, DuplexSpongeInterface,
 };
 
 impl<F, H> FieldDomainSeparator<F> for DomainSeparator<H>

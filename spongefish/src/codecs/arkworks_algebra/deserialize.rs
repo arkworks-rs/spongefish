@@ -100,7 +100,7 @@ mod tests {
     use super::*;
     use crate::{
         codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
-        DefaultHash, DomainSeparator,
+        DefaultHash,
     };
 
     /// Custom field for testing: BabyBear

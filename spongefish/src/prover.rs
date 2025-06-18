@@ -128,7 +128,7 @@ where
     }
 
     pub fn hint_bytes(&mut self, hint: &[u8]) {
-        self.pattern.interact(Interaction::new::<[u8]>(
+        self.pattern.interact(Interaction::new::<u8>(
             Hierarchy::Atomic,
             Kind::Hint,
             "hint_bytes",
@@ -170,7 +170,7 @@ where
     /// assert!(result.is_err())
     /// ```
     pub fn add_units(&mut self, input: &[U]) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
             "units",
@@ -250,7 +250,7 @@ where
     /// assert_eq!(prover_state.narg_string(), b"");
     /// ```
     fn public_units(&mut self, input: &[U]) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             "public_units",
@@ -266,7 +266,7 @@ where
 
     /// Fill a slice with uniformly-distributed challenges from the verifier.
     fn fill_challenge_units(&mut self, output: &mut [U]) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             "fill_challenge_units",
@@ -306,19 +306,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pattern::PatternState;
+    use crate::{
+        codecs::{bytes::Pattern as _, unit::Pattern},
+        pattern::{Pattern as _, PatternState},
+    };
 
     #[test]
     fn test_prover_state_add_units_and_rng_differs() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("bytes", Length::Fixed(4));
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(4),
-        ));
-        pattern.end_message::<[u8]>("bytes", Length::Fixed(4));
+        pattern.message_bytes("bytes", 4);
         let pattern = pattern.finalize();
 
         let mut pstate: ProverState = ProverState::from(&pattern);
@@ -334,12 +330,7 @@ mod tests {
     #[test]
     fn test_prover_state_public_units_does_not_affect_narg() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Public,
-            "public_units",
-            Length::Fixed(4),
-        ));
+        pattern.public_units("public_units", 4);
         let pattern = pattern.finalize();
         let mut pstate: ProverState = ProverState::from(&pattern);
 
@@ -351,20 +342,13 @@ mod tests {
     #[test]
     fn test_prover_state_ratcheting_changes_rng_output() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<()>(
-            Hierarchy::Atomic,
-            Kind::Protocol,
-            "ratchet",
-            Length::None,
-        ));
+        pattern.ratchet();
         let pattern = pattern.finalize();
-        let mut pstate: ProverState = ProverState::from(&pattern);
 
+        let mut pstate: ProverState = ProverState::from(&pattern);
         let mut buf1 = [0u8; 4];
         pstate.rng().fill_bytes(&mut buf1);
-
         pstate.ratchet();
-
         let mut buf2 = [0u8; 4];
         pstate.rng().fill_bytes(&mut buf2);
 
@@ -376,12 +360,7 @@ mod tests {
     #[test]
     fn test_add_units_appends_to_narg_string() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(3),
-        ));
+        pattern.message_units("units", 3);
         let pattern = pattern.finalize();
         let mut pstate: ProverState = ProverState::from(&pattern);
 
@@ -394,19 +373,14 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Message units Fixed(3) [u8], but expected Atomic Message units Fixed(2) [u8]"
+        expected = "Received interaction Atomic Message units Fixed(3) u8, but expected Atomic Message units Fixed(2) u8"
     )]
     fn test_add_units_too_many_elements_should_panic() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(2),
-        ));
+        pattern.message_units("units", 2);
         let pattern = pattern.finalize();
-        let mut pstate: ProverState = ProverState::from(&pattern);
 
+        let mut pstate: ProverState = ProverState::from(&pattern);
         pstate.add_units(&[1, 2, 3]);
     }
 
@@ -427,17 +401,13 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(4) [u8]"
+        expected = "Received interaction Atomic Protocol ratchet None (), but expected Atomic Message units Fixed(4) u8"
     )]
     fn test_ratchet_fails_when_not_expected() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(4),
-        ));
+        pattern.message_units("units", 4);
         let pattern = pattern.finalize();
+
         let mut pstate: ProverState = ProverState::from(&pattern);
         pstate.ratchet();
         let _proof = pstate.finalize();
@@ -446,15 +416,10 @@ mod tests {
     #[test]
     fn test_fill_challenge_units() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Challenge,
-            "fill_challenge_units",
-            Length::Fixed(8),
-        ));
+        pattern.challenge_units("fill_challenge_units", 8);
         let pattern = pattern.finalize();
-        let mut pstate: ProverState = ProverState::from(&pattern);
 
+        let mut pstate: ProverState = ProverState::from(&pattern);
         let mut out = [0u8; 8];
         pstate.fill_challenge_units(&mut out);
         assert_eq!(out, [62, 110, 82, 217, 159, 135, 60, 9]);
@@ -464,15 +429,9 @@ mod tests {
     #[test]
     fn test_rng_entropy_changes_with_transcript() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.begin_message::<[u8]>("bytes", Length::Fixed(3));
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(3),
-        ));
-        pattern.end_message::<[u8]>("bytes", Length::Fixed(3));
+        pattern.message_bytes("bytes", 3);
         let pattern = pattern.finalize();
+
         let mut p1: ProverState = ProverState::from(&pattern);
         let mut p2: ProverState = ProverState::from(&pattern);
 
@@ -491,61 +450,37 @@ mod tests {
     #[test]
     fn test_add_units_multiple_accumulates() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(2),
-        ));
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(3),
-        ));
+        pattern.message_units("units", 2);
+        pattern.message_units("units", 3);
         let pattern = pattern.finalize();
-        let mut p: ProverState = ProverState::from(&pattern);
 
+        let mut p: ProverState = ProverState::from(&pattern);
         p.add_units(&[10, 11]);
         p.add_units(&[20, 21, 22]);
-
-        assert_eq!(p.narg_string(), &[10, 11, 20, 21, 22]);
-        let _proof = p.finalize();
+        assert_eq!(p.finalize(), &[10, 11, 20, 21, 22]);
     }
 
     #[test]
     fn test_narg_string_round_trip_check() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Message,
-            "units",
-            Length::Fixed(5),
-        ));
+        pattern.message_units("units", 5);
         let pattern = pattern.finalize();
-        let mut p: ProverState = ProverState::from(&pattern);
 
+        let mut p: ProverState = ProverState::from(&pattern);
         let msg = b"zkp42";
         p.add_units(msg);
-
         assert_eq!(p.finalize(), msg);
     }
 
     #[test]
     fn test_hint_bytes_appends_hint_length_and_data() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
-        let mut prover: ProverState = ProverState::from(&pattern);
 
+        let mut prover: ProverState = ProverState::from(&pattern);
         let hint = b"abc123";
         prover.hint_bytes(hint);
-
         let expected = [6, 0, 0, 0, b'a', b'b', b'c', b'1', b'2', b'3'];
         assert_eq!(prover.finalize(), &expected);
     }
@@ -553,12 +488,7 @@ mod tests {
     #[test]
     fn test_hint_bytes_empty_hint_is_encoded_correctly() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
         let mut prover: ProverState = ProverState::from(&pattern);
 
@@ -568,7 +498,7 @@ mod tests {
 
     #[test]
     #[should_panic(
-        expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic [u8]"
+        expected = "Received interaction, but no more expected interactions: Atomic Hint hint_bytes Dynamic u8"
     )]
     fn test_hint_bytes_fails_if_hint_op_missing() {
         let pattern = PatternState::<u8>::new().finalize();
@@ -580,13 +510,9 @@ mod tests {
     #[test]
     fn test_hint_bytes_is_deterministic() {
         let mut pattern = PatternState::<u8>::new();
-        pattern.interact(Interaction::new::<[u8]>(
-            Hierarchy::Atomic,
-            Kind::Hint,
-            "hint_bytes",
-            Length::Dynamic,
-        ));
+        pattern.hint_bytes_dynamic("hint_bytes");
         let pattern = pattern.finalize();
+
         let hint = b"zkproof_hint";
         let mut prover1: ProverState = ProverState::from(&pattern);
         let mut prover2: ProverState = ProverState::from(&pattern);

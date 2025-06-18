@@ -132,8 +132,8 @@ mod prover_messages;
 mod tests;
 
 pub use crate::{
-    duplex_sponge::Unit, traits::*, DomainSeparator, DuplexSpongeInterface,
-    HashStateWithInstructions, ProofError, ProofResult, ProverState, VerifierState,
+    duplex_sponge::Unit, traits::*, DuplexSpongeInterface, ProofError, ProofResult, ProverState,
+    VerifierState,
 };
 
 super::traits::field_traits!(ark_ff::Field);

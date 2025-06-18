@@ -54,7 +54,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     /// Read `input.len()` elements from the NARG string.
     #[inline]
     pub fn fill_next_units(&mut self, input: &mut [U]) -> Result<(), std::io::Error> {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Message,
             "units",
@@ -67,7 +67,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
 
     /// Read a hint from the NARG string. Returns the number of units read.
     pub fn hint_bytes(&mut self) -> Result<&'a [u8], std::io::Error> {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Hint,
             "hint_bytes",
@@ -133,7 +133,7 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> UnitTranscript<U> for VerifierState<'
     /// Add native elements to the sponge without writing them to the NARG string.
     #[inline]
     fn public_units(&mut self, input: &[U]) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Public,
             "public_units",
@@ -145,7 +145,7 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> UnitTranscript<U> for VerifierState<'
     /// Fill `input` with units sampled uniformly at random.
     #[inline]
     fn fill_challenge_units(&mut self, input: &mut [U]) {
-        self.pattern.interact(Interaction::new::<[U]>(
+        self.pattern.interact(Interaction::new::<U>(
             Hierarchy::Atomic,
             Kind::Challenge,
             "fill_challenge_units",
@@ -166,10 +166,10 @@ impl<H: DuplexSpongeInterface<u8>> BytesToUnitDeserialize for VerifierState<'_, 
     #[inline]
     fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), std::io::Error> {
         self.pattern
-            .begin_message::<[u8]>("bytes", Length::Fixed(input.len()));
+            .begin_message::<u8>("bytes", Length::Fixed(input.len()));
         self.fill_next_units(input)?;
         self.pattern
-            .end_message::<[u8]>("bytes", Length::Fixed(input.len()));
+            .end_message::<u8>("bytes", Length::Fixed(input.len()));
         Ok(())
     }
 }
