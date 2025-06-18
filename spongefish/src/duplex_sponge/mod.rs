@@ -78,6 +78,8 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
     }
 
     fn absorb_unchecked(&mut self, mut input: &[U]) -> &mut Self {
+        self.squeeze_pos = C::R;
+
         while !input.is_empty() {
             if self.absorb_pos == C::R {
                 self.permutation.permute();
@@ -93,18 +95,17 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
                 input = rest;
             }
         }
-        self.squeeze_pos = C::R;
         self
     }
 
     fn squeeze_unchecked(&mut self, output: &mut [U]) -> &mut Self {
+        self.absorb_pos = 0;
         if output.is_empty() {
             return self;
         }
 
         if self.squeeze_pos == C::R {
             self.squeeze_pos = 0;
-            self.absorb_pos = 0;
             self.permutation.permute();
         }
 
