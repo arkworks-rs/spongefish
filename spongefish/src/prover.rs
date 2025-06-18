@@ -307,8 +307,8 @@ where
 mod tests {
     use super::*;
     use crate::{
-        codecs::{bytes::Pattern as _, unit::Pattern},
-        pattern::{Pattern as _, PatternState},
+        codecs::{bytes::Pattern as _, unit::Pattern as _},
+        pattern::PatternState,
     };
 
     #[test]

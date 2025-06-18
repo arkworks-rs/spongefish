@@ -181,7 +181,7 @@ mod tests {
     use super::*;
     use crate::{
         codecs::{bytes::Pattern as _, unit::Pattern},
-        pattern::{Hierarchy, Interaction, Kind, Length, Pattern as _, PatternState},
+        pattern::PatternState,
         ProverState,
     };
 

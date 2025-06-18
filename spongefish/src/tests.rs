@@ -3,9 +3,10 @@ use std::sync::Arc;
 use rand::RngCore;
 
 use crate::{
+    codecs::unit::Pattern as UnitPattern,
     duplex_sponge::legacy::DigestBridge,
     keccak::Keccak,
-    pattern::{Hierarchy, Interaction, Kind, Length, Pattern, PatternState},
+    pattern::{Length, Pattern, PatternState},
     traits::{BytesToUnitSerialize, UnitToBytes},
     DuplexSpongeInterface, ProverState, UnitTranscript, VerifierState,
 };
@@ -37,14 +38,9 @@ fn test_prover_rng_basic() {
 fn test_prover_bytewriter_correct() {
     // Expect exactly one add_bytes call.
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("bytes", Length::Fixed(1));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(1),
-    ));
-    pattern.end_message::<[u8]>("bytes", Length::Fixed(1));
+    pattern.begin_message::<u8>("bytes", Length::Fixed(1));
+    pattern.message_units("units", 1);
+    pattern.end_message::<u8>("bytes", Length::Fixed(1));
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState<Keccak> = ProverState::from(&pattern);
@@ -55,19 +51,14 @@ fn test_prover_bytewriter_correct() {
 
 #[test]
 #[should_panic(
-    expected = "Received interaction, but no more expected interactions: Begin Message bytes Fixed(1) [u8]"
+    expected = "Received interaction, but no more expected interactions: Begin Message bytes Fixed(1) u8"
 )]
 fn test_prover_bytewriter_invalid() {
     // Expect exactly one add_bytes call.
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("bytes", Length::Fixed(1));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(1),
-    ));
-    pattern.end_message::<[u8]>("bytes", Length::Fixed(1));
+    pattern.begin_message::<u8>("bytes", Length::Fixed(1));
+    pattern.message_units("units", 1);
+    pattern.end_message::<u8>("bytes", Length::Fixed(1));
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState<Keccak> = ProverState::from(&pattern);
@@ -77,17 +68,12 @@ fn test_prover_bytewriter_invalid() {
 
 #[test]
 #[should_panic(
-    expected = "Received interaction, but no more expected interactions: Atomic Public public_units Fixed(1) [u8]"
+    expected = "Received interaction, but no more expected interactions: Atomic Public public_units Fixed(1) u8"
 )]
 fn test_prover_public_units_invalid() {
     // Expect exactly one add_bytes call.
     let mut pattern = PatternState::<u8>::new();
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Public,
-        "public_units",
-        Length::Fixed(1),
-    ));
+    pattern.public_units("public_units", 1);
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState<Keccak> = ProverState::from(&pattern);
@@ -98,27 +84,14 @@ fn test_prover_public_units_invalid() {
 /// A protocol flow whose pattern does not match should panic.
 #[test]
 #[should_panic(
-    expected = "Received interaction Atomic Challenge fill_challenge_units Fixed(16) [u8], but expected Begin Message absorb Fixed(3) [u8]"
+    expected = "Received interaction Atomic Challenge fill_challenge_units Fixed(16) u8, but expected Atomic Message units Fixed(3) u8"
 )]
 fn test_invalid_domsep_sequence() {
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "",
-        Length::Fixed(3),
-    ));
-    pattern.end_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.begin_challenge::<[u8]>("squeeze", Length::Fixed(1));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "",
-        Length::Fixed(1),
-    ));
-    pattern.end_challenge::<[u8]>("squeeze", Length::Fixed(1));
+    pattern.message_units("units", 3);
+    pattern.challenge_units("challenge_units", 1);
     let pattern = pattern.finalize();
+
     let mut verifier_state: VerifierState<Keccak> = VerifierState::new(Arc::new(pattern), &[]);
     // This should panic due to pattern mismatch.
     verifier_state.fill_challenge_bytes(&mut [0u8; 16]);
@@ -129,22 +102,8 @@ fn test_invalid_domsep_sequence() {
 #[should_panic(expected = "Dropped unfinalized transcript.")]
 fn test_unfinished_domsep() {
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "elt",
-        Length::Fixed(3),
-    ));
-    pattern.end_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.begin_challenge::<[u8]>("squeeze", Length::Fixed(16));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "another_elt",
-        Length::Fixed(16),
-    ));
-    pattern.end_challenge::<[u8]>("squeeze", Length::Fixed(16));
+    pattern.message_units("elt", 3);
+    pattern.challenge_units("another_elt", 16);
     let pattern = pattern.finalize();
 
     let mut _verifier: VerifierState = VerifierState::new(pattern.into(), b"");
@@ -154,22 +113,8 @@ fn test_unfinished_domsep() {
 #[test]
 fn test_deterministic() {
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "elt",
-        Length::Fixed(3),
-    ));
-    pattern.end_message::<[u8]>("absorb", Length::Fixed(3));
-    pattern.begin_challenge::<[u8]>("squeeze", Length::Fixed(16));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "another_elt",
-        Length::Fixed(16),
-    ));
-    pattern.end_challenge::<[u8]>("squeeze", Length::Fixed(16));
+    pattern.message_units("elt", 3);
+    pattern.challenge_units("another_elt", 16);
     let pattern = pattern.finalize();
 
     let iv1 = pattern.domain_separator();
@@ -189,36 +134,11 @@ fn test_statistics() {
 fn test_transcript_readwrite() {
     // Pattern for prover and verifier sequence: add_units, fill_challenge_units, two fill_next_units, then fill_challenge_units
     let mut pattern = PatternState::<u8>::new();
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(10),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "fill_challenge_units",
-        Length::Fixed(10),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(5),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(5),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "fill_challenge_units",
-        Length::Fixed(10),
-    ));
+    pattern.message_units("units", 10);
+    pattern.challenge_units("fill_challenge_units", 10);
+    pattern.message_units("units", 5);
+    pattern.message_units("units", 5);
+    pattern.challenge_units("fill_challenge_units", 10);
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState = ProverState::from(&pattern);
@@ -265,19 +185,10 @@ fn test_transcript_readwrite() {
 #[should_panic]
 fn test_incomplete_domsep() {
     let mut pattern = PatternState::<u8>::new();
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(10),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "fill_challenge_units",
-        Length::Fixed(1),
-    ));
+    pattern.message_units("units", 10);
+    pattern.challenge_units("fill_challenge_units", 1);
     let pattern = pattern.finalize();
+
     let mut prover_state: ProverState<Keccak> = ProverState::from(&pattern);
     prover_state.add_units(&[0u8; 10]);
     // This should panic due to pattern mismatch length
@@ -290,18 +201,8 @@ fn test_incomplete_domsep() {
 fn test_prover_empty_absorb() {
     // Pattern expects one add_units and one challenge
     let mut pattern = PatternState::<u8>::new();
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(0),
-    ));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "fill_challenge_units",
-        Length::Fixed(0),
-    ));
+    pattern.message_units("units", 0);
+    pattern.challenge_units("fill_challenge_units", 0);
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState = ProverState::from(&pattern);
@@ -325,20 +226,10 @@ where
     let bytes = b"yellow submarine";
 
     let mut pattern = PatternState::<u8>::new();
-    pattern.begin_message::<[u8]>("bytes", Length::Fixed(16));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Message,
-        "units",
-        Length::Fixed(16),
-    ));
-    pattern.end_message::<[u8]>("bytes", Length::Fixed(16));
-    pattern.interact(Interaction::new::<[u8]>(
-        Hierarchy::Atomic,
-        Kind::Challenge,
-        "fill_challenge_units",
-        Length::Fixed(16),
-    ));
+    pattern.begin_message::<u8>("bytes", Length::Fixed(16));
+    pattern.message_units("units", 16);
+    pattern.end_message::<u8>("bytes", Length::Fixed(16));
+    pattern.challenge_units("fill_challenge_units", 16);
     let pattern = pattern.finalize();
 
     let mut prover_state: ProverState<H> = ProverState::from(&pattern);
