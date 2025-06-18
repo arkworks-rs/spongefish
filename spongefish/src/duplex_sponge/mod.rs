@@ -99,7 +99,7 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
     }
 
     fn squeeze_unchecked(&mut self, output: &mut [U]) -> &mut Self {
-        self.absorb_pos = 0;
+        self.absorb_pos = C::R;
         if output.is_empty() {
             return self;
         }
