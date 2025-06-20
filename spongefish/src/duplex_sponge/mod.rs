@@ -151,4 +151,108 @@ mod tests {
 
         assert_eq!(output.to_vec(), hex::decode("30b74a98221dd643d0814095c212d663a67945c6a582ef8f71bd2a14607ebade3f16e5975ad13d313d9aa0aa97ad29f7df5cff249fa633d3a7ac70d8587bec90").unwrap());
     }
+
+    #[test]
+    fn test_absorb_empty_does_not_break() {
+        let expected_state = vec![
+            114, 174, 112, 70, 48, 237, 142, 114, 185, 196, 146, 48, 52, 152, 77, 46, 9, 215, 55,
+            106, 22, 83, 9, 246, 35, 63, 240, 238, 163, 29, 213, 166, 50, 154, 138, 91, 235, 228,
+            43, 178, 118, 174, 195, 230, 177, 241, 148, 171, 191, 228, 254, 31, 23, 213, 171, 74,
+            241, 225, 247, 151, 125, 247, 17, 95, 89, 239, 66, 139, 73, 178, 220, 142, 126, 37,
+            193, 217, 6, 247, 21, 110, 110, 16, 36, 156, 225, 250, 218, 171, 181, 58, 232, 48, 189,
+            174, 247, 12, 97, 126, 18, 234, 223, 73, 210, 54, 185, 143, 66, 243, 147, 232, 99, 4,
+            211, 251, 49, 84, 174, 24, 245, 208, 123, 105, 159, 192, 75, 207, 106, 216, 70, 74,
+            234, 251, 112, 154, 149, 120, 212, 220, 116, 41, 177, 40, 246, 170, 243, 177, 244, 255,
+            81, 132, 37, 82, 213, 115, 99, 249, 129, 30, 204, 101, 218, 75, 154, 89, 44, 226, 213,
+            136, 227, 65, 111, 255, 118, 152, 224, 34, 135, 231, 251, 146, 195, 235, 228, 1, 197,
+            157, 10, 248, 138, 15, 217, 254, 6, 57, 60, 101, 10, 110, 211, 175,
+        ];
+        let mut sponge = Keccak::new(*b"empty-input-absorb-0000000000000");
+        sponge.permutation.permute();
+
+        let state0 = sponge.permutation.as_ref();
+        assert_eq!(state0.to_vec(), expected_state);
+
+        sponge.absorb_unchecked(b""); // no-op
+
+        let state1 = sponge.permutation.as_ref();
+        assert_eq!(state1.to_vec(), expected_state);
+    }
+
+    #[test]
+    fn test_squeeze_zero_behavior() {
+        let mut sponge = Keccak::new([0u8; 32]);
+        let mut output = [0u8; 64];
+
+        let input = b"Hello, World!";
+        sponge.absorb_unchecked(input);
+        sponge.squeeze_unchecked(&mut [0u8; 0]);
+        sponge.squeeze_unchecked(&mut output);
+
+        assert_eq!(output.to_vec(), hex::decode("30b74a98221dd643d0814095c212d663a67945c6a582ef8f71bd2a14607ebade3f16e5975ad13d313d9aa0aa97ad29f7df5cff249fa633d3a7ac70d8587bec90").unwrap());
+    }
+
+    #[test]
+    fn test_absorb_squeeze_absorb_consistency() {
+        let mut sponge = Keccak::new(*b"edge-case-test-domain-absorb0000");
+        let mut output = [0u8; 32];
+
+        sponge.absorb_unchecked(b"first");
+        sponge.squeeze_unchecked(&mut output);
+        sponge.absorb_unchecked(b"second");
+        sponge.squeeze_unchecked(&mut output);
+
+        assert_eq!(
+            output.to_vec(),
+            hex::decode("5b89db635853345429206e79f6ba536b83a429b4070443512c498419834cb78e")
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn test_associativity_of_absorb() {
+        let expected_output =
+            hex::decode("7dfada182d6191e106ce287c2262a443ce2fb695c7cc5037a46626e88889af58")
+                .unwrap();
+        let tag = *b"absorb-associativity-domain-----";
+
+        let mut sponge1 = Keccak::new(tag);
+        sponge1.absorb_unchecked(b"hello world");
+        let mut out1 = [0u8; 32];
+        sponge1.squeeze_unchecked(&mut out1);
+
+        let mut sponge2 = Keccak::new(tag);
+        sponge2.absorb_unchecked(b"hello");
+        sponge2.absorb_unchecked(b" world");
+        let mut out2 = [0u8; 32];
+        sponge2.squeeze_unchecked(&mut out2);
+
+        assert_eq!(out1.to_vec(), expected_output);
+        assert_eq!(out2.to_vec(), expected_output);
+    }
+
+    #[test]
+    fn test_tag_affects_output() {
+        let mut sponge1 = Keccak::new(*b"domain-one-differs-here-00000000");
+        let mut sponge2 = Keccak::new(*b"domain-two-differs-here-00000000");
+
+        let mut output1 = [0u8; 32];
+        sponge1.absorb_unchecked(b"input");
+        sponge1.squeeze_unchecked(&mut output1);
+
+        let mut output2 = [0u8; 32];
+        sponge2.absorb_unchecked(b"input");
+        sponge2.squeeze_unchecked(&mut output2);
+
+        assert_eq!(
+            output1.to_vec(),
+            hex::decode("2ecad63584ec0ff7f31edb822530762e5cb4b7dc1a62b1ffe02c43f3073a61b8")
+                .unwrap()
+        );
+        assert_eq!(
+            output2.to_vec(),
+            hex::decode("6310fa0356e1bab0442fa19958e1c4a6d1dcc565b2b139b6044d1a809f531825")
+                .unwrap()
+        );
+    }
 }
