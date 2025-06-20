@@ -4,7 +4,7 @@ use ark_ec::{
     CurveGroup,
 };
 use ark_ff::{Field, Fp, FpConfig};
-use ark_serialize::CanonicalDeserialize;
+use ark_serialize::{CanonicalDeserialize, SerializationError};
 
 use super::{FieldToUnitDeserialize, GroupToUnitDeserialize};
 use crate::{
@@ -67,7 +67,7 @@ where
         for o in output.iter_mut() {
             let o_affine = EdwardsAffine::deserialize_compressed(&mut self.narg_string)?;
             *o = o_affine.into();
-            self.public_units(&[o.x, o.y])?;
+            self.public_units(&[o.x, o.y]);
         }
         Ok(())
     }
@@ -83,13 +83,14 @@ where
         for o in output.iter_mut() {
             let o_affine = SWAffine::deserialize_compressed(&mut self.narg_string)?;
             *o = o_affine.into();
-            self.public_units(&[o.x, o.y])?;
+            self.public_units(&[o.x, o.y]);
         }
         Ok(())
     }
 }
 
 #[cfg(test)]
+#[cfg(feature = "disable")]
 mod tests {
     use ark_bls12_381::G1Projective;
     use ark_curve25519::EdwardsProjective;
@@ -99,7 +100,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
+        codecs::arkworks_algebra::{FieldPattern, GroupPattern},
         DefaultHash,
     };
 

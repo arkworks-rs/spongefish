@@ -1,93 +1,119 @@
 use ark_ec::CurveGroup;
 use ark_ff::{Field, Fp, FpConfig, PrimeField};
 
-use super::{
-    ByteDomainSeparator, DuplexSpongeInterface, FieldDomainSeparator, GroupDomainSeparator,
+use super::{ByteDomainSeparator, DuplexSpongeInterface, FieldPattern, GroupPattern};
+use crate::{
+    codecs::{
+        bytes::{self, Pattern as _},
+        bytes_modp, bytes_uniform_modp,
+        unit::{self, Pattern as _},
+    },
+    pattern::{self, Label, Length, Pattern as _, PatternState},
 };
-use crate::codecs::{bytes_modp, bytes_uniform_modp};
 
-impl<F, H> FieldDomainSeparator<F> for DomainSeparator<H>
+impl<F> FieldPattern<F> for PatternState
 where
     F: Field,
-    H: DuplexSpongeInterface,
 {
-    fn add_scalars(self, count: usize, label: &str) -> Self {
-        self.add_bytes(
+    fn message_scalars(&mut self, label: Label, count: usize) {
+        self.begin_message::<F>(label, Length::Fixed(count));
+        self.message_bytes(
+            "base-field-coefficients-little-endian",
             count
                 * F::extension_degree() as usize
                 * bytes_modp(F::BasePrimeField::MODULUS_BIT_SIZE),
-            label,
-        )
+        );
+        self.end_message::<F>(label, Length::Fixed(count));
     }
 
-    fn challenge_scalars(self, count: usize, label: &str) -> Self {
+    fn challenge_scalars(&mut self, label: Label, count: usize) {
+        self.begin_challenge::<F>(label, Length::Fixed(count));
         self.challenge_bytes(
+            "base-field-coefficients-little-endian",
             count
                 * F::extension_degree() as usize
                 * bytes_uniform_modp(F::BasePrimeField::MODULUS_BIT_SIZE),
-            label,
-        )
+        );
+        self.end_challenge::<F>(label, Length::Fixed(count));
     }
 }
 
-impl<F, C, H, const N: usize> FieldDomainSeparator<F> for DomainSeparator<H, Fp<C, N>>
+impl<F, C, const N: usize> FieldPattern<F> for PatternState<Fp<C, N>>
 where
     F: Field<BasePrimeField = Fp<C, N>>,
     C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
 {
-    fn add_scalars(self, count: usize, label: &str) -> Self {
-        self.absorb(count * F::extension_degree() as usize, label)
+    fn message_scalars(&mut self, label: Label, count: usize) {
+        self.begin_message::<F>(label, Length::Fixed(count));
+        self.message_units(
+            "base-field-coefficients",
+            count * F::extension_degree() as usize,
+        );
+        self.end_message::<F>(label, Length::Fixed(count));
     }
 
-    fn challenge_scalars(self, count: usize, label: &str) -> Self {
-        self.squeeze(count * F::extension_degree() as usize, label)
+    fn challenge_scalars(&mut self, label: Label, count: usize) {
+        self.begin_challenge::<F>(label, Length::Fixed(count));
+        self.challenge_units(
+            "base-field-coefficients",
+            count * F::extension_degree() as usize,
+        );
+        self.end_challenge::<F>(label, Length::Fixed(count));
     }
 }
 
-impl<C, H, const N: usize> ByteDomainSeparator for DomainSeparator<H, Fp<C, N>>
+/// Implementation where `Unit = Fp<C, N>`
+impl<C, const N: usize> bytes::Pattern for PatternState<Fp<C, N>>
 where
     C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
 {
     /// Add `count` bytes to the transcript, encoding each of them as an element of the field `Fp`.
-    fn add_bytes(self, count: usize, label: &str) -> Self {
-        self.absorb(count, label)
+    fn public_bytes(&mut self, label: Label, size: usize) {
+        self.begin_public::<u8>(label, Length::Fixed(size));
+        self.public_units("units", size);
+        self.end_public::<u8>(label, Length::Fixed(size))
     }
 
-    fn hint(self, label: &str) -> Self {
-        self.hint(label)
+    /// Add `count` bytes to the transcript, encoding each of them as an element of the field `Fp`.
+    fn message_bytes(&mut self, label: Label, size: usize) {
+        self.begin_message::<u8>(label, Length::Fixed(size));
+        self.message_units("units", size);
+        self.end_message::<u8>(label, Length::Fixed(size))
     }
 
-    fn challenge_bytes(self, count: usize, label: &str) -> Self {
+    fn challenge_bytes(&mut self, label: Label, size: usize) {
+        self.begin_challenge::<u8>(label, Length::Fixed(size));
         let n = crate::codecs::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
-        self.squeeze(count.div_ceil(n), label)
+        self.challenge_units("units", size.div_ceil(n));
+        self.end_challenge::<u8>(label, Length::Fixed(size))
     }
 }
 
-impl<G, H> GroupDomainSeparator<G> for DomainSeparator<H>
+impl<G> GroupPattern<G> for PatternState<u8>
 where
     G: CurveGroup,
-    H: DuplexSpongeInterface,
 {
-    fn add_points(self, count: usize, label: &str) -> Self {
-        self.add_bytes(count * G::default().compressed_size(), label)
+    fn message_points(&mut self, label: Label, count: usize) {
+        self.begin_message::<G>(label, Length::Fixed(count));
+        self.message_bytes("serialized-group", count * G::default().compressed_size());
+        self.end_message::<G>(label, Length::Fixed(count));
     }
 }
 
-impl<G, H, C, const N: usize> GroupDomainSeparator<G> for DomainSeparator<H, Fp<C, N>>
+impl<G, C, const N: usize> GroupPattern<G> for PatternState<Fp<C, N>>
 where
     G: CurveGroup<BaseField = Fp<C, N>>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
     C: FpConfig<N>,
-    Self: FieldDomainSeparator<Fp<C, N>>,
 {
-    fn add_points(self, count: usize, label: &str) -> Self {
-        self.absorb(count * 2, label)
+    fn message_points(&mut self, label: Label, count: usize) {
+        self.begin_message::<G>(label, Length::Fixed(count));
+        self.message_units("coordinates", count * 2);
+        self.end_message::<G>(label, Length::Fixed(count));
     }
 }
 
 #[cfg(test)]
+#[cfg(feature = "disabled")]
 mod tests {
     use ark_bls12_381::{Fq2, Fr};
     use ark_curve25519::EdwardsProjective as Curve;

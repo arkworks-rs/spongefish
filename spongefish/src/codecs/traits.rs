@@ -2,8 +2,8 @@ macro_rules! field_traits {
     ($Field:path) => {
         /// Absorb and squeeze field elements to the domain separator.
         pub trait FieldPattern<F: $Field> {
-            fn add_scalars(&mut self, label: crate::pattern::Label, count: usize);
-            fn challenge_scalars(&mut self, label: crate::pattern::Label, count: usize);
+            fn message_scalars(&mut self, label: $crate::pattern::Label, count: usize);
+            fn challenge_scalars(&mut self, label: $crate::pattern::Label, count: usize);
         }
 
         /// Interpret verifier messages as uniformly distributed field elements.
@@ -47,12 +47,11 @@ macro_rules! field_traits {
     };
 }
 
-#[macro_export]
 macro_rules! group_traits {
     ($Group:path, Scalar: $Field:path) => {
         /// Send group elements in the domain separator.
         pub trait GroupPattern<G: $Group> {
-            fn add_points(&mut self, label: crate::pattern::Label, count: usize);
+            fn message_points(&mut self, label: $crate::pattern::Label, count: usize);
         }
 
         /// Adds a new prover message consisting of an EC element.

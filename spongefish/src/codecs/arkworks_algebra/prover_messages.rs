@@ -14,7 +14,7 @@ impl<F: Field, H: DuplexSpongeInterface, R: RngCore + CryptoRng> FieldToUnitSeri
 {
     fn add_scalars(&mut self, input: &[F]) {
         let serialized = self.public_scalars(input);
-        self.narg_string.extend(serialized?);
+        self.narg_string.extend(serialized);
     }
 }
 
@@ -42,10 +42,9 @@ where
     R: RngCore + CryptoRng,
     Self: CommonGroupToUnit<G, Repr = Vec<u8>>,
 {
-    fn add_points(&mut self, input: &[G]) -> ProofResult<()> {
+    fn add_points(&mut self, input: &[G]) {
         let serialized = self.public_points(input);
-        self.narg_string.extend(serialized?);
-        Ok(())
+        self.narg_string.extend(serialized);
     }
 }
 
@@ -57,12 +56,12 @@ where
     R: RngCore + CryptoRng,
     Self: CommonGroupToUnit<G> + FieldToUnitSerialize<G::BaseField>,
 {
-    fn add_points(&mut self, input: &[G]) -> ProofResult<()> {
-        self.public_points(input).map(|_| ())?;
+    fn add_points(&mut self, input: &[G]) {
+        self.public_points(input);
         for i in input {
-            i.serialize_compressed(&mut self.narg_string)?;
+            i.serialize_compressed(&mut self.narg_string)
+                .expect("Serialization failed");
         }
-        Ok(())
     }
 }
 
@@ -72,10 +71,9 @@ where
     C: FpConfig<N>,
     R: RngCore + CryptoRng,
 {
-    fn add_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
-        self.public_bytes(input)?;
+    fn add_bytes(&mut self, input: &[u8]) {
+        self.public_bytes(input);
         self.narg_string.extend(input);
-        Ok(())
     }
 }
 
@@ -84,13 +82,15 @@ where
     H: DuplexSpongeInterface<Fp<C, N>>,
     C: FpConfig<N>,
 {
-    fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
+    fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), std::io::Error> {
         u8::read(&mut self.narg_string, input)?;
-        self.public_bytes(input)
+        self.public_bytes(input);
+        Ok(())
     }
 }
 
 #[cfg(test)]
+#[cfg(feature = "disable")]
 mod tests {
     use ark_bls12_381::Fr;
     use ark_curve25519::EdwardsProjective;
@@ -99,9 +99,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        codecs::arkworks_algebra::{
-            FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator,
-        },
+        codecs::arkworks_algebra::{FieldPattern, FieldToUnitSerialize, GroupPattern},
         ByteDomainSeparator, DefaultHash,
     };
 

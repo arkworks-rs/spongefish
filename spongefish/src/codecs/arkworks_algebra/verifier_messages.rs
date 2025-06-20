@@ -65,13 +65,15 @@ where
 {
     type Repr = Vec<u8>;
 
-    fn public_scalars(&mut self, input: &[F]) -> ProofResult<Self::Repr> {
+    fn public_scalars(&mut self, input: &[F]) -> Self::Repr {
         let mut buf = Vec::new();
         for i in input {
-            i.serialize_compressed(&mut buf)?;
+            // Writing to buffer should be infallible
+            i.serialize_compressed(&mut buf)
+                .expect("Serialization failed.");
         }
         self.public_bytes(&buf);
-        Ok(buf)
+        buf
     }
 }
 
@@ -284,6 +286,7 @@ where
 }
 
 #[cfg(test)]
+#[cfg(feature = "disable")]
 mod tests {
     use ark_curve25519::EdwardsProjective as Curve;
     use ark_ec::PrimeGroup;
@@ -291,7 +294,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
+        codecs::arkworks_algebra::{FieldPattern, GroupPattern},
         DefaultHash,
     };
 

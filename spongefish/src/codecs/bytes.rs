@@ -1,6 +1,6 @@
 use crate::{
-    codecs::unit,
-    pattern::{self, Label, Length},
+    codecs::unit::Pattern as _,
+    pattern::{Label, Length, Pattern as _, PatternState},
 };
 
 /// Traits for patterns that handle byte arrays in a transcript.
@@ -11,10 +11,7 @@ pub trait Pattern {
 }
 
 /// Implementation where `Unit = u8`
-impl<P> Pattern for P
-where
-    P: pattern::Pattern + unit::Pattern<Unit = u8>,
-{
+impl Pattern for PatternState<u8> {
     fn public_bytes(&mut self, label: Label, size: usize) {
         self.begin_public::<u8>(label, Length::Fixed(size));
         self.public_units("units", size);

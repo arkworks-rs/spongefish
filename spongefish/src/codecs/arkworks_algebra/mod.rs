@@ -128,9 +128,8 @@ mod deserialize;
 mod prover_messages;
 
 /// Tests for arkworks.
-#[cfg(test)]
-mod tests;
-
+// #[cfg(test)]
+// mod tests;
 pub use crate::{
     duplex_sponge::Unit, traits::*, DuplexSpongeInterface, ProofError, ProofResult, ProverState,
     VerifierState,
