@@ -99,10 +99,10 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
     }
 
     fn squeeze_unchecked(&mut self, output: &mut [U]) -> &mut Self {
-        self.absorb_pos = C::R;
         if output.is_empty() {
             return self;
         }
+        self.absorb_pos = C::R;
 
         if self.squeeze_pos == C::R {
             self.squeeze_pos = 0;
@@ -153,7 +153,7 @@ mod tests {
     }
 
     #[test]
-    fn test_absorb_empty_does_not_break() {
+    fn test_absorb_empty_before_does_not_break() {
         let mut sponge = Keccak::new(*b"unit_tests_keccak_tag___________");
         let mut output = [0u8; 64];
 
@@ -166,13 +166,40 @@ mod tests {
     }
 
     #[test]
+    fn test_absorb_empty_after_does_not_break() {
+        let mut sponge = Keccak::new(*b"unit_tests_keccak_tag___________");
+        let mut output = [0u8; 64];
+
+        let input = b"Hello, World!";
+        sponge.absorb_unchecked(b"");
+        sponge.absorb_unchecked(input);
+        sponge.squeeze_unchecked(&mut output);
+
+        assert_eq!(output.to_vec(), hex::decode("73e4a040a956f57693fb2b2dde8a8ea2c14d39ff8830060cd0301d6de25b2097ba858efedeeb89368eaf7c94a68f62835f932b5f0dd0ba376c48a0fdb5e21f0c").unwrap());
+    }
+
+    #[test]
     fn test_squeeze_zero_behavior() {
         let mut sponge = Keccak::new(*b"unit_tests_keccak_tag___________");
         let mut output = [0u8; 64];
 
         let input = b"Hello, World!";
+        sponge.squeeze_unchecked(&mut [0u8; 0]);
         sponge.absorb_unchecked(input);
         sponge.squeeze_unchecked(&mut [0u8; 0]);
+        sponge.squeeze_unchecked(&mut output);
+
+        assert_eq!(output.to_vec(), hex::decode("73e4a040a956f57693fb2b2dde8a8ea2c14d39ff8830060cd0301d6de25b2097ba858efedeeb89368eaf7c94a68f62835f932b5f0dd0ba376c48a0fdb5e21f0c").unwrap());
+    }
+
+    #[test]
+    fn test_squeeze_zero_after_behavior() {
+        let mut sponge = Keccak::new(*b"unit_tests_keccak_tag___________");
+        let mut output = [0u8; 64];
+
+        let input = b"Hello, World!";
+        sponge.squeeze_unchecked(&mut [0u8; 0]);
+        sponge.absorb_unchecked(input);
         sponge.squeeze_unchecked(&mut output);
 
         assert_eq!(output.to_vec(), hex::decode("73e4a040a956f57693fb2b2dde8a8ea2c14d39ff8830060cd0301d6de25b2097ba858efedeeb89368eaf7c94a68f62835f932b5f0dd0ba376c48a0fdb5e21f0c").unwrap());
