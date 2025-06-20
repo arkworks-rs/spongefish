@@ -1,11 +1,9 @@
 macro_rules! field_traits {
     ($Field:path) => {
         /// Absorb and squeeze field elements to the domain separator.
-        pub trait FieldDomainSeparator<F: $Field> {
-            #[must_use]
-            fn add_scalars(self, count: usize, label: &str) -> Self;
-            #[must_use]
-            fn challenge_scalars(self, count: usize, label: &str) -> Self;
+        pub trait FieldPattern<F: $Field> {
+            fn add_scalars(&mut self, label: crate::pattern::Label, count: usize);
+            fn challenge_scalars(&mut self, label: crate::pattern::Label, count: usize);
         }
 
         /// Interpret verifier messages as uniformly distributed field elements.
@@ -25,7 +23,7 @@ macro_rules! field_traits {
         /// Add field elements as shared public information.
         pub trait CommonFieldToUnit<F: $Field> {
             type Repr;
-            fn public_scalars(&mut self, input: &[F]) -> Repr;
+            fn public_scalars(&mut self, input: &[F]) -> Self::Repr;
         }
 
         /// Add field elements to the protocol transcript.
@@ -53,9 +51,8 @@ macro_rules! field_traits {
 macro_rules! group_traits {
     ($Group:path, Scalar: $Field:path) => {
         /// Send group elements in the domain separator.
-        pub trait GroupDomainSeparator<G: $Group> {
-            #[must_use]
-            fn add_points(self, count: usize, label: &str) -> Self;
+        pub trait GroupPattern<G: $Group> {
+            fn add_points(&mut self, label: crate::pattern::Label, count: usize);
         }
 
         /// Adds a new prover message consisting of an EC element.

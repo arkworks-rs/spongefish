@@ -1,33 +1,39 @@
 use group::{ff::PrimeField, Group, GroupEncoding};
 
-use super::{FieldDomainSeparator, GroupDomainSeparator};
+use super::{FieldPattern, GroupPattern};
 use crate::{
-    codecs::{bytes_modp, bytes_uniform_modp},
-    ByteDomainSeparator, DuplexSpongeInterface,
+    codecs::{bytes, bytes_modp, bytes_uniform_modp},
+    pattern::{self, Label, Length},
 };
 
-impl<F, H> FieldDomainSeparator<F> for DomainSeparator<H>
+impl<P, F> FieldPattern<F> for P
 where
+    P: pattern::Pattern + bytes::Pattern,
     F: PrimeField,
-    H: DuplexSpongeInterface,
 {
-    fn add_scalars(self, count: usize, label: &str) -> Self {
-        self.add_bytes(count * bytes_modp(F::NUM_BITS), label)
+    fn add_scalars(&mut self, label: Label, count: usize) {
+        self.begin_message::<F>(label, Length::Fixed(count));
+        self.message_bytes("bytes", count * bytes_modp(F::NUM_BITS));
+        self.end_message::<F>(label, Length::Fixed(count));
     }
 
-    fn challenge_scalars(self, count: usize, label: &str) -> Self {
-        self.challenge_bytes(count * bytes_uniform_modp(F::NUM_BITS), label)
+    fn challenge_scalars(&mut self, label: Label, count: usize) {
+        self.begin_challenge::<F>(label, Length::Fixed(count));
+        self.challenge_bytes("bytes", count * bytes_uniform_modp(F::NUM_BITS));
+        self.end_challenge::<F>(label, Length::Fixed(count));
     }
 }
 
-impl<G, H> GroupDomainSeparator<G> for DomainSeparator<H>
+impl<P, G> GroupPattern<G> for P
 where
+    P: pattern::Pattern + bytes::Pattern,
     G: Group + GroupEncoding,
     G::Repr: AsRef<[u8]>,
-    H: DuplexSpongeInterface,
 {
-    fn add_points(self, count: usize, label: &str) -> Self {
+    fn add_points(&mut self, label: Label, count: usize) {
+        self.begin_message::<G>(label, Length::Fixed(count));
         let n = G::Repr::default().as_ref().len();
-        self.add_bytes(count * n, label)
+        self.message_bytes("bytes", count * n);
+        self.end_message::<G>(label, Length::Fixed(count));
     }
 }
