@@ -134,3 +134,21 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keccak::Keccak;
+
+    #[test]
+    fn test_keccak_duplex_sponge() {
+        let mut sponge = Keccak::new([0u8; 32]);
+        let mut output = [0u8; 64];
+
+        let input = b"Hello, World!";
+        sponge.absorb_unchecked(input);
+        sponge.squeeze_unchecked(&mut output);
+
+        assert_eq!(output.to_vec(), hex::decode("30b74a98221dd643d0814095c212d663a67945c6a582ef8f71bd2a14607ebade3f16e5975ad13d313d9aa0aa97ad29f7df5cff249fa633d3a7ac70d8587bec90").unwrap());
+    }
+}
