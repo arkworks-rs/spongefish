@@ -102,7 +102,7 @@ impl<U: Unit, C: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<C
         if output.is_empty() {
             return self;
         }
-        self.absorb_pos = C::R;
+        self.absorb_pos = 0;
 
         if self.squeeze_pos == C::R {
             self.squeeze_pos = 0;
@@ -217,7 +217,7 @@ mod tests {
 
         assert_eq!(
             output.to_vec(),
-            hex::decode("5b89db635853345429206e79f6ba536b83a429b4070443512c498419834cb78e")
+            hex::decode("20ce6da64ffc09df8de254222c068358da39d23ec43e522ceaaa1b82b90c8b9a")
                 .unwrap()
         );
     }
