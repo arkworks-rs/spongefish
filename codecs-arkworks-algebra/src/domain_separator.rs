@@ -1,11 +1,9 @@
 use ark_ec::CurveGroup;
 use ark_ff::{Field, Fp, FpConfig, PrimeField};
 
-use super::{
-    ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
-    GroupDomainSeparator,
-};
-use crate::codecs::{bytes_modp, bytes_uniform_modp};
+use super::{FieldDomainSeparator, GroupDomainSeparator};
+use crate::{bytes_modp, bytes_uniform_modp};
+use spongefish::{ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface};
 
 impl<F, H> FieldDomainSeparator<F> for DomainSeparator<H>
 where
@@ -61,7 +59,7 @@ where
     }
 
     fn challenge_bytes(self, count: usize, label: &str) -> Self {
-        let n = crate::codecs::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
+        let n = crate::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
         self.squeeze(count.div_ceil(n), label)
     }
 }

@@ -147,6 +147,8 @@ mod sho;
 /// Unit-tests.
 #[cfg(test)]
 mod tests;
+/// Serialization utilities
+mod serialization;
 
 /// Proposed alternative domain separator
 pub mod pattern;

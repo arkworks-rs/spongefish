@@ -7,7 +7,7 @@ use ark_ff::{Field, Fp, FpConfig};
 use ark_serialize::CanonicalDeserialize;
 
 use super::{FieldToUnitDeserialize, GroupToUnitDeserialize};
-use crate::{
+use spongefish::{
     traits::{BytesToUnitDeserialize, UnitTranscript},
     DuplexSpongeInterface, ProofResult, VerifierState,
 };

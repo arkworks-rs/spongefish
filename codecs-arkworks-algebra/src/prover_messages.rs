@@ -4,7 +4,7 @@ use ark_serialize::CanonicalSerialize;
 use rand::{CryptoRng, RngCore};
 
 use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnitSerialize, GroupToUnitSerialize};
-use crate::{
+use spongefish::{
     BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DomainSeparatorMismatch,
     DuplexSpongeInterface, ProofResult, ProverState, UnitTranscript, VerifierState,
 };

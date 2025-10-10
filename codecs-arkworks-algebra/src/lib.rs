@@ -131,13 +131,145 @@ mod prover_messages;
 #[cfg(test)]
 mod tests;
 
-pub use crate::{
+pub use spongefish::{
     duplex_sponge::Unit, traits::*, DomainSeparator, DuplexSpongeInterface,
     HashStateWithInstructions, ProofError, ProofResult, ProverState, VerifierState,
 };
 
-super::traits::field_traits!(ark_ff::Field);
-super::traits::group_traits!(ark_ec::CurveGroup, Scalar: ark_ff::PrimeField);
+/// Field-related traits
+mod field_traits {
+    /// Absorb and squeeze field elements to the domain separator.
+    pub trait FieldDomainSeparator<F: ark_ff::Field> {
+        #[must_use]
+        fn add_scalars(self, count: usize, label: &str) -> Self;
+        #[must_use]
+        fn challenge_scalars(self, count: usize, label: &str) -> Self;
+    }
+
+    /// Interpret verifier messages as uniformly distributed field elements.
+    ///
+    /// The implementation of this trait **MUST** ensure that the field elements
+    /// are uniformly distributed and valid.
+    pub trait UnitToField<F: ark_ff::Field> {
+        fn fill_challenge_scalars(&mut self, output: &mut [F]) -> spongefish::ProofResult<()>;
+
+        fn challenge_scalars<const N: usize>(&mut self) -> spongefish::ProofResult<[F; N]> {
+            let mut output = [F::default(); N];
+            self.fill_challenge_scalars(&mut output)?;
+            Ok(output)
+        }
+    }
+
+    /// Add field elements as shared public information.
+    pub trait CommonFieldToUnit<F: ark_ff::Field> {
+        type Repr;
+        fn public_scalars(&mut self, input: &[F]) -> spongefish::ProofResult<Self::Repr>;
+    }
+
+    /// Add field elements to the protocol transcript.
+    pub trait FieldToUnitSerialize<F: ark_ff::Field>: CommonFieldToUnit<F> {
+        fn add_scalars(&mut self, input: &[F]) -> spongefish::ProofResult<()>;
+    }
+
+    /// Deserialize field elements from the protocol transcript.
+    ///
+    /// The implementation of this trait **MUST** ensure that the field elements
+    /// are correct encodings.
+    pub trait FieldToUnitDeserialize<F: ark_ff::Field>: CommonFieldToUnit<F> {
+        fn fill_next_scalars(&mut self, output: &mut [F]) -> spongefish::ProofResult<()>;
+
+        fn next_scalars<const N: usize>(&mut self) -> spongefish::ProofResult<[F; N]> {
+            let mut output = [F::default(); N];
+            self.fill_next_scalars(&mut output)?;
+            Ok(output)
+        }
+    }
+}
+
+/// Group-related traits
+mod group_traits {
+    /// Send group elements in the domain separator.
+    pub trait GroupDomainSeparator<G: ark_ec::CurveGroup> {
+        #[must_use]
+        fn add_points(self, count: usize, label: &str) -> Self;
+    }
+
+    /// Adds a new prover message consisting of an EC element.
+    pub trait GroupToUnitSerialize<G: ark_ec::CurveGroup>: CommonGroupToUnit<G> {
+        fn add_points(&mut self, input: &[G]) -> spongefish::ProofResult<()>;
+    }
+
+    /// Receive (and deserialize) group elements from the domain separator.
+    ///
+    /// The implementation of this trait **MUST** ensure that the points decoded are
+    /// valid group elements.
+    pub trait GroupToUnitDeserialize<G: ark_ec::CurveGroup + Default> {
+        /// Deserialize group elements from the protocol transcript into `output`.
+        fn fill_next_points(&mut self, output: &mut [G]) -> spongefish::ProofResult<()>;
+
+        /// Deserialize group elements from the protocol transcript and return them.
+        fn next_points<const N: usize>(&mut self) -> spongefish::ProofResult<[G; N]> {
+            let mut output = [G::default(); N];
+            self.fill_next_points(&mut output)?;
+            Ok(output)
+        }
+    }
+
+    /// Add group elements to the protocol transcript.
+    pub trait CommonGroupToUnit<G: ark_ec::CurveGroup> {
+        /// In order to be added to the sponge, elements may be serialize into another format.
+        /// This associated type represents the format used, so that other implementation can potentially
+        /// re-use the serialized element.
+        type Repr;
+
+        /// Incorporate group elements into the proof without adding them to the final protocol transcript.
+        fn public_points(&mut self, input: &[G]) -> spongefish::ProofResult<Self::Repr>;
+    }
+}
+
+pub use field_traits::*;
+pub use group_traits::*;
+
+// Helper functions moved from core/src/codecs
+
+/// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
+pub const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
+    (modulus_bits as usize + 128) / 8
+}
+
+/// Bytes needed in order to encode an element of F.
+pub const fn bytes_modp(modulus_bits: u32) -> usize {
+    (modulus_bits as usize).div_ceil(8)
+}
+
+/// Number of uniformly random bytes of in a uniformly-distributed element in `[0, b)`.
+///
+/// This function returns the maximum n for which
+/// `Uniform([b]) mod 2^n`
+/// and
+/// `Uniform([2^n])`
+/// are statistically indistinguishable.
+/// Given \(b = q 2^n + r\) the statistical distance
+/// is \(\frac{2r}{ab}(a-r)\).
+pub fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
+    use ark_ff::{BigInt, BigInteger};
+    // XXX. is it correct to have num_bits+1 here?
+    for n in (0..=b.num_bits()).rev() {
+        // compute the remainder of b by 2^n
+        let r_bits = &b.to_bits_le()[..n as usize];
+        let r = BigInt::<N>::from_bits_le(r_bits);
+        let log2_a_minus_r = r_bits.iter().rev().skip_while(|&&bit| bit).count() as u32;
+        if b.num_bits() + n - 1 - r.num_bits() - log2_a_minus_r >= 128 {
+            return n as usize;
+        }
+    }
+    0
+}
+
+/// Same as above, but for bytes
+pub fn random_bytes_in_random_modp<const N: usize>(modulus: ark_ff::BigInt<N>) -> usize {
+    random_bits_in_random_modp(modulus) / 8
+}
 
 /// Move a value from prime field F1 to prime field F2.
 ///

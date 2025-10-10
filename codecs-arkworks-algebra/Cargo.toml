@@ -1,0 +1,19 @@
+[package]
+name = "codecs-arkworks-algebra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+spongefish = { path = "../core" }
+ark-ec = { workspace = true }
+ark-ff = { workspace = true }
+ark-serialize = { workspace = true }
+ark-std = { workspace = true }
+thiserror = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+ark-bls12-381 = { workspace = true }
+ark-pallas = { workspace = true }
+ark-vesta = { workspace = true }
+ark-curve25519 = { workspace = true }

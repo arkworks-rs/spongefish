@@ -3,6 +3,8 @@ resolver = "2"
 
 members = [
     "core",
+    "codecs-arkworks-algebra",
+    "codecs-zkcrypto-group",
     "spongefish-pow",
     "spongefish-anemoi",
     "spongefish-poseidon",

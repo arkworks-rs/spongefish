@@ -5,15 +5,15 @@ use ark_ff::{BigInteger, Fp, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use rand::{CryptoRng, RngCore};
 
-use super::{CommonFieldToUnit, CommonGroupToUnit, UnitToField};
-use crate::{
-    codecs::bytes_uniform_modp, CommonUnitToBytes, DomainSeparatorMismatch, DuplexSpongeInterface,
+use super::{bytes_uniform_modp, CommonFieldToUnit, CommonGroupToUnit, UnitToField};
+use spongefish::{
+    CommonUnitToBytes, DomainSeparatorMismatch, DuplexSpongeInterface,
     ProofError, ProofResult, ProverState, UnitToBytes, UnitTranscript, VerifierState,
 };
 
 // Implementation of basic traits for bridging arkworks and spongefish
 
-impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
+impl<C: ark_ff::FpConfig<N>, const N: usize> spongefish::duplex_sponge::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
 }
 

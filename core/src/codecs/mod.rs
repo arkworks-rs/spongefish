@@ -4,15 +4,6 @@
 #[cfg(any(feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod traits;
 
-// #[cfg(feature = "arkworks-algebra")]
-// /// Arkworks's [algebra](https://github.com/arkworks-rs/algebra) bindings.
-// pub mod arkworks_algebra;
-
-#[cfg(feature = "zkcrypto-group")]
-/// (In-progress) [group](https://github.com/zkcrypto/group) bindings.
-/// This plugin is experimental and has not yet been thoroughly tested.
-pub mod zkcrypto_group;
-
 /// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
 pub(super) const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
     (modulus_bits as usize + 128) / 8
