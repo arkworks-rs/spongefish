@@ -5,7 +5,7 @@ fn test_vector<P: Permutation>(input: &[P::U], output: &[P::U])
 where
     P::U: PartialEq + std::fmt::Debug,
 {
-    let mut hash = P::default();
+    let mut hash = P::new();
     hash.as_mut().clone_from_slice(input);
     hash.permute();
     assert_eq!(hash.as_ref(), output);

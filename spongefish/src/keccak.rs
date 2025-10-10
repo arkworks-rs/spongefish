@@ -28,10 +28,8 @@ impl Permutation for KeccakF1600 {
     const N: usize = 136 + 64;
     const R: usize = 136;
 
-    fn new(iv: [u8; 32]) -> Self {
-        let mut state = Self::default();
-        state.as_mut()[Self::R..Self::R + 32].copy_from_slice(&iv);
-        state
+    fn new() -> Self {
+        Self::default()
     }
 
     fn permute(&mut self) {

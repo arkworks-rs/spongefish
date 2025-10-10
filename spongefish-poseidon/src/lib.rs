@@ -101,11 +101,9 @@ where
     const N: usize = N;
     const R: usize = R;
 
-    fn new(iv: [u8; 32]) -> Self {
+    fn new() -> Self {
         assert!(N >= 1);
-        let mut sponge = Self::default();
-        sponge.state[R] = F::from_be_bytes_mod_order(&iv);
-        sponge
+        Self::default()
     }
 
     fn permute(&mut self) {

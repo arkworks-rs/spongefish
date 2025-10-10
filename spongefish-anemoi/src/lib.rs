@@ -2,7 +2,7 @@
 //!
 //! The main reason for this code not being deployed is that [anemoi](https://anemoi-hash.github.io/)'s Rust implementation
 //! is not published as a crate and thus `spongefish` cannot publish it along with a new release.
-use ark_ff::{Field, PrimeField};
+use ark_ff::Field;
 use spongefish::duplex_sponge::Permutation;
 use zeroize::Zeroize;
 
@@ -43,10 +43,8 @@ impl Permutation
 
     const R: usize = _AnemoiBls12_381_2_1::RATE;
 
-    fn new(iv: [u8; 32]) -> Self {
-        let mut state = Self::default();
-        state.as_mut()[Self::R] = anemoi::bls12_381::Felt::from_le_bytes_mod_order(&iv);
-        state
+    fn new() -> Self {
+        Self::default()
     }
 
     fn permute(&mut self) {

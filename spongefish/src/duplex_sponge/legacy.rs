@@ -11,9 +11,9 @@
 //! - `ABSORB`` oracle, which starts with block  `000..00` and takes as input DIGEST_SIZE + arbitrary_length bytes
 //! - `SQUEEZE`` oracle, which starts with block `000..01` and takes as input DIGEST_SIZE + sizeof(u64) bytes
 //! - `SQUEEZE_END`` oracle, which starts with block `000..02` and takes as input DIGEST_SIZE + sizeof(u64) bytes
-//! Using the above, `absorb_unchecked` will use the absorb oracle with some previous `cv` state.
-//! `ratchet_unchecked` will store into `cv` the digest of the current digest.
-//! `squeeze_unchecked` will use the squeeze oracle to output `output.len()` bytes,
+//! Using the above, `absorb` will use the absorb oracle with some previous `cv` state.
+//! `ratchet` will store into `cv` the digest of the current digest.
+//! `squeeze` will use the squeeze oracle to output `output.len()` bytes,
 //! and finally `squeeze_end` will set the state `cv` to the current squeeze digest and length.
 //!
 use digest::{
@@ -119,14 +119,11 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for DigestBri
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface<u8>
     for DigestBridge<D>
 {
-    fn new(tag: [u8; 32]) -> Self {
-        // debug_assert!(size_of::<D::OutputSize>() >= 32);
-        let mut bridge = Self::default();
-        bridge.absorb_unchecked(&tag);
-        bridge
+    fn new() -> Self {
+        Self::default()
     }
 
-    fn absorb_unchecked(&mut self, input: &[u8]) -> &mut Self {
+    fn absorb(&mut self, input: &[u8]) -> &mut Self {
         self.squeeze_end();
 
         if self.mode == Mode::Start {
@@ -139,7 +136,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn ratchet_unchecked(&mut self) -> &mut Self {
+    fn ratchet(&mut self) -> &mut Self {
         self.squeeze_end();
         // Double hash
         self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
@@ -150,17 +147,17 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn squeeze_unchecked(&mut self, output: &mut [u8]) -> &mut Self {
+    fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
         if self.mode == Mode::Start {
             self.mode = Mode::Squeeze(0);
             // create the prefix hash
             Digest::update(&mut self.hasher, Self::mask_squeeze());
             Digest::update(&mut self.hasher, &self.cv);
-            self.squeeze_unchecked(output)
+            self.squeeze(output)
         // If Absorbing, ratchet
         } else if self.mode == Mode::Absorb {
-            self.ratchet_unchecked();
-            self.squeeze_unchecked(output)
+            self.ratchet();
+            self.squeeze(output)
         // If we have no more data to squeeze, return
         } else if output.is_empty() {
             self
@@ -170,7 +167,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             let len = usize::min(output.len(), self.leftovers.len());
             output[..len].copy_from_slice(&self.leftovers[..len]);
             self.leftovers.drain(..len);
-            self.squeeze_unchecked(&mut output[len..])
+            self.squeeze(&mut output[len..])
         // Squeeze another digest
         } else if let Mode::Squeeze(i) = self.mode {
             // Add the squeeze mask, current digest, and index
@@ -183,7 +180,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.leftovers.extend_from_slice(&digest[chunk_len..]);
             // Update the state
             self.mode = Mode::Squeeze(i + 1);
-            self.squeeze_unchecked(&mut output[chunk_len..])
+            self.squeeze(&mut output[chunk_len..])
         } else {
             unreachable!()
         }
@@ -199,14 +196,14 @@ fn test_shosha() {
     \x3A\xB0\x93\x4A\x05\xE6\xAF\x64";
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 64];
-    sho.absorb_unchecked(b"asd");
-    sho.ratchet_unchecked();
+    sho.absorb(b"asd");
+    sho.ratchet();
     // streaming absorb
-    sho.absorb_unchecked(b"asd");
-    sho.absorb_unchecked(b"asd");
+    sho.absorb(b"asd");
+    sho.absorb(b"asd");
     // streaming squeeze
-    sho.squeeze_unchecked(&mut got[..32]);
-    sho.squeeze_unchecked(&mut got[32..]);
+    sho.squeeze(&mut got[..32]);
+    sho.squeeze(&mut got[32..]);
     assert_eq!(&got, expected);
 
     let expected = b"\xEB\xE4\xEF\x29\xE1\x8A\xA5\x41\x37\xED\xD8\x9C\x23\xF8\
@@ -216,10 +213,10 @@ fn test_shosha() {
     \x3A\xB0\x93\x4A\x05\xE6\xAF\x64\x48";
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 65];
-    sho.absorb_unchecked(b"asd");
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(b"asdasd");
-    sho.squeeze_unchecked(&mut got);
+    sho.absorb(b"asd");
+    sho.ratchet();
+    sho.absorb(b"asdasd");
+    sho.squeeze(&mut got);
     assert_eq!(&got, expected);
 
     let expected = b"\x0D\xDE\xEA\x97\x3F\x32\x10\xF7\x72\x5A\x3C\xDB\x24\x73\
@@ -230,38 +227,38 @@ fn test_shosha() {
 
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 150];
-    sho.absorb_unchecked(b"");
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(b"abc");
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 63]);
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 64]);
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 65]);
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 127]);
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 128]);
-    sho.ratchet_unchecked();
-    sho.absorb_unchecked(&[0u8; 129]);
-    sho.ratchet_unchecked();
-    sho.squeeze_unchecked(&mut got[..63]);
+    sho.absorb(b"");
+    sho.ratchet();
+    sho.absorb(b"abc");
+    sho.ratchet();
+    sho.absorb(&[0u8; 63]);
+    sho.ratchet();
+    sho.absorb(&[0u8; 64]);
+    sho.ratchet();
+    sho.absorb(&[0u8; 65]);
+    sho.ratchet();
+    sho.absorb(&[0u8; 127]);
+    sho.ratchet();
+    sho.absorb(&[0u8; 128]);
+    sho.ratchet();
+    sho.absorb(&[0u8; 129]);
+    sho.ratchet();
+    sho.squeeze(&mut got[..63]);
     // assert_eq!(&got[..63], &hex::decode("5bddc29ac27fd88bf682b07dd5c496b065f6ce11fd7aa77d1e13c609d77b9b2fed21b470f71a7f1fdfbfa895060c51302e782f440305d12ec85a492635dd3a").unwrap()[..]);
     sho.squeeze_end();
-    sho.squeeze_unchecked(&mut got[..64]);
+    sho.squeeze(&mut got[..64]);
     // assert_eq!(&got[..64], &hex::decode("0ad17fc123d823548447b16ebebc8c21243dc4c59dd95525b7321c3b92a58e30156ec8c8e70987ed1483d2be84e89d2be5813fb1b8ab82119608120a2694a425").unwrap()[..]);
     sho.squeeze_end();
-    sho.squeeze_unchecked(&mut got[..65]);
+    sho.squeeze(&mut got[..65]);
     sho.squeeze_end();
-    sho.squeeze_unchecked(&mut got[..127]);
+    sho.squeeze(&mut got[..127]);
     sho.squeeze_end();
-    sho.squeeze_unchecked(&mut got[..128]);
+    sho.squeeze(&mut got[..128]);
     sho.squeeze_end();
-    sho.squeeze_unchecked(&mut got[..129]);
+    sho.squeeze(&mut got[..129]);
     assert_eq!(got[0], 0xd0);
-    sho.absorb_unchecked(b"def");
-    sho.ratchet_unchecked();
-    sho.squeeze_unchecked(&mut got[..63]);
+    sho.absorb(b"def");
+    sho.ratchet();
+    sho.squeeze(&mut got[..63]);
     assert_eq!(&got[..63], expected);
 }

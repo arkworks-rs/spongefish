@@ -93,7 +93,7 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
     /// Signals the end of the statement and returns the (compressed) sponge state.
     #[inline]
     pub fn preprocess(self) -> Result<&'static [U], DomainSeparatorMismatch> {
-        self.hash_state.preprocess()
+        HashStateWithInstructions::<H, U>::preprocess(self.hash_state)
     }
 }
 
@@ -159,16 +159,16 @@ mod tests {
     }
 
     impl DuplexSpongeInterface<u8> for DummySponge {
-        fn new(_iv: [u8; 32]) -> Self {
+        fn new() -> Self {
             Self::new_inner()
         }
 
-        fn absorb_unchecked(&mut self, input: &[u8]) -> &mut Self {
+        fn absorb(&mut self, input: &[u8]) -> &mut Self {
             self.absorbed.borrow_mut().extend_from_slice(input);
             self
         }
 
-        fn squeeze_unchecked(&mut self, output: &mut [u8]) -> &mut Self {
+        fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
             for (i, byte) in output.iter_mut().enumerate() {
                 *byte = i as u8;
             }
@@ -176,7 +176,7 @@ mod tests {
             self
         }
 
-        fn ratchet_unchecked(&mut self) -> &mut Self {
+        fn ratchet(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }
