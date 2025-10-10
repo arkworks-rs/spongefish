@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-    "spongefish",
+    "core",
     "spongefish-pow",
     "spongefish-anemoi",
     "spongefish-poseidon",
@@ -55,7 +55,7 @@ digest = "0.10.7"
 group = "0.13.0"
 hex = "0.4.3"
 keccak = "0.1.5"
-spongefish = { path = "spongefish" }
+spongefish = { path = "core" }
 pallas = "0.32"
 pasta_curves = "0.5.1"
 rand = "0.8.5"

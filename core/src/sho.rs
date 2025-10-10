@@ -8,7 +8,6 @@ use super::{
     keccak::Keccak,
 };
 
-
 /// A stateful hash object that interfaces with duplex interfaces.
 #[derive(Clone)]
 pub struct HashStateWithInstructions<DS, U = u8>
@@ -38,7 +37,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Ratchet) => {
-                self.ds.ratchet();
+                self.ds.pad_block();
                 Ok(())
             }
             Some(op) => Err(format!("Expected Ratchet, got {op:?}").into()),
@@ -237,7 +236,7 @@ mod tests {
             self
         }
 
-        fn ratchet(&mut self) -> &mut Self {
+        fn pad_block(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }

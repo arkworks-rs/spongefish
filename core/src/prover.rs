@@ -72,7 +72,7 @@ impl<R: RngCore + CryptoRng> RngCore for ProverPrivateRng<R> {
         // fill `dest` with the output of the sponge
         self.ds.squeeze(dest);
         // erase the state from the sponge so that it can't be reverted
-        self.ds.ratchet();
+        self.ds.pad_block();
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
@@ -143,13 +143,7 @@ where
     /// assert!(result.is_err())
     /// ```
     pub fn add_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
-        let old_len = self.narg_string.len();
-        self.hash_state.absorb(input)?;
-        // write never fails on Vec<u8>
-        U::write(input, &mut self.narg_string).unwrap();
-        self.rng.ds.absorb(&self.narg_string[old_len..]);
-
-        Ok(())
+        self.hash_state.absorb(input)
     }
 
     /// Ratchet the verifier's state.

@@ -6,7 +6,7 @@ use rand::{CryptoRng, RngCore};
 use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnitSerialize, GroupToUnitSerialize};
 use crate::{
     BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DomainSeparatorMismatch,
-    DuplexSpongeInterface, ProofResult, ProverState, Unit, UnitTranscript, VerifierState,
+    DuplexSpongeInterface, ProofResult, ProverState, UnitTranscript, VerifierState,
 };
 
 impl<F: Field, H: DuplexSpongeInterface, R: RngCore + CryptoRng> FieldToUnitSerialize<F>
@@ -85,7 +85,9 @@ where
     C: FpConfig<N>,
 {
     fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
-        u8::read(&mut self.narg_string, input)?;
+        let (head, tail) = self.narg_string.split_at(input.len());
+        self.narg_string = tail;
+        input.copy_from_slice(head);
         self.public_bytes(input)
     }
 }

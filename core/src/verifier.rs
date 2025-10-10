@@ -47,14 +47,6 @@ impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
         }
     }
 
-    /// Read `input.len()` elements from the NARG string.
-    #[inline]
-    pub fn fill_next_units(&mut self, input: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
-        U::read(&mut self.narg_string, input)?;
-        self.hash_state.absorb(input)?;
-        Ok(())
-    }
-
     /// Read a hint from the NARG string. Returns the number of units read.
     pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
         self.hash_state.hint()?;
@@ -119,14 +111,6 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> core::fmt::Debug for VerifierState<'_
     }
 }
 
-impl<H: DuplexSpongeInterface<u8>> BytesToUnitDeserialize for VerifierState<'_, H, u8> {
-    /// Read the next `input.len()` bytes from the NARG string and return them.
-    #[inline]
-    fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
-        self.fill_next_units(input)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc};
@@ -176,7 +160,7 @@ mod tests {
             self
         }
 
-        fn ratchet(&mut self) -> &mut Self {
+        fn pad_block(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }

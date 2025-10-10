@@ -12,22 +12,16 @@ mod interface;
 /// Legacy hash functions support (e.g. [`sha2`](https://crates.io/crates/sha2), [`blake2`](https://crates.io/crates/blake2)).
 pub mod legacy;
 
+#[cfg(feature = "std")]
+use std::io::Read;
+
 pub use interface::DuplexSpongeInterface;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// Basic units over which a sponge operates.
-///
-/// We require the units to have a precise size in memory, to be cloneable,
-/// and that we can zeroize them.
-pub trait Unit: Clone + Sized {
-    /// The zero element.
-    const ZERO: Self;
+use crate::ProofError;
 
-    /// Write a bunch of units in the wire.
-    fn write(bunch: &[Self], w: &mut impl std::io::Write) -> Result<(), std::io::Error>;
-    /// Read a bunch of units from the wire
-    fn read(r: &mut impl std::io::Read, bunch: &mut [Self]) -> Result<(), std::io::Error>;
-}
+mod unit;
+pub use unit::Unit;
 
 /// The basic state of a cryptographic sponge.
 ///
@@ -62,7 +56,6 @@ pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
     fn permute(&mut self);
 }
 
-
 /// A cryptographic sponge.
 #[derive(Clone, PartialEq, Eq)]
 pub struct DuplexSponge<P: Permutation> {
@@ -76,7 +69,6 @@ impl<P: Permutation> Default for DuplexSponge<P> {
         Self::new()
     }
 }
-
 
 impl<U: Unit, P: Permutation<U = U>> Zeroize for DuplexSponge<P> {
     fn zeroize(&mut self) {
@@ -142,7 +134,7 @@ impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P
         self.squeeze(rest)
     }
 
-    fn ratchet(&mut self) -> &mut Self {
+    fn pad_block(&mut self) -> &mut Self {
         self.permutation.permute();
         // set to zero the state up to rate
         // XXX. is the compiler really going to do this?
@@ -156,7 +148,6 @@ impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P
 mod tests {
     use super::*;
     use crate::keccak::Keccak;
-
 
     #[test]
     fn test_squeeze_zero_after_behavior() {
@@ -204,9 +195,7 @@ mod tests {
         sponge2.absorb(b"input2");
         sponge2.squeeze(&mut output2);
 
-        assert_ne!(
-            output1,
-            output2)
+        assert_ne!(output1, output2)
     }
 
     #[test]

@@ -136,7 +136,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn ratchet(&mut self) -> &mut Self {
+    fn pad_block(&mut self) -> &mut Self {
         self.squeeze_end();
         // Double hash
         self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
@@ -156,7 +156,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.squeeze(output)
         // If Absorbing, ratchet
         } else if self.mode == Mode::Absorb {
-            self.ratchet();
+            self.pad_block();
             self.squeeze(output)
         // If we have no more data to squeeze, return
         } else if output.is_empty() {
@@ -197,7 +197,7 @@ fn test_shosha() {
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 64];
     sho.absorb(b"asd");
-    sho.ratchet();
+    sho.pad_block();
     // streaming absorb
     sho.absorb(b"asd");
     sho.absorb(b"asd");
@@ -214,7 +214,7 @@ fn test_shosha() {
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 65];
     sho.absorb(b"asd");
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(b"asdasd");
     sho.squeeze(&mut got);
     assert_eq!(&got, expected);
@@ -228,21 +228,21 @@ fn test_shosha() {
     let mut sho = DigestBridge::<sha2::Sha256>::default();
     let mut got = [0u8; 150];
     sho.absorb(b"");
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(b"abc");
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 63]);
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 64]);
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 65]);
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 127]);
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 128]);
-    sho.ratchet();
+    sho.pad_block();
     sho.absorb(&[0u8; 129]);
-    sho.ratchet();
+    sho.pad_block();
     sho.squeeze(&mut got[..63]);
     // assert_eq!(&got[..63], &hex::decode("5bddc29ac27fd88bf682b07dd5c496b065f6ce11fd7aa77d1e13c609d77b9b2fed21b470f71a7f1fdfbfa895060c51302e782f440305d12ec85a492635dd3a").unwrap()[..]);
     sho.squeeze_end();
@@ -258,7 +258,7 @@ fn test_shosha() {
     sho.squeeze(&mut got[..129]);
     assert_eq!(got[0], 0xd0);
     sho.absorb(b"def");
-    sho.ratchet();
+    sho.pad_block();
     sho.squeeze(&mut got[..63]);
     assert_eq!(&got[..63], expected);
 }

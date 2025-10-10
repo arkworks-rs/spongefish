@@ -21,26 +21,9 @@ where
     /// Squeezes out new elements.
     fn squeeze(&mut self, output: &mut [U]) -> &mut Self;
 
-    /// Ratcheting.
+    /// Pad the current block.
     ///
-    /// This operations makes sure that different elements are processed in different blocks.
-    /// Right now, this is done by:
-    /// - permuting the state.
-    /// - zero rate elements.
-    /// This has the effect that state holds no information about the elements absorbed so far.
-    /// The resulting state is compressed.
-    fn ratchet(&mut self) -> &mut Self;
-
-}
-
-impl Unit for u8 {
-    const ZERO: Self = 0;
-
-    fn write(bunch: &[Self], w: &mut impl std::io::Write) -> Result<(), std::io::Error> {
-        w.write_all(bunch)
-    }
-
-    fn read(r: &mut impl std::io::Read, bunch: &mut [Self]) -> Result<(), std::io::Error> {
-        r.read_exact(bunch)
-    }
+    /// If the underlying hash is processing absorbs in blocks, this function will fill it
+    /// so that future absorbs can rely on the full "rate" of the underlying hash.
+    fn pad_block(&mut self) -> &mut Self;
 }

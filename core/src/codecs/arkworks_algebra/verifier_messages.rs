@@ -15,22 +15,6 @@ use crate::{
 
 impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
-
-    fn write(bunch: &[Self], mut w: &mut impl io::Write) -> Result<(), io::Error> {
-        for b in bunch {
-            b.serialize_compressed(&mut w)
-                .map_err(|_| io::Error::other("oh no!"))?;
-        }
-        Ok(())
-    }
-
-    fn read(mut r: &mut impl io::Read, bunch: &mut [Self]) -> Result<(), io::Error> {
-        for b in bunch.iter_mut() {
-            let b_result = Self::deserialize_compressed(&mut r);
-            *b = b_result.map_err(|_| io::Error::other("Unable to deserialize into Field."))?;
-        }
-        Ok(())
-    }
 }
 
 impl From<SerializationError> for ProofError {
@@ -314,25 +298,6 @@ mod tests {
     pub type BabyBear = Fp64<MontBackend<BabybearConfig, 1>>;
 
     #[test]
-    fn test_unit_write_read_babybear_roundtrip() {
-        use crate::Unit;
-
-        let mut rng = ark_std::test_rng();
-        let values = [BabyBear::rand(&mut rng), BabyBear::rand(&mut rng)];
-        let mut buf = Vec::new();
-
-        // Write BabyBear field elements to the buffer using `Unit::write`
-        <BabyBear as Unit>::write(&values, &mut buf).expect("write failed");
-
-        // Read them back using `Unit::read`
-        let mut decoded = [<BabyBear as Unit>::ZERO; 2];
-        <BabyBear as Unit>::read(&mut buf.as_slice(), &mut decoded).expect("read failed");
-
-        // Round-trip check
-        assert_eq!(values, decoded, "Unit read/write roundtrip failed");
-    }
-
-    #[test]
     fn test_common_field_to_unit_bytes() {
         let mut rng = ark_std::test_rng();
         let values = [BabyBear::rand(&mut rng), BabyBear::rand(&mut rng)];
@@ -413,23 +378,5 @@ mod tests {
 
         // We expect at least some entropy in the output
         assert_ne!(out[0], BabyBear::zero(), "Challenge should not be zero");
-    }
-
-    #[test]
-    fn test_unit_read_invalid_bytes() {
-        use ark_ff::Zero;
-
-        use crate::Unit;
-
-        // Provide malformed input that cannot be deserialized into a BabyBear field element
-        let mut buf = &[0xff, 0xff][..];
-        let mut output = [BabyBear::zero(); 1];
-
-        let result = <BabyBear as Unit>::read(&mut buf, &mut output);
-
-        assert!(
-            result.is_err(),
-            "Reading invalid compressed field bytes should fail"
-        );
     }
 }
