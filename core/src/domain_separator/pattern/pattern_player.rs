@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use alloc::sync::Arc;
 
-use super::{Interaction, InteractionPattern, Kind, Label, Length};
-use crate::pattern::Hierarchy;
+use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length};
 
 /// Play back an interaction pattern and make sure all interactions match up.
 ///

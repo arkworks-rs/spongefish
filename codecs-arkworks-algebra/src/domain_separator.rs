@@ -96,7 +96,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::DefaultHash;
+    use spongefish::DefaultHash;
 
     /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).
     #[derive(MontConfig)]

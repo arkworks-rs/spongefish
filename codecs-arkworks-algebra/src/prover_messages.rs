@@ -101,9 +101,9 @@ mod tests {
     use ark_serialize::CanonicalSerialize;
 
     use crate::{
-        codecs::arkworks_algebra::{
-            FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitSerialize,
-        },
+        FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitSerialize,
+    };
+    use spongefish::{
         ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
         DomainSeparator,
     };

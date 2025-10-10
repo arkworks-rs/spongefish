@@ -1,4 +1,5 @@
-use std::marker::PhantomData;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 
 use super::{Hierarchy, Interaction, InteractionPattern, Kind, Label, Length};
 use crate::Unit;

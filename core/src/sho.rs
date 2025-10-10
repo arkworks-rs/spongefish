@@ -1,5 +1,5 @@
 use core::{fmt, marker::PhantomData};
-use std::collections::vec_deque::VecDeque;
+use alloc::{collections::vec_deque::VecDeque, format};
 
 use super::{
     domain_separator::{DomainSeparator, Op},
@@ -158,6 +158,8 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> Drop for HashStateWithInstructions<H,
         // because any other issue in the protocol transcript causing `Safe` to get out of scope
         // (like another panic) will pollute the traceback.
         // debug_assert!(self.stack.is_empty());
+        // In no_std we can't use eprintln
+        #[cfg(feature = "std")]
         if !self.stack.is_empty() {
             eprintln!("Unfinished operations:\n {:?}", self.stack);
         }
@@ -175,14 +177,6 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> fmt::Debug for HashStateWithInstructi
             "Sponge in duplex mode with committed verifier operations: {:?}",
             self.stack
         )
-    }
-}
-
-impl<U: Unit, H: DuplexSpongeInterface<U>, B: core::borrow::Borrow<DomainSeparator<H, U>>> From<B>
-    for HashStateWithInstructions<H, U>
-{
-    fn from(value: B) -> Self {
-        Self::new(value.borrow())
     }
 }
 

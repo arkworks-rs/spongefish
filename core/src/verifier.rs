@@ -1,3 +1,5 @@
+use alloc::format;
+
 use crate::{
     domain_separator::DomainSeparator,
     duplex_sponge::{DuplexSpongeInterface, Unit},

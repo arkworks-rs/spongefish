@@ -50,7 +50,7 @@ where
     C: FpConfig<N>,
     H: DuplexSpongeInterface<Fp<C, N>>,
 {
-    fn fill_next_scalars(&mut self, output: &mut [Fp<C, N>]) -> crate::ProofResult<()> {
+    fn fill_next_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
         self.fill_next_units(output)?;
         Ok(())
     }
@@ -98,10 +98,8 @@ mod tests {
     use ark_serialize::CanonicalSerialize;
 
     use super::*;
-    use crate::{
-        codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
-        DefaultHash, DomainSeparator,
-    };
+    use crate::{FieldDomainSeparator, GroupDomainSeparator};
+    use spongefish::{DefaultHash, DomainSeparator};
 
     /// Custom field for testing: BabyBear
     #[derive(MontConfig)]

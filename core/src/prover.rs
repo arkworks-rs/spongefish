@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use rand::{CryptoRng, RngCore};
 
 use super::{
@@ -32,7 +33,7 @@ where
     /// The randomness state of the prover.
     pub(crate) rng: ProverPrivateRng<R>,
     /// The public coins for the protocol
-    pub(crate) hash_state: HashStateWithInstructions<H, U>,
+    pub(crate) hash_state: H,
     /// The encoded data.
     pub(crate) narg_string: Vec<u8>,
 }
@@ -81,47 +82,31 @@ impl<R: RngCore + CryptoRng> RngCore for ProverPrivateRng<R> {
     }
 }
 
-impl<H, U, R> ProverState<H, U, R>
-where
-    U: Unit,
-    H: DuplexSpongeInterface<U>,
-    R: RngCore + CryptoRng,
-{
-    pub fn new(domain_separator: &DomainSeparator<H, U>, csrng: R) -> Self {
-        let hash_state = HashStateWithInstructions::new(domain_separator);
+// This implementation seems incomplete - commenting out for now
+// impl<H, U, R> ProverState<H, U, R>
+// where
+//     U: Unit,
+//     H: DuplexSpongeInterface<U>,
+//     R: RngCore + CryptoRng,
+// {
+//     pub fn new(protocol_id: &[u8; 64], session_id: &[u8], instance: &[u8], csrng: R) -> Self {
+//         let hash_state = H::new();
+//         hash_state.absorb();
 
-        let mut duplex_sponge = Keccak::default();
-        duplex_sponge.absorb(domain_separator.as_bytes());
-        let rng = ProverPrivateRng {
-            ds: duplex_sponge,
-            csrng,
-        };
+//         let mut duplex_sponge = Keccak::default();
+//         duplex_sponge.absorb(domain_separator.as_bytes());
+//         let rng = ProverPrivateRng {
+//             ds: duplex_sponge,
+//             csrng,
+//         };
 
-        Self {
-            rng,
-            hash_state,
-            narg_string: Vec::new(),
-        }
-    }
-
-    pub fn hint_bytes(&mut self, hint: &[u8]) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.hint()?;
-        let len = u32::try_from(hint.len()).expect("Hint size out of bounds");
-        self.narg_string.extend_from_slice(&len.to_le_bytes());
-        self.narg_string.extend_from_slice(hint);
-        Ok(())
-    }
-}
-
-impl<U, H> From<&DomainSeparator<H, U>> for ProverState<H, U, DefaultRng>
-where
-    U: Unit,
-    H: DuplexSpongeInterface<U>,
-{
-    fn from(domain_separator: &DomainSeparator<H, U>) -> Self {
-        Self::new(domain_separator, DefaultRng::default())
-    }
-}
+//         Self {
+//             rng,
+//             hash_state,
+//             narg_string: Vec::new(),
+//         }
+//     }
+// }
 
 impl<H, U, R> ProverState<H, U, R>
 where
@@ -129,27 +114,6 @@ where
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
 {
-    /// Add a slice `[U]` to the protocol transcript.
-    /// The messages are also internally encoded in the protocol transcript,
-    /// and used to re-seed the prover's random number generator.
-    ///
-    /// ```
-    /// use spongefish::{DomainSeparator, DefaultHash, BytesToUnitSerialize};
-    ///
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(20, "how not to make pasta 🤌");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// assert!(prover_state.add_units(&[0u8; 20]).is_ok());
-    /// let result = prover_state.add_units(b"1tbsp every 10 liters");
-    /// assert!(result.is_err())
-    /// ```
-    pub fn add_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.absorb(input)
-    }
-
-    /// Ratchet the verifier's state.
-    pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.ratchet()
-    }
 
     /// Return a reference to the random number generator associated to the protocol transcript.
     ///
@@ -188,6 +152,7 @@ where
     }
 }
 
+
 impl<H, U, R> UnitTranscript<U> for ProverState<H, U, R>
 where
     U: Unit,
@@ -212,11 +177,6 @@ where
         self.narg_string.truncate(len);
         Ok(())
     }
-
-    /// Fill a slice with uniformly-distributed challenges from the verifier.
-    fn fill_challenge_units(&mut self, output: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.squeeze(output)
-    }
 }
 
 impl<R: RngCore + CryptoRng> CryptoRng for ProverPrivateRng<R> {}
@@ -228,7 +188,7 @@ where
     R: RngCore + CryptoRng,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.hash_state.fmt(f)
+        write!(f, "ProverState<{}>", core::any::type_name::<H>())
     }
 }
 

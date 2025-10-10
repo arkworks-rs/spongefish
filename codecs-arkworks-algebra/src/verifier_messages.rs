@@ -1,5 +1,3 @@
-use std::io;
-
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Fp, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
@@ -236,7 +234,7 @@ where
             Ok(())
         } else {
             let len_good = usize::min(
-                crate::codecs::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
+                crate::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
@@ -261,7 +259,7 @@ where
             Ok(())
         } else {
             let len_good = usize::min(
-                crate::codecs::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
+                crate::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
@@ -283,10 +281,8 @@ mod tests {
     use ark_serialize::CanonicalSerialize;
 
     use super::*;
-    use crate::{
-        codecs::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator},
-        DefaultHash, DomainSeparator,
-    };
+    use crate::{FieldDomainSeparator, GroupDomainSeparator};
+    use spongefish::{DefaultHash, DomainSeparator};
 
     /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).
     #[derive(MontConfig)]

@@ -1,3 +1,4 @@
+use alloc::{format, string::ToString, vec::Vec};
 use core::fmt::Display;
 
 use thiserror::Error;
@@ -120,7 +121,7 @@ impl InteractionPattern {
 ///
 /// When called in alternate mode `{:#}` it will be a stable format suitable as domain separator.
 impl Display for InteractionPattern {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Write the total interactions up front so no prefix string can be a valid domain separator.
         let length = self.interactions.len();
         let width = length.saturating_sub(1).to_string().len();

@@ -6,16 +6,8 @@
 //!     squeeze(1); squeeze(1); squeeze(1) = squeeze(3);
 //!     ```
 //! - the implementation is for any Digest.
-//!
-//! Informally, there are three random oracles:
-//! - `ABSORB`` oracle, which starts with block  `000..00` and takes as input DIGEST_SIZE + arbitrary_length bytes
-//! - `SQUEEZE`` oracle, which starts with block `000..01` and takes as input DIGEST_SIZE + sizeof(u64) bytes
-//! - `SQUEEZE_END`` oracle, which starts with block `000..02` and takes as input DIGEST_SIZE + sizeof(u64) bytes
-//! Using the above, `absorb` will use the absorb oracle with some previous `cv` state.
-//! `ratchet` will store into `cv` the digest of the current digest.
-//! `squeeze` will use the squeeze oracle to output `output.len()` bytes,
-//! and finally `squeeze_end` will set the state `cv` to the current squeeze digest and length.
-//!
+
+use alloc::vec::Vec;
 use digest::{
     core_api::BlockSizeUser, crypto_common::generic_array::GenericArray, typenum::Unsigned, Digest,
     FixedOutputReset, Reset,

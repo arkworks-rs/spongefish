@@ -99,7 +99,7 @@ impl Interaction {
 }
 
 impl Display for Interaction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if f.alternate() {
             // Domain separator mode: stable unambiguous format.
             write!(f, "{} {}", self.hierarchy, self.kind)?;
@@ -118,7 +118,7 @@ impl Display for Interaction {
 }
 
 impl Display for Hierarchy {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Atomic => write!(f, "Atomic"),
             Self::Begin => write!(f, "Begin"),
@@ -128,7 +128,7 @@ impl Display for Hierarchy {
 }
 
 impl Display for Kind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Protocol => write!(f, "Protocol"),
             Self::Public => write!(f, "Public"),
@@ -140,7 +140,7 @@ impl Display for Kind {
 }
 
 impl Display for Length {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::None => write!(f, "None"),
             Self::Scalar => write!(f, "Scalar"),

@@ -1,3 +1,5 @@
+#![no_std]
+
 //! This module contains utilities for working with [arkworks](https://arkworks.rs) types
 //! and aid in the Fiat-Shamir transformation for protocols dealing with
 //! field elements and group elements.

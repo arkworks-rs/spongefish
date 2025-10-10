@@ -48,3 +48,9 @@ pub(super) const fn bytes_modp(modulus_bits: u32) -> usize {
 /// Unit-tests for inter-operability among libraries.
 #[cfg(all(test, feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod tests;
+
+
+
+trait Encodable  {
+    fn encode(elements: &[Self]);
+}

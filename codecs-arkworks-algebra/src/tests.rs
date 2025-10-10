@@ -1,8 +1,8 @@
 use ark_ff::Field;
 
-use crate::{
+use spongefish::{
     ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
-    DomainSeparator, DuplexSpongeInterface, ProofResult, Unit, UnitToBytes, UnitTranscript,
+    DomainSeparator, DuplexSpongeInterface, ProofResult, duplex_sponge::Unit, UnitToBytes, UnitTranscript,
 };
 
 /// Test that the algebraic hashes do use the IV generated from the domain separator.
@@ -43,7 +43,7 @@ where
 fn test_arkworks_end_to_end<F: Field, H: DuplexSpongeInterface>() -> ProofResult<()> {
     use rand::Rng;
 
-    use crate::codecs::arkworks_algebra::{
+    use crate::{
         FieldToUnitDeserialize, FieldToUnitSerialize, UnitToField,
     };
 
@@ -86,7 +86,7 @@ fn test_squeeze_bytes_from_modp() {
     use ark_bls12_381::{Fq, Fr};
     use ark_ff::PrimeField;
 
-    use crate::codecs::random_bytes_in_random_modp;
+    use crate::random_bytes_in_random_modp;
     let useful_bytes = random_bytes_in_random_modp(Fr::MODULUS);
     assert_eq!(useful_bytes, 127 / 8);
 

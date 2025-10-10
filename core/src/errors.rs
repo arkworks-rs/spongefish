@@ -17,7 +17,8 @@
 ///   An error to signal that the verification equation has failed. Destined for end users.
 ///
 /// A [`core::Result::Result`] wrapper called [`ProofResult`] (having error fixed to [`ProofError`]) is also provided.
-use std::{borrow::Borrow, error::Error, fmt::Display};
+use core::{borrow::Borrow, fmt::Display};
+use alloc::string::{String, ToString};
 
 /// Signals a domain separator is inconsistent with the description provided.
 #[derive(Debug, Clone)]
@@ -38,13 +39,13 @@ pub enum ProofError {
 pub type ProofResult<T> = Result<T, ProofError>;
 
 impl Display for DomainSeparatorMismatch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{:?}", self.0)
     }
 }
 
 impl Display for ProofError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::SerializationError => write!(f, "Serialization Error"),
             Self::InvalidDomainSeparator(e) => e.fmt(f),
@@ -53,8 +54,11 @@ impl Display for ProofError {
     }
 }
 
-impl Error for DomainSeparatorMismatch {}
-impl Error for ProofError {}
+// Error trait is not available in no_std
+#[cfg(feature = "std")]
+impl std::error::Error for DomainSeparatorMismatch {}
+#[cfg(feature = "std")]
+impl std::error::Error for ProofError {}
 
 impl From<&str> for DomainSeparatorMismatch {
     fn from(s: &str) -> Self {
@@ -74,6 +78,7 @@ impl<B: Borrow<DomainSeparatorMismatch>> From<B> for ProofError {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for DomainSeparatorMismatch {
     fn from(value: std::io::Error) -> Self {
         Self(value.to_string())

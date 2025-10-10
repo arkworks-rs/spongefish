@@ -2,7 +2,7 @@
 //! Despite internally we use the same permutation function,
 //! we build a duplex sponge in overwrite mode
 //! on the top of it using the `DuplexSponge` trait.
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use zerocopy::IntoBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -51,7 +51,7 @@ impl AsMut<[u8]> for KeccakF1600 {
 
 /// Censored version of Debug
 impl Debug for KeccakF1600 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("AlignedKeccakF1600")
             .field(&"<redacted>")
             .finish()
