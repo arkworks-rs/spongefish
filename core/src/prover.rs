@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use core::marker::PhantomData;
 
 use rand::{CryptoRng, RngCore};
 
@@ -7,7 +6,6 @@ use super::{duplex_sponge::DuplexSpongeInterface, keccak::Keccak, DefaultHash, D
 use crate::{
     codecs::{Decodable, Encodable},
     io::Serialize,
-    Unit,
 };
 
 /// [`ProverState`] is the prover state the non-interactive transformation.
@@ -21,11 +19,10 @@ use crate::{
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
 /// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
-pub struct ProverState<U, H = DefaultHash, R = DefaultRng>
+pub struct ProverState<H = DefaultHash, R = DefaultRng>
 where
-    H: DuplexSpongeInterface<U>,
+    H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
-    U: Unit,
 {
     /// The randomness state of the prover.
     pub(crate) rng: ProverPrivateRng<R>,
@@ -33,10 +30,9 @@ where
     pub(crate) hash_state: H,
     /// The encoded data.
     pub(crate) narg_string: Vec<u8>,
-    _phantom: PhantomData<U>,
 }
 
-/// A cryptographically-secure random number generator that is bound to the protocol transcript.
+/// A cryptographically-secure random number generator that is bound to the proof string.
 ///
 /// For most public-coin protocols it is *vital* not to have two different verifier messages for the same prover message.
 /// For this reason, we construct a Rng that will absorb whatever the verifier absorbs, and that in addition
@@ -80,14 +76,12 @@ impl<R: RngCore + CryptoRng> RngCore for ProverPrivateRng<R> {
     }
 }
 
-
-impl<U, H, R> ProverState<U, H, R>
+impl<H, R> ProverState<H, R>
 where
-    H: DuplexSpongeInterface<U>,
+    H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
-    U: Unit,
 {
-    /// Return a reference to the random number generator associated to the protocol transcript.
+    /// Return a reference to the random number generator associated to the proof string.
     ///
     /// ```
     /// # use spongefish::*;
@@ -105,11 +99,8 @@ where
         &mut self.rng
     }
 
-    /// Return the current protocol transcript.
-    /// The protocol transcript does not have any information about the length or the type of the messages being read.
-    /// This is because the information is considered pre-shared within the [`DomainSeparator`].
-    /// Additionally, since the verifier challenges are deterministically generated from the prover's messages,
-    /// the transcript does not hold any of the verifier's messages.
+    /// Return the current proof string.
+    /// The proof string contains all the serialized prover messages.
     ///
     /// ```
     /// # use spongefish::*;
@@ -123,11 +114,11 @@ where
         self.narg_string.as_slice()
     }
 
-    pub fn public_message<T: Encodable<[U]>>(&mut self, message: &T) {
+    pub fn public_message<T: Encodable<[H::U]>>(&mut self, message: &T) {
         self.hash_state.absorb(message.encode().as_ref());
     }
 
-    pub fn prover_message<T: Encodable<[U]> + Serialize>(&mut self, message: &T) {
+    pub fn prover_message<T: Encodable<[H::U]> + Serialize>(&mut self, message: &T) {
         self.hash_state.absorb(message.encode().as_ref());
         message.serialize_into(&mut self.narg_string);
     }
@@ -135,7 +126,7 @@ where
     pub fn verifier_message<T>(&mut self) -> T
     where
         T: Decodable,
-        T::Repr: AsMut<[U]>,
+        T::Repr: AsMut<[H::U]>,
     {
         let mut buf = T::Repr::default();
         self.hash_state.squeeze(buf.as_mut());
@@ -145,10 +136,9 @@ where
 
 impl<R: RngCore + CryptoRng> CryptoRng for ProverPrivateRng<R> {}
 
-impl<U, H, R> core::fmt::Debug for ProverState<U, H, R>
+impl<H, R> core::fmt::Debug for ProverState<H, R>
 where
-    H: DuplexSpongeInterface<U>,
-    U: Unit,
+    H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

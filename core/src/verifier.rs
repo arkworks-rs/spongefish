@@ -1,9 +1,6 @@
-use core::marker::PhantomData;
-
-
 use crate::{
     codecs::{Decodable, Encodable},
-    duplex_sponge::{DuplexSpongeInterface, Unit},
+    duplex_sponge::DuplexSpongeInterface,
     io::Deserialize,
     DefaultHash, ProofResult,
 };
@@ -13,18 +10,15 @@ use crate::{
 /// Internally, it simply contains a stateful hash.
 /// Given as input an [`DomainSeparator`] and a NARG string, it allows to
 /// de-serialize elements from the NARG string and make them available to the zero-knowledge verifier.
-pub struct VerifierState<'a, H = DefaultHash, U = u8>
+pub struct VerifierState<'a, H = DefaultHash>
 where
-    H: DuplexSpongeInterface<U>,
-    U: Unit,
+    H: DuplexSpongeInterface,
 {
     pub(crate) hash_state: H,
     pub(crate) narg_string: &'a [u8],
-    _phantom: PhantomData<U>
 }
 
-impl<U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'_, H, U> {
-
+impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     // /// Read a hint from the NARG string. Returns the number of units read.
     // pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
     //     self.hash_state.hint()?;
@@ -54,20 +48,20 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'_, H, U> {
     //     Ok(hint)
     // }
 
-    pub fn prover_messages<T: Encodable<[U]> + Deserialize>(&mut self) -> ProofResult<T> {
+    pub fn prover_messages<T: Encodable<[H::U]> + Deserialize>(&mut self) -> ProofResult<T> {
         let message = T::deserialize_from(self.narg_string)?;
         self.hash_state.absorb(message.encode().as_ref());
         Ok(message)
     }
 
-    pub fn public_message<T: Encodable<[U]>>(&mut self, message: &T) {
+    pub fn public_message<T: Encodable<[H::U]>>(&mut self, message: &T) {
         self.hash_state.absorb(message.encode().as_ref());
     }
 
     pub fn verifier_message<T>(&mut self) -> T
     where
         T: Decodable,
-        T::Repr: AsMut<[U]>,
+        T::Repr: AsMut<[H::U]>,
     {
         let mut buf = T::Repr::default();
         self.hash_state.squeeze(buf.as_mut());
@@ -75,7 +69,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'_, H, U> {
     }
 }
 
-impl<H: DuplexSpongeInterface<U> + core::fmt::Debug, U: Unit> core::fmt::Debug for VerifierState<'_, H, U> {
+impl<H: DuplexSpongeInterface + core::fmt::Debug> core::fmt::Debug for VerifierState<'_, H> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("VerifierState")
             .field(&self.hash_state)

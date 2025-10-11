@@ -38,7 +38,7 @@ const SEP_BYTE: &str = "\0";
 pub struct DomainSeparator<H = crate::DefaultHash, U = u8>
 where
     U: Unit,
-    H: DuplexSpongeInterface<U>,
+    H: DuplexSpongeInterface,
 {
     /// Encoded domain separator string representing the sequence of sponge operations.
     io: String,
@@ -84,7 +84,7 @@ impl Op {
     }
 }
 
-impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
+impl<H: DuplexSpongeInterface> DomainSeparator<H> {
     #[must_use]
     pub const fn from_string(io: String) -> Self {
         Self {
@@ -213,7 +213,7 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
     }
 }
 
-impl<U: Unit, H: DuplexSpongeInterface<U>> core::fmt::Debug for DomainSeparator<H, U> {
+impl<H: DuplexSpongeInterface> core::fmt::Debug for DomainSeparator<H> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // Ensure that the state isn't accidentally logged
         write!(f, "DomainSeparator({:?})", self.io)

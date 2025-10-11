@@ -109,9 +109,10 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for DigestBri
     }
 }
 
-impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface<u8>
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
     for DigestBridge<D>
 {
+    type U = u8;
     fn new() -> Self {
         Self::default()
     }

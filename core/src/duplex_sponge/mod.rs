@@ -68,17 +68,18 @@ impl<P: Permutation> Default for DuplexSponge<P> {
     }
 }
 
-impl<U: Unit, P: Permutation<U = U>> Zeroize for DuplexSponge<P> {
+impl<P: Permutation> Zeroize for DuplexSponge<P> {
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
-        self.permutation.as_mut().fill(U::ZERO);
+        self.permutation.as_mut().fill(P::U::ZERO);
         self.squeeze_pos.zeroize();
     }
 }
 
-impl<U: Unit, P: Permutation<U = U>> ZeroizeOnDrop for DuplexSponge<P> {}
+impl<P: Permutation> ZeroizeOnDrop for DuplexSponge<P> {}
 
-impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P> {
+impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
+    type U = P::U;
     fn new() -> Self {
         assert!(P::R > 0, "The rate segment must be non-trivial");
         assert!(P::N > P::R, "The capacity segment must be non-trivial");
@@ -90,7 +91,7 @@ impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P
         }
     }
 
-    fn absorb(&mut self, mut input: &[U]) -> &mut Self {
+    fn absorb(&mut self, mut input: &[Self::U]) -> &mut Self {
         self.squeeze_pos = P::R;
 
         while !input.is_empty() {
@@ -111,7 +112,7 @@ impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P
         self
     }
 
-    fn squeeze(&mut self, output: &mut [U]) -> &mut Self {
+    fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self {
         if output.is_empty() {
             return self;
         }
@@ -136,7 +137,7 @@ impl<U: Unit, P: Permutation<U = U>> DuplexSpongeInterface<U> for DuplexSponge<P
         self.permutation.permute();
         // set to zero the state up to rate
         // XXX. is the compiler really going to do this?
-        self.permutation.as_mut()[..P::R].fill(U::ZERO);
+        self.permutation.as_mut()[..P::R].fill(Self::U::ZERO);
         self.squeeze_pos = P::R;
         self
     }

@@ -8,18 +8,17 @@ use super::Unit;
 ///
 /// **HAZARD**: Don't implement this trait unless you know what you are doing.
 /// Consider using the sponges already provided by this library.
-pub trait DuplexSpongeInterface<U = u8>: Default + Clone + zeroize::Zeroize
-where
-    U: Unit,
-{
+pub trait DuplexSpongeInterface: Default + Clone + zeroize::Zeroize {
+    type U: Unit;
+
     /// Initializes a new sponge, setting up the state.
     fn new() -> Self;
 
     /// Absorbs new elements in the sponge.
-    fn absorb(&mut self, input: &[U]) -> &mut Self;
+    fn absorb(&mut self, input: &[Self::U]) -> &mut Self;
 
     /// Squeezes out new elements.
-    fn squeeze(&mut self, output: &mut [U]) -> &mut Self;
+    fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
 
     /// Pad the current block.
     ///

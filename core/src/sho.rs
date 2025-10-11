@@ -1,33 +1,30 @@
 use alloc::{collections::vec_deque::VecDeque, format};
-use core::{fmt, marker::PhantomData};
+use core::fmt;
 
 use super::{
     domain_separator::{DomainSeparator, Op},
-    duplex_sponge::{DuplexSpongeInterface, Unit},
+    duplex_sponge::DuplexSpongeInterface,
     errors::DomainSeparatorMismatch,
     keccak::Keccak,
 };
 
 /// A stateful hash object that interfaces with duplex interfaces.
 #[derive(Clone)]
-pub struct HashStateWithInstructions<DS, U = u8>
+pub struct HashStateWithInstructions<DS>
 where
-    U: Unit,
-    DS: DuplexSpongeInterface<U>,
+    DS: DuplexSpongeInterface,
 {
     /// The internal duplex sponge used for absorbing and squeezing data.
     ds: DS,
     /// A stack of expected sponge operations.
     stack: VecDeque<Op>,
-    /// Marker to associate the unit type `U` without storing a value.
-    _unit: PhantomData<U>,
 }
 
-impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
+impl<H: DuplexSpongeInterface> HashStateWithInstructions<H> {
     /// Initialise a stateful hash object,
     /// setting up the state of the sponge function and parsing the tag string.
     #[must_use]
-    pub fn new(domain_separator: &DomainSeparator<H, U>) -> Self {
+    pub fn new(domain_separator: &DomainSeparator<H>) -> Self {
         let stack = domain_separator.finalize();
         let tag = Self::generate_tag(domain_separator.as_bytes());
         Self::unchecked_load_with_stack(tag, stack)
@@ -46,7 +43,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     }
 
     /// Ratchet and return the sponge state.
-    pub fn preprocess(self) -> Result<&'static [U], DomainSeparatorMismatch> {
+    pub fn preprocess(self) -> Result<&'static [H::U], DomainSeparatorMismatch> {
         unimplemented!()
         // self.ratchet()?;
         // Ok(self.sponge.tag().clone())
@@ -55,7 +52,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     /// Perform secure absorption of the elements in `input`.
     ///
     /// Absorb calls can be batched together, or provided separately for streaming-friendly protocols.
-    pub fn absorb(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
+    pub fn absorb(&mut self, input: &[H::U]) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Absorb(length)) if length >= input.len() => {
                 if length > input.len() {
@@ -98,7 +95,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     /// For byte-oriented sponges, this operation is equivalent to the squeeze operation.
     /// However, for algebraic hashes, this operation is non-trivial.
     /// This function provides no guarantee of streaming-friendliness.
-    pub fn squeeze(&mut self, output: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
+    pub fn squeeze(&mut self, output: &mut [H::U]) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Squeeze(length)) if output.len() <= length => {
                 self.ds.squeeze(output);
@@ -138,11 +135,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
 
     fn unchecked_load_with_stack(_tag: [u8; 32], stack: VecDeque<Op>) -> Self {
         let ds = H::new();
-        Self {
-            ds,
-            stack,
-            _unit: PhantomData,
-        }
+        Self { ds, stack }
     }
 
     #[cfg(test)]
@@ -151,7 +144,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> HashStateWithInstructions<H, U> {
     }
 }
 
-impl<U: Unit, H: DuplexSpongeInterface<U>> Drop for HashStateWithInstructions<H, U> {
+impl<H: DuplexSpongeInterface> Drop for HashStateWithInstructions<H> {
     /// Destroy the sponge state.
     fn drop(&mut self) {
         // it's a bit violent to panic here,
@@ -168,7 +161,7 @@ impl<U: Unit, H: DuplexSpongeInterface<U>> Drop for HashStateWithInstructions<H,
     }
 }
 
-impl<U: Unit, H: DuplexSpongeInterface<U>> fmt::Debug for HashStateWithInstructions<H, U> {
+impl<H: DuplexSpongeInterface> fmt::Debug for HashStateWithInstructions<H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Ensure that the state isn't accidentally logged,
         // but provide the remaining domain separator for debugging.
