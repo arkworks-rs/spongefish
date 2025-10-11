@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use rand::{CryptoRng, RngCore};
+use rand::{CryptoRng, Rng, RngCore};
 
 use super::{duplex_sponge::DuplexSpongeInterface, keccak::Keccak, DefaultHash, DefaultRng};
 use crate::{
@@ -19,13 +19,15 @@ use crate::{
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
 /// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
+/// [`Default`] is implemented to provide alternative initialization methods than the one provided by [`ProverState::new`].
+#[derive(Default)]
 pub struct ProverState<H = DefaultHash, R = DefaultRng>
 where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
     /// The randomness state of the prover.
-    pub(crate) rng: ProverPrivateRng<R>,
+    pub(crate) csrng: ProverPrivateRng<R>,
     /// The public coins for the protocol
     pub(crate) hash_state: H,
     /// The encoded data.
@@ -39,6 +41,7 @@ where
 /// it is seeded by a cryptographic random number generator (by default, [`rand::rngs::OsRng`]).
 ///
 /// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
+#[derive(Default)]
 pub struct ProverPrivateRng<R: RngCore + CryptoRng> {
     /// The duplex sponge that is used to generate the random coins.
     pub(crate) ds: Keccak,
@@ -96,7 +99,7 @@ where
     /// assert_ne!(challenges, [0u8; 32]);
     /// ```
     pub fn rng(&mut self) -> &mut (impl CryptoRng + RngCore) {
-        &mut self.rng
+        &mut self.csrng
     }
 
     /// Return the current proof string.
@@ -131,6 +134,56 @@ where
         let mut buf = T::Repr::default();
         self.hash_state.squeeze(buf.as_mut());
         T::decode(buf).into()
+    }
+}
+
+impl<H, R> ProverState<H, R>
+where
+    H: DuplexSpongeInterface<U = u8>,
+    R: RngCore + CryptoRng,
+{
+    pub fn new(
+        protocol_id: [u8; 32],
+        session_id: impl AsRef<[u8]>,
+        instance_label: impl AsRef<[u8]>,
+        csrng: R,
+    ) -> Self {
+        let instance_label_length = instance_label.as_ref().len().to_be_bytes();
+        let session_id_length = session_id.as_ref().len().to_be_bytes();
+        let mut hash_state = H::new();
+        hash_state
+            .absorb(protocol_id.as_ref())
+            .absorb(&[0; 32])
+            .absorb(&session_id_length)
+            .absorb(session_id.as_ref())
+            .absorb(&instance_label_length)
+            .absorb(instance_label.as_ref());
+        Self {
+            hash_state,
+            csrng: csrng.into(),
+            narg_string: Default::default(),
+        }
+    }
+}
+
+impl<R: RngCore + CryptoRng> ProverPrivateRng<R> {
+    pub fn reseed_with(&mut self, value: &[u8]) {
+        self.ds.absorb(value);
+    }
+
+    pub fn reseed(&mut self) {
+        let mut seed = [0u8; 32];
+        self.csrng.fill(&mut seed);
+        self.ds.absorb(&seed);
+    }
+}
+
+impl<R: RngCore + CryptoRng> From<R> for ProverPrivateRng<R> {
+    fn from(value: R) -> Self {
+        Self {
+            csrng: value,
+            ds: Default::default(),
+        }
     }
 }
 
