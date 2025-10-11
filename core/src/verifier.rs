@@ -1,12 +1,11 @@
-use alloc::format;
+use core::marker::PhantomData;
+
 
 use crate::{
-    domain_separator::DomainSeparator,
+    codecs::{Decodable, Encodable},
     duplex_sponge::{DuplexSpongeInterface, Unit},
-    errors::DomainSeparatorMismatch,
-    sho::HashStateWithInstructions,
-    traits::{BytesToUnitDeserialize, UnitTranscript},
-    DefaultHash,
+    io::Deserialize,
+    DefaultHash, ProofResult,
 };
 
 /// [`VerifierState`] is the verifier state.
@@ -19,93 +18,64 @@ where
     H: DuplexSpongeInterface<U>,
     U: Unit,
 {
-    pub(crate) hash_state: HashStateWithInstructions<H, U>,
+    pub(crate) hash_state: H,
     pub(crate) narg_string: &'a [u8],
+    _phantom: PhantomData<U>
 }
 
-impl<'a, U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'a, H, U> {
-    /// Creates a new [`VerifierState`] instance with the given sponge and domain separator.
-    ///
-    /// The resulting object will act as the verifier in a zero-knowledge protocol.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    ///
-    /// let domsep = DomainSeparator::<DefaultHash>::new("📝").absorb(1, "inhale 🫁").squeeze(32, "exhale 🎏");
-    /// // A silly NARG string for the example.
-    /// let narg_string = &[0x42];
-    /// let mut verifier_state = domsep.to_verifier_state(narg_string);
-    /// assert_eq!(verifier_state.next_bytes().unwrap(), [0x42]);
-    /// let challenge = verifier_state.challenge_bytes::<32>();
-    /// assert!(challenge.is_ok());
-    /// assert_ne!(challenge.unwrap(), [0; 32]);
-    /// ```
-    #[must_use]
-    pub fn new(domain_separator: &DomainSeparator<H, U>, narg_string: &'a [u8]) -> Self {
-        let hash_state = HashStateWithInstructions::new(domain_separator);
-        Self {
-            hash_state,
-            narg_string,
-        }
+impl<U: Unit, H: DuplexSpongeInterface<U>> VerifierState<'_, H, U> {
+
+    // /// Read a hint from the NARG string. Returns the number of units read.
+    // pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
+    //     self.hash_state.hint()?;
+
+    //     // Ensure at least 4 bytes are available for the length prefix
+    //     if self.narg_string.len() < 4 {
+    //         return Err("Insufficient transcript remaining for hint".into());
+    //     }
+
+    //     // Read 4-byte little-endian length prefix
+    //     let len = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
+    //     let rest = &self.narg_string[4..];
+
+    //     // Ensure the rest of the slice has `len` bytes
+    //     if rest.len() < len {
+    //         return Err(format!(
+    //             "Insufficient transcript remaining, got {}, need {len}",
+    //             rest.len()
+    //         )
+    //         .into());
+    //     }
+
+    //     // Split the hint and advance the transcript
+    //     let (hint, remaining) = rest.split_at(len);
+    //     self.narg_string = remaining;
+
+    //     Ok(hint)
+    // }
+
+    pub fn prover_messages<T: Encodable<[U]> + Deserialize>(&mut self) -> ProofResult<T> {
+        let message = T::deserialize_from(self.narg_string)?;
+        self.hash_state.absorb(message.encode().as_ref());
+        Ok(message)
     }
 
-    /// Read a hint from the NARG string. Returns the number of units read.
-    pub fn hint_bytes(&mut self) -> Result<&'a [u8], DomainSeparatorMismatch> {
-        self.hash_state.hint()?;
-
-        // Ensure at least 4 bytes are available for the length prefix
-        if self.narg_string.len() < 4 {
-            return Err("Insufficient transcript remaining for hint".into());
-        }
-
-        // Read 4-byte little-endian length prefix
-        let len = u32::from_le_bytes(self.narg_string[..4].try_into().unwrap()) as usize;
-        let rest = &self.narg_string[4..];
-
-        // Ensure the rest of the slice has `len` bytes
-        if rest.len() < len {
-            return Err(format!(
-                "Insufficient transcript remaining, got {}, need {len}",
-                rest.len()
-            )
-            .into());
-        }
-
-        // Split the hint and advance the transcript
-        let (hint, remaining) = rest.split_at(len);
-        self.narg_string = remaining;
-
-        Ok(hint)
+    pub fn public_message<T: Encodable<[U]>>(&mut self, message: &T) {
+        self.hash_state.absorb(message.encode().as_ref());
     }
 
-    /// Signals the end of the statement.
-    #[inline]
-    pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.ratchet()
-    }
-
-    /// Signals the end of the statement and returns the (compressed) sponge state.
-    #[inline]
-    pub fn preprocess(self) -> Result<&'static [U], DomainSeparatorMismatch> {
-        HashStateWithInstructions::<H, U>::preprocess(self.hash_state)
+    pub fn verifier_message<T>(&mut self) -> T
+    where
+        T: Decodable,
+        T::Repr: AsMut<[U]>,
+    {
+        let mut buf = T::Repr::default();
+        self.hash_state.squeeze(buf.as_mut());
+        T::decode(buf).into()
     }
 }
 
-impl<H: DuplexSpongeInterface<U>, U: Unit> UnitTranscript<U> for VerifierState<'_, H, U> {
-    /// Add native elements to the sponge without writing them to the NARG string.
-    #[inline]
-    fn public_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.absorb(input)
-    }
-
-    /// Fill `input` with units sampled uniformly at random.
-    #[inline]
-    fn fill_challenge_units(&mut self, input: &mut [U]) -> Result<(), DomainSeparatorMismatch> {
-        self.hash_state.squeeze(input)
-    }
-}
-
-impl<H: DuplexSpongeInterface<U>, U: Unit> core::fmt::Debug for VerifierState<'_, H, U> {
+impl<H: DuplexSpongeInterface<U> + core::fmt::Debug, U: Unit> core::fmt::Debug for VerifierState<'_, H, U> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("VerifierState")
             .field(&self.hash_state)

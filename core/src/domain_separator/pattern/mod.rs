@@ -7,9 +7,7 @@ mod pattern_state;
 
 pub use self::{
     interaction::{Hierarchy, Interaction, Kind, Label, Length},
-    interaction_pattern::{InteractionPattern, TranscriptError},
-    pattern_player::PatternPlayer,
-    pattern_state::PatternState,
+    interaction_pattern::InteractionPattern,
 };
 
 /// Trait for objects that implement hierarchy operations.

@@ -18,7 +18,6 @@
 
 extern crate alloc;
 
-
 #[cfg(target_endian = "big")]
 compile_error!(
     r#"
@@ -28,8 +27,10 @@ This crate doesn't support big-endian targets.
 
 /// Hash functions traits and implementations.
 pub mod duplex_sponge;
+
 /// Built-in proof results.
 mod errors;
+
 /// Verifier state and transcript deserialization.
 mod verifier;
 
@@ -38,17 +39,21 @@ pub mod keccak;
 
 /// APIs for common zkp libraries.
 pub mod codecs;
+
 /// domain separator
 mod domain_separator;
+
 /// Prover's internal state and transcript generation.
 mod prover;
+
+/// Serialization utilities
+mod io;
+
 /// SAFE API.
 mod sho;
 /// Unit-tests.
 #[cfg(test)]
 mod tests;
-/// Serialization utilities
-mod serialization;
 
 /// Traits for byte support.
 pub mod traits;

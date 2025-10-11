@@ -1,3 +1,4 @@
+use alloc::string::{String, ToString};
 /// The [`spongefish`] package has two types of errors:
 /// [`DomainSeparatorMismatch`], which is the error exposed in the low-level interface for bytes and native elements,
 /// which arises whenever the domain separator specified and the domain separator executed mismatch.
@@ -18,7 +19,6 @@
 ///
 /// A [`core::Result::Result`] wrapper called [`ProofResult`] (having error fixed to [`ProofError`]) is also provided.
 use core::{borrow::Borrow, fmt::Display};
-use alloc::string::{String, ToString};
 
 /// Signals a domain separator is inconsistent with the description provided.
 #[derive(Debug, Clone)]
@@ -53,6 +53,9 @@ impl Display for ProofError {
         }
     }
 }
+
+#[cfg(feature = "std")]
+extern crate std;
 
 // Error trait is not available in no_std
 #[cfg(feature = "std")]

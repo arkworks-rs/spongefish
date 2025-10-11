@@ -49,8 +49,28 @@ pub(super) const fn bytes_modp(modulus_bits: u32) -> usize {
 #[cfg(all(test, feature = "arkworks-algebra", feature = "zkcrypto-group"))]
 mod tests;
 
+use crate::Unit;
 
+pub trait Encodable<T: ?Sized> {
+    fn encode(&self) -> impl AsRef<T>;
+}
 
-trait Encodable  {
-    fn encode(elements: &[Self]);
+impl<T: AsRef<[U]>, U: Unit> Encodable<[U]> for T {
+    fn encode(&self) -> impl AsRef<[U]> {
+        self
+    }
+}
+
+pub trait Decodable: Sized {
+    type Repr: Sized + Default;
+
+    fn decode(buf: Self::Repr) -> impl Into<Self>;
+}
+
+impl<T: Sized + Default> Decodable for T {
+    type Repr = Self;
+
+    fn decode(buf: Self::Repr) -> impl Into<Self> {
+        buf
+    }
 }

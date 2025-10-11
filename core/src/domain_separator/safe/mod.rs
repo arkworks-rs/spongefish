@@ -1,7 +1,8 @@
-
-
-
-use alloc::{collections::VecDeque, format, string::{String, ToString}};
+use alloc::{
+    collections::VecDeque,
+    format,
+    string::{String, ToString},
+};
 use core::marker::PhantomData;
 
 use crate::{
@@ -209,18 +210,6 @@ impl<H: DuplexSpongeInterface<U>, U: Unit> DomainSeparator<H, U> {
             }
         }
         dst
-    }
-
-    /// Create an [`crate::ProverState`] instance from the domain separator.
-    #[must_use]
-    pub fn to_prover_state(&self) -> crate::ProverState<H, U, crate::DefaultRng> {
-        crate::ProverState::new(self, crate::DefaultRng::default())
-    }
-
-    /// Create a [`crate::VerifierState`] instance from the domain separator and the protocol transcript (bytes).
-    #[must_use]
-    pub fn to_verifier_state<'a>(&self, transcript: &'a [u8]) -> crate::VerifierState<'a, H, U> {
-        crate::VerifierState::new(self, transcript)
     }
 }
 

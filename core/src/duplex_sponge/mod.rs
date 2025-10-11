@@ -18,8 +18,6 @@ use std::io::Read;
 pub use interface::DuplexSpongeInterface;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::ProofError;
-
 mod unit;
 pub use unit::Unit;
 

@@ -1,34 +1,31 @@
 use alloc::vec::Vec;
+use core::marker::PhantomData;
+
 use rand::{CryptoRng, RngCore};
 
-use super::{
-    duplex_sponge::DuplexSpongeInterface, keccak::Keccak, DefaultHash, DefaultRng,
-    DomainSeparatorMismatch,
-};
+use super::{duplex_sponge::DuplexSpongeInterface, keccak::Keccak, DefaultHash, DefaultRng};
 use crate::{
-    duplex_sponge::Unit, BytesToUnitSerialize, DomainSeparator, HashStateWithInstructions,
-    UnitTranscript,
+    codecs::{Decodable, Encodable},
+    io::Serialize,
+    Unit,
 };
 
-/// [`ProverState`] is the prover state of an interactive proof (IP) system.
-/// It internally holds the **secret coins** of the prover for zero-knowledge, and
-/// has the hash function state for the verifier state.
+/// [`ProverState`] is the prover state the non-interactive transformation.
+/// It provides the **secret coins** of the prover for zero-knowledge, and
+/// the hash function state for the verifier's public coins.
 ///
-/// Unless otherwise specified,
-/// [`ProverState`] is set to work over bytes with [`DefaultHash`] and
-/// rely on the default random number generator [`DefaultRng`].
-///
+/// [`ProverState`] works by default over bytes with [`DefaultHash`] and
+/// relies on the default random number generator [`DefaultRng`].
 ///
 /// # Safety
 ///
-/// The prover state is meant to be private in contexts where zero-knowledge is desired.
-/// Leaking the prover state *will* leak the prover's private coins and as such it will compromise the zero-knowledge property.
-/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental leaks.
-pub struct ProverState<H = DefaultHash, U = u8, R = DefaultRng>
+/// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
+/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
+pub struct ProverState<U, H = DefaultHash, R = DefaultRng>
 where
-    U: Unit,
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
+    U: Unit,
 {
     /// The randomness state of the prover.
     pub(crate) rng: ProverPrivateRng<R>,
@@ -36,6 +33,7 @@ where
     pub(crate) hash_state: H,
     /// The encoded data.
     pub(crate) narg_string: Vec<u8>,
+    _phantom: PhantomData<U>,
 }
 
 /// A cryptographically-secure random number generator that is bound to the protocol transcript.
@@ -82,39 +80,13 @@ impl<R: RngCore + CryptoRng> RngCore for ProverPrivateRng<R> {
     }
 }
 
-// This implementation seems incomplete - commenting out for now
-// impl<H, U, R> ProverState<H, U, R>
-// where
-//     U: Unit,
-//     H: DuplexSpongeInterface<U>,
-//     R: RngCore + CryptoRng,
-// {
-//     pub fn new(protocol_id: &[u8; 64], session_id: &[u8], instance: &[u8], csrng: R) -> Self {
-//         let hash_state = H::new();
-//         hash_state.absorb();
 
-//         let mut duplex_sponge = Keccak::default();
-//         duplex_sponge.absorb(domain_separator.as_bytes());
-//         let rng = ProverPrivateRng {
-//             ds: duplex_sponge,
-//             csrng,
-//         };
-
-//         Self {
-//             rng,
-//             hash_state,
-//             narg_string: Vec::new(),
-//         }
-//     }
-// }
-
-impl<H, U, R> ProverState<H, U, R>
+impl<U, H, R> ProverState<U, H, R>
 where
-    U: Unit,
     H: DuplexSpongeInterface<U>,
     R: RngCore + CryptoRng,
+    U: Unit,
 {
-
     /// Return a reference to the random number generator associated to the protocol transcript.
     ///
     /// ```
@@ -150,55 +122,37 @@ where
     pub fn narg_string(&self) -> &[u8] {
         self.narg_string.as_slice()
     }
-}
 
+    pub fn public_message<T: Encodable<[U]>>(&mut self, message: &T) {
+        self.hash_state.absorb(message.encode().as_ref());
+    }
 
-impl<H, U, R> UnitTranscript<U> for ProverState<H, U, R>
-where
-    U: Unit,
-    H: DuplexSpongeInterface<U>,
-    R: RngCore + CryptoRng,
-{
-    /// Add public messages to the protocol transcript.
-    /// Messages input to this function are not added to the protocol transcript.
-    /// They are however absorbed into the verifier's sponge for Fiat-Shamir, and used to re-seed the prover state.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    ///
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(20, "how not to make pasta 🙉");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// assert!(prover_state.public_bytes(&[0u8; 20]).is_ok());
-    /// assert_eq!(prover_state.narg_string(), b"");
-    /// ```
-    fn public_units(&mut self, input: &[U]) -> Result<(), DomainSeparatorMismatch> {
-        let len = self.narg_string.len();
-        self.add_units(input)?;
-        self.narg_string.truncate(len);
-        Ok(())
+    pub fn prover_message<T: Encodable<[U]> + Serialize>(&mut self, message: &T) {
+        self.hash_state.absorb(message.encode().as_ref());
+        message.serialize_into(&mut self.narg_string);
+    }
+
+    pub fn verifier_message<T>(&mut self) -> T
+    where
+        T: Decodable,
+        T::Repr: AsMut<[U]>,
+    {
+        let mut buf = T::Repr::default();
+        self.hash_state.squeeze(buf.as_mut());
+        T::decode(buf).into()
     }
 }
 
 impl<R: RngCore + CryptoRng> CryptoRng for ProverPrivateRng<R> {}
 
-impl<H, U, R> core::fmt::Debug for ProverState<H, U, R>
+impl<U, H, R> core::fmt::Debug for ProverState<U, H, R>
 where
-    U: Unit,
     H: DuplexSpongeInterface<U>,
+    U: Unit,
     R: RngCore + CryptoRng,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "ProverState<{}>", core::any::type_name::<H>())
-    }
-}
-
-impl<H, R> BytesToUnitSerialize for ProverState<H, u8, R>
-where
-    H: DuplexSpongeInterface<u8>,
-    R: RngCore + CryptoRng,
-{
-    fn add_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
-        self.add_units(input)
     }
 }
 

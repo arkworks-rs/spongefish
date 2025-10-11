@@ -1,5 +1,5 @@
-use core::{fmt, marker::PhantomData};
 use alloc::{collections::vec_deque::VecDeque, format};
+use core::{fmt, marker::PhantomData};
 
 use super::{
     domain_separator::{DomainSeparator, Op},
