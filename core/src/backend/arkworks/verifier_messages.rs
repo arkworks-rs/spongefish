@@ -1,17 +1,23 @@
+use alloc::vec;
+use alloc::vec::Vec;
+
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Fp, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use rand::{CryptoRng, RngCore};
 
-use super::{bytes_uniform_modp, CommonFieldToUnit, CommonGroupToUnit, UnitToField};
-use spongefish::{
-    CommonUnitToBytes, DomainSeparatorMismatch, DuplexSpongeInterface,
-    ProofError, ProofResult, ProverState, UnitToBytes, UnitTranscript, VerifierState,
+use super::{CommonFieldToUnit, CommonGroupToUnit, UnitToField};
+use crate::backend::bytes_uniform_modp;
+use super::{CommonUnitToBytes, UnitToBytes, UnitTranscript};
+use crate::{
+    DomainSeparatorMismatch,
+    duplex_sponge::DuplexSpongeInterface,
+    ProofError, ProofResult, ProverState, VerifierState,
 };
 
 // Implementation of basic traits for bridging arkworks and spongefish
 
-impl<C: ark_ff::FpConfig<N>, const N: usize> spongefish::duplex_sponge::Unit for Fp<C, N> {
+impl<C: ark_ff::FpConfig<N>, const N: usize> crate::duplex_sponge::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
 }
 
@@ -78,10 +84,10 @@ where
     }
 }
 
-impl<H, C, const N: usize> UnitToField<Fp<C, N>> for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize> UnitToField<Fp<C, N>> for VerifierState<'_, H>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
 {
     fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
         self.fill_challenge_units(output)
@@ -89,10 +95,10 @@ where
     }
 }
 
-impl<H, C, R, const N: usize> UnitToField<Fp<C, N>> for ProverState<H, Fp<C, N>, R>
+impl<H, C, R, const N: usize> UnitToField<Fp<C, N>> for ProverState<H, R>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
     fn fill_challenge_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
@@ -103,10 +109,10 @@ where
 
 // Field <-> Field interactions:
 
-impl<F, H, R, C, const N: usize> CommonFieldToUnit<F> for ProverState<H, Fp<C, N>, R>
+impl<F, H, R, C, const N: usize> CommonFieldToUnit<F> for ProverState<H, R>
 where
     F: ark_ff::Field<BasePrimeField = Fp<C, N>>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     R: RngCore + CryptoRng,
     C: ark_ff::FpConfig<N>,
 {
@@ -141,10 +147,10 @@ where
 //
 //
 
-impl<F, H, C, const N: usize> CommonFieldToUnit<F> for VerifierState<'_, H, Fp<C, N>>
+impl<F, H, C, const N: usize> CommonFieldToUnit<F> for VerifierState<'_, H>
 where
     F: ark_ff::Field<BasePrimeField = Fp<C, N>>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     C: ark_ff::FpConfig<N>,
 {
     type Repr = ();
@@ -159,11 +165,11 @@ where
     }
 }
 
-impl<H, R, C, const N: usize, G> CommonGroupToUnit<G> for ProverState<H, Fp<C, N>, R>
+impl<H, R, C, const N: usize, G> CommonGroupToUnit<G> for ProverState<H, R>
 where
     C: ark_ff::FpConfig<N>,
     R: RngCore + CryptoRng,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     G: CurveGroup<BaseField = Fp<C, N>>,
 {
     type Repr = ();
@@ -177,10 +183,10 @@ where
     }
 }
 
-impl<H, C, const N: usize, G> CommonGroupToUnit<G> for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize, G> CommonGroupToUnit<G> for VerifierState<'_, H>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     G: CurveGroup<BaseField = Fp<C, N>>,
 {
     type Repr = ();
@@ -196,10 +202,10 @@ where
 
 // Field  <-> Bytes interactions:
 
-impl<H, C, const N: usize> CommonUnitToBytes for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize> CommonUnitToBytes for VerifierState<'_, H>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
 {
     fn public_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
         for &byte in input {
@@ -209,10 +215,10 @@ where
     }
 }
 
-impl<H, R, C, const N: usize> CommonUnitToBytes for ProverState<H, Fp<C, N>, R>
+impl<H, R, C, const N: usize> CommonUnitToBytes for ProverState<H, R>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     R: CryptoRng + rand::RngCore,
 {
     fn public_bytes(&mut self, input: &[u8]) -> Result<(), DomainSeparatorMismatch> {
@@ -223,10 +229,10 @@ where
     }
 }
 
-impl<H, R, C, const N: usize> UnitToBytes for ProverState<H, Fp<C, N>, R>
+impl<H, R, C, const N: usize> UnitToBytes for ProverState<H, R>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     R: CryptoRng + RngCore,
 {
     fn fill_challenge_bytes(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
@@ -234,7 +240,7 @@ where
             Ok(())
         } else {
             let len_good = usize::min(
-                crate::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
+                crate::backend::arkworks::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
@@ -249,17 +255,17 @@ where
 }
 
 /// XXX. duplicate code
-impl<H, C, const N: usize> UnitToBytes for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize> UnitToBytes for VerifierState<'_, H>
 where
     C: ark_ff::FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
 {
     fn fill_challenge_bytes(&mut self, output: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
         if output.is_empty() {
             Ok(())
         } else {
             let len_good = usize::min(
-                crate::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
+                crate::backend::arkworks::random_bytes_in_random_modp(Fp::<C, N>::MODULUS),
                 output.len(),
             );
             let mut tmp = [Fp::from(0); 1];
@@ -282,7 +288,7 @@ mod tests {
 
     use super::*;
     use crate::{FieldDomainSeparator, GroupDomainSeparator};
-    use spongefish::{DefaultHash, DomainSeparator};
+    use crate::{DefaultHash, DomainSeparator};
 
     /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).
     #[derive(MontConfig)]

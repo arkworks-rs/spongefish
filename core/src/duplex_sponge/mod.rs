@@ -134,10 +134,7 @@ impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
     }
 
     fn pad_block(&mut self) -> &mut Self {
-        self.permutation.permute();
-        // set to zero the state up to rate
-        // XXX. is the compiler really going to do this?
-        self.permutation.as_mut()[..P::R].fill(Self::U::ZERO);
+        self.absorb_pos = P::R;
         self.squeeze_pos = P::R;
         self
     }

@@ -20,7 +20,7 @@ fn test_squeeze_bytes_from_algebraic_hash() {
     type H = crate::bls12_381::Poseidonx5_255_3;
 
     let domain_separator = spongefish::DomainSeparator::<H, F>::new("test").absorb(1, "in");
-    let domain_separator = <spongefish::DomainSeparator<H, F> as spongefish::codecs::arkworks_algebra::ByteDomainSeparator>::challenge_bytes(
+    let domain_separator = <spongefish::DomainSeparator<H, F> as spongefish::backend::arkworks_algebra::ByteDomainSeparator>::challenge_bytes(
         domain_separator, 2048, "out",
     );
     let mut prover_state = domain_separator.to_prover_state();

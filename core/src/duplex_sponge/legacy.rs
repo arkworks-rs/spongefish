@@ -8,7 +8,6 @@
 //! - the implementation is for any Digest.
 
 use alloc::vec::Vec;
-
 use digest::{
     core_api::BlockSizeUser, crypto_common::generic_array::GenericArray, typenum::Unsigned, Digest,
     FixedOutputReset, Reset,

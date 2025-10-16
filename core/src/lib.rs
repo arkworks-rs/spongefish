@@ -15,6 +15,8 @@
 //!
 
 #![no_std]
+// #![feature(generic_const_exprs)]
+
 
 extern crate alloc;
 
@@ -38,7 +40,7 @@ mod verifier;
 pub mod keccak;
 
 /// APIs for common zkp libraries.
-pub mod codecs;
+pub mod backend;
 
 /// domain separator
 mod domain_separator;
@@ -49,21 +51,19 @@ mod prover;
 /// Serialization utilities
 mod io;
 
-/// SAFE API.
-mod sho;
+/// Codec interfaces
+mod codecs;
+
 /// Unit-tests.
 #[cfg(test)]
 mod tests;
 
-/// Traits for byte support.
-pub mod traits;
 
 pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
 pub use errors::{DomainSeparatorMismatch, ProofError, ProofResult};
 pub use prover::ProverState;
-pub use sho::HashStateWithInstructions;
-pub use traits::*;
+pub use domain_separator::sho::HashStateWithInstructions;
 pub use verifier::VerifierState;
 
 /// Default random number generator used ([`rand::rngs::OsRng`]).

@@ -28,9 +28,9 @@ where
 {
     /// The randomness state of the prover.
     pub(crate) csrng: ProverPrivateRng<R>,
-    /// The public coins for the protocol
-    pub(crate) hash_state: H,
-    /// The encoded data.
+    /// The public coins for the protocol.
+    pub(crate) duplex_sponge_state: H,
+    /// The argument string.
     pub(crate) narg_string: Vec<u8>,
 }
 
@@ -43,8 +43,8 @@ where
 /// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
 #[derive(Default)]
 pub struct ProverPrivateRng<R: RngCore + CryptoRng> {
-    /// The duplex sponge that is used to generate the random coins.
-    pub(crate) ds: Keccak,
+    /// The duplex sponge that is used to generate the prover's private random coins.
+    pub(crate) duplex_sponge: Keccak,
     /// The cryptographic random number generator that seeds the sponge.
     pub(crate) csrng: R,
 }
@@ -66,15 +66,15 @@ impl<R: RngCore + CryptoRng> RngCore for ProverPrivateRng<R> {
         // Seed (at most) 32 bytes of randomness from the CSRNG
         let len = usize::min(dest.len(), 32);
         self.csrng.fill_bytes(&mut dest[..len]);
-        self.ds.absorb(&dest[..len]);
+        self.duplex_sponge.absorb(&dest[..len]);
         // fill `dest` with the output of the sponge
-        self.ds.squeeze(dest);
+        self.duplex_sponge.squeeze(dest);
         // erase the state from the sponge so that it can't be reverted
-        self.ds.pad_block();
+        self.duplex_sponge.pad_block();
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        self.ds.squeeze(dest);
+        self.duplex_sponge.squeeze(dest);
         Ok(())
     }
 }
@@ -118,24 +118,22 @@ where
     }
 
     pub fn public_message<T: Encodable<[H::U]>>(&mut self, message: &T) {
-        self.hash_state.absorb(message.encode().as_ref());
+        self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
     pub fn prover_message<T: Encodable<[H::U]> + Serialize>(&mut self, message: &T) {
-        self.hash_state.absorb(message.encode().as_ref());
+        self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into(&mut self.narg_string);
     }
 
-    pub fn verifier_message<T>(&mut self) -> T
-    where
-        T: Decodable,
-        T::Repr: AsMut<[H::U]>,
+    pub fn verifier_message<T: Decodable<[H::U]>>(&mut self) -> T
     {
         let mut buf = T::Repr::default();
-        self.hash_state.squeeze(buf.as_mut());
-        T::decode(buf).into()
+        self.duplex_sponge_state.squeeze(buf.as_mut());
+        T::decode(buf)
     }
 }
+
 
 impl<H, R> ProverState<H, R>
 where
@@ -159,7 +157,7 @@ where
             .absorb(&instance_label_length)
             .absorb(instance_label.as_ref());
         Self {
-            hash_state,
+            duplex_sponge_state: hash_state,
             csrng: csrng.into(),
             narg_string: Default::default(),
         }
@@ -168,13 +166,13 @@ where
 
 impl<R: RngCore + CryptoRng> ProverPrivateRng<R> {
     pub fn reseed_with(&mut self, value: &[u8]) {
-        self.ds.absorb(value);
+        self.duplex_sponge.absorb(value);
     }
 
     pub fn reseed(&mut self) {
         let mut seed = [0u8; 32];
         self.csrng.fill(&mut seed);
-        self.ds.absorb(&seed);
+        self.duplex_sponge.absorb(&seed);
     }
 }
 
@@ -182,7 +180,7 @@ impl<R: RngCore + CryptoRng> From<R> for ProverPrivateRng<R> {
     fn from(value: R) -> Self {
         Self {
             csrng: value,
-            ds: Default::default(),
+            duplex_sponge: Default::default(),
         }
     }
 }

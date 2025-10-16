@@ -21,7 +21,7 @@
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
-use spongefish::codecs::arkworks_algebra::{
+use spongefish::backend::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
     FieldToUnitDeserialize, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize,
     GroupToUnitSerialize, ProofError, ProofResult, ProverState, UnitToField, VerifierState,

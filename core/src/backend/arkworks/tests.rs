@@ -1,6 +1,6 @@
 use ark_ff::Field;
 
-use spongefish::{
+use crate::{
     ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
     DomainSeparator, DuplexSpongeInterface, ProofResult, duplex_sponge::Unit, UnitToBytes, UnitTranscript,
 };

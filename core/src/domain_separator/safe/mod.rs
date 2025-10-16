@@ -8,7 +8,6 @@ use core::marker::PhantomData;
 use crate::{
     duplex_sponge::{DuplexSpongeInterface, Unit},
     errors::DomainSeparatorMismatch,
-    ByteDomainSeparator,
 };
 
 /// This is the separator between operations in the domain separator
@@ -220,21 +219,21 @@ impl<H: DuplexSpongeInterface> core::fmt::Debug for DomainSeparator<H> {
     }
 }
 
-impl<H: DuplexSpongeInterface> ByteDomainSeparator for DomainSeparator<H> {
-    #[inline]
-    fn add_bytes(self, count: usize, label: &str) -> Self {
-        self.absorb(count, label)
-    }
+// impl<H: DuplexSpongeInterface> ByteDomainSeparator for DomainSeparator<H> {
+//     #[inline]
+//     fn add_bytes(self, count: usize, label: &str) -> Self {
+//         self.absorb(count, label)
+//     }
 
-    fn hint(self, label: &str) -> Self {
-        self.hint(label)
-    }
+//     fn hint(self, label: &str) -> Self {
+//         self.hint(label)
+//     }
 
-    #[inline]
-    fn challenge_bytes(self, count: usize, label: &str) -> Self {
-        self.squeeze(count, label)
-    }
-}
+//     #[inline]
+//     fn challenge_bytes(self, count: usize, label: &str) -> Self {
+//         self.squeeze(count, label)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

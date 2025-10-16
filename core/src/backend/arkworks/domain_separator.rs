@@ -2,8 +2,12 @@ use ark_ec::CurveGroup;
 use ark_ff::{Field, Fp, FpConfig, PrimeField};
 
 use super::{FieldDomainSeparator, GroupDomainSeparator};
-use crate::{bytes_modp, bytes_uniform_modp};
-use spongefish::{ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface};
+use super::ByteDomainSeparator;
+use crate::backend::{bytes_modp, bytes_uniform_modp};
+use crate::{
+    domain_separator::DomainSeparator,
+    DuplexSpongeInterface,
+};
 
 impl<F, H> FieldDomainSeparator<F> for DomainSeparator<H>
 where
@@ -33,7 +37,7 @@ impl<F, C, H, const N: usize> FieldDomainSeparator<F> for DomainSeparator<H, Fp<
 where
     F: Field<BasePrimeField = Fp<C, N>>,
     C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
 {
     fn add_scalars(self, count: usize, label: &str) -> Self {
         self.absorb(count * F::extension_degree() as usize, label)
@@ -47,7 +51,7 @@ where
 impl<C, H, const N: usize> ByteDomainSeparator for DomainSeparator<H, Fp<C, N>>
 where
     C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
 {
     /// Add `count` bytes to the transcript, encoding each of them as an element of the field `Fp`.
     fn add_bytes(self, count: usize, label: &str) -> Self {
@@ -59,7 +63,7 @@ where
     }
 
     fn challenge_bytes(self, count: usize, label: &str) -> Self {
-        let n = crate::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
+        let n = crate::backend::arkworks::random_bits_in_random_modp(Fp::<C, N>::MODULUS) / 8;
         self.squeeze(count.div_ceil(n), label)
     }
 }
@@ -77,7 +81,7 @@ where
 impl<G, H, C, const N: usize> GroupDomainSeparator<G> for DomainSeparator<H, Fp<C, N>>
 where
     G: CurveGroup<BaseField = Fp<C, N>>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     C: FpConfig<N>,
     Self: FieldDomainSeparator<Fp<C, N>>,
 {
@@ -96,7 +100,7 @@ mod tests {
     };
 
     use super::*;
-    use spongefish::DefaultHash;
+    use crate::DefaultHash;
 
     /// Configuration for the BabyBear field (modulus = 2^31 - 2^27 + 1, generator = 21).
     #[derive(MontConfig)]

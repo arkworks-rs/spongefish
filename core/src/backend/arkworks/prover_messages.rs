@@ -4,43 +4,44 @@ use ark_serialize::CanonicalSerialize;
 use rand::{CryptoRng, RngCore};
 
 use super::{CommonFieldToUnit, CommonGroupToUnit, FieldToUnitSerialize, GroupToUnitSerialize};
-use spongefish::{
-    BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DomainSeparatorMismatch,
-    DuplexSpongeInterface, ProofResult, ProverState, UnitTranscript, VerifierState,
+use super::{BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, UnitTranscript};
+use crate::{
+    DomainSeparatorMismatch,
+    DuplexSpongeInterface, ProofResult, ProverState, VerifierState,
 };
 
-impl<F: Field, H: DuplexSpongeInterface, R: RngCore + CryptoRng> FieldToUnitSerialize<F>
-    for ProverState<H, u8, R>
-{
-    fn add_scalars(&mut self, input: &[F]) -> ProofResult<()> {
-        let serialized = self.public_scalars(input);
-        self.narg_string.extend(serialized?);
-        Ok(())
-    }
-}
+// impl<F: Field, H: DuplexSpongeInterface, R: RngCore + CryptoRng> FieldToUnitSerialize<F>
+//     for ProverState<H, R>
+// {
+//     fn add_scalars(&mut self, input: &[F]) -> ProofResult<()> {
+//         let serialized = self.public_scalars(input);
+//         self.narg_string.extend(serialized?);
+//         Ok(())
+//     }
+// }
 
-impl<
-        C: FpConfig<N>,
-        H: DuplexSpongeInterface<Fp<C, N>>,
-        R: RngCore + CryptoRng,
-        const N: usize,
-    > FieldToUnitSerialize<Fp<C, N>> for ProverState<H, Fp<C, N>, R>
-{
-    fn add_scalars(&mut self, input: &[Fp<C, N>]) -> ProofResult<()> {
-        self.public_units(input)?;
-        for i in input {
-            i.serialize_compressed(&mut self.narg_string)?;
-        }
-        Ok(())
-    }
-}
+// impl<
+//         C: FpConfig<N>,
+//         H: DuplexSpongeInterface<U = Fp<C, N>>,
+//         R: RngCore + CryptoRng,
+//         const N: usize,
+//     > FieldToUnitSerialize<Fp<C, N>> for ProverState<H, R>
+// {
+//     fn add_scalars(&mut self, input: &[Fp<C, N>]) -> ProofResult<()> {
+//         self.public_units(input)?;
+//         for i in input {
+//             i.serialize_compressed(&mut self.narg_string)?;
+//         }
+//         Ok(())
+//     }
+// }
 
-impl<G, H, R> GroupToUnitSerialize<G> for ProverState<H, u8, R>
+impl<G, H, R> GroupToUnitSerialize<G> for ProverState<H, R>
 where
     G: CurveGroup,
-    H: DuplexSpongeInterface,
+    H: DuplexSpongeInterface<U = u8>,
     R: RngCore + CryptoRng,
-    Self: CommonGroupToUnit<G, Repr = Vec<u8>>,
+    Self: CommonGroupToUnit<G, Repr = alloc::vec::Vec<u8>>,
 {
     fn add_points(&mut self, input: &[G]) -> ProofResult<()> {
         let serialized = self.public_points(input);
@@ -50,10 +51,10 @@ where
 }
 
 impl<G, H, R, C: FpConfig<N>, C2: FpConfig<N>, const N: usize> GroupToUnitSerialize<G>
-    for ProverState<H, Fp<C, N>, R>
+    for ProverState<H, R>
 where
     G: CurveGroup<BaseField = Fp<C2, N>>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     R: RngCore + CryptoRng,
     Self: CommonGroupToUnit<G> + FieldToUnitSerialize<G::BaseField>,
 {
@@ -66,9 +67,9 @@ where
     }
 }
 
-impl<H, R, C, const N: usize> BytesToUnitSerialize for ProverState<H, Fp<C, N>, R>
+impl<H, R, C, const N: usize> BytesToUnitSerialize for ProverState<H, R>
 where
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     C: FpConfig<N>,
     R: RngCore + CryptoRng,
 {
@@ -79,9 +80,9 @@ where
     }
 }
 
-impl<H, C, const N: usize> BytesToUnitDeserialize for VerifierState<'_, H, Fp<C, N>>
+impl<H, C, const N: usize> BytesToUnitDeserialize for VerifierState<'_, H>
 where
-    H: DuplexSpongeInterface<Fp<C, N>>,
+    H: DuplexSpongeInterface<U = Fp<C, N>>,
     C: FpConfig<N>,
 {
     fn fill_next_bytes(&mut self, input: &mut [u8]) -> Result<(), DomainSeparatorMismatch> {
@@ -103,7 +104,7 @@ mod tests {
     use crate::{
         FieldDomainSeparator, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitSerialize,
     };
-    use spongefish::{
+    use crate::{
         ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DefaultHash,
         DomainSeparator,
     };
@@ -220,7 +221,7 @@ mod tests {
         let mut prover = domsep.to_prover_state();
         let point = G::generator();
 
-        // This triggers `GroupToUnitSerialize<G> for ProverState<H, Fp<C, N>, R>`
+        // This triggers `GroupToUnitSerialize<G> for ProverState<H, R>`
         prover.add_points(&[point]).unwrap();
 
         // Expect compressed x/y coordinates in `narg_string`

@@ -1,7 +1,7 @@
 use alloc::{collections::vec_deque::VecDeque, format};
 use core::fmt;
 
-use super::{
+use crate::{
     domain_separator::{DomainSeparator, Op},
     duplex_sponge::DuplexSpongeInterface,
     errors::DomainSeparatorMismatch,

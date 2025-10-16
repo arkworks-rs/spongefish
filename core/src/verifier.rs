@@ -58,14 +58,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         self.hash_state.absorb(message.encode().as_ref());
     }
 
-    pub fn verifier_message<T>(&mut self) -> T
-    where
-        T: Decodable,
-        T::Repr: AsMut<[H::U]>,
-    {
+    pub fn verifier_message<T: Decodable<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.hash_state.squeeze(buf.as_mut());
-        T::decode(buf).into()
+        T::decode(buf)
     }
 }
 

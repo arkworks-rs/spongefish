@@ -1,3 +1,44 @@
+use ark_ff::FpConfig;
+use ark_serialize::CanonicalSerialize;
+
+use crate::codecs::{Decodable, Encodable};
+
+impl<C: FpConfig<N>, const N: usize> Encodable<[u8]> for ark_ff::Fp<C, N> {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let mut w = alloc::vec::Vec::new();
+        self.serialize_compressed(&mut w).expect("Unable to serialize element");
+        w
+    }
+}
+
+
+pub struct ScalarBuffer<const N: usize>(alloc::vec::Vec<u8>);
+
+impl<const N: usize> Default for ScalarBuffer<N> {
+    fn default() -> Self {
+        let len = size_of::<u64>() * N + 32;
+        ScalarBuffer(alloc::vec![0u8; len])
+    }
+}
+
+impl<const N: usize> AsMut<[u8]> for ScalarBuffer<N> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
+
+use ark_ff::PrimeField;
+
+impl<const N: usize, C: FpConfig<N>> Decodable<[u8]> for ark_ff::Fp<C, N>
+{
+    type Repr = ScalarBuffer<N>;
+
+    fn decode(buf: <Self as Decodable<[u8]>>::Repr) -> Self {
+        Self::from_be_bytes_mod_order(&buf.0)
+    }
+}
+
+
 macro_rules! field_traits {
     ($Field:path) => {
         /// Absorb and squeeze field elements to the domain separator.
@@ -10,8 +51,7 @@ macro_rules! field_traits {
 
         /// Interpret verifier messages as uniformly distributed field elements.
         ///
-        /// The implementation of this trait **MUST** ensure that the field elements
-        /// are uniformly distributed and valid.
+        /// The implementation of this trait **MUST** ensure that the field elementsxx
         pub trait UnitToField<F: $Field> {
             fn fill_challenge_scalars(&mut self, output: &mut [F]) -> $crate::ProofResult<()>;
 

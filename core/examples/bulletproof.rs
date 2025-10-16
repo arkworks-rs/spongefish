@@ -12,7 +12,7 @@ use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, VariableBaseMSM};
 use ark_ff::Field;
 use ark_std::log2;
 use rand::rngs::OsRng;
-use spongefish::codecs::arkworks_algebra::{
+use spongefish::backend::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, FieldDomainSeparator, FieldToUnitDeserialize,
     FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize, GroupToUnitSerialize,
     ProofError, ProofResult, ProverState, UnitToField, VerifierState,

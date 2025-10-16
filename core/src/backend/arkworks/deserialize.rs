@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use ark_ec::{
     short_weierstrass::{Affine as SWAffine, Projective as SWCurve, SWCurveConfig},
     twisted_edwards::{Affine as EdwardsAffine, Projective as EdwardsCurve, TECurveConfig},
@@ -7,8 +9,8 @@ use ark_ff::{Field, Fp, FpConfig};
 use ark_serialize::CanonicalDeserialize;
 
 use super::{FieldToUnitDeserialize, GroupToUnitDeserialize};
-use spongefish::{
-    traits::{BytesToUnitDeserialize, UnitTranscript},
+use super::{BytesToUnitDeserialize, UnitTranscript};
+use crate::{
     DuplexSpongeInterface, ProofResult, VerifierState,
 };
 
@@ -28,66 +30,66 @@ where
     }
 }
 
-impl<G, H> GroupToUnitDeserialize<G> for VerifierState<'_, H>
-where
-    G: CurveGroup,
-    H: DuplexSpongeInterface,
-{
-    fn fill_next_points(&mut self, output: &mut [G]) -> ProofResult<()> {
-        let point_size = G::default().compressed_size();
-        let mut buf = vec![0u8; point_size];
+// impl<G, H> GroupToUnitDeserialize<G> for VerifierState<'_, H>
+// where
+//     G: CurveGroup,
+//     H: DuplexSpongeInterface,
+// {
+//     fn fill_next_points(&mut self, output: &mut [G]) -> ProofResult<()> {
+//         let point_size = G::default().compressed_size();
+//         let mut buf = vec![0u8; point_size];
 
-        for o in output.iter_mut() {
-            self.fill_next_units(&mut buf)?;
-            *o = G::deserialize_compressed(buf.as_slice())?;
-        }
-        Ok(())
-    }
-}
+//         for o in output.iter_mut() {
+//             self.fill_next_units(&mut buf)?;
+//             *o = G::deserialize_compressed(buf.as_slice())?;
+//         }
+//         Ok(())
+//     }
+// }
 
-impl<H, C, const N: usize> FieldToUnitDeserialize<Fp<C, N>> for VerifierState<'_, H, Fp<C, N>>
-where
-    C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
-{
-    fn fill_next_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
-        self.fill_next_units(output)?;
-        Ok(())
-    }
-}
+// impl<H, C, const N: usize> FieldToUnitDeserialize<Fp<C, N>> for VerifierState<'_, H>
+// where
+//     C: FpConfig<N>,
+//     H: DuplexSpongeInterface<U = Fp<C, N>>,
+// {
+//     fn fill_next_scalars(&mut self, output: &mut [Fp<C, N>]) -> ProofResult<()> {
+//         self.fill_next_units(output)?;
+//         Ok(())
+//     }
+// }
 
-impl<P, H, C, const N: usize> GroupToUnitDeserialize<EdwardsCurve<P>>
-    for VerifierState<'_, H, Fp<C, N>>
-where
-    C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
-    P: TECurveConfig<BaseField = Fp<C, N>>,
-{
-    fn fill_next_points(&mut self, output: &mut [EdwardsCurve<P>]) -> ProofResult<()> {
-        for o in output.iter_mut() {
-            let o_affine = EdwardsAffine::deserialize_compressed(&mut self.narg_string)?;
-            *o = o_affine.into();
-            self.public_units(&[o.x, o.y])?;
-        }
-        Ok(())
-    }
-}
+// impl<P, H, C, const N: usize> GroupToUnitDeserialize<EdwardsCurve<P>>
+//     for VerifierState<'_, H>
+// where
+//     C: FpConfig<N>,
+//     H: DuplexSpongeInterface<U = Fp<C, N>>,
+//     P: TECurveConfig<BaseField = Fp<C, N>>,
+// {
+//     fn fill_next_points(&mut self, output: &mut [EdwardsCurve<P>]) -> ProofResult<()> {
+//         for o in output.iter_mut() {
+//             let o_affine = EdwardsAffine::deserialize_compressed(&mut self.narg_string)?;
+//             *o = o_affine.into();
+//             self.public_units(&[o.x, o.y])?;
+//         }
+//         Ok(())
+//     }
+// }
 
-impl<P, H, C, const N: usize> GroupToUnitDeserialize<SWCurve<P>> for VerifierState<'_, H, Fp<C, N>>
-where
-    C: FpConfig<N>,
-    H: DuplexSpongeInterface<Fp<C, N>>,
-    P: SWCurveConfig<BaseField = Fp<C, N>>,
-{
-    fn fill_next_points(&mut self, output: &mut [SWCurve<P>]) -> ProofResult<()> {
-        for o in output.iter_mut() {
-            let o_affine = SWAffine::deserialize_compressed(&mut self.narg_string)?;
-            *o = o_affine.into();
-            self.public_units(&[o.x, o.y])?;
-        }
-        Ok(())
-    }
-}
+// impl<P, H, C, const N: usize> GroupToUnitDeserialize<SWCurve<P>> for VerifierState<'_, H>
+// where
+//     C: FpConfig<N>,
+//     H: DuplexSpongeInterface<U = Fp<C, N>>,
+//     P: SWCurveConfig<BaseField = Fp<C, N>>,
+// {
+//     fn fill_next_points(&mut self, output: &mut [SWCurve<P>]) -> ProofResult<()> {
+//         for o in output.iter_mut() {
+//             let o_affine = SWAffine::deserialize_compressed(&mut self.narg_string)?;
+//             *o = o_affine.into();
+//             self.public_units(&[o.x, o.y])?;
+//         }
+//         Ok(())
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -99,7 +101,7 @@ mod tests {
 
     use super::*;
     use crate::{FieldDomainSeparator, GroupDomainSeparator};
-    use spongefish::{DefaultHash, DomainSeparator};
+    use crate::{DefaultHash, DomainSeparator};
 
     /// Custom field for testing: BabyBear
     #[derive(MontConfig)]
