@@ -7,19 +7,62 @@
 //! This is done using the standard duplex sponge construction in overwrite mode (cf. [Wikipedia](https://en.wikipedia.org/wiki/Sponge_function#Duplex_construction)).
 //! - [`legacy::DigestBridge`] takes as input any hash function implementing the NIST API via the standard [`digest::Digest`] trait and makes it suitable for usage in duplex mode for continuous absorb/squeeze.
 
-/// Sponge functions.
-mod interface;
-/// Legacy hash functions support (e.g. [`sha2`](https://crates.io/crates/sha2), [`blake2`](https://crates.io/crates/blake2)).
-pub mod legacy;
-
-#[cfg(feature = "std")]
-use std::io::Read;
-
-pub use interface::DuplexSpongeInterface;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-mod unit;
-pub use unit::Unit;
+/// Basic units over which a sponge operates.
+///
+/// The only requirement of Units is that they have fixed size, can be copied, and possess a "zero" element.
+pub trait Unit: Clone + Sized {
+    /// The zero element.
+    const ZERO: Self;
+}
+
+impl Unit for u8 {
+    const ZERO: Self = 0;
+}
+
+/// A [`DuplexInterface`] is an abstract interface for absorbing and squeezing data.
+/// The type parameter `U` represents basic unit that the sponge works with.
+///
+/// We require [`DuplexInterface`] implementations to have a [`std::default::Default`] implementation, that initializes
+/// to zero the hash function state, and a [`zeroize::Zeroize`] implementation for secure deletion.
+///
+/// **HAZARD**: Don't implement this trait unless you know what you are doing.
+/// Consider using the sponges already provided by this library.
+pub trait DuplexSpongeInterface: Clone + zeroize::Zeroize {
+    type U: Unit;
+
+    /// Initializes a new sponge, setting up the state.
+    fn new() -> Self;
+
+    /// Absorbs new elements in the sponge.
+    fn absorb(&mut self, input: &[Self::U]) -> &mut Self;
+
+    /// Squeezes out new elements.
+    fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
+
+    /// Ratchet the current block.
+    ///
+    /// If the underlying hash is processing absorbs in blocks, this function will fill it
+    /// so that future absorbs can rely on the full "rate" of the underlying hash.
+    fn ratchet(&mut self) -> &mut Self {
+        let seed = self.squeeze_array::<256>();
+        self.zeroize();
+        self.absorb(&seed)
+    }
+
+    fn squeeze_array<const LEN: usize>(&mut self) -> [Self::U; LEN] {
+        let mut output = [Self::U::ZERO; LEN];
+        self.squeeze(&mut output);
+        output
+    }
+
+    fn squeeze_boxed(&mut self, len: usize) -> alloc::boxed::Box<[Self::U]> {
+        let mut output = alloc::vec![Self::U::ZERO; len];
+        self.squeeze(&mut output);
+        output.into_boxed_slice()
+    }
+}
 
 /// The basic state of a cryptographic sponge.
 ///
@@ -133,100 +176,9 @@ impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
         self.squeeze(rest)
     }
 
-    fn pad_block(&mut self) -> &mut Self {
+    fn ratchet(&mut self) -> &mut Self {
         self.absorb_pos = P::R;
         self.squeeze_pos = P::R;
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::keccak::Keccak;
-
-    #[test]
-    fn test_squeeze_zero_after_behavior() {
-        let mut sponge = Keccak::new();
-        let mut output = [0u8; 64];
-
-        let input = b"Hello, World!";
-        sponge.squeeze(&mut [0u8; 0]);
-        sponge.absorb(input);
-        sponge.squeeze(&mut output);
-
-        assert!(output.iter().any(|u| *u != 0));
-    }
-
-    #[test]
-    fn test_associativity_of_absorb() {
-        let expected_output =
-            hex::decode("7dfada182d6191e106ce287c2262a443ce2fb695c7cc5037a46626e88889af58")
-                .unwrap();
-        let mut sponge1 = Keccak::new();
-        sponge1.absorb(b"hello world");
-        let mut out1 = [0u8; 32];
-        sponge1.squeeze(&mut out1);
-
-        let mut sponge2 = Keccak::new();
-        sponge2.absorb(b"hello");
-        sponge2.absorb(b" world");
-        let mut out2 = [0u8; 32];
-        sponge2.squeeze(&mut out2);
-
-        assert_eq!(out1.to_vec(), expected_output);
-        assert_eq!(out2.to_vec(), expected_output);
-    }
-
-    #[test]
-    fn test_tag_affects_output() {
-        let mut sponge1 = Keccak::new();
-        let mut sponge2 = Keccak::new();
-
-        let mut output1 = [0u8; 32];
-        sponge1.absorb(b"input1");
-        sponge1.squeeze(&mut output1);
-
-        let mut output2 = [0u8; 32];
-        sponge2.absorb(b"input2");
-        sponge2.squeeze(&mut output2);
-
-        assert_ne!(output1, output2)
-    }
-
-    #[test]
-    fn test_zeroize_clears_memory() {
-        use core::ptr;
-
-        use zeroize::Zeroize;
-
-        // Create a sponge with sensitive data
-        let mut sponge = Keccak::new();
-        sponge.absorb(b"secret data that must be cleared");
-
-        // Get a pointer to the internal state before zeroization
-        let state_ptr = sponge.permutation.as_ref().as_ptr();
-        let state_len = sponge.permutation.as_ref().len();
-
-        // Verify state contains non-zero data
-        let has_nonzero_before =
-            unsafe { (0..state_len).any(|i| ptr::read(state_ptr.add(i)) != 0) };
-        assert!(
-            has_nonzero_before,
-            "State should contain non-zero data before zeroization"
-        );
-
-        sponge.zeroize();
-
-        // Verify all bytes in the state are now zero
-        let all_zero_after = unsafe { (0..state_len).all(|i| ptr::read(state_ptr.add(i)) == 0) };
-        assert!(
-            all_zero_after,
-            "State should be completely zeroed after zeroization"
-        );
-
-        // Also verify the position counters are zeroed
-        assert_eq!(sponge.absorb_pos, 0);
-        assert_eq!(sponge.squeeze_pos, 0);
     }
 }

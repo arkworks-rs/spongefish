@@ -6,8 +6,8 @@ use alloc::{
 use core::marker::PhantomData;
 
 use crate::{
+    domain_separator::DomainSeparatorMismatch,
     duplex_sponge::{DuplexSpongeInterface, Unit},
-    errors::DomainSeparatorMismatch,
 };
 
 /// This is the separator between operations in the domain separator

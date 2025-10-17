@@ -1,4 +1,4 @@
-use crate::{errors::DomainSeparatorMismatch, Unit};
+use crate::{domain_separator::DomainSeparatorMismatch, Unit};
 
 /// Absorbing and squeezing native elements from the sponge.
 ///
@@ -82,3 +82,13 @@ impl<T: UnitTranscript<u8>> UnitToBytes for T {
         self.fill_challenge_units(output)
     }
 }
+
+impl alloc::fmt::Display for DomainSeparatorMismatch {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{:?}", self.0)
+    }
+}
+
+// Error trait is not available in no_std
+#[cfg(feature = "std")]
+impl std::error::Error for DomainSeparatorMismatch {}

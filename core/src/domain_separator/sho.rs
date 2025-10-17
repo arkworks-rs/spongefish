@@ -2,10 +2,9 @@ use alloc::{collections::vec_deque::VecDeque, format};
 use core::fmt;
 
 use crate::{
-    domain_separator::{DomainSeparator, Op},
+    domain_separator::{DomainSeparator, DomainSeparatorMismatch, Op},
     duplex_sponge::DuplexSpongeInterface,
-    errors::DomainSeparatorMismatch,
-    keccak::Keccak,
+    instantiations::permutations::Keccak,
 };
 
 /// A stateful hash object that interfaces with duplex interfaces.
@@ -34,7 +33,7 @@ impl<H: DuplexSpongeInterface> HashStateWithInstructions<H> {
     pub fn ratchet(&mut self) -> Result<(), DomainSeparatorMismatch> {
         match self.stack.pop_front() {
             Some(Op::Ratchet) => {
-                self.ds.pad_block();
+                self.ds.ratchet();
                 Ok(())
             }
             Some(op) => Err(format!("Expected Ratchet, got {op:?}").into()),
@@ -223,7 +222,7 @@ mod tests {
             self
         }
 
-        fn pad_block(&mut self) -> &mut Self {
+        fn ratchet(&mut self) -> &mut Self {
             *self.ratcheted.borrow_mut() = true;
             self
         }

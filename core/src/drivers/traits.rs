@@ -1,16 +1,16 @@
 use ark_ff::FpConfig;
 use ark_serialize::CanonicalSerialize;
 
-use crate::codecs::{Decodable, Encodable};
+use crate::codecs::{Decoding, Encoding};
 
-impl<C: FpConfig<N>, const N: usize> Encodable<[u8]> for ark_ff::Fp<C, N> {
+impl<C: FpConfig<N>, const N: usize> Encoding<[u8]> for ark_ff::Fp<C, N> {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut w = alloc::vec::Vec::new();
-        self.serialize_compressed(&mut w).expect("Unable to serialize element");
+        self.serialize_compressed(&mut w)
+            .expect("Unable to serialize element");
         w
     }
 }
-
 
 pub struct ScalarBuffer<const N: usize>(alloc::vec::Vec<u8>);
 
@@ -29,15 +29,13 @@ impl<const N: usize> AsMut<[u8]> for ScalarBuffer<N> {
 
 use ark_ff::PrimeField;
 
-impl<const N: usize, C: FpConfig<N>> Decodable<[u8]> for ark_ff::Fp<C, N>
-{
+impl<const N: usize, C: FpConfig<N>> Decoding<[u8]> for ark_ff::Fp<C, N> {
     type Repr = ScalarBuffer<N>;
 
-    fn decode(buf: <Self as Decodable<[u8]>>::Repr) -> Self {
+    fn decode(buf: <Self as Decoding<[u8]>>::Repr) -> Self {
         Self::from_be_bytes_mod_order(&buf.0)
     }
 }
-
 
 macro_rules! field_traits {
     ($Field:path) => {

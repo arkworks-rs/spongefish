@@ -7,16 +7,7 @@ use core::fmt::Debug;
 use zerocopy::IntoBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::duplex_sponge::{DuplexSponge, Permutation};
-
-/// A duplex sponge based on the permutation [`keccak::f1600`]
-/// using [`DuplexSponge`].
-///
-/// **Warning**: This function is not SHA3.
-/// Despite internally we use the same permutation function,
-/// we build a duplex sponge in overwrite mode
-/// on the top of it using the `DuplexSponge` trait.
-pub type Keccak = DuplexSponge<KeccakF1600>;
+use crate::duplex_sponge::Permutation;
 
 /// Keccak permutation internal state: 25 64-bit words,
 /// or equivalently 200 bytes in little-endian order.

@@ -8,17 +8,18 @@
 //! - the implementation is for any Digest.
 
 use alloc::vec::Vec;
+
 use digest::{
     core_api::BlockSizeUser, crypto_common::generic_array::GenericArray, typenum::Unsigned, Digest,
     FixedOutputReset, Reset,
 };
 use zeroize::Zeroize;
 
-use super::DuplexSpongeInterface;
+use crate::DuplexSpongeInterface;
 
 /// A Bridge to our sponge interface for legacy `Digest` implementations.
 #[derive(Clone)]
-pub struct DigestBridge<D: Digest + Clone + Reset + BlockSizeUser> {
+pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     /// The underlying hasher.
     hasher: D,
     /// Cached digest
@@ -37,7 +38,7 @@ enum Mode {
     Squeeze(usize),
 }
 
-impl<D: BlockSizeUser + Digest + Clone + Reset> DigestBridge<D> {
+impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
     const BLOCK_SIZE: usize = D::BlockSize::USIZE;
     const DIGEST_SIZE: usize = D::OutputSize::USIZE;
 
@@ -84,20 +85,20 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> DigestBridge<D> {
     }
 }
 
-impl<D: Clone + Digest + Reset + BlockSizeUser> Zeroize for DigestBridge<D> {
+impl<D: Clone + Digest + Reset + BlockSizeUser> Zeroize for Hash<D> {
     fn zeroize(&mut self) {
         self.cv.zeroize();
         Digest::reset(&mut self.hasher);
     }
 }
 
-impl<D: Clone + Digest + Reset + BlockSizeUser> Drop for DigestBridge<D> {
+impl<D: Clone + Digest + Reset + BlockSizeUser> Drop for Hash<D> {
     fn drop(&mut self) {
         self.zeroize();
     }
 }
 
-impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for DigestBridge<D> {
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
     fn default() -> Self {
         Self {
             hasher: D::new(),
@@ -108,9 +109,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for DigestBri
     }
 }
 
-impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
-    for DigestBridge<D>
-{
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface for Hash<D> {
     type U = u8;
     fn new() -> Self {
         Self::default()
@@ -129,7 +128,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn pad_block(&mut self) -> &mut Self {
+    fn ratchet(&mut self) -> &mut Self {
         self.squeeze_end();
         // Double hash
         self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
@@ -149,7 +148,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.squeeze(output)
         // If Absorbing, ratchet
         } else if self.mode == Mode::Absorb {
-            self.pad_block();
+            self.ratchet();
             self.squeeze(output)
         // If we have no more data to squeeze, return
         } else if output.is_empty() {
@@ -187,10 +186,10 @@ fn test_shosha() {
     \x68\xD7\xEE\x2D\x40\xA4\x52\x32\xB5\x99\x55\x2D\x46\xB5\
     \x20\x08\x2F\xB2\x70\x59\x71\xF0\x7B\x31\x58\xB0\x72\xB6\
     \x3A\xB0\x93\x4A\x05\xE6\xAF\x64";
-    let mut sho = DigestBridge::<sha2::Sha256>::default();
+    let mut sho = Hash::<sha2::Sha256>::default();
     let mut got = [0u8; 64];
     sho.absorb(b"asd");
-    sho.pad_block();
+    sho.ratchet();
     // streaming absorb
     sho.absorb(b"asd");
     sho.absorb(b"asd");
@@ -204,10 +203,10 @@ fn test_shosha() {
     \x68\xD7\xEE\x2D\x40\xA4\x52\x32\xB5\x99\x55\x2D\x46\xB5\
     \x20\x08\x2F\xB2\x70\x59\x71\xF0\x7B\x31\x58\xB0\x72\xB6\
     \x3A\xB0\x93\x4A\x05\xE6\xAF\x64\x48";
-    let mut sho = DigestBridge::<sha2::Sha256>::default();
+    let mut sho = Hash::<sha2::Sha256>::default();
     let mut got = [0u8; 65];
     sho.absorb(b"asd");
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(b"asdasd");
     sho.squeeze(&mut got);
     assert_eq!(&got, expected);
@@ -218,24 +217,24 @@ fn test_shosha() {
     \xF1\x62\x1A\xAB\x8D\x0D\x29\x19\x4F\x8A\xF9\x86\xD6\xF3\
     \x57\xAD\xD0\x15\x0D\xF7\xD9";
 
-    let mut sho = DigestBridge::<sha2::Sha256>::default();
+    let mut sho = Hash::<sha2::Sha256>::default();
     let mut got = [0u8; 150];
     sho.absorb(b"");
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(b"abc");
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 63]);
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 64]);
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 65]);
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 127]);
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 128]);
-    sho.pad_block();
+    sho.ratchet();
     sho.absorb(&[0u8; 129]);
-    sho.pad_block();
+    sho.ratchet();
     sho.squeeze(&mut got[..63]);
     // assert_eq!(&got[..63], &hex::decode("5bddc29ac27fd88bf682b07dd5c496b065f6ce11fd7aa77d1e13c609d77b9b2fed21b470f71a7f1fdfbfa895060c51302e782f440305d12ec85a492635dd3a").unwrap()[..]);
     sho.squeeze_end();
@@ -251,7 +250,7 @@ fn test_shosha() {
     sho.squeeze(&mut got[..129]);
     assert_eq!(got[0], 0xd0);
     sho.absorb(b"def");
-    sho.pad_block();
+    sho.ratchet();
     sho.squeeze(&mut got[..63]);
     assert_eq!(&got[..63], expected);
 }

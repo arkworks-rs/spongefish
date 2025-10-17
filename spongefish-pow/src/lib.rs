@@ -3,7 +3,7 @@ pub mod keccak;
 
 use spongefish::{
     ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DuplexSpongeInterface,
-    ProofError, ProofResult, ProverState, Unit, UnitToBytes, VerifierState,
+    VerificationError, VerificationResult, ProverState, Unit, UnitToBytes, VerifierState,
 };
 
 /// [`spongefish::DomainSeparator`] for proof-of-work challenges.
@@ -34,7 +34,7 @@ where
 
 pub trait PoWChallenge {
     /// Extension trait for generating a proof-of-work challenge.
-    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> ProofResult<()>;
+    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> VerificationResult<()>;
 }
 
 impl<H, U, R> PoWChallenge for ProverState<H, U, R>
@@ -44,29 +44,29 @@ where
     R: rand::CryptoRng + rand::RngCore,
     Self: BytesToUnitSerialize + UnitToBytes,
 {
-    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> ProofResult<()> {
+    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> VerificationResult<()> {
         let challenge = self.challenge_bytes()?;
         let nonce = S::new(challenge, bits)
             .solve()
-            .ok_or(ProofError::InvalidProof)?;
+            .ok_or(VerificationError::InvalidProof)?;
         self.add_bytes(&nonce.to_be_bytes())?;
         Ok(())
     }
 }
 
-impl<H, U> PoWChallenge for VerifierState<'_, H, U>
+impl<H> PoWChallenge for VerifierState<'_, H>
 where
     U: Unit,
     H: DuplexSpongeInterface<U>,
     Self: BytesToUnitDeserialize + UnitToBytes,
 {
-    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> ProofResult<()> {
+    fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> VerificationResult<()> {
         let challenge = self.challenge_bytes()?;
         let nonce = u64::from_be_bytes(self.next_bytes()?);
         if S::new(challenge, bits).check(nonce) {
             Ok(())
         } else {
-            Err(ProofError::InvalidProof)
+            Err(VerificationError::InvalidProof)
         }
     }
 }

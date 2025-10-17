@@ -27,6 +27,10 @@ group = { workspace = true, optional = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
 sha3 = { workspace = true }
+blake3 = { workspace = true, features = ["zeroize"] }
+sha2 = { workspace = true, features = ["asm"] }
+blake2.workspace = true
+ascon = "0.4.0"
 
 [features]
 default = []
