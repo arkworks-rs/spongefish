@@ -31,7 +31,7 @@ while maintaining security is crucial. We offer tools for preprocessing the Tran
 It is vital to avoid providing two different challenges for the same prover message. We do our best to avoid it by tying down the prover randomness to the protocol transcript, without making the proof deterministic.
 
 ## More information
-Check out the [documentation](https://arkworks.rs/spongefish/) and some [`examples/`](https://github.com/arkworks-rs/spongefish/tree/main/spongefish/examples).
+Check out the [documentation](https://arkworks.rs/spongefish/spongefish) and some [`examples/`](https://github.com/arkworks-rs/spongefish/tree/main/spongefish/examples).
 
 ## Funding
 
