@@ -1,10 +1,12 @@
 //! This module defines the duplex sponge construction that can absorb and squeeze data.
-//! Hashes in `spongefish` operate over some native elements satisfying the trait [`Unit`] which, roughly speaking, requires
-//! the basic type to support cloning, size, read/write procedures, and secure deletion.
 //!
-//! Additionally, the module exports some utilities:
-//! - [`DuplexSponge`] allows to implement a [`DuplexInterface`] using a secure permutation function, specifying the rate `R` and the width `N`.
-//! This is done using the standard duplex sponge construction in overwrite mode (cf. [Wikipedia](https://en.wikipedia.org/wiki/Sponge_function#Duplex_construction)).
+//! Hashes in `spongefish` operate over generic elements called [`Unit`].
+//! Roughly speaking, a [`Unit`] requires only [`Clone`] and [`Sized`], and has a
+//! special element [`Unit::ZERO`] that denotes the default, neutral value to write on initialization and deletion.
+//!
+//! A [`DuplexSpongeInterface`] is the interface providing basic absorb/squeeze functions over [`Unit`].
+//! While it can be built from sponges, [`DuplexSpongeInterface`] is just a trait that can be implemented in different ways. See [`spongefish::instantiations`] for some examples
+//! the standard duplex sponge construction in overwrite mode (cf. [Wikipedia](https://en.wikipedia.org/wiki/Sponge_function#Duplex_construction)).
 //! - [`legacy::DigestBridge`] takes as input any hash function implementing the NIST API via the standard [`digest::Digest`] trait and makes it suitable for usage in duplex mode for continuous absorb/squeeze.
 
 use zeroize::{Zeroize, ZeroizeOnDrop};

@@ -10,8 +10,8 @@
 use alloc::vec::Vec;
 
 use digest::{
-    core_api::BlockSizeUser, crypto_common::generic_array::GenericArray, typenum::Unsigned, Digest,
-    FixedOutputReset, Reset,
+    core_api::{Block, BlockSizeUser}, typenum::Unsigned, Digest,
+    FixedOutputReset, Output, Reset,
 };
 use zeroize::Zeroize;
 
@@ -23,7 +23,7 @@ pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     /// The underlying hasher.
     hasher: D,
     /// Cached digest
-    cv: GenericArray<u8, D::OutputSize>,
+    cv: Output<D>,
     /// Current operation, keeping state between absorb and squeeze
     /// across multiple calls when streaming.
     mode: Mode,
@@ -44,23 +44,23 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
 
     /// Create a block
     /// | start | 0000 0000 | end |
-    fn pad_block(start: &[u8], end: &[u8]) -> GenericArray<u8, D::BlockSize> {
+    fn pad_block(start: &[u8], end: &[u8]) -> Block<D> {
         debug_assert!(start.len() + end.len() < Self::BLOCK_SIZE);
-        let mut mask = GenericArray::default();
+        let mut mask = Block::<D>::default();
         mask[..start.len()].copy_from_slice(start);
         mask[Self::BLOCK_SIZE - end.len()..].copy_from_slice(end);
         mask
     }
 
-    fn mask_absorb() -> GenericArray<u8, D::BlockSize> {
+    fn mask_absorb() -> Block<D> {
         Self::pad_block(&[], &[0x00])
     }
 
-    fn mask_squeeze() -> GenericArray<u8, D::BlockSize> {
+    fn mask_squeeze() -> Block<D> {
         Self::pad_block(&[], &[0x01])
     }
 
-    fn mask_squeeze_end() -> GenericArray<u8, D::BlockSize> {
+    fn mask_squeeze_end() -> Block<D> {
         Self::pad_block(&[], &[0x02])
     }
 
@@ -102,7 +102,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
     fn default() -> Self {
         Self {
             hasher: D::new(),
-            cv: GenericArray::default(),
+            cv: Output::<D>::default(),
             mode: Mode::Start,
             leftovers: Vec::new(),
         }

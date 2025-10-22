@@ -10,11 +10,11 @@ pub use xof::XOF;
 pub use super::duplex_sponge::DuplexSponge;
 
 pub type Shake128 = xof::XOF<sha3::Shake128>;
+pub type TurboShake128 = xof::XOF<sha3::TurboShake128>;
 pub type Blake3 = xof::XOF<blake3::Hasher>;
 pub type SHA256 = hash::Hash<sha2::Sha256>;
 pub type SHA512 = hash::Hash<sha2::Sha512>;
 pub type Blake2b512 = hash::Hash<blake2::Blake2b512>;
-pub type TurboShake128 = xof::XOF<sha3::TurboShake128>;
 
 /// A duplex sponge based on the permutation [`keccak::f1600`]
 /// using [`DuplexSponge`].

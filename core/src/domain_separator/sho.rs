@@ -4,7 +4,7 @@ use core::fmt;
 use crate::{
     domain_separator::{DomainSeparator, DomainSeparatorMismatch, Op},
     duplex_sponge::DuplexSpongeInterface,
-    instantiations::permutations::Keccak,
+    instantiations::permutations::keccak::Keccak,
 };
 
 /// A stateful hash object that interfaces with duplex interfaces.

@@ -3,7 +3,7 @@ pub mod keccak;
 
 use spongefish::{
     ByteDomainSeparator, BytesToUnitDeserialize, BytesToUnitSerialize, DuplexSpongeInterface,
-    VerificationError, VerificationResult, ProverState, Unit, UnitToBytes, VerifierState,
+    ProverState, Unit, UnitToBytes, VerificationError, VerificationResult, VerifierState,
 };
 
 /// [`spongefish::DomainSeparator`] for proof-of-work challenges.

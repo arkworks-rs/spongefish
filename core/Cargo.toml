@@ -31,6 +31,7 @@ blake3 = { workspace = true, features = ["zeroize"] }
 sha2 = { workspace = true, features = ["asm"] }
 blake2.workspace = true
 ascon = "0.4.0"
+generic-array = { version = "1.3.4", features = ["alloc", "zeroize"] }
 
 [features]
 default = []
