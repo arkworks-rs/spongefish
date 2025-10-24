@@ -21,7 +21,7 @@
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
-use spongefish::backend::arkworks_algebra::{
+use spongefish::drivers::arkworks_algebra::{
     CommonGroupToUnit, DomainSeparator, DuplexSpongeInterface, FieldDomainSeparator,
     FieldToUnitDeserialize, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize,
     GroupToUnitSerialize, ProofError, ProofResult, ProverState, UnitToField, VerifierState,
@@ -141,7 +141,7 @@ where
     // ]]
     let [K] = verifier_state.next_points().unwrap();
     let [c] = verifier_state.challenge_scalars().unwrap();
-    let [r]: [G::ScalarField; 1] = verifier_state.next_scalars().unwrap();
+    let r: G::ScalarField = verifier_state.prover_messages().unwrap();
 
     // Check the verification equation, otherwise return a verification error.
     // The type ProofError is an enum that can report:

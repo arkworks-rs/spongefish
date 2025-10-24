@@ -8,7 +8,7 @@ license = "MIT/Apache-2.0"
 workspace = true
 
 [dependencies]
-spongefish = { workspace = true, features = ["arkworks-algebra"] }
+spongefish = { workspace = true, features = ["ark-ff"] }
 ark-ff = { workspace = true }
 zeroize = { workspace = true }
 ark-bls12-381 = { workspace = true, optional = true }
@@ -24,8 +24,8 @@ blake2 = { workspace = true }
 [features]
 bn254 = ["ark-bn254"]
 solinas = []
-bls12-381 = ["spongefish/arkworks-algebra", "dep:ark-bls12-381"]
-ark-bls12-381 = ["spongefish/arkworks-algebra", "dep:ark-bls12-381"]
+bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
+ark-bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
 
 [[example]]
 name = "schnorr_algebraic_hash"

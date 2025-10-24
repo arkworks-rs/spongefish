@@ -1,54 +1,63 @@
-//!  Bindings to some popular libraries using zero-knowledge.
+//! Bindings to some popular libraries using zero-knowledge.
 
-/// Extension traits macros, for both arkworks and group.
-#[cfg(any(feature = "arkworks-algebra", feature = "zkcrypto-group"))]
-mod traits;
+// Arkworks field implementations
+#[cfg(feature = "ark-ff")]
+pub mod ark_ff_impl;
 
-/// Arkworks algebra codecs
-#[cfg(feature = "arkworks-algebra")]
-pub mod arkworks;
+// Arkworks elliptic curve implementations
+#[cfg(feature = "ark-ec")]
+pub mod ark_ec_impl;
+
+// Module for BLS12-381 support
+#[cfg(feature = "bls12_381")]
+pub mod bls12_381_impl;
+
+// Module for curve25519-dalek support
+#[cfg(feature = "curve25519-dalek")]
+pub mod curve25519_dalek_impl;
+
+// Module for secp256k1 support (k256)
+#[cfg(feature = "k256")]
+pub mod secp256k1_impl;
+
+// Plonky3 BabyBear field
+#[cfg(feature = "p3-baby-bear")]
+pub mod p3_babybear;
+
+// Plonky3 KoalaBear/Mersenne31 field
+#[cfg(feature = "p3-mersenne-31")]
+pub mod p3_koalabear;
+
+// Buffer of 512-bytes, useful for decoding 256-bit scalars.
+#[repr(C)]
+pub struct Slice64([u8; 64]);
+
+impl Default for Slice64 {
+    fn default() -> Self {
+        Slice64([0u8; 64])
+    }
+}
+
+impl AsMut<[u8]> for Slice64 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
 
 /// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
-pub(super) const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
+#[inline]
+#[must_use]
+pub const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
     (modulus_bits as usize + 128) / 8
 }
 
-/// Number of uniformly random bytes of in a uniformly-distributed element in `[0, b)`.
-///
-/// This function returns the maximum n for which
-/// `Uniform([b]) mod 2^n`
-/// and
-/// `Uniform([2^n])`
-/// are statistically indistinguishable.
-/// Given \(b = q 2^n + r\) the statistical distance
-/// is \(\frac{2r}{ab}(a-r)\).
-#[cfg(feature = "arkworks-algebra")]
-pub(super) fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
-    use ark_ff::{BigInt, BigInteger};
-    // XXX. is it correct to have num_bits+1 here?
-    for n in (0..=b.num_bits()).rev() {
-        // compute the remainder of b by 2^n
-        let r_bits = &b.to_bits_le()[..n as usize];
-        let r = BigInt::<N>::from_bits_le(r_bits);
-        let log2_a_minus_r = r_bits.iter().rev().skip_while(|&&bit| bit).count() as u32;
-        if b.num_bits() + n - 1 - r.num_bits() - log2_a_minus_r >= 128 {
-            return n as usize;
-        }
-    }
-    0
-}
-
-/// Same as above, but for bytes
-#[cfg(feature = "arkworks-algebra")]
-pub(super) fn random_bytes_in_random_modp<const N: usize>(modulus: ark_ff::BigInt<N>) -> usize {
-    random_bits_in_random_modp(modulus) / 8
-}
-
 /// Bytes needed in order to encode an element of F.
-pub(super) const fn bytes_modp(modulus_bits: u32) -> usize {
-    (modulus_bits as usize).div_ceil(8)
+#[inline]
+#[must_use]
+pub const fn bytes_modp(modulus_bits: u32) -> u64 {
+    (modulus_bits as u64).div_ceil(8)
 }
 
-/// Unit-tests for inter-operability among libraries.
-#[cfg(all(test, feature = "arkworks-algebra", feature = "zkcrypto-group"))]
-mod tests;
+// // Integration tests
+// #[cfg(test)]
+// mod tests;

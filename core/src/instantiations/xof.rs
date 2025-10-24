@@ -4,6 +4,7 @@
 //! XOF (extendable output function) that implements the [`ExtendableOutput`] trait.
 
 use digest::{ExtendableOutput, Reset, XofReader};
+#[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::duplex_sponge::DuplexSpongeInterface;
@@ -50,23 +51,19 @@ where
     }
 }
 
+#[cfg(feature = "zeroize")]
 impl<H> Zeroize for XOF<H>
 where
     H: ExtendableOutput + Default + Reset,
 {
     fn zeroize(&mut self) {
-        // Reset hasher to initial state using the Reset trait
         self.hasher.reset();
-        // Clear the reader
         self.xof_reader = None;
     }
 }
 
-impl<H> ZeroizeOnDrop for XOF<H>
-where
-    H: ExtendableOutput + Default + Reset,
-{
-}
+#[cfg(feature = "zeroize")]
+impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + Default + Reset {}
 
 impl<H: ExtendableOutput + Default> Default for XOF<H> {
     fn default() -> Self {

@@ -4,7 +4,7 @@
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_ff::PrimeField;
 use ark_std::UniformRand;
-use spongefish::backend::arkworks_algebra::{
+use spongefish::drivers::arkworks_algebra::{
     swap_field, ByteDomainSeparator, CommonGroupToUnit, DomainSeparator, DuplexSpongeInterface,
     FieldToUnitDeserialize, FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize,
     GroupToUnitSerialize, ProofError, ProofResult, ProverState, Unit, UnitToBytes, VerifierState,

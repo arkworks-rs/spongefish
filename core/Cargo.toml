@@ -5,7 +5,7 @@ authors = [
     "Michele Orrù <m@orru.net>",
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
 ]
-description = "A library for Fiat-Shamir transcripts."
+description = "An implementation of the Fiat-Shamir transformation from Duplex Sponges."
 edition = "2021"
 license = "BSD-3-Clause"
 
@@ -14,31 +14,62 @@ workspace = true
 
 [dependencies]
 zerocopy = { workspace = true }
-zeroize = { workspace = true, features = ["zeroize_derive"] }
+zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 rand = { workspace = true, features = ["getrandom"] }
 digest = { workspace = true }
-# used as default hasher for the prover
-keccak = { workspace = true }
-# optional dependencies
-ark-ff = { workspace = true, optional = true }
-ark-ec = { workspace = true, optional = true }
-ark-serialize = { workspace = true, features = ["std"], optional = true }
-group = { workspace = true, optional = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
-sha3 = { workspace = true }
-blake3 = { workspace = true, features = ["zeroize"] }
-sha2 = { workspace = true, features = ["asm"] }
-blake2.workspace = true
-ascon = "0.4.0"
-generic-array = { version = "1.3.4", features = ["alloc", "zeroize"] }
+
+# Optional hash functions
+keccak = { workspace = true, optional = true }
+sha3 = { workspace = true, optional = true }
+blake3 = { workspace = true, features = ["zeroize"], optional = true }
+sha2 = { workspace = true, features = ["asm"], optional = true }
+blake2 = { workspace = true, optional = true }
+ascon = { version = "0.4.0", optional = true }
+
+# Optional codecs
+ark-ff = { workspace = true, optional = true }
+ark-ec = { workspace = true, optional = true }
+ark-serialize = { workspace = true, optional = true }
+group = { workspace = true, optional = true }
+
+# Optional zkcrypto curves
+bls12_381 = { workspace = true, optional = true }
+curve25519-dalek = { workspace = true, optional = true, features = ["group"] }
+k256 = { workspace = true, optional = true, features = ["arithmetic"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic"] }
+
+# Optional plonky3 fields
+p3-field = { workspace = true, optional = true }
+p3-baby-bear = { workspace = true, optional = true }
+p3-mersenne-31 = { workspace = true, optional = true }
 
 [features]
-default = []
-arkworks-algebra = ["dep:ark-ff", "dep:ark-ec", "dep:ark-serialize"]
-zkcrypto-group = ["dep:group"]
-asm = ["keccak/asm", "keccak/simd"]
-std = []
+default = ["sha3", "zeroize"]
+# Core features
+zeroize = ["dep:zeroize"]
+# Cryptographic hash function features
+sha2 = ["dep:sha2"]
+sha3 = ["dep:sha3"]
+blake2 = ["dep:blake2"]
+blake3 = ["dep:blake3"]
+keccak = ["dep:keccak"]
+ascon = ["dep:ascon"]
+# Algebraic features
+ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
+ark-ec = ["ark-ff", "dep:ark-ec"]
+# Concrete zkcrypto curve implementations
+bls12_381 = ["dep:bls12_381", "dep:group"]
+curve25519-dalek = ["dep:curve25519-dalek", "dep:group"]
+k256 = ["dep:k256", "dep:group"]
+p256 = ["dep:p256", "dep:group"]
+# Plonky3 field implementations
+p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
+p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
+# Performance features
+asm = ["keccak?/asm", "keccak?/simd", "ark-ff?/asm"]
+std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
 
 [dev-dependencies]
 ark-std = { workspace = true }
@@ -46,15 +77,14 @@ sha2 = { workspace = true }
 blake2 = { workspace = true }
 hex = { workspace = true }
 # test curve25519 compatibility
-curve25519-dalek = { workspace = true, features = ["group"] }
+curve25519-dalek = { workspace = true }
 ark-curve25519 = { workspace = true }
 # test algebraic hashers
 bls12_381 = { workspace = true }
-ark-bls12-381 = { workspace = true, features = ["std"] }
-ark-pallas = { workspace = true, features = ["std"] }
+ark-bls12-381 = { workspace = true }
+ark-pallas = { workspace = true }
 pallas = { workspace = true }
-pasta_curves = { workspace = true }
-ark-vesta = { workspace = true, features = ["std"] }
+ark-vesta = { workspace = true }
 sha3 = { workspace = true }
 
 [package.metadata.docs.rs]
@@ -64,12 +94,11 @@ rustdoc-args = [
     "--cfg",
     "docsrs",
 ]
-features = ["ark", "group"]
 
 [[example]]
 name = "schnorr"
-required-features = ["arkworks-algebra"]
+required-features = ["ark-ec"]
 
 [[example]]
 name = "bulletproof"
-required-features = ["arkworks-algebra"]
+required-features = ["ark-ec"]

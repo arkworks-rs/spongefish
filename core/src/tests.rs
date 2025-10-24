@@ -1,13 +1,16 @@
 use rand::RngCore;
 
 use crate::{
-    duplex_sponge::legacy::DigestBridge, keccak::Keccak, BytesToUnitDeserialize,
-    BytesToUnitSerialize, CommonUnitToBytes, DomainSeparator, DuplexSpongeInterface,
-    HashStateWithInstructions, ProverState, UnitToBytes,
+    duplex_sponge::legacy::DigestBridge, instantiations::hash::Hash, keccak::Keccak,
+    BytesToUnitDeserialize, BytesToUnitSerialize, CommonUnitToBytes, DomainSeparator,
+    DuplexSpongeInterface, HashStateWithInstructions, ProverState, UnitToBytes,
 };
 
+#[cfg(feature = "sha2")]
 type Sha2 = Hash<sha2::Sha256>;
+#[cfg(feature = "blake2")]
 type Blake2b512 = Hash<blake2::Blake2b512>;
+#[cfg(feature = "blake2")]
 type Blake2s256 = Hash<blake2::Blake2s256>;
 
 /// How should a protocol without actual IO be handled?
@@ -62,15 +65,6 @@ fn test_invalid_domsep_sequence() {
     let mut verifier_state = HashStateWithInstructions::<Keccak>::new(&domain_separator);
     assert!(verifier_state.squeeze(&mut [0u8; 16]).is_err());
 }
-
-// Hiding for now. Should it panic ?
-// /// A protocol whose domain separator is not finished should panic.
-// #[test]
-// #[should_panic]
-// fn test_unfinished_domsep() {
-//     let iop = DomainSeparator::new("example.com").absorb(3, "").squeeze(1, "");
-//     let _verifier_challenges = VerifierState::<Keccak>::new(&iop);
-// }
 
 /// Challenges from the same transcript should be equal.
 #[test]
@@ -206,11 +200,13 @@ where
     }
 }
 
+#[cfg(feature = "sha2")]
 #[test]
 fn test_streaming_sha2() {
     test_streaming_absorb_and_squeeze::<Sha2>();
 }
 
+#[cfg(feature = "blake2")]
 #[test]
 fn test_streaming_blake2() {
     test_streaming_absorb_and_squeeze::<Blake2b512>();

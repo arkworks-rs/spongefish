@@ -7,8 +7,11 @@ use crate::{
     ProverState, StatefulHashObject,
 };
 
+#[cfg(feature = "sha2")]
 type Sha2 = DigestBridge<sha2::Sha256>;
+#[cfg(feature = "blake2")]
 type Blake2b512 = DigestBridge<blake2::Blake2b512>;
+#[cfg(feature = "blake2")]
 type Blake2s256 = DigestBridge<blake2::Blake2s256>;
 
 /// How should a protocol without actual IO be handled?
@@ -195,11 +198,13 @@ where
     }
 }
 
+#[cfg(feature = "sha2")]
 #[test]
 fn test_streaming_sha2() {
     test_streaming_absorb_and_squeeze::<Sha2>();
 }
 
+#[cfg(feature = "blake2")]
 #[test]
 fn test_streaming_blake2() {
     test_streaming_absorb_and_squeeze::<Blake2b512>();

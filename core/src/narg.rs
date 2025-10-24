@@ -5,10 +5,11 @@ use rand::{CryptoRng, Rng, RngCore};
 use crate::{
     codecs::{Decoding, Encoding},
     duplex_sponge::DuplexSpongeInterface,
-    instantiations::permutations::Keccak,
     io::{Deserialize, Serialize},
-    DefaultHash, DefaultRng, VerificationResult,
+    DefaultHash, VerificationResult,
 };
+
+type DefaultRng = rand::rngs::StdRng;
 
 /// [`VerifierState`] is the verifier state.
 ///
@@ -25,7 +26,7 @@ where
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_messages<T: Encoding<[H::U]> + Deserialize>(&mut self) -> VerificationResult<T> {
-        let message = T::deserialize_from(self.narg_string)?;
+        let message = T::deserialize_from(&mut self.narg_string)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         Ok(message)
     }
@@ -85,9 +86,26 @@ where
 #[derive(Default)]
 pub struct ReseedableRng<R: RngCore + CryptoRng> {
     /// The duplex sponge that is used to generate the prover's private random coins.
-    pub(crate) duplex_sponge: Keccak,
+    pub(crate) duplex_sponge: DefaultHash,
     /// The cryptographic random number generator that seeds the sponge.
     pub(crate) csrng: R,
+}
+
+impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
+    fn from(mut csrng: R) -> Self {
+        let mut duplex_sponge = DefaultHash::new();
+        let seed: [u8; 32] = csrng.gen::<[u8; 32]>();
+        duplex_sponge.absorb(&seed);
+        ReseedableRng { duplex_sponge, csrng }
+    }
+}
+
+impl ReseedableRng<DefaultRng> {
+    fn new() -> Self {
+        use rand::SeedableRng;
+        let csrng = DefaultRng::from_entropy();
+        csrng.into()
+    }
 }
 
 impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
@@ -125,35 +143,14 @@ where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
+    // xxx. todo documentation
     /// Return a reference to the random number generator associated to the proof string.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    /// # use rand::RngCore;
-    ///
-    /// // The domain separator does not need to specify the private coins.
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// assert_ne!(prover_state.rng().next_u32(), 0, "You won the lottery!");
-    /// let mut challenges = [0u8; 32];
-    /// prover_state.rng().fill_bytes(&mut challenges);
-    /// assert_ne!(challenges, [0u8; 32]);
-    /// ```
-    pub fn rng(&mut self) -> &mut (impl CryptoRng + RngCore) {
+    pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
         &mut self.private_rng
     }
 
     /// Return the current proof string.
-    /// The proof string contains all the serialized prover messages.
-    ///
-    /// ```
-    /// # use spongefish::*;
-    ///
-    /// let domain_separator = DomainSeparator::<DefaultHash>::new("📝").absorb(8, "how to make pasta 🤌");
-    /// let mut prover_state = domain_separator.to_prover_state();
-    /// prover_state.add_bytes(b"1tbsp:3l").unwrap();
-    /// assert_eq!(prover_state.narg_string(), b"1tbsp:3l");
-    /// ```
+    /// The proof string contains the serialized prover messages.
     pub fn narg_string(&self) -> &[u8] {
         self.narg_string.as_slice()
     }
@@ -174,16 +171,14 @@ where
     }
 }
 
-impl<H, R> ProverState<H, R>
+impl<H> ProverState<H, DefaultRng>
 where
     H: DuplexSpongeInterface<U = u8>,
-    R: RngCore + CryptoRng,
 {
     pub fn new(
         protocol_id: [u8; 32],
         session_id: impl AsRef<[u8]>,
         instance_label: impl AsRef<[u8]>,
-        csrng: R,
     ) -> Self {
         let instance_label_length = instance_label.as_ref().len().to_be_bytes();
         let session_id_length = session_id.as_ref().len().to_be_bytes();
@@ -197,7 +192,7 @@ where
             .absorb(instance_label.as_ref());
         Self {
             duplex_sponge_state: hash_state,
-            private_rng: csrng.into(),
+            private_rng: ReseedableRng::new(),
             narg_string: Default::default(),
         }
     }
@@ -212,15 +207,6 @@ impl<R: RngCore + CryptoRng> ReseedableRng<R> {
         let mut seed = [0u8; 32];
         self.csrng.fill(&mut seed);
         self.duplex_sponge.absorb(&seed);
-    }
-}
-
-impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
-    fn from(value: R) -> Self {
-        Self {
-            csrng: value,
-            duplex_sponge: Default::default(),
-        }
     }
 }
 

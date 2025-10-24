@@ -1,19 +1,20 @@
 //! This module defines the duplex sponge construction that can absorb and squeeze data.
 //!
-//! Hashes in `spongefish` operate over generic elements called [`Unit`].
+//! Hashes can operate over generic elements called [`Unit`], be them field elements, bytes, or any other data structure.
 //! Roughly speaking, a [`Unit`] requires only [`Clone`] and [`Sized`], and has a
 //! special element [`Unit::ZERO`] that denotes the default, neutral value to write on initialization and deletion.
 //!
-//! A [`DuplexSpongeInterface`] is the interface providing basic absorb/squeeze functions over [`Unit`].
-//! While it can be built from sponges, [`DuplexSpongeInterface`] is just a trait that can be implemented in different ways. See [`spongefish::instantiations`] for some examples
-//! the standard duplex sponge construction in overwrite mode (cf. [Wikipedia](https://en.wikipedia.org/wiki/Sponge_function#Duplex_construction)).
-//! - [`legacy::DigestBridge`] takes as input any hash function implementing the NIST API via the standard [`digest::Digest`] trait and makes it suitable for usage in duplex mode for continuous absorb/squeeze.
+//! A [`DuplexSpongeInterface`] is the interface providing basic absorb/squeeze functions over [`Unit`]s.
+//! On top of which we build the prover and verifier state.
+//!
+//! Many instantiations of [`DuplexSpongeInterface`] are provided in this crate.
+//! While a formal analysis exists only for ideal permutations using [`Permutation`] used with the [`DuplexSponge`] struct,
+//! we also provide additional examples from generic XOFs implementing [`digest::ExtendableOutput`] and hash functions implementing [`digest::Digest`].
 
+#[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-/// Basic units over which a sponge operates.
-///
-/// The only requirement of Units is that they have fixed size, can be copied, and possess a "zero" element.
+/// A trait denoting the requirements for the elements of the sponge alphabet.
 pub trait Unit: Clone + Sized {
     /// The zero element.
     const ZERO: Self;
@@ -23,42 +24,49 @@ impl Unit for u8 {
     const ZERO: Self = 0;
 }
 
-/// A [`DuplexInterface`] is an abstract interface for absorbing and squeezing data.
-/// The type parameter `U` represents basic unit that the sponge works with.
-///
-/// We require [`DuplexInterface`] implementations to have a [`std::default::Default`] implementation, that initializes
-/// to zero the hash function state, and a [`zeroize::Zeroize`] implementation for secure deletion.
+/// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].
 ///
 /// **HAZARD**: Don't implement this trait unless you know what you are doing.
 /// Consider using the sponges already provided by this library.
-pub trait DuplexSpongeInterface: Clone + zeroize::Zeroize {
+pub trait DuplexSpongeInterface: Clone {
     type U: Unit;
 
-    /// Initializes a new sponge, setting up the state.
+    /// Initialize the state of the duplex sponge.
     fn new() -> Self;
 
     /// Absorbs new elements in the sponge.
+    ///
+    /// Calls to absorb are meant to be associative:
+    /// calling this function multiple times is equivalent to calling it once
+    /// on the concatenated inputs.
     fn absorb(&mut self, input: &[Self::U]) -> &mut Self;
 
     /// Squeezes out new elements.
+    ///
+    /// Calls to this function are meant to be associative:
+    /// calling this function multiple times is equivalent to calling it once
+    /// on a larger output array.
     fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
 
-    /// Ratchet the current block.
+    /// Ratchet the sponge.
     ///
-    /// If the underlying hash is processing absorbs in blocks, this function will fill it
-    /// so that future absorbs can rely on the full "rate" of the underlying hash.
+    /// This function performs a one-way ratchet of its internal state, so that it cannot be inverted.
+    /// By default, this function will re-initialize a sponge using 256 [`Unit`]s squeezed from the current instance.
     fn ratchet(&mut self) -> &mut Self {
         let seed = self.squeeze_array::<256>();
-        self.zeroize();
+        // Reset to new state - implementations should overwrite their internal state
+        *self = Self::new();
         self.absorb(&seed)
     }
 
+    /// Squeeze a fixed-length array of size `LEN`.
     fn squeeze_array<const LEN: usize>(&mut self) -> [Self::U; LEN] {
         let mut output = [Self::U::ZERO; LEN];
         self.squeeze(&mut output);
         output
     }
 
+    /// Squeeze `len` elements into a fresh-allocated array.
     fn squeeze_boxed(&mut self, len: usize) -> alloc::boxed::Box<[Self::U]> {
         let mut output = alloc::vec![Self::U::ZERO; len];
         self.squeeze(&mut output);
@@ -72,17 +80,13 @@ pub trait DuplexSpongeInterface: Clone + zeroize::Zeroize {
 /// It has a width [`Permutation::N`] and can process elements at rate [`Permutation::R`],
 /// using the permutation function [`Permutation::permute`].
 ///
-/// For implementors:
 ///
-/// - State is written in *the first* [`Permutation::R`] (rate) bytes of the state.
-/// The last [`Permutation::N`]-[`Permutation::R`] bytes are never touched directly except during initialization.
-/// - The duplex sponge is in *overwrite mode*.
-/// This mode is not known to affect the security levels and removes assumptions on [`Permutation::U`]
-/// as well as constraints in the final zero-knowledge proof implementing the hash function.
-/// - The [`std::default::Default`] implementation *MUST* initialize the state to zero.
-/// - The [`Permutation::new`] method should initialize the sponge writing the entropy provided in the `iv` in the last [`Permutation::N`]-[`Permutation::R`] elements of the state.
+/// The permutation state can be initialized via [`new`][Permutation::new], accessed via [`as_ref`][AsRef] and altered via [`as_mut`][AsMut].
+/// The permutation state must have length [`Permutation::N`].
+/// The first [`Permutation::R`] (rate) units are the rate segment of the permutation state.
+/// The last [`Permutation::N`]-[`Permutation::R`] units are the capacity segment. They are never to be touched directly, except during initialization.
 pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
-    /// The basic unit over which the sponge operates.
+    /// The basic unit type over which the sponge operates.
     type U: Unit;
 
     /// The width of the sponge, equal to rate [`Permutation::R`] plus capacity.
@@ -113,6 +117,7 @@ impl<P: Permutation> Default for DuplexSponge<P> {
     }
 }
 
+#[cfg(feature = "zeroize")]
 impl<P: Permutation> Zeroize for DuplexSponge<P> {
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
@@ -121,6 +126,7 @@ impl<P: Permutation> Zeroize for DuplexSponge<P> {
     }
 }
 
+#[cfg(feature = "zeroize")]
 impl<P: Permutation> ZeroizeOnDrop for DuplexSponge<P> {}
 
 impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {

@@ -10,9 +10,11 @@
 use alloc::vec::Vec;
 
 use digest::{
-    core_api::{Block, BlockSizeUser}, typenum::Unsigned, Digest,
-    FixedOutputReset, Output, Reset,
+    core_api::{Block, BlockSizeUser},
+    typenum::Unsigned,
+    Digest, FixedOutputReset, Output, Reset,
 };
+#[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
 use crate::DuplexSpongeInterface;
@@ -85,6 +87,7 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
     }
 }
 
+#[cfg(feature = "zeroize")]
 impl<D: Clone + Digest + Reset + BlockSizeUser> Zeroize for Hash<D> {
     fn zeroize(&mut self) {
         self.cv.zeroize();
@@ -92,6 +95,7 @@ impl<D: Clone + Digest + Reset + BlockSizeUser> Zeroize for Hash<D> {
     }
 }
 
+#[cfg(feature = "zeroize")]
 impl<D: Clone + Digest + Reset + BlockSizeUser> Drop for Hash<D> {
     fn drop(&mut self) {
         self.zeroize();
@@ -133,6 +137,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         // Double hash
         self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
         // Restart the rest of the data
+        #[cfg(feature = "zeroize")]
         self.leftovers.zeroize();
         self.leftovers.clear();
         self.mode = Mode::Start;
@@ -179,6 +184,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
     }
 }
 
+#[cfg(all(test, feature = "sha2"))]
 #[test]
 fn test_shosha() {
     let expected = b"\xEB\xE4\xEF\x29\xE1\x8A\xA5\x41\x37\xED\xD8\x9C\x23\xF8\

@@ -57,7 +57,7 @@ where
 impl<H> PoWChallenge for VerifierState<'_, H>
 where
     U: Unit,
-    H: DuplexSpongeInterface<U>,
+    H: DuplexSpongeInterface,
     Self: BytesToUnitDeserialize + UnitToBytes,
 {
     fn challenge_pow<S: PowStrategy>(&mut self, bits: f64) -> VerificationResult<()> {

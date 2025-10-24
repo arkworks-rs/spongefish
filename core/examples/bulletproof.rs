@@ -10,59 +10,30 @@
 
 use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, VariableBaseMSM};
 use ark_ff::Field;
-use ark_std::log2;
+// use ark_std::log2;
 use rand::rngs::OsRng;
-use spongefish::backend::arkworks_algebra::{
-    CommonGroupToUnit, DomainSeparator, FieldDomainSeparator, FieldToUnitDeserialize,
-    FieldToUnitSerialize, GroupDomainSeparator, GroupToUnitDeserialize, GroupToUnitSerialize,
-    ProofError, ProofResult, ProverState, UnitToField, VerifierState,
-};
+use spongefish::codecs::{Decoding, Encoding};
+use spongefish::io::{Serialize, Deserialize};
+use spongefish::{ProverState, VerifierState};
+use spongefish::VerificationError;
+use spongefish::VerificationResult;
 
-/// The domain separator of a bulleproof.
-///
-/// Defining this as a trait allows us to "attach" the bulletproof IO to
-/// the base class [`spongefish::DomainSeparator`] and other protocols to compose with the Bulletproof domain separator.
-trait BulletproofDomainSeparator<G: CurveGroup> {
-    fn bulletproof_statement(self) -> Self;
-    fn add_bulletproof(self, len: usize) -> Self;
-}
-
-impl<G> BulletproofDomainSeparator<G> for DomainSeparator
-where
-    G: CurveGroup,
-    Self: GroupDomainSeparator<G> + FieldDomainSeparator<G::ScalarField>,
-{
-    /// The IO of the bulletproof statement
-    fn bulletproof_statement(self) -> Self {
-        self.add_points(1, "Pedersen commitment")
-    }
-
-    /// The IO of the bulletproof protocol
-    fn add_bulletproof(mut self, len: usize) -> Self {
-        for _ in 0..log2(len) {
-            self = self
-                .add_points(2, "round-message")
-                .challenge_scalars(1, "challenge");
-        }
-        self.add_scalars(2, "final-message")
-    }
-}
-
-fn prove<'a, G: CurveGroup>(
+fn prove<'a, G>(
     prover_state: &'a mut ProverState,
     generators: (&[G::Affine], &[G::Affine], &G::Affine),
     statement: &G, // the actual inner-product of the witness is not really needed
     witness: (&[G::ScalarField], &[G::ScalarField]),
-) -> ProofResult<&'a [u8]>
+) -> VerificationResult<&'a [u8]>
 where
-    ProverState: GroupToUnitSerialize<G> + UnitToField<G::ScalarField>,
+    G: CurveGroup + Serialize + Encoding<[u8]>,
+    G::ScalarField: Serialize + Encoding<[u8]> + Decoding<[u8]>
 {
     assert_eq!(witness.0.len(), witness.1.len());
 
     if witness.0.len() == 1 {
         assert_eq!(generators.0.len(), 1);
 
-        prover_state.add_scalars(&[witness.0[0], witness.1[0]])?;
+        prover_state.prover_message(&[witness.0[0], witness.1[0]]);
         return Ok(prover_state.narg_string());
     }
 
@@ -81,8 +52,8 @@ where
         + G::msm_unchecked(g_left, a_right)
         + G::msm_unchecked(h_right, b_left);
 
-    prover_state.add_points(&[left, right])?;
-    let [x]: [G::ScalarField; 1] = prover_state.challenge_scalars()?;
+    prover_state.prover_message(&[left, right]);
+    let x: G::ScalarField = prover_state.verifier_message();
     let x_inv = x.inverse().expect("You just won the lottery!");
 
     let new_g = fold_generators(g_left, g_right, &x_inv, &x);
@@ -99,14 +70,15 @@ where
     Ok(bulletproof)
 }
 
-fn verify<G: CurveGroup>(
+fn verify<G>(
     verifier_state: &mut VerifierState,
     generators: (&[G::Affine], &[G::Affine], &G::Affine),
     mut n: usize,
     statement: &G,
-) -> ProofResult<()>
+) -> VerificationResult<()>
 where
-    for<'a> VerifierState<'a>: GroupToUnitDeserialize<G> + UnitToField<G::ScalarField>,
+G: CurveGroup +  Encoding<[u8]> + Deserialize,
+G::ScalarField: Decoding<[u8]> + Encoding<[u8]> + Deserialize
 {
     let mut g = generators.0.to_vec();
     let mut h = generators.1.to_vec();
@@ -114,24 +86,24 @@ where
     let mut statement = *statement;
 
     while n != 1 {
-        let [left, right]: [G; 2] = verifier_state.next_points().unwrap();
+        let [left, right]: [G; 2] = verifier_state.prover_messages()?;
         n /= 2;
         let (g_left, g_right) = g.split_at(n);
         let (h_left, h_right) = h.split_at(n);
-        let [x]: [G::ScalarField; 1] = verifier_state.challenge_scalars().unwrap();
+        let x: G::ScalarField = verifier_state.verifier_message();
         let x_inv = x.inverse().expect("You just won the lottery!");
 
         g = fold_generators(g_left, g_right, &x_inv, &x);
         h = fold_generators(h_left, h_right, &x, &x_inv);
         statement = statement + left * x.square() + right * x_inv.square();
     }
-    let [a, b]: [G::ScalarField; 2] = verifier_state.next_scalars().unwrap();
+    let [a, b]: [G::ScalarField; 2] = verifier_state.prover_messages()?;
 
     let c = a * b;
     if (g[0] * a + h[0] * b + u * c - statement).is_zero() {
         Ok(())
     } else {
-        Err(ProofError::InvalidProof)
+        *VerificationError
     }
 }
 
@@ -171,16 +143,7 @@ fn main() {
 
     // the vector size
     let size = 8;
-
-    // initialize the domain separator putting the domain separator ("example.com")
-    let domain_separator = DomainSeparator::new("example.com");
-    // add the IO of the bulletproof statement
-    let domain_separator =
-        BulletproofDomainSeparator::<G>::bulletproof_statement(domain_separator).ratchet();
-    // add the IO of the bulletproof protocol (the transcript)
-    let domain_separator = BulletproofDomainSeparator::<G>::add_bulletproof(domain_separator, size);
-
-    // the test vectors
+    // the testing vectors
     let a = (0..size).map(|x| F::from(x as u32)).collect::<Vec<_>>();
     let b = (0..size)
         .map(|x| F::from(x as u32 + 42))
@@ -199,9 +162,10 @@ fn main() {
     let statement = G::msm_unchecked(&g, &a) + G::msm_unchecked(&h, &b) + u * ab;
     let witness = (&a[..], &b[..]);
 
-    let mut prover_state = domain_separator.to_prover_state();
-    prover_state.public_points(&[statement]).unwrap();
-    prover_state.ratchet().unwrap();
+    let protocol_id = [0u8; 32];
+    let session_id = [0u8; 32];
+    let instance_label = [0u8; 32];
+    let mut prover_state = ProverState::new(protocol_id, session_id, instance_label);
     let proof = prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
@@ -209,8 +173,8 @@ fn main() {
         hex::encode(proof)
     );
 
-    let mut verifier_state = domain_separator.to_verifier_state(proof);
-    verifier_state.public_points(&[statement]).unwrap();
-    verifier_state.ratchet().unwrap();
-    verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
+    // let mut verifier_state = VerifierState::new();
+    // verifier_state.public_points(&[statement]).unwrap();
+    // verifier_state.ratchet().unwrap();
+    // verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
 }

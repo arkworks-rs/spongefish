@@ -1,17 +1,15 @@
-//! **Warning**: this function is not SHA3.
-//! Despite internally we use the same permutation function,
-//! we build a duplex sponge in overwrite mode
-//! on the top of it using the `DuplexSponge` trait.
 use core::fmt::Debug;
 
 use zerocopy::IntoBytes;
+#[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::duplex_sponge::Permutation;
 
 /// Keccak permutation internal state: 25 64-bit words,
 /// or equivalently 200 bytes in little-endian order.
-#[derive(Clone, PartialEq, Eq, Default, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
 pub struct KeccakF1600([u64; 25]);
 
 impl Permutation for KeccakF1600 {

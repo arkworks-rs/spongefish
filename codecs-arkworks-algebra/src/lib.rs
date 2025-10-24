@@ -5,4 +5,4 @@
 //! This crate exists for backwards compatibility. New code should use
 //! `spongefish::backend::arkworks` directly.
 
-pub use spongefish::backend::arkworks::*;
+pub use spongefish::drivers::arkworks::*;

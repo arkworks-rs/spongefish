@@ -4,7 +4,6 @@ use core::fmt;
 use crate::{
     domain_separator::{DomainSeparator, DomainSeparatorMismatch, Op},
     duplex_sponge::DuplexSpongeInterface,
-    instantiations::permutations::keccak::Keccak,
 };
 
 /// A stateful hash object that interfaces with duplex interfaces.
@@ -125,11 +124,7 @@ impl<H: DuplexSpongeInterface> HashStateWithInstructions<H> {
     }
 
     fn generate_tag(iop_bytes: &[u8]) -> [u8; 32] {
-        let mut keccak = Keccak::default();
-        keccak.absorb(iop_bytes);
-        let mut tag = [0u8; 32];
-        keccak.squeeze(&mut tag);
-        tag
+        DefaultHash::default().absorb(iop_bytes).squeeze_array()
     }
 
     fn unchecked_load_with_stack(_tag: [u8; 32], stack: VecDeque<Op>) -> Self {

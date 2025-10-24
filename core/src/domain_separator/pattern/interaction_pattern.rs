@@ -54,6 +54,7 @@ impl InteractionPattern {
     /// It is created by taking the SHA3 hash of a stable unambiguous
     /// string representation of the transcript interactions.
     // TODO: A more neutral implementation would use ASN.1 DER.
+    #[cfg(feature = "sha3")]
     #[must_use]
     pub fn pattern_hash(&self) -> [u8; 32] {
         use sha3::{Digest, Sha3_256};
