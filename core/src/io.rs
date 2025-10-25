@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use crate::{codecs::Encoding, VerificationError, VerificationResult};
 
 /// Wrapper trait for std::io::Read.
-pub trait Serialize {
+pub trait NargSerialize {
     fn serialize_into(&self, dst: &mut Vec<u8>);
 
     /// Serialized into a freshly-allocated vector of bytes.
@@ -15,17 +15,17 @@ pub trait Serialize {
 }
 
 /// Wrapper trait for serialization of prover messages into the proof string.
-pub trait Deserialize: Sized {
+pub trait NargDeserialize: Sized {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self>;
 }
 
-impl<T: Encoding<[u8]>> Serialize for T {
+impl<T: Encoding<[u8]>> NargSerialize for T {
     fn serialize_into(&self, dst: &mut Vec<u8>) {
         dst.extend_from_slice(self.encode().as_ref());
     }
 }
 
-impl<const N: usize> Deserialize for [u8; N] {
+impl<const N: usize> NargDeserialize for [u8; N] {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < N {
             return Err(VerificationError);
@@ -37,8 +37,7 @@ impl<const N: usize> Deserialize for [u8; N] {
     }
 }
 
-
-impl<const N: usize, T: Deserialize> Deserialize for [T; N] {
+impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         let vec: Vec<T> = (0..N)
             .map(|_| T::deserialize_from(buf))

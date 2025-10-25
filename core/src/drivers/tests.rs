@@ -3,7 +3,7 @@ use ark_serialize::CanonicalSerialize;
 use group::GroupEncoding;
 
 use crate::{
-    backend, keccak::Keccak, ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface,
+    drivers, keccak::Keccak, ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface,
     UnitToBytes,
 };
 
@@ -14,7 +14,7 @@ where
     DomainSeparator<H>: super::zkcrypto_group::GroupDomainSeparator<G>
         + super::zkcrypto_group::FieldDomainSeparator<G::Scalar>,
 {
-    use backend::zkcrypto_group::{FieldDomainSeparator, GroupDomainSeparator};
+    use drivers::zkcrypto_group::{FieldDomainSeparator, GroupDomainSeparator};
 
     DomainSeparator::new("github.com/mmaker/spongefish")
         .add_scalars(1, "com")
@@ -31,7 +31,7 @@ where
     DomainSeparator<H>: super::arkworks_algebra::GroupDomainSeparator<G>
         + super::arkworks_algebra::FieldDomainSeparator<G::Scalar>,
 {
-    use backend::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator};
+    use drivers::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator};
 
     DomainSeparator::new("github.com/mmaker/spongefish")
         .add_scalars(1, "com")
@@ -113,28 +113,28 @@ where
     assert_eq!(ark_domsep.as_bytes(), group_domsep.as_bytes());
 
     // Check that scalars absorption leads to the same transcript.
-    backend::arkworks_algebra::FieldToUnitSerialize::add_scalars(&mut ark_prover, &[ark_scalar])
+    drivers::arkworks_algebra::FieldToUnitSerialize::add_scalars(&mut ark_prover, &[ark_scalar])
         .unwrap();
     ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    backend::zkcrypto_group::FieldToUnitSerialize::add_scalars(&mut group_prover, &[group_scalar])
+    drivers::zkcrypto_group::FieldToUnitSerialize::add_scalars(&mut group_prover, &[group_scalar])
         .unwrap();
     group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
     assert_eq!(ark_chal, group_chal);
 
     // Check that points absorption leads to the same transcript.
-    backend::arkworks_algebra::GroupToUnitSerialize::add_points(&mut ark_prover, &[ark_point])
+    drivers::arkworks_algebra::GroupToUnitSerialize::add_points(&mut ark_prover, &[ark_point])
         .unwrap();
     ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    backend::zkcrypto_group::GroupToUnitSerialize::add_points(&mut group_prover, &[group_point])
+    drivers::zkcrypto_group::GroupToUnitSerialize::add_points(&mut group_prover, &[group_point])
         .unwrap();
     group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
     assert_eq!(ark_chal, group_chal);
 
     // Check that scalars challenges are interpreted in the same way from bytes.
     let [ark_chal_scalar]: [ArkG::ScalarField; 1] =
-        backend::arkworks_algebra::UnitToField::challenge_scalars(&mut ark_prover).unwrap();
+        drivers::arkworks_algebra::UnitToField::challenge_scalars(&mut ark_prover).unwrap();
     let [group_chal_scalar]: [GroupG::Scalar; 1] =
-        backend::zkcrypto_group::UnitToField::challenge_scalars(&mut group_prover).unwrap();
+        drivers::zkcrypto_group::UnitToField::challenge_scalars(&mut group_prover).unwrap();
     let mut ark_scalar_bytes = Vec::new();
     ark_chal_scalar
         .serialize_compressed(&mut ark_scalar_bytes)

@@ -89,13 +89,6 @@ pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
     /// The basic unit type over which the sponge operates.
     type U: Unit;
 
-    /// The width of the sponge, equal to rate [`Permutation::R`] plus capacity.
-    /// Cannot be less than 1. Cannot be less than [`Permutation::R`].
-    const N: usize;
-
-    /// The rate of the sponge.
-    const R: usize;
-
     /// Initialize a new permutation state
     fn new() -> Self;
 
@@ -105,20 +98,24 @@ pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
 
 /// A cryptographic sponge.
 #[derive(Clone, PartialEq, Eq)]
-pub struct DuplexSponge<P: Permutation> {
+pub struct DuplexSponge<P: Permutation, const RATE: usize, const WIDTH: usize> {
     permutation: P,
     absorb_pos: usize,
     squeeze_pos: usize,
 }
 
-impl<P: Permutation> Default for DuplexSponge<P> {
+impl<P: Permutation, const RATE: usize, const WIDTH: usize> Default
+    for DuplexSponge<P, RATE, WIDTH>
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<P: Permutation> Zeroize for DuplexSponge<P> {
+impl<P: Permutation, const RATE: usize, const WIDTH: usize> Zeroize
+    for DuplexSponge<P, RATE, WIDTH>
+{
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
         self.permutation.as_mut().fill(P::U::ZERO);
@@ -127,31 +124,36 @@ impl<P: Permutation> Zeroize for DuplexSponge<P> {
 }
 
 #[cfg(feature = "zeroize")]
-impl<P: Permutation> ZeroizeOnDrop for DuplexSponge<P> {}
+impl<P: Permutation, const RATE: usize, const WIDTH: usize> ZeroizeOnDrop
+    for DuplexSponge<P, RATE, WIDTH>
+{
+}
 
-impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
+impl<P: Permutation, const RATE: usize, const WIDTH: usize> DuplexSpongeInterface
+    for DuplexSponge<P, RATE, WIDTH>
+{
     type U = P::U;
     fn new() -> Self {
-        assert!(P::R > 0, "The rate segment must be non-trivial");
-        assert!(P::N > P::R, "The capacity segment must be non-trivial");
+        assert!(RATE > 0, "The rate must be non-zero");
+        assert!(WIDTH > RATE, "The capacity must be non-zero");
 
         Self {
             permutation: P::new(),
             absorb_pos: 0,
-            squeeze_pos: P::R,
+            squeeze_pos: RATE,
         }
     }
 
     fn absorb(&mut self, mut input: &[Self::U]) -> &mut Self {
-        self.squeeze_pos = P::R;
+        self.squeeze_pos = RATE;
 
         while !input.is_empty() {
-            if self.absorb_pos == P::R {
+            if self.absorb_pos == RATE {
                 self.permutation.permute();
                 self.absorb_pos = 0;
             } else {
-                assert!(self.absorb_pos < P::R);
-                let chunk_len = usize::min(input.len(), P::R - self.absorb_pos);
+                assert!(self.absorb_pos < RATE);
+                let chunk_len = usize::min(input.len(), RATE - self.absorb_pos);
                 let (chunk, rest) = input.split_at(chunk_len);
 
                 self.permutation.as_mut()[self.absorb_pos..self.absorb_pos + chunk_len]
@@ -169,13 +171,13 @@ impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
         }
         self.absorb_pos = 0;
 
-        if self.squeeze_pos == P::R {
+        if self.squeeze_pos == RATE {
             self.squeeze_pos = 0;
             self.permutation.permute();
         }
 
-        assert!(self.squeeze_pos < P::R);
-        let chunk_len = usize::min(output.len(), P::R - self.squeeze_pos);
+        assert!(self.squeeze_pos < RATE);
+        let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
         let (output, rest) = output.split_at_mut(chunk_len);
         output.clone_from_slice(
             &self.permutation.as_ref()[self.squeeze_pos..self.squeeze_pos + chunk_len],
@@ -185,8 +187,8 @@ impl<P: Permutation> DuplexSpongeInterface for DuplexSponge<P> {
     }
 
     fn ratchet(&mut self) -> &mut Self {
-        self.absorb_pos = P::R;
-        self.squeeze_pos = P::R;
+        self.absorb_pos = RATE;
+        self.squeeze_pos = RATE;
         self
     }
 }

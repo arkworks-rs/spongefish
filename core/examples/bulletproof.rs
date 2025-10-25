@@ -12,11 +12,11 @@ use ark_ec::{AffineRepr, CurveGroup, PrimeGroup, VariableBaseMSM};
 use ark_ff::Field;
 // use ark_std::log2;
 use rand::rngs::OsRng;
-use spongefish::codecs::{Decoding, Encoding};
-use spongefish::io::{Serialize, Deserialize};
-use spongefish::{ProverState, VerifierState};
-use spongefish::VerificationError;
-use spongefish::VerificationResult;
+use spongefish::{
+    codecs::{Decoding, Encoding},
+    io::{NargDeserialize, NargSerialize},
+    ProverState, VerificationError, VerificationResult, VerifierState,
+};
 
 fn prove<'a, G>(
     prover_state: &'a mut ProverState,
@@ -25,8 +25,8 @@ fn prove<'a, G>(
     witness: (&[G::ScalarField], &[G::ScalarField]),
 ) -> VerificationResult<&'a [u8]>
 where
-    G: CurveGroup + Serialize + Encoding<[u8]>,
-    G::ScalarField: Serialize + Encoding<[u8]> + Decoding<[u8]>
+    G: CurveGroup + NargSerialize + Encoding<[u8]>,
+    G::ScalarField: NargSerialize + Encoding<[u8]> + Decoding<[u8]>,
 {
     assert_eq!(witness.0.len(), witness.1.len());
 
@@ -77,8 +77,8 @@ fn verify<G>(
     statement: &G,
 ) -> VerificationResult<()>
 where
-G: CurveGroup +  Encoding<[u8]> + Deserialize,
-G::ScalarField: Decoding<[u8]> + Encoding<[u8]> + Deserialize
+    G: CurveGroup + Encoding<[u8]> + NargDeserialize,
+    G::ScalarField: Decoding<[u8]> + Encoding<[u8]> + NargDeserialize,
 {
     let mut g = generators.0.to_vec();
     let mut h = generators.1.to_vec();
@@ -165,7 +165,7 @@ fn main() {
     let protocol_id = [0u8; 32];
     let session_id = [0u8; 32];
     let instance_label = [0u8; 32];
-    let mut prover_state = ProverState::new(protocol_id, session_id, instance_label);
+    let mut prover_state = ProverState::new(protocol_id, session_id);
     let proof = prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",

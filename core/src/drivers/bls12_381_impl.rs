@@ -5,7 +5,7 @@ use group::{ff::Field, GroupEncoding};
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::Deserialize,
+    io::NargDeserialize,
     VerificationResult,
 };
 
@@ -16,7 +16,7 @@ impl crate::Unit for Scalar {
 
 // Implement Decoding for curve25519-dalek Scalar
 impl Decoding<[u8]> for Scalar {
-    type Repr = super::Slice64;
+    type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
         Scalar::from_bytes_wide(&buf.0)
@@ -24,22 +24,30 @@ impl Decoding<[u8]> for Scalar {
 }
 
 // Implement Deserialize for BLS12-381 Scalar
-impl Deserialize for Scalar {
-    fn deserialize_from(buf: &[u8]) -> VerificationResult<Self> {
+impl NargDeserialize for Scalar {
+    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
         let mut repr = [0u8; 32];
         repr.copy_from_slice(&buf[..32]);
+        *buf = &buf[32..];
         Option::from(Scalar::from_bytes(&repr)).ok_or(VerificationError)
     }
 }
 
 // Implement Deserialize for G1Projective
-impl Deserialize for G1Projective {
-    fn deserialize_from(buf: &[u8]) -> VerificationResult<Self> {
+impl NargDeserialize for G1Projective {
+    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G1 compressed points are 48 bytes
-        let ct_option = G1Affine::from_compressed(buf.try_into().map_err(|_| VerificationError)?);
+        if buf.len() < 48 {
+            return Err(VerificationError);
+        }
+        let mut repr = [0u8; 48];
+        repr.copy_from_slice(&buf[..48]);
+        *buf = &buf[48..];
+
+        let ct_option = G1Affine::from_compressed(&repr);
         if bool::from(ct_option.is_some()) {
             Ok(G1Projective::from(ct_option.unwrap()))
         } else {
@@ -49,10 +57,17 @@ impl Deserialize for G1Projective {
 }
 
 // Implement Deserialize for G2Projective
-impl Deserialize for G2Projective {
+impl NargDeserialize for G2Projective {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G2 compressed points are 96 bytes
-        let ct_option = G2Affine::from_compressed(buf.try_into().map_err(|_| VerificationError)?);
+        if buf.len() < 96 {
+            return Err(VerificationError);
+        }
+        let mut repr = [0u8; 96];
+        repr.copy_from_slice(&buf[..96]);
+        *buf = &buf[96..];
+
+        let ct_option = G2Affine::from_compressed(&repr);
         if bool::from(ct_option.is_some()) {
             Ok(G2Projective::from(ct_option.unwrap()))
         } else {

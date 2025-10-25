@@ -1,3 +1,5 @@
+//! XXX. we do two things: define hash, and instantiate the duplexspongeinterface
+//!
 //! This code is inspired from libsignal's poksho:
 //! <https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs>.
 //! With the following generalizations:
@@ -31,6 +33,78 @@ pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     mode: Mode,
     /// Digest bytes left over from a previous squeeze.
     leftovers: Vec<u8>,
+}
+
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface for Hash<D> {
+    type U = u8;
+
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn absorb(&mut self, input: &[u8]) -> &mut Self {
+        self.squeeze_end();
+
+        if self.mode == Mode::Start {
+            self.mode = Mode::Absorb;
+            Digest::update(&mut self.hasher, Self::mask_absorb());
+            Digest::update(&mut self.hasher, &self.cv);
+        }
+
+        Digest::update(&mut self.hasher, input);
+        self
+    }
+
+    fn ratchet(&mut self) -> &mut Self {
+        self.squeeze_end();
+        // Double hash
+        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
+        // Restart the rest of the data
+        #[cfg(feature = "zeroize")]
+        self.leftovers.zeroize();
+        self.leftovers.clear();
+        self.mode = Mode::Start;
+        self
+    }
+
+    fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
+        if self.mode == Mode::Start {
+            self.mode = Mode::Squeeze(0);
+            // create the prefix hash
+            Digest::update(&mut self.hasher, Self::mask_squeeze());
+            Digest::update(&mut self.hasher, &self.cv);
+            self.squeeze(output)
+        // If Absorbing, ratchet
+        } else if self.mode == Mode::Absorb {
+            self.ratchet();
+            self.squeeze(output)
+        // If we have no more data to squeeze, return
+        } else if output.is_empty() {
+            self
+        // If we still have some digest not yet squeezed
+        // from previous invocations, write it to the output.
+        } else if !self.leftovers.is_empty() {
+            let len = usize::min(output.len(), self.leftovers.len());
+            output[..len].copy_from_slice(&self.leftovers[..len]);
+            self.leftovers.drain(..len);
+            self.squeeze(&mut output[len..])
+        // Squeeze another digest
+        } else if let Mode::Squeeze(i) = self.mode {
+            // Add the squeeze mask, current digest, and index
+            let mut output_hasher_prefix = self.hasher.clone();
+            Digest::update(&mut output_hasher_prefix, i.to_be_bytes());
+            let digest = output_hasher_prefix.finalize();
+            // Copy the digest into the output, and store the rest for later
+            let chunk_len = usize::min(output.len(), Self::DIGEST_SIZE);
+            output[..chunk_len].copy_from_slice(&digest[..chunk_len]);
+            self.leftovers.extend_from_slice(&digest[chunk_len..]);
+            // Update the state
+            self.mode = Mode::Squeeze(i + 1);
+            self.squeeze(&mut output[chunk_len..])
+        } else {
+            unreachable!()
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -109,77 +183,6 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
             cv: Output::<D>::default(),
             mode: Mode::Start,
             leftovers: Vec::new(),
-        }
-    }
-}
-
-impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface for Hash<D> {
-    type U = u8;
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn absorb(&mut self, input: &[u8]) -> &mut Self {
-        self.squeeze_end();
-
-        if self.mode == Mode::Start {
-            self.mode = Mode::Absorb;
-            Digest::update(&mut self.hasher, Self::mask_absorb());
-            Digest::update(&mut self.hasher, &self.cv);
-        }
-
-        Digest::update(&mut self.hasher, input);
-        self
-    }
-
-    fn ratchet(&mut self) -> &mut Self {
-        self.squeeze_end();
-        // Double hash
-        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
-        // Restart the rest of the data
-        #[cfg(feature = "zeroize")]
-        self.leftovers.zeroize();
-        self.leftovers.clear();
-        self.mode = Mode::Start;
-        self
-    }
-
-    fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
-        if self.mode == Mode::Start {
-            self.mode = Mode::Squeeze(0);
-            // create the prefix hash
-            Digest::update(&mut self.hasher, Self::mask_squeeze());
-            Digest::update(&mut self.hasher, &self.cv);
-            self.squeeze(output)
-        // If Absorbing, ratchet
-        } else if self.mode == Mode::Absorb {
-            self.ratchet();
-            self.squeeze(output)
-        // If we have no more data to squeeze, return
-        } else if output.is_empty() {
-            self
-        // If we still have some digest not yet squeezed
-        // from previous invocations, write it to the output.
-        } else if !self.leftovers.is_empty() {
-            let len = usize::min(output.len(), self.leftovers.len());
-            output[..len].copy_from_slice(&self.leftovers[..len]);
-            self.leftovers.drain(..len);
-            self.squeeze(&mut output[len..])
-        // Squeeze another digest
-        } else if let Mode::Squeeze(i) = self.mode {
-            // Add the squeeze mask, current digest, and index
-            let mut output_hasher_prefix = self.hasher.clone();
-            Digest::update(&mut output_hasher_prefix, i.to_be_bytes());
-            let digest = output_hasher_prefix.finalize();
-            // Copy the digest into the output, and store the rest for later
-            let chunk_len = usize::min(output.len(), Self::DIGEST_SIZE);
-            output[..chunk_len].copy_from_slice(&digest[..chunk_len]);
-            self.leftovers.extend_from_slice(&digest[chunk_len..]);
-            // Update the state
-            self.mode = Mode::Squeeze(i + 1);
-            self.squeeze(&mut output[chunk_len..])
-        } else {
-            unreachable!()
         }
     }
 }

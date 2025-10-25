@@ -3,7 +3,7 @@
 //! This module provides a duplex sponge interface implementation for any
 //! XOF (extendable output function) that implements the [`ExtendableOutput`] trait.
 
-use digest::{ExtendableOutput, Reset, XofReader};
+use digest::{ExtendableOutput, XofReader};
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -15,7 +15,7 @@ use crate::duplex_sponge::DuplexSpongeInterface;
 /// [`ExtendableOutput`] to provide absorb and squeeze operations compatible with
 /// the duplex sponge interface. Examples include SHAKE128, SHAKE256, and TurboShake.
 #[derive(Clone)]
-pub struct XOF<H: Default + ExtendableOutput> {
+pub struct XOF<H: ExtendableOutput> {
     /// The current XOF hasher state
     hasher: H,
     /// XOF reader for squeeze operations (None = absorbing, Some = squeezing)
@@ -24,7 +24,7 @@ pub struct XOF<H: Default + ExtendableOutput> {
 
 impl<H> DuplexSpongeInterface for XOF<H>
 where
-    H: ExtendableOutput + Clone + Default + Reset,
+    H: ExtendableOutput + Clone + Default,
     H::Reader: Clone,
 {
     type U = u8;
@@ -54,16 +54,16 @@ where
 #[cfg(feature = "zeroize")]
 impl<H> Zeroize for XOF<H>
 where
-    H: ExtendableOutput + Default + Reset,
+    H: ExtendableOutput + Default + Zeroize,
 {
     fn zeroize(&mut self) {
-        self.hasher.reset();
+        self.hasher.zeroize();
         self.xof_reader = None;
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + Default + Reset {}
+impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + Default {}
 
 impl<H: ExtendableOutput + Default> Default for XOF<H> {
     fn default() -> Self {

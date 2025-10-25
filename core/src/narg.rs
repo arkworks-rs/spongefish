@@ -1,40 +1,77 @@
+/// XXX
+///
+/// we are not going to provide the narg prover and verifier.
+/// we provide these utilities so that the user can assemble it.
+///
+/// This was called transcript.
 use alloc::vec::Vec;
 
-use rand::{CryptoRng, Rng, RngCore};
+use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 
 use crate::{
     codecs::{Decoding, Encoding},
     duplex_sponge::DuplexSpongeInterface,
-    io::{Deserialize, Serialize},
+    io::{NargDeserialize, NargSerialize},
     DefaultHash, VerificationResult,
 };
 
 type DefaultRng = rand::rngs::StdRng;
 
+/// [`ProverState`] is the prover state the non-interactive transformation.
+///
+/// It provides the **secret coins** of the prover for zero-knowledge, and
+/// the hash function state for the verifier's **public coins**.
+///
+/// [`ProverState`] works by default over bytes with [`DefaultHash`] and
+/// relies on the default random number generator [`DefaultRng`].
+///
+/// # Safety
+///
+/// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
+/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
+pub struct ProverState<H = DefaultHash, R = DefaultRng>
+where
+    H: DuplexSpongeInterface,
+    R: RngCore + CryptoRng,
+{
+    /// The randomness state of the prover.
+    pub(crate) private_rng: ReseedableRng<R>,
+    /// The public coins for the protocol.
+    pub(crate) duplex_sponge_state: H,
+    /// The argument string as it gets written throughout the execution of the prover.
+    pub(crate) narg_string: Vec<u8>,
+}
+
+
 /// [`VerifierState`] is the verifier state.
 ///
-/// Internally, it simply contains a stateful hash.
-/// Given as input an [`DomainSeparator`] and a NARG string, it allows to
-/// de-serialize elements from the NARG string and make them available to the zero-knowledge verifier.
+///
 pub struct VerifierState<'a, H = DefaultHash>
 where
     H: DuplexSpongeInterface,
 {
+    /// The public coins for the protocol.
     pub(crate) duplex_sponge_state: H,
+    /// The NARG string currently read.
     pub(crate) narg_string: &'a [u8],
 }
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
-    pub fn prover_messages<T: Encoding<[H::U]> + Deserialize>(&mut self) -> VerificationResult<T> {
+    /// XXX
+    pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
+        &mut self,
+    ) -> VerificationResult<T> {
         let message = T::deserialize_from(&mut self.narg_string)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         Ok(message)
     }
 
-    pub fn public_message<T: Encoding<[H::U]>>(&mut self, message: &T) {
+    /// XXX
+    pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
+    /// XXX
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -50,31 +87,6 @@ impl<H: DuplexSpongeInterface + core::fmt::Debug> core::fmt::Debug for VerifierS
     }
 }
 
-/// [`ProverState`] is the prover state the non-interactive transformation.
-/// It provides the **secret coins** of the prover for zero-knowledge, and
-/// the hash function state for the verifier's public coins.
-///
-/// [`ProverState`] works by default over bytes with [`DefaultHash`] and
-/// relies on the default random number generator [`DefaultRng`].
-///
-/// # Safety
-///
-/// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
-/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
-/// [`Default`] is implemented to provide alternative initialization methods than the one provided by [`ProverState::new`].
-#[derive(Default)]
-pub struct ProverState<H = DefaultHash, R = DefaultRng>
-where
-    H: DuplexSpongeInterface,
-    R: RngCore + CryptoRng,
-{
-    /// The randomness state of the prover.
-    pub(crate) private_rng: ReseedableRng<R>,
-    /// The public coins for the protocol.
-    pub(crate) duplex_sponge_state: H,
-    /// The argument string.
-    pub(crate) narg_string: Vec<u8>,
-}
 
 /// A cryptographically-secure random number generator that is bound to the proof string.
 ///
@@ -96,12 +108,15 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
         let mut duplex_sponge = DefaultHash::new();
         let seed: [u8; 32] = csrng.gen::<[u8; 32]>();
         duplex_sponge.absorb(&seed);
-        ReseedableRng { duplex_sponge, csrng }
+        ReseedableRng {
+            duplex_sponge,
+            csrng,
+        }
     }
 }
 
 impl ReseedableRng<DefaultRng> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         use rand::SeedableRng;
         let csrng = DefaultRng::from_entropy();
         csrng.into()
@@ -155,46 +170,120 @@ where
         self.narg_string.as_slice()
     }
 
-    pub fn public_message<T: Encoding<[H::U]>>(&mut self, message: &T) {
+    /// Declare a new public message.
+    ///
+    /// This function will absorb the message inside the prover's [`DuplexSpongeInterface`]
+    /// but it will not serialize it inside the [`narg_string`][ProverState::narg_string].
+    ///
+    /// It is similar to [`prover_message`], but the input provided here will not end up
+    /// in the final proof string.
+    pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    pub fn prover_message<T: Encoding<[H::U]> + Serialize>(&mut self, message: &T) {
+    /// Declare a new prover message sent by the interactive argument.
+    ///
+    /// This function will absorb the prover message inside the prover's [`DuplexSpongeInterface`] instance
+    /// and serialize the prover message inside the [`narg_string`][ProverState::narg_string].
+    pub fn prover_message<T: Encoding<[H::U]> + NargSerialize>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into(&mut self.narg_string);
     }
 
+
+    /// Outputs a uniformly-distributed verifier message.
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
         T::decode(buf)
     }
+
+    /// Alias for [`narg_string`][`ProverState::narg_string`].
+    ///
+    /// In interactive proofs, _transcript_ is the term used to denote set of prover and verifier messages.
+    /// It is not the proof resulting from the Fiat-Shamir transformation.
+    /// Please use [narg_string][`ProverState::narg_string`] instead.
+    #[deprecated(note="Please use ProverState::narg_string instead.")]
+    pub fn transcript(&self) -> &[u8] {
+        self.narg_string()
+    }
+
+    /// Alias for [`verifier_message`][`ProverState::verifier_message`].
+    pub fn challenge<T: Decoding<[H::U]>>(&mut self) -> T {
+        self.verifier_message()
+    }
+
+    /// Absorb a list of prover messages at once.
+    ///
+    /// Equivalent to calling [`prover_message`][ProverState::prover_message] for each element
+    /// in the list.
+    pub fn prover_messages<T: Encoding<[H::U]> + NargSerialize>(&mut self, messages: &[T]) {
+        for message in messages {
+            self.prover_message(message);
+        }
+    }
+
+    /// Produce a fixed-length list of verifier messages at once.
+    ///
+    /// Equivalent to calling [`verifier_message`][`ProverState::verifier_message`] for each element in the list.
+    pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
+        core::array::from_fn(|_| self.verifier_message())
+    }
+
+    /// Produce a vector of verifier messages whose size `len` is given as input.
+    ///
+    /// Equivalent to calling `len` times the [`verifier_message`] function.
+    pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
+        (0..len).map(|_| self.verifier_message()).collect()
+    }
+}
+
+
+/// Creates a new [`ProverState`] seeded using [`rand::SeedableRng::from_entropy`].
+///
+/// [`Default`] provides alternative initialization methods than the one provided by [`ProverState::new`].
+/// [`ProverState::default`] is meant to be used as a hack and its support in future releases is not guaranteed.
+impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> Default for ProverState<H, R> {
+    fn default() -> Self {
+        ProverState {
+            duplex_sponge_state: H::new(),
+            private_rng: R::from_entropy().into(),
+            narg_string: Vec::new()
+        }
+    }
 }
 
 impl<H> ProverState<H, DefaultRng>
 where
-    H: DuplexSpongeInterface<U = u8>,
+    H: DuplexSpongeInterface<U = u8> + Default,
 {
-    pub fn new(
-        protocol_id: [u8; 32],
-        session_id: impl AsRef<[u8]>,
-        instance_label: impl AsRef<[u8]>,
-    ) -> Self {
-        let instance_label_length = instance_label.as_ref().len().to_be_bytes();
+    pub fn new(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>) -> Self {
         let session_id_length = session_id.as_ref().len().to_be_bytes();
-        let mut hash_state = H::new();
-        hash_state
-            .absorb(protocol_id.as_ref())
-            .absorb(&[0; 32])
-            .absorb(&session_id_length)
-            .absorb(session_id.as_ref())
-            .absorb(&instance_label_length)
-            .absorb(instance_label.as_ref());
-        Self {
-            duplex_sponge_state: hash_state,
-            private_rng: ReseedableRng::new(),
-            narg_string: Default::default(),
-        }
+        let mut prover_state = Self::default();
+        prover_state.public_message(&protocol_id);
+        prover_state.public_message(&[0u8; 32]);
+        prover_state.public_message(&session_id_length);
+        prover_state.public_message(session_id.as_ref());
+        prover_state
+
+    }
+}
+
+impl<'a, H> VerifierState<'a, H>
+where
+    H: DuplexSpongeInterface<U = u8> + Default,
+{
+    pub fn new(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>, narg_string: &'a [u8]) -> Self {
+        let session_id_length = session_id.as_ref().len().to_be_bytes();
+        let mut verifier_state = VerifierState {
+            duplex_sponge_state: H::new(),
+            narg_string
+        };
+        verifier_state.public_message(&protocol_id);
+        verifier_state.public_message(&[0u8; 32]);
+        verifier_state.public_message(&session_id_length);
+        verifier_state.public_message(session_id.as_ref());
+        verifier_state
     }
 }
 

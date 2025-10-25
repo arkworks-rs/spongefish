@@ -98,8 +98,8 @@ where
     F: PrimeField + Unit,
 {
     type U = F;
-    const N: usize = N;
-    const R: usize = R;
+    const WIDTH: usize = N;
+    const RATE: usize = R;
 
     fn new() -> Self {
         assert!(N >= 1);

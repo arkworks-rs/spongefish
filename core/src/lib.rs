@@ -34,6 +34,7 @@ pub mod codecs;
 /// Defines [`VerificationError`].
 mod error;
 
+pub use codecs::{Decoding, Encoding};
 /// Heuristics for building misuse-resistant protocol identifiers.
 // mod domain_separator;
 
@@ -44,12 +45,12 @@ mod error;
 // Re-export the core interfaces for building the FS transformation.
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Unit};
 pub use error::{VerificationError, VerificationResult};
+pub use io::{NargDeserialize, NargSerialize};
 pub use narg::{ProverState, VerifierState};
 
-
 /// The default hash function provided by the library.
-#[cfg(feature = "blake3")]
-pub type DefaultHash = instantiations::Blake3;
+#[cfg(feature = "sha3")]
+pub type DefaultHash = instantiations::Shake128;
 
-#[cfg(all(not(feature = "blake3"), feature = "sha3"))]
+#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
 pub type DefaultHash = instantiations::Shake128;

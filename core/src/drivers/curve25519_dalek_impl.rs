@@ -9,7 +9,7 @@ use group::ff::FromUniformBytes;
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::Deserialize,
+    io::NargDeserialize,
     VerificationResult,
 };
 
@@ -20,7 +20,7 @@ impl crate::Unit for Scalar {
 
 // Implement Decoding for curve25519-dalek Scalar
 impl Decoding<[u8]> for Scalar {
-    type Repr = super::Slice64;
+    type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
         Scalar::from_uniform_bytes(&buf.0)
@@ -28,7 +28,7 @@ impl Decoding<[u8]> for Scalar {
 }
 
 // Implement Deserialize for curve25519-dalek Scalar
-impl Deserialize for Scalar {
+impl NargDeserialize for Scalar {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
@@ -47,7 +47,7 @@ impl Deserialize for Scalar {
 }
 
 // Implement Deserialize for EdwardsPoint
-impl Deserialize for EdwardsPoint {
+impl NargDeserialize for EdwardsPoint {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
@@ -61,7 +61,7 @@ impl Deserialize for EdwardsPoint {
 }
 
 // Implement Deserialize for RistrettoPoint
-impl Deserialize for RistrettoPoint {
+impl NargDeserialize for RistrettoPoint {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);

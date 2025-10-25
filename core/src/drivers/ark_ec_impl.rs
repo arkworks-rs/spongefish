@@ -2,12 +2,11 @@ use alloc::vec::Vec;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{codecs::Encoding, error::VerificationError, io::Deserialize, VerificationResult};
+use crate::{codecs::Encoding, error::VerificationError, io::NargDeserialize, VerificationResult};
 
-// Use the macro to implement Deserialize for various arkworks elliptic curves
 macro_rules! impl_deserialize {
     (impl [$($generics:tt)*] for $type:ty) => {
-        impl<$($generics)*> Deserialize for $type {
+        impl<$($generics)*> NargDeserialize for $type {
             fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
                 let bytes_len: usize = Self::default().compressed_size();
                 if buf.len() < bytes_len {
@@ -21,15 +20,6 @@ macro_rules! impl_deserialize {
     };
 }
 
-impl_deserialize!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Projective<P>);
-impl_deserialize!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Affine<P>);
-impl_deserialize!(impl [P: ark_ec::twisted_edwards::TECurveConfig] for ark_ec::twisted_edwards::Projective<P>);
-impl_deserialize!(impl [P: ark_ec::twisted_edwards::TECurveConfig] for ark_ec::twisted_edwards::Affine<P>);
-impl_deserialize!(impl [P: ark_ec::pairing::Pairing] for ark_ec::pairing::PairingOutput<P>);
-
-// Implement Encoding for specific arkworks curve group elements
-
-// implement Encoding for various arkworks field types
 macro_rules! impl_encoding {
     (impl [$($generics:tt)*] for $type:ty) => {
         impl<$($generics)*> Encoding<[u8]> for $type {
@@ -42,6 +32,15 @@ macro_rules! impl_encoding {
     };
 }
 
+// Implement Deserialize for elliptic curve structs
+impl_deserialize!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Projective<P>);
+impl_deserialize!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Affine<P>);
+impl_deserialize!(impl [P: ark_ec::twisted_edwards::TECurveConfig] for ark_ec::twisted_edwards::Projective<P>);
+impl_deserialize!(impl [P: ark_ec::twisted_edwards::TECurveConfig] for ark_ec::twisted_edwards::Affine<P>);
+impl_deserialize!(impl [P: ark_ec::pairing::Pairing] for ark_ec::pairing::PairingOutput<P>);
+
+// Implement Encoding for elliptic curve structs.
+// Note: NargSerialize will also be defined via the blanket implementation.
 impl_encoding!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Projective<P>);
 impl_encoding!(impl [P: ark_ec::short_weierstrass::SWCurveConfig] for ark_ec::short_weierstrass::Affine<P>);
 impl_encoding!(impl [P: ark_ec::twisted_edwards::TECurveConfig] for ark_ec::twisted_edwards::Projective<P>);

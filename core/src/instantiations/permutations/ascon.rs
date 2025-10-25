@@ -8,12 +8,10 @@ use crate::duplex_sponge::Permutation;
 pub struct Ascon12([u8; 40]);
 
 impl Permutation for Ascon12 {
-    const N: usize = 16 + 24;
-    const R: usize = 16;
     type U = u8;
 
     fn new() -> Self {
-        Self([0; size_of::<u64>() * 5])
+        Self([0; 40])
     }
 
     fn permute(&mut self) {

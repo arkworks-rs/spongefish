@@ -14,8 +14,6 @@ pub struct KeccakF1600([u64; 25]);
 
 impl Permutation for KeccakF1600 {
     type U = u8;
-    const N: usize = 136 + 64;
-    const R: usize = 136;
 
     fn new() -> Self {
         Self::default()

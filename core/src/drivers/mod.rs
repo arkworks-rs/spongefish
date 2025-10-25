@@ -22,23 +22,27 @@ pub mod secp256k1_impl;
 
 // Plonky3 BabyBear field
 #[cfg(feature = "p3-baby-bear")]
-pub mod p3_babybear;
+pub mod p3_baby_bear;
 
-// Plonky3 KoalaBear/Mersenne31 field
+// Plonky3 Mersenne31 field
 #[cfg(feature = "p3-mersenne-31")]
-pub mod p3_koalabear;
+pub mod p3_mersenne31;
+
+// Plonky3 KoalaBear field
+#[cfg(feature = "p3-koala-bear")]
+pub mod p3_koala_bear;
 
 // Buffer of 512-bytes, useful for decoding 256-bit scalars.
 #[repr(C)]
-pub struct Slice64([u8; 64]);
+pub struct Array64([u8; 64]);
 
-impl Default for Slice64 {
+impl Default for Array64 {
     fn default() -> Self {
-        Slice64([0u8; 64])
+        Array64([0u8; 64])
     }
 }
 
-impl AsMut<[u8]> for Slice64 {
+impl AsMut<[u8]> for Array64 {
     fn as_mut(&mut self) -> &mut [u8] {
         self.0.as_mut()
     }

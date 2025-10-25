@@ -1,14 +1,14 @@
+/// XXX add arkworks. we provide encoding, decoding, and serialize/deserialize
 use alloc::{vec, vec::Vec};
-use core::mem::size_of;
+use core::marker::PhantomData;
 
-use ark_ff::{BigInteger, Fp, FpConfig, PrimeField};
+use ark_ff::{BigInteger, Field, Fp, FpConfig, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
 use crate::{
-    codecs::{Decoding, Encoding},
-    drivers::bytes_uniform_modp,
+    codecs::{Encoding, Decoding},
     error::VerificationError,
-    io::Deserialize,
+    io::NargDeserialize,
     VerificationResult,
 };
 
@@ -17,35 +17,39 @@ impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
 }
 
-// Buffer for decoding field elements
-pub struct ScalarBuffer<const N: usize>(Vec<u8>);
-
-impl<const N: usize> Default for ScalarBuffer<N> {
-    fn default() -> Self {
-        let len = size_of::<u64>() * N + 32;
-        ScalarBuffer(vec![0u8; len])
-    }
+/// A buffer meant to hold enough bytes for obtaining a uniformly-distributed
+/// random field element.
+/// In practice, for [`DecodingFieldBuffer`] is meant to hold
+///
+/// ```
+/// F::MODULUS_BIT_SIZE.div_ceil(8) + 32
+/// ```
+///
+/// bytes. Unfortunately Rust does not support const generic expressions,
+/// and so [`DecodingFieldBuffer`] is implemented as a vector of [`u8`] with a [`PhantomData`]
+/// marker binding it to the [`ark_ff::Field`].
+pub struct DecodingFieldBuffer<F: Field> {
+    buf: Vec<u8>,
+    _phantom: PhantomData<F>,
 }
 
-impl<const N: usize> AsMut<[u8]> for ScalarBuffer<N> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.0.as_mut()
-    }
+/// The function determining the size of [`DecodingFieldBuffer`]:
+pub fn decoding_field_buffer_size<F: Field>() -> usize {
+    let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
+    // Get 32 bytes of extra randomness for every base field element in the extension
+    let length = (base_field_modulus_bytes + 32) * F::extension_degree();
+    length as usize
 }
 
-// Implement Decoding for arkworks field elements
-impl<const N: usize, C: FpConfig<N>> Decoding<[u8]> for ark_ff::Fp<C, N> {
-    type Repr = ScalarBuffer<N>;
-
-    fn decode(buf: <Self as Decoding<[u8]>>::Repr) -> Self {
-        Self::from_le_bytes_mod_order(&buf.0)
-    }
-}
-
-// Use the macro to implement Deserialize for various arkworks fields
+/// A macro to bridge [`ark_serialize::CanonicalDeserialize`] with [`NargDeserialize`].
+///
+/// arkworks implements deserialization exactly as we want for field and elliptic curve elements.
+/// However, when used on slices, vectors, or fixed-length arrays it will also try to read the array length
+/// in the first 8 bytes.
+/// We work around that implementing [`NargDeserialize`] for it ourselves.
 macro_rules! impl_deserialize {
     (impl [$($generics:tt)*] for $type:ty) => {
-        impl<$($generics)*> Deserialize for $type {
+        impl<$($generics)*> NargDeserialize for $type {
             fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
                 let bytes_len: usize = Self::default().compressed_size();
                 if buf.len() < bytes_len {
@@ -59,14 +63,12 @@ macro_rules! impl_deserialize {
     };
 }
 
-impl_deserialize!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
-impl_deserialize!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
-impl_deserialize!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
-impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
-impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
-impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-
-// implement Encoding for various arkworks field types
+/// A macro to bridge [`ark_serialize::CanonicalSerialize`] with [`Encoding`].
+///
+/// arkworks implements serialization exactly as we want for field and elliptic curve elements.
+/// However, when used over slices, vectors, or fixed-length arrays it will also write the array length
+/// in the first 8 bytes.
+/// We work around that implementing [NargSerialize][`spongefish::NargSerialize`] for those types ourselves.
 macro_rules! impl_encoding {
     (impl [$($generics:tt)*] for $type:ty) => {
         impl<$($generics)*> Encoding<[u8]> for $type {
@@ -79,43 +81,54 @@ macro_rules! impl_encoding {
     };
 }
 
-// Implement Decoding for arrays of prime fields (Fp)
-impl<C: FpConfig<N>, const N: usize, const LEN: usize> Decoding<[u8]> for [Fp<C, N>; LEN] {
-    type Repr = Vec<u8>;
+/// Macro to implement [`Decoding`] for some [`ark_ff::Field`] instantiations.
+///
+/// Remember that the Rust type system does not accept conflicting blanket implementations,
+/// so we can't implement [`Decoding`] for `ark_ff::Field` and `ark_ff::AdditiveGroup`: the compiler
+/// will complain that a type might be implementing both in the future.
+macro_rules! impl_decoding {
+        (impl [$($generics:tt)*] for $type:ty) => {
+        impl<$($generics)*> Decoding<[u8]> for $type {
+            type Repr = DecodingFieldBuffer<$type>;
 
-    fn decode(buf: Self::Repr) -> Self {
-        // Calculate how many bytes we have per element
-        let bytes_per_elem = buf.len() / LEN;
+            fn decode(repr: Self::Repr) -> Self {
+                debug_assert_eq!(repr.buf.len(), decoding_field_buffer_size::<Self>());
+                let base_field_size = decoding_field_buffer_size::<<Self as Field>::BasePrimeField>();
 
-        // Create array by decoding each chunk
-        let mut result = Vec::with_capacity(LEN);
-        for i in 0..LEN {
-            let start = i * bytes_per_elem;
-            let end = (i + 1) * bytes_per_elem;
-            let elem = Fp::<C, N>::from_le_bytes_mod_order(&buf[start..end]);
-            result.push(elem);
+                let result = repr.buf.chunks(base_field_size)
+                    .map(|chunk| <Self as Field>::BasePrimeField::from_be_bytes_mod_order(chunk))
+                    .collect::<Vec<_>>();
+                // Convert Vec to array - this unwrap is safe because we know the length
+                Self::from_base_prime_field_elems(result).unwrap()
+            }
         }
-
-        // Convert Vec to array - this unwrap is safe because we know the length
-        result.try_into().unwrap_or_else(|_| unreachable!())
     }
 }
 
+// Implement NargDeserialize for prime-order fields and field extensions.
+impl_deserialize!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
+impl_deserialize!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
+impl_deserialize!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
+impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
+impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
+impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+// Implement Encoding for prime-order field and field extensions.
+// The NargSerialize implementation is inherited here.
 impl_encoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
 impl_encoding!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
 impl_encoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_encoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_encoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_encoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+// Implement Decoding for prime-order fields and field extensions.
+impl_decoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
+impl_decoding!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
+impl_decoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
+impl_decoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
+impl_decoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
+impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
 
-// Helper function to convert bytes to field elements
-pub fn from_random_bytes<C: FpConfig<N>, const N: usize>(bytes: &[u8]) -> Vec<Fp<C, N>> {
-    let base_field_size = bytes_uniform_modp(Fp::<C, N>::MODULUS_BIT_SIZE);
-    bytes
-        .chunks(base_field_size)
-        .map(|chunk| Fp::<C, N>::from_be_bytes_mod_order(chunk))
-        .collect()
-}
+
 
 // Helper function to get uniformly random bytes from a field element
 pub fn to_random_bytes<C: FpConfig<N>, const N: usize>(field_elem: &Fp<C, N>) -> Vec<u8> {
@@ -182,5 +195,23 @@ mod test_ark_ff {
         encoding_testsuite::<ark_bls12_381::Fq>();
         encoding_testsuite::<ark_bls12_381::Fq2>();
         encoding_testsuite::<ark_bls12_381::Fq12>();
+    }
+}
+
+impl<F: Field> Default for DecodingFieldBuffer<F> {
+    fn default() -> Self {
+        let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
+        // Get 32 bytes of extra randomness for every base field element in the extension
+        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
+        Self {
+            buf: vec![0u8; len as usize],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.buf.as_mut()
     }
 }
