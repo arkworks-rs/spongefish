@@ -164,17 +164,16 @@ fn main() {
 
     let protocol_id = [0u8; 32];
     let session_id = [0u8; 32];
-    let instance_label = [0u8; 32];
     let mut prover_state = ProverState::new(protocol_id, session_id);
-    let proof = prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
+    prover_state.public_message(&statement);
+    let narg_string = prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,
-        hex::encode(proof)
+        hex::encode(narg_string)
     );
 
-    // let mut verifier_state = VerifierState::new();
-    // verifier_state.public_points(&[statement]).unwrap();
-    // verifier_state.ratchet().unwrap();
-    // verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
+    let mut verifier_state = VerifierState::new(protocol_id, session_id, narg_string);
+    verifier_state.public_message(&statement);
+    verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
 }

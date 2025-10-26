@@ -1,7 +1,6 @@
 //! Plonky3's KoalaBear field codec implementation
 use p3_field::{AbstractField, PrimeField32};
 use p3_koala_bear::KoalaBear;
-use alloc::vec::Vec;
 
 use crate::{
     codecs::{Decoding, Encoding},
@@ -63,10 +62,9 @@ impl Encoding<[u8]> for KoalaBear {
 
 #[cfg(test)]
 mod tests {
-    use p3_field::Field;
-
     use super::*;
     use crate::io::NargSerialize;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_koalabear_serialize_deserialize() {

@@ -1,8 +1,6 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::fmt::Display;
 
-use thiserror::Error;
-
 use super::{interaction::Hierarchy, Interaction, Kind};
 
 /// Abstract transcript containing prover-verifier interactions
@@ -12,29 +10,63 @@ pub struct InteractionPattern {
 }
 
 /// Errors when validating a transcript.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Error)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum TranscriptError {
-    #[error("Missing Begin for {end} at {position}")]
     MissingBegin { position: usize, end: Interaction },
-    #[error(
-        "Invalid kind {interaction} at {interaction_position} for {begin} at {begin_position}"
-    )]
     InvalidKind {
         begin_position: usize,
         begin: Interaction,
         interaction_position: usize,
         interaction: Interaction,
     },
-    #[error("Mismatch {begin} at {begin_position} for {end} at {end_position}")]
     MismatchedBeginEnd {
         begin_position: usize,
         begin: Interaction,
         end_position: usize,
         end: Interaction,
     },
-    #[error("Missing End for {begin} at {position}")]
     MissingEnd { position: usize, begin: Interaction },
 }
+
+impl Display for TranscriptError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::MissingBegin { position, end } => {
+                write!(f, "Missing Begin for {} at {}", end, position)
+            }
+            Self::InvalidKind {
+                begin_position,
+                begin,
+                interaction_position,
+                interaction,
+            } => {
+                write!(
+                    f,
+                    "Invalid kind {} at {} for {} at {}",
+                    interaction, interaction_position, begin, begin_position
+                )
+            }
+            Self::MismatchedBeginEnd {
+                begin_position,
+                begin,
+                end_position,
+                end,
+            } => {
+                write!(
+                    f,
+                    "Mismatch {} at {} for {} at {}",
+                    begin, begin_position, end, end_position
+                )
+            }
+            Self::MissingEnd { position, begin } => {
+                write!(f, "Missing End for {} at {}", begin, position)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for TranscriptError {}
 
 impl InteractionPattern {
     pub fn new(interactions: Vec<Interaction>) -> Result<Self, TranscriptError> {
