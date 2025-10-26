@@ -1,6 +1,5 @@
 //! BLS12-381 codec implementations
 use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar};
-use group::{ff::Field, GroupEncoding};
 
 use crate::{
     codecs::{Decoding, Encoding},
@@ -11,7 +10,7 @@ use crate::{
 
 // Make BLS12-381 scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = <Scalar as Field>::ZERO;
+    const ZERO: Self = Scalar::zero();
 }
 
 // Implement Decoding for curve25519-dalek Scalar
@@ -86,13 +85,13 @@ impl Encoding<[u8]> for Scalar {
 // Implement Encoding for G1Projective
 impl Encoding<[u8]> for G1Projective {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_bytes()
+        G1Affine::from(self).to_compressed()
     }
 }
 
 // Implement Encoding for G2Projective
 impl Encoding<[u8]> for G2Projective {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_bytes()
+        G2Affine::from(self).to_compressed()
     }
 }

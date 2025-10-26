@@ -32,11 +32,10 @@ ascon = { version = "0.4.0", optional = true }
 ark-ff = { workspace = true, optional = true }
 ark-ec = { workspace = true, optional = true }
 ark-serialize = { workspace = true, optional = true }
-group = { workspace = true, optional = true }
 
 # Optional zkcrypto curves
 bls12_381 = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, optional = true, features = ["group"] }
+curve25519-dalek = { workspace = true, optional = true }
 k256 = { workspace = true, optional = true, features = ["arithmetic"] }
 p256 = { workspace = true, optional = true, features = ["arithmetic"] }
 
@@ -63,10 +62,10 @@ ascon = ["dep:ascon"]
 ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
 ark-ec = ["ark-ff", "dep:ark-ec"]
 # Concrete zkcrypto curve implementations
-bls12_381 = ["dep:bls12_381", "dep:group"]
-curve25519-dalek = ["dep:curve25519-dalek", "dep:group"]
-k256 = ["dep:k256", "dep:group"]
-p256 = ["dep:p256", "dep:group"]
+bls12_381 = ["dep:bls12_381"]
+curve25519-dalek = ["dep:curve25519-dalek"]
+k256 = ["dep:k256"]
+p256 = ["dep:p256"]
 # Plonky3 field implementations
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]

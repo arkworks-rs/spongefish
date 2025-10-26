@@ -4,7 +4,6 @@ use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
-use group::ff::FromUniformBytes;
 
 use crate::{
     codecs::{Decoding, Encoding},
@@ -23,7 +22,7 @@ impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        Scalar::from_uniform_bytes(&buf.0)
+        Scalar::from_bytes_mod_order_wide(&buf.0)
     }
 }
 
