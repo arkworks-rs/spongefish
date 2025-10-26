@@ -1,6 +1,7 @@
 //! Plonky3's KoalaBear field codec implementation
 use p3_field::{AbstractField, PrimeField32};
 use p3_koala_bear::KoalaBear;
+use alloc::vec::Vec;
 
 use crate::{
     codecs::{Decoding, Encoding},

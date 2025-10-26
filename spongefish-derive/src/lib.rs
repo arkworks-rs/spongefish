@@ -14,8 +14,11 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
     let encoding_impl = match input.data {
         Data::Struct(data) => {
             let field_encodings = match data.fields {
-                Fields::Named(fields) => {
-                    fields.named.iter().enumerate().filter_map(|(_, f)| {
+                Fields::Named(fields) => fields
+                    .named
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(_, f)| {
                         if has_skip_attribute(&f.attrs) {
                             return None;
                         }
@@ -23,10 +26,13 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
                         Some(quote! {
                             output.extend_from_slice(self.#field_name.encode().as_ref());
                         })
-                    }).collect::<Vec<_>>()
-                }
-                Fields::Unnamed(fields) => {
-                    fields.unnamed.iter().enumerate().filter_map(|(i, f)| {
+                    })
+                    .collect::<Vec<_>>(),
+                Fields::Unnamed(fields) => fields
+                    .unnamed
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, f)| {
                         if has_skip_attribute(&f.attrs) {
                             return None;
                         }
@@ -34,8 +40,8 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
                         Some(quote! {
                             output.extend_from_slice(self.#index.encode().as_ref());
                         })
-                    }).collect::<Vec<_>>()
-                }
+                    })
+                    .collect::<Vec<_>>(),
                 Fields::Unit => vec![],
             };
 
@@ -112,18 +118,21 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                         quote!(#(#size_components)+*)
                     };
 
-                    (size_calc, quote! {
-                        Self {
-                            #(#field_decodings)*
-                        }
-                    })
+                    (
+                        size_calc,
+                        quote! {
+                            Self {
+                                #(#field_decodings)*
+                            }
+                        },
+                    )
                 }
                 Fields::Unnamed(fields) => {
                     let mut offset = quote!(0usize);
                     let mut field_decodings = vec![];
                     let mut size_components = vec![];
 
-                    for (i, field) in fields.unnamed.iter().enumerate() {
+                    for (_i, field) in fields.unnamed.iter().enumerate() {
                         if has_skip_attribute(&field.attrs) {
                             field_decodings.push(quote! {
                                 Default::default(),
@@ -160,9 +169,12 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                         quote!(#(#size_components)+*)
                     };
 
-                    (size_calc, quote! {
-                        Self(#(#field_decodings)*)
-                    })
+                    (
+                        size_calc,
+                        quote! {
+                            Self(#(#field_decodings)*)
+                        },
+                    )
                 }
                 Fields::Unit => (quote!(0), quote!(Self)),
             };
@@ -271,6 +283,7 @@ fn has_skip_attribute(attrs: &[syn::Attribute]) -> bool {
             } else {
                 Err(meta.error("expected `skip`"))
             }
-        }).is_ok()
+        })
+        .is_ok()
     })
 }

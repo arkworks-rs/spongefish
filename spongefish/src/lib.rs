@@ -35,9 +35,6 @@ pub mod codecs;
 mod error;
 
 pub use codecs::{Decoding, Encoding};
-
-#[cfg(feature = "derive")]
-pub use spongefish_derive::{Encoding, Decoding, NargDeserialize};
 /// Heuristics for building misuse-resistant protocol identifiers.
 // mod domain_separator;
 
@@ -50,6 +47,8 @@ pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg::{ProverState, VerifierState};
+#[cfg(feature = "derive")]
+pub use spongefish_derive::{Decoding, Encoding, NargDeserialize};
 
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]

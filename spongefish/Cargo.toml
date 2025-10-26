@@ -18,7 +18,6 @@ zerocopy = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 rand = { workspace = true, features = ["getrandom"] }
 digest = { workspace = true }
-hex = { workspace = true }
 thiserror = { workspace = true }
 
 # Optional hash functions

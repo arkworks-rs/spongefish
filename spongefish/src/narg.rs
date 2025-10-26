@@ -76,6 +76,37 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         self.duplex_sponge_state.squeeze(buf.as_mut());
         T::decode(buf)
     }
+
+    pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
+        for message in messages {
+            self.public_message(message)
+        }
+    }
+
+    pub fn public_messages_iter<J>(&mut self, messages: J)
+    where
+        J: IntoIterator,
+        J::Item: Encoding<[H::U]>,
+    {
+        messages
+            .into_iter()
+            .for_each(|message| self.public_message(&message))
+    }
+
+    pub fn prover_messages<T: Encoding<[H::U]> + NargDeserialize, const N: usize>(
+        &mut self,
+    ) -> VerificationResult<[T; N]> {
+        // core::array::try_from_fn(|_| self.prover_message())
+        let result = self.prover_messages_vec::<T>(N)?;
+        Ok(result.try_into().unwrap_or_else(|_| unreachable!()))
+    }
+
+    pub fn prover_messages_vec<T: Encoding<[H::U]> + NargDeserialize>(
+        &mut self,
+        len: usize,
+    ) -> VerificationResult<Vec<T>> {
+        (0..len).map(|_| self.prover_message()).collect()
+    }
 }
 
 impl<H: DuplexSpongeInterface + core::fmt::Debug> core::fmt::Debug for VerifierState<'_, H> {
@@ -210,6 +241,24 @@ where
         self.verifier_message()
     }
 
+    /// xxx
+    pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
+        for message in messages {
+            self.public_message(message)
+        }
+    }
+
+    /// xxx
+    pub fn public_messages_iter<J>(&mut self, messages: J)
+    where
+        J: IntoIterator,
+        J::Item: Encoding<[H::U]>,
+    {
+        messages
+            .into_iter()
+            .for_each(|message| self.public_message(&message))
+    }
+
     /// Absorb a list of prover messages at once.
     ///
     /// Equivalent to calling [`prover_message`][ProverState::prover_message] for each element
@@ -264,8 +313,8 @@ where
     }
 }
 
-impl ProverState<StdHash, StdRng>
-{
+impl ProverState<StdHash, StdRng> {
+    #[cfg(feature = "sha3")]
     pub fn new_std(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>) -> Self {
         Self::new(protocol_id, session_id)
     }
@@ -286,6 +335,17 @@ where
         verifier_state.public_message(&session_id_length);
         verifier_state.public_message(session_id.as_ref());
         verifier_state
+    }
+}
+
+impl<'a> VerifierState<'a, StdHash> {
+    #[cfg(feature = "sha3")]
+    pub fn new_std(
+        protocol_id: [u8; 32],
+        session_id: impl AsRef<[u8]>,
+        narg_string: &'a [u8],
+    ) -> Self {
+        Self::new(protocol_id, session_id, narg_string)
     }
 }
 
