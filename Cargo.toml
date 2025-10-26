@@ -2,10 +2,9 @@
 resolver = "2"
 
 members = [
-    "core",
-    "codecs-zkcrypto-group",
-    "spongefish-pow",
-    "spongefish-poseidon",
+    "spongefish",
+    "pow",
+    "poseidon2",
 ]
 
 [workspace.lints.clippy]
@@ -35,7 +34,6 @@ tuple_array_conversions = "allow"
 naive_bytecount = "allow"
 
 [workspace.dependencies]
-anemoi = { git = "https://github.com/mmaker/anemoi" }
 ark-bls12-381 = "0.5"
 ark-bn254 = "0.5"
 ark-curve25519 = "0.5"
@@ -57,7 +55,7 @@ hex = "0.4.3"
 k256 = "0.13"
 k12 = "0.3.0"
 keccak = "0.1.5"
-spongefish = { path = "core" }
+spongefish = { path = "spongefish" }
 p256 = "0.13"
 p3-baby-bear = "0.1"
 p3-field = "0.1"
