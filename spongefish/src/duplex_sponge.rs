@@ -32,6 +32,7 @@ impl_integer_unit!(u8);
 impl_integer_unit!(u32);
 impl_integer_unit!(u64);
 impl_integer_unit!(u128);
+impl_integer_unit!(usize);
 
 /// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].
 ///

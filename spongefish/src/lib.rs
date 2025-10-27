@@ -67,17 +67,18 @@ impl<T: ?Sized, E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>> 
 #[cfg(all(test, feature = "derive"))]
 mod unit_derive_tests {
     use super::Unit;
+    use crate as spongefish;
 
-    #[derive(Clone, crate::Unit)]
+    #[derive(Clone, spongefish::Unit)]
     struct NamedUnit {
         first: u8,
         second: u8,
     }
 
-    #[derive(Clone, crate::Unit)]
+    #[derive(Clone, spongefish::Unit)]
     struct TupleUnit(u8, u8);
 
-    #[derive(Clone, crate::Unit)]
+    #[derive(Clone, spongefish::Unit)]
     struct MarkerUnit;
 
     #[test]
