@@ -29,6 +29,12 @@ impl Unit for u8 {
 /// **HAZARD**: Don't implement this trait unless you know what you are doing.
 /// Consider using the sponges already provided by this library.
 pub trait DuplexSpongeInterface: Clone {
+    /// The type of elements over which this duplex sponge operates.
+    ///
+    /// In [[CO25]], this is called "alphabet".
+    /// The alphabet must be a non-empty set.
+    ///
+    /// [[CO25]]: eprint.iacr.org/2025/536.pdf
     type U: Unit;
 
     /// Initialize the state of the duplex sponge.
