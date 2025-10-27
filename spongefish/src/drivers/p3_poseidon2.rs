@@ -1,10 +1,8 @@
-#[cfg(feature="p3-baby-bear")]
+#[cfg(feature = "p3-baby-bear")]
 pub use p3_baby_bear_poseidon2::{BabyBearPoseidon2_16, BabyBearPoseidon2_24};
 
-#[cfg(feature="p3-koala-bear")]
-
-
-#[cfg(feature="p3-koala-bear")]
+#[cfg(feature = "p3-koala-bear")]
+#[cfg(feature = "p3-koala-bear")]
 #[allow(unused)]
 mod p3_koala_bear_poseidon2 {
     use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear};
@@ -12,7 +10,7 @@ mod p3_koala_bear_poseidon2 {
     use crate::Unit;
 
     /// Hack in order to keep track of the state while at the same time
-    /// holding a reference to the Poseidon2 constants used.
+    /// holding ga reference to the Poseidon2 constants used.
     #[derive(Clone)]
     pub struct KoalaBearPoseidon2_16 {
         state: [KoalaBear; 16],
@@ -37,7 +35,7 @@ mod p3_koala_bear_poseidon2 {
         }
     }
 
-       impl AsRef<[KoalaBear]> for KoalaBearPoseidon2_16 {
+    impl AsRef<[KoalaBear]> for KoalaBearPoseidon2_16 {
         fn as_ref(&self) -> &[KoalaBear] {
             self.state.as_ref()
         }
@@ -88,7 +86,7 @@ mod p3_koala_bear_poseidon2 {
     // }
 }
 
-#[cfg(feature="p3-baby-bear")]
+#[cfg(feature = "p3-baby-bear")]
 mod p3_baby_bear_poseidon2 {
     use p3_baby_bear::{BabyBear, Poseidon2BabyBear};
 
@@ -120,7 +118,7 @@ mod p3_baby_bear_poseidon2 {
         }
     }
 
-       impl AsRef<[BabyBear]> for BabyBearPoseidon2_16 {
+    impl AsRef<[BabyBear]> for BabyBearPoseidon2_16 {
         fn as_ref(&self) -> &[BabyBear] {
             self.state.as_ref()
         }
@@ -139,7 +137,7 @@ mod p3_baby_bear_poseidon2 {
         fn new() -> Self {
             Self {
                 poseidon2: p3_baby_bear::default_babybear_poseidon2_16(),
-                state: [Unit::ZERO; Self::WIDTH]
+                state: [Unit::ZERO; Self::WIDTH],
             }
         }
 
@@ -150,14 +148,14 @@ mod p3_baby_bear_poseidon2 {
         }
     }
 
-        impl crate::duplex_sponge::Permutation for BabyBearPoseidon2_24 {
+    impl crate::duplex_sponge::Permutation for BabyBearPoseidon2_24 {
         type U = BabyBear;
         const WIDTH: usize = 24;
 
         fn new() -> Self {
             Self {
                 poseidon2: p3_baby_bear::default_babybear_poseidon2_24(),
-                state: [Unit::ZERO; Self::WIDTH]
+                state: [Unit::ZERO; Self::WIDTH],
             }
         }
 

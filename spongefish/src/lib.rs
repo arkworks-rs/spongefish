@@ -48,7 +48,7 @@ pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg::{ProverState, VerifierState};
 #[cfg(feature = "derive")]
-pub use spongefish_derive::{Decoding, Encoding, NargDeserialize};
+pub use spongefish_derive::{Decoding, Encoding, NargDeserialize, Unit};
 
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]
@@ -63,3 +63,39 @@ where
 {
 }
 impl<T: ?Sized, E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>> Codec<T> for E {}
+
+#[cfg(all(test, feature = "derive"))]
+mod unit_derive_tests {
+    use super::Unit;
+
+    #[derive(Clone, crate::Unit)]
+    struct NamedUnit {
+        first: u8,
+        second: u8,
+    }
+
+    #[derive(Clone, crate::Unit)]
+    struct TupleUnit(u8, u8);
+
+    #[derive(Clone, crate::Unit)]
+    struct MarkerUnit;
+
+    #[test]
+    fn zero_named_fields() {
+        let zero = NamedUnit::ZERO;
+        assert_eq!(zero.first, 0);
+        assert_eq!(zero.second, 0);
+    }
+
+    #[test]
+    fn zero_tuple_fields() {
+        let zero = TupleUnit::ZERO;
+        assert_eq!(zero.0, 0);
+        assert_eq!(zero.1, 0);
+    }
+
+    #[test]
+    fn zero_unit_struct() {
+        let _ = MarkerUnit::ZERO;
+    }
+}

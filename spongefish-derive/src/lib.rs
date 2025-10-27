@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Fields, Type};
 
 /// Derive macro for the Encoding trait.
 ///
@@ -268,6 +268,96 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(deserialize_impl)
+}
+
+/// Derive macro for the Unit trait.
+///
+/// Generates an implementation whose zero element sets every field to its [`Unit::ZERO`].
+#[proc_macro_derive(Unit, attributes(spongefish))]
+pub fn derive_unit(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = input.ident;
+    let mut generics = input.generics;
+
+    let (zero_expr, unit_bounds) = match input.data {
+        Data::Struct(data) => match data.fields {
+            Fields::Named(fields) => {
+                let mut zero_fields = Vec::new();
+                let mut unit_bounds = Vec::new();
+
+                for field in fields.named.iter() {
+                    let field_name = &field.ident;
+
+                    if has_skip_attribute(&field.attrs) {
+                        zero_fields.push(quote! {
+                            #field_name: ::core::default::Default::default(),
+                        });
+                        continue;
+                    }
+
+                    let ty: Type = field.ty.clone();
+                    unit_bounds.push(ty.clone());
+                    zero_fields.push(quote! {
+                        #field_name: <#ty as ::spongefish::Unit>::ZERO,
+                    });
+                }
+
+                (
+                    quote! {
+                        Self {
+                            #(#zero_fields)*
+                        }
+                    },
+                    unit_bounds,
+                )
+            }
+            Fields::Unnamed(fields) => {
+                let mut zero_fields = Vec::new();
+                let mut unit_bounds = Vec::new();
+
+                for field in fields.unnamed.iter() {
+                    if has_skip_attribute(&field.attrs) {
+                        zero_fields.push(quote! {
+                            ::core::default::Default::default()
+                        });
+                        continue;
+                    }
+
+                    let ty: Type = field.ty.clone();
+                    unit_bounds.push(ty.clone());
+                    zero_fields.push(quote! {
+                        <#ty as ::spongefish::Unit>::ZERO
+                    });
+                }
+
+                (
+                    quote! {
+                        Self(#(#zero_fields),*)
+                    },
+                    unit_bounds,
+                )
+            }
+            Fields::Unit => (quote!(Self), Vec::new()),
+        },
+        _ => panic!("Unit can only be derived for structs"),
+    };
+
+    let where_clause = generics.make_where_clause();
+    for ty in unit_bounds {
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: ::spongefish::Unit));
+    }
+
+    let (impl_generics, ty_generics, where_generics) = generics.split_for_impl();
+
+    let expanded = quote! {
+        impl #impl_generics ::spongefish::Unit for #name #ty_generics #where_generics {
+            const ZERO: Self = #zero_expr;
+        }
+    };
+
+    TokenStream::from(expanded)
 }
 
 /// Helper function to check if a field has the #[spongefish(skip)] attribute

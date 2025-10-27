@@ -20,9 +20,18 @@ pub trait Unit: Clone + Sized {
     const ZERO: Self;
 }
 
-impl Unit for u8 {
-    const ZERO: Self = 0;
+macro_rules! impl_integer_unit {
+    ($t:ty) => {
+        impl Unit for $t {
+            const ZERO: Self = 0;
+        }
+    };
 }
+
+impl_integer_unit!(u8);
+impl_integer_unit!(u32);
+impl_integer_unit!(u64);
+impl_integer_unit!(u128);
 
 /// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].
 ///
