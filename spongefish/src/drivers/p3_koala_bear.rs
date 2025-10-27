@@ -1,5 +1,5 @@
 //! Plonky3's KoalaBear field codec implementation
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_koala_bear::KoalaBear;
 
 use crate::{
@@ -29,7 +29,7 @@ impl Decoding<[u8]> for KoalaBear {
 
     fn decode(buf: Self::Repr) -> Self {
         let n = u64::from_le_bytes(buf);
-        KoalaBear::from_canonical_u64(n % KoalaBear::ORDER_U32 as u64)
+        KoalaBear::new((n % (KoalaBear::ORDER_U32 as u64)) as u32)
     }
 }
 
@@ -49,7 +49,7 @@ impl NargDeserialize for KoalaBear {
         }
 
         *buf = &buf[4..];
-        Ok(KoalaBear::from_canonical_u32(value))
+        Ok(KoalaBear::new(value))
     }
 }
 
@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn test_koalabear_serialize_deserialize() {
         // Create a field element
-        let element = KoalaBear::from_canonical_u32(12345);
+        let element = KoalaBear::new(12345);
 
         let mut buf = Vec::new();
         element.serialize_into(&mut buf);
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_koalabear_encoding() {
-        let element = KoalaBear::from_canonical_u32(67890);
+        let element = KoalaBear::new(67890);
 
         let encoded = element.encode();
         let encoded_bytes = encoded.as_ref();

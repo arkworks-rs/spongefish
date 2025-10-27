@@ -368,7 +368,6 @@ mod x5_255_5 {
     pub const R_F: usize = 8;
     pub const R_P: usize = 60;
     pub const N: usize = 5;
-    pub const R: usize = 4;
 
     pub const MDS: &[[Field; N]] = &[
         [

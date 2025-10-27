@@ -1,12 +1,14 @@
 //! Plonky3's BabyBear field codec implementation
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 
 use crate::{
     codecs::{Decoding, Encoding},
     io::NargDeserialize,
     VerificationError, VerificationResult,
 };
+
+// xxx. implement Permutation for CryptographicPermutation.
 
 const BABYBEAR_ZERO: BabyBear = unsafe { core::mem::transmute(0u32) };
 
@@ -36,7 +38,7 @@ impl Decoding<[u8]> for BabyBear {
 
     fn decode(buf: Self::Repr) -> Self {
         let n = u64::from_le_bytes(buf);
-        return BabyBear::from_canonical_u64(n % BabyBear::ORDER_U32 as u64);
+        return BabyBear::new((n % (BabyBear::ORDER_U32 as u64)) as u32);
     }
 }
 
@@ -55,7 +57,7 @@ impl NargDeserialize for BabyBear {
             return Err(VerificationError);
         }
 
-        Ok(BabyBear::from_canonical_u32(value))
+        Ok(BabyBear::new(value))
     }
 }
 
