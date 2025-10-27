@@ -75,7 +75,7 @@ fn main() {
     let sk = F::rand(&mut OsRng);
     let pk = generator * sk;
 
-    let protocol_id = [0u8; 32];
+    let protocol_id = [0u8; 64];
     let session_id = [0u8; 32];
     // Create the prover transcript, add the statement to it, and then invoke the prover.
     let mut prover_state = ProverState::new(protocol_id, session_id);

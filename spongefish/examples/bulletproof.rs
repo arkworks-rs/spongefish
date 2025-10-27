@@ -162,7 +162,7 @@ fn main() {
     let statement = G::msm_unchecked(&g, &a) + G::msm_unchecked(&h, &b) + u * ab;
     let witness = (&a[..], &b[..]);
 
-    let protocol_id = [0u8; 32];
+    let protocol_id = [0u8; 64];
     let session_id = [0u8; 32];
     let mut prover_state = ProverState::new(protocol_id, session_id);
     prover_state.public_message(&statement);

@@ -28,18 +28,18 @@ sha2 = { workspace = true, features = ["asm"], optional = true }
 blake2 = { workspace = true, optional = true }
 ascon = { version = "^0.4.0", optional = true }
 
-# Optional codecs
+# arkworks-rs
 ark-ff = { workspace = true, optional = true }
 ark-ec = { workspace = true, optional = true }
 ark-serialize = { workspace = true, optional = true }
 
-# Optional zkcrypto curves
+# zkcrypto/group
 bls12_381 = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, optional = true }
 k256 = { workspace = true, optional = true, features = ["arithmetic"] }
 p256 = { workspace = true, optional = true, features = ["arithmetic"] }
 
-# Optional plonky3 fields
+# plonky3
 p3-field = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
 p3-mersenne-31 = { workspace = true, optional = true }
@@ -58,7 +58,7 @@ blake3 = ["dep:blake3"]
 k12 = ["dep:k12"]
 keccak = ["dep:keccak"]
 ascon = ["dep:ascon"]
-# Algebraic features
+# arkworks
 ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
 ark-ec = ["ark-ff", "dep:ark-ec"]
 # Concrete zkcrypto curve implementations
@@ -66,7 +66,7 @@ bls12_381 = ["dep:bls12_381"]
 curve25519-dalek = ["dep:curve25519-dalek"]
 k256 = ["dep:k256"]
 p256 = ["dep:p256"]
-# Plonky3 field implementations
+# Plonky3 support
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
 p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
@@ -79,10 +79,8 @@ ark-std = { workspace = true }
 sha2 = { workspace = true }
 blake2 = { workspace = true }
 hex = { workspace = true }
-# test curve25519 compatibility
 curve25519-dalek = { workspace = true }
 ark-curve25519 = { workspace = true }
-# test algebraic hashers
 bls12_381 = { workspace = true }
 ark-bls12-381 = { workspace = true }
 ark-pallas = { workspace = true }
