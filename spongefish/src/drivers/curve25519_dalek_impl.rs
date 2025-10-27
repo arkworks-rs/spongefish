@@ -26,6 +26,14 @@ impl Decoding<[u8]> for Scalar {
     }
 }
 
+impl Decoding<[u8]> for RistrettoPoint {
+    type Repr = super::Array64;
+
+    fn decode(buf: Self::Repr) -> Self {
+        RistrettoPoint::from_uniform_bytes(&buf.0)
+    }
+}
+
 // Implement Deserialize for curve25519-dalek Scalar
 impl NargDeserialize for Scalar {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {

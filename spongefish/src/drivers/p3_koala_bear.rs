@@ -62,9 +62,10 @@ impl Encoding<[u8]> for KoalaBear {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
+
     use super::*;
     use crate::io::NargSerialize;
-    use alloc::vec::Vec;
 
     #[test]
     fn test_koalabear_serialize_deserialize() {

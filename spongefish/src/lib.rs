@@ -56,3 +56,10 @@ pub type StdHash = instantiations::Shake128;
 
 #[cfg(all(not(feature = "sha3"), feature = "blake3"))]
 pub type DefaultHash = instantiations::Shake128;
+
+pub trait Codec<T = [u8]>: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>
+where
+    T: ?Sized,
+{
+}
+impl<T: ?Sized, E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>> Codec<T> for E {}

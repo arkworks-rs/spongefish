@@ -9,10 +9,8 @@ use alloc::vec::Vec;
 use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 
 use crate::{
-    codecs::{Decoding, Encoding},
-    duplex_sponge::DuplexSpongeInterface,
-    io::{NargDeserialize, NargSerialize},
-    StdHash, VerificationResult,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargSerialize, StdHash,
+    VerificationResult,
 };
 
 type StdRng = rand::rngs::StdRng;
@@ -44,7 +42,10 @@ where
 
 /// [`VerifierState`] is the verifier state.
 ///
+/// # Panics
 ///
+/// Dropping without fully consuming the NARG string will discard potential elements of the proof,
+/// and might result in the proof being malleable.
 pub struct VerifierState<'a, H = StdHash>
 where
     H: DuplexSpongeInterface,
@@ -106,6 +107,14 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         len: usize,
     ) -> VerificationResult<Vec<T>> {
         (0..len).map(|_| self.prover_message()).collect()
+    }
+
+    pub fn finish(&self) -> Result<(), &[u8]> {
+        if self.narg_string.is_empty() {
+            Ok(())
+        } else {
+            Err(self.narg_string)
+        }
     }
 }
 
@@ -302,11 +311,10 @@ impl<H> ProverState<H, StdRng>
 where
     H: DuplexSpongeInterface<U = u8> + Default,
 {
-    pub fn new(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>) -> Self {
+    pub fn new(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>) -> Self {
         let session_id_length = session_id.as_ref().len().to_be_bytes();
         let mut prover_state = Self::default();
         prover_state.public_message(&protocol_id);
-        prover_state.public_message(&[0u8; 32]);
         prover_state.public_message(&session_id_length);
         prover_state.public_message(session_id.as_ref());
         prover_state
@@ -315,7 +323,7 @@ where
 
 impl ProverState<StdHash, StdRng> {
     #[cfg(feature = "sha3")]
-    pub fn new_std(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>) -> Self {
+    pub fn new_std(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>) -> Self {
         Self::new(protocol_id, session_id)
     }
 }
@@ -324,7 +332,7 @@ impl<'a, H> VerifierState<'a, H>
 where
     H: DuplexSpongeInterface<U = u8> + Default,
 {
-    pub fn new(protocol_id: [u8; 32], session_id: impl AsRef<[u8]>, narg_string: &'a [u8]) -> Self {
+    pub fn new(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>, narg_string: &'a [u8]) -> Self {
         let session_id_length = session_id.as_ref().len().to_be_bytes();
         let mut verifier_state = VerifierState {
             duplex_sponge_state: H::new(),
@@ -341,7 +349,7 @@ where
 impl<'a> VerifierState<'a, StdHash> {
     #[cfg(feature = "sha3")]
     pub fn new_std(
-        protocol_id: [u8; 32],
+        protocol_id: [u8; 64],
         session_id: impl AsRef<[u8]>,
         narg_string: &'a [u8],
     ) -> Self {

@@ -166,7 +166,8 @@ fn main() {
     let session_id = [0u8; 32];
     let mut prover_state = ProverState::new(protocol_id, session_id);
     prover_state.public_message(&statement);
-    let narg_string = prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
+    let narg_string =
+        prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,

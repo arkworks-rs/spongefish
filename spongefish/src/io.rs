@@ -51,7 +51,6 @@ pub trait NargDeserialize: Sized {
     fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self>;
 }
 
-
 impl<T: Encoding<[u8]>> NargSerialize for T {
     /// Serialization for byte strings is the identity map.
     fn serialize_into(&self, dst: &mut Vec<u8>) {
