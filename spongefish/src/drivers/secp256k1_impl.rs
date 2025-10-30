@@ -32,7 +32,7 @@ impl Decoding<[u8]> for Scalar {
 
 // Implement Deserialize for k256 Scalar
 impl NargDeserialize for Scalar {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
@@ -47,7 +47,7 @@ impl NargDeserialize for Scalar {
 
 // Implement Deserialize for ProjectivePoint
 impl NargDeserialize for ProjectivePoint {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         // Compressed points are 33 bytes
         if buf.len() < 33 {
             return Err(VerificationError);
@@ -92,10 +92,10 @@ mod tests {
         let scalar = Scalar::random(&mut rand::thread_rng());
 
         let mut buf = Vec::new();
-        scalar.serialize_into(&mut buf);
+        scalar.serialize_into_narg(&mut buf);
 
         let mut buf_slice = &buf[..];
-        let deserialized = Scalar::deserialize_from(&mut buf_slice).unwrap();
+        let deserialized = Scalar::deserialize_from_narg(&mut buf_slice).unwrap();
         assert_eq!(scalar, deserialized);
     }
 
@@ -106,10 +106,10 @@ mod tests {
         let point = ProjectivePoint::random(&mut rand::thread_rng());
 
         let mut buf = Vec::new();
-        point.serialize_into(&mut buf);
+        point.serialize_into_narg(&mut buf);
 
         let mut buf_slice = &buf[..];
-        let deserialized = ProjectivePoint::deserialize_from(&mut buf_slice).unwrap();
+        let deserialized = ProjectivePoint::deserialize_from_narg(&mut buf_slice).unwrap();
         assert_eq!(point, deserialized);
     }
 
@@ -121,7 +121,7 @@ mod tests {
         let encoded_bytes = encoded.as_ref();
 
         let mut buf_slice = encoded_bytes;
-        let deserialized = Scalar::deserialize_from(&mut buf_slice).unwrap();
+        let deserialized = Scalar::deserialize_from_narg(&mut buf_slice).unwrap();
         assert_eq!(scalar, deserialized);
     }
 

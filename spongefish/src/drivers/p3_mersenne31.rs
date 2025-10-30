@@ -25,7 +25,7 @@ impl Decoding<[u8]> for Mersenne31 {
 }
 
 impl NargDeserialize for Mersenne31 {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 4 {
             return Err(VerificationError);
         }

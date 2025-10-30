@@ -24,7 +24,7 @@ impl Decoding<[u8]> for Scalar {
 
 // Implement Deserialize for BLS12-381 Scalar
 impl NargDeserialize for Scalar {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
@@ -37,7 +37,7 @@ impl NargDeserialize for Scalar {
 
 // Implement Deserialize for G1Projective
 impl NargDeserialize for G1Projective {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G1 compressed points are 48 bytes
         if buf.len() < 48 {
             return Err(VerificationError);
@@ -57,7 +57,7 @@ impl NargDeserialize for G1Projective {
 
 // Implement Deserialize for G2Projective
 impl NargDeserialize for G2Projective {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G2 compressed points are 96 bytes
         if buf.len() < 96 {
             return Err(VerificationError);

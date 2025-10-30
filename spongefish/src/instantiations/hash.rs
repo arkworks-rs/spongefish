@@ -38,10 +38,6 @@ pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface for Hash<D> {
     type U = u8;
 
-    fn new() -> Self {
-        Self::default()
-    }
-
     fn absorb(&mut self, input: &[u8]) -> &mut Self {
         self.squeeze_end();
 

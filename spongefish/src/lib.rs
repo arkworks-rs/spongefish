@@ -36,7 +36,7 @@ mod error;
 
 pub use codecs::{Decoding, Encoding};
 /// Heuristics for building misuse-resistant protocol identifiers.
-// mod domain_separator;
+mod domain_separator;
 
 // /// Unit-tests.
 // #[cfg(test)]
@@ -54,15 +54,36 @@ pub use spongefish_derive::{Decoding, Encoding, NargDeserialize, Unit};
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
 
+#[macro_export]
+macro_rules! protocol_id {
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::domain_separator::protocol_id(core::format_args!($fmt $(, $arg)*))
+    }};
+}
+
+#[macro_export]
+macro_rules! session_id {
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::domain_separator::session_id(core::format_args!($fmt $(, $arg)*))
+    }};
+}
+
 #[cfg(all(not(feature = "sha3"), feature = "blake3"))]
 pub type DefaultHash = instantiations::Shake128;
 
+/// Marker trait for types that implement `Encoding<T>`, and `Decoding<T>`; `NargSerialize` and `NargDeserialize`
 pub trait Codec<T = [u8]>: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>
 where
     T: ?Sized,
 {
 }
-impl<T: ?Sized, E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>> Codec<T> for E {}
+
+impl<T, E> Codec<T> for E
+where
+    T: ?Sized,
+    E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>,
+{
+}
 
 #[cfg(all(test, feature = "derive"))]
 mod unit_derive_tests {

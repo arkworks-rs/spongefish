@@ -50,7 +50,7 @@ pub fn decoding_field_buffer_size<F: Field>() -> usize {
 macro_rules! impl_deserialize {
     (impl [$($generics:tt)*] for $type:ty) => {
         impl<$($generics)*> NargDeserialize for $type {
-            fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+            fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
                 let bytes_len: usize = Self::default().compressed_size();
                 if buf.len() < bytes_len {
                     return Err(VerificationError);

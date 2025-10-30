@@ -3,8 +3,7 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    Decoding, Encoding, NargDeserialize, ProverState, VerificationError, VerificationResult,
-    VerifierState,
+    Codec, Encoding, NargDeserialize, NargSerialize, ProverState, VerificationResult, VerifierState,
 };
 
 /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
@@ -22,8 +21,8 @@ fn prove<'a, G>(
     x: G::ScalarField,
 ) -> &'a [u8]
 where
-    G: CurveGroup + Encoding<[u8]>,
-    G::ScalarField: Encoding<[u8]> + Decoding<[u8]>,
+    G: CurveGroup + NargSerialize + Encoding,
+    G::ScalarField: Codec,
 {
     // `ProverState` types implement a cryptographically-secure random number generator that is tied to the protocol transcript
     // and that can be accessed via the `rng()` function.
@@ -50,20 +49,16 @@ where
 /// - the secret key `witness`
 /// It returns a zero-knowledge proof of knowledge of `witness` as a sequence of bytes.
 #[allow(non_snake_case)]
-fn verify<G>(verifier_state: &mut VerifierState, P: G, X: G) -> VerificationResult<()>
+fn verify<'a, G>(verifier_state: &'a mut VerifierState, P: G, X: G) -> VerificationResult<()>
 where
-    G: CurveGroup + Encoding + NargDeserialize,
-    G::ScalarField: Encoding + NargDeserialize + Decoding,
+    G: CurveGroup + NargDeserialize + Encoding,
+    G::ScalarField: Codec,
 {
     let K = verifier_state.prover_message::<G>()?;
     let c = verifier_state.verifier_message::<G::ScalarField>();
     let r = verifier_state.prover_message::<G::ScalarField>()?;
 
-    if P * r == K + X * c {
-        Ok(())
-    } else {
-        *VerificationError
-    }
+    verifier_state.finish(P * r == K + X * c)
 }
 
 fn main() {
@@ -75,8 +70,8 @@ fn main() {
     let sk = F::rand(&mut OsRng);
     let pk = generator * sk;
 
-    let protocol_id = [0u8; 64];
-    let session_id = [0u8; 32];
+    let protocol_id = spongefish::protocol_id!("schnorr::ark_curve25519");
+    let session_id = spongefish::session_id!("demo-session-{}", 1u8);
     // Create the prover transcript, add the statement to it, and then invoke the prover.
     let mut prover_state = ProverState::new(protocol_id, session_id);
     prover_state.public_message(&[generator, pk]);
@@ -86,7 +81,7 @@ fn main() {
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
-    let mut verifier_state = VerifierState::new(protocol_id, session_id, narg_string);
+    let mut verifier_state = VerifierState::new(&protocol_id, &session_id, narg_string);
     verifier_state.public_message(&[generator, pk]);
     verify(&mut verifier_state, generator, pk).expect("Verification failed");
 }

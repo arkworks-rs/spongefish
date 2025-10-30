@@ -44,7 +44,7 @@ impl Decoding<[u8]> for BabyBear {
 
 // Implement Deserialize for BabyBear
 impl NargDeserialize for BabyBear {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 4 {
             return Err(VerificationError);
         }

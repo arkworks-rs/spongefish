@@ -47,9 +47,6 @@ pub trait DuplexSpongeInterface: Clone {
     /// [[CO25]]: eprint.iacr.org/2025/536.pdf
     type U: Unit;
 
-    /// Initialize the state of the duplex sponge.
-    fn new() -> Self;
-
     /// Absorbs new elements in the sponge.
     ///
     /// Calls to absorb are meant to be associative:
@@ -68,12 +65,7 @@ pub trait DuplexSpongeInterface: Clone {
     ///
     /// This function performs a one-way ratchet of its internal state, so that it cannot be inverted.
     /// By default, this function will re-initialize a sponge using 256 [`Unit`]s squeezed from the current instance.
-    fn ratchet(&mut self) -> &mut Self {
-        let seed = self.squeeze_array::<256>();
-        // Reset to new state - implementations should overwrite their internal state
-        *self = Self::new();
-        self.absorb(&seed)
-    }
+    fn ratchet(&mut self) -> &mut Self;
 
     /// Squeeze a fixed-length array of size `LEN`.
     fn squeeze_array<const LEN: usize>(&mut self) -> [Self::U; LEN] {
@@ -99,16 +91,18 @@ pub trait DuplexSpongeInterface: Clone {
 ///
 /// The permutation state can be initialized via [`new`][Permutation::new], accessed via [`as_ref`][AsRef] and altered via [`as_mut`][AsMut].
 /// The constant [`WIDTH`] denotes the size of the permutation.
-pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
+pub trait Permutation<const WIDTH: usize>: Clone {
     /// The basic unit type over which the sponge operates.
     type U: Unit;
-    const WIDTH: usize;
 
-    /// Initialize a new permutation state
-    fn new() -> Self;
+    /// Run the permutation function over `state`.
+    fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH];
 
-    /// Permute the state of the sponge.
-    fn permute(&mut self);
+    /// Evaluate [`Permutation::permute`] in-place.
+    fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
+        let new_state = self.permute(state);
+        state.clone_from(&new_state)
+    }
 }
 
 /// The duplex sponge construction from [[CO25], Construction 3.3].
@@ -125,56 +119,86 @@ pub trait Permutation: Clone + AsRef<[Self::U]> + AsMut<[Self::U]> {
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 #[derive(Clone, PartialEq, Eq)]
-pub struct DuplexSponge<P: Permutation, const RATE: usize> {
+pub struct DuplexSponge<P, const WIDTH: usize, const RATE: usize>
+where
+    P: Permutation<WIDTH>,
+{
     permutation: P,
+    permutation_state: [P::U; WIDTH],
     absorb_pos: usize,
     squeeze_pos: usize,
 }
 
-impl<P: Permutation, const RATE: usize> Default for DuplexSponge<P, RATE> {
+impl<P, const WIDTH: usize, const RATE: usize> DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH>,
+{
+    fn with_permutation(permutation: P) -> Self {
+        Self {
+            permutation,
+            permutation_state: [P::U::ZERO; WIDTH],
+            absorb_pos: 0,
+            squeeze_pos: RATE,
+        }
+    }
+}
+
+impl<P, const WIDTH: usize, const RATE: usize> Default for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH> + Default,
+{
     fn default() -> Self {
-        Self::new()
+        P::default().into()
+    }
+}
+
+impl<P, const WIDTH: usize, const RATE: usize> From<P> for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH>,
+{
+    fn from(value: P) -> Self {
+        Self::with_permutation(value)
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<P: Permutation, const RATE: usize> Zeroize for DuplexSponge<P, RATE> {
+impl<P, const WIDTH: usize, const RATE: usize> Zeroize for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH> + Clone,
+{
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
-        self.permutation.as_mut().fill(P::U::ZERO);
+        self.permutation_state.as_mut().fill(P::U::ZERO);
         self.squeeze_pos.zeroize();
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<P: Permutation, const RATE: usize> ZeroizeOnDrop for DuplexSponge<P, RATE> {}
+impl<P, const WIDTH: usize, const RATE: usize> ZeroizeOnDrop for DuplexSponge<P, WIDTH, RATE> where
+    P: Permutation<WIDTH>
+{
+}
 
-impl<P: Permutation, const RATE: usize> DuplexSpongeInterface for DuplexSponge<P, RATE> {
+impl<P, const WIDTH: usize, const RATE: usize> DuplexSpongeInterface
+    for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH>,
+{
     type U = P::U;
-    fn new() -> Self {
-        assert!(RATE > 0, "The rate must be non-zero");
-        assert!(P::WIDTH > RATE, "The capacity must be non-zero");
-
-        Self {
-            permutation: P::new(),
-            absorb_pos: 0,
-            squeeze_pos: RATE,
-        }
-    }
 
     fn absorb(&mut self, mut input: &[Self::U]) -> &mut Self {
         self.squeeze_pos = RATE;
 
         while !input.is_empty() {
             if self.absorb_pos == RATE {
-                self.permutation.permute();
+                self.permutation.permute_mut(&mut self.permutation_state);
                 self.absorb_pos = 0;
             } else {
                 assert!(self.absorb_pos < RATE);
                 let chunk_len = usize::min(input.len(), RATE - self.absorb_pos);
                 let (chunk, rest) = input.split_at(chunk_len);
 
-                self.permutation.as_mut()[self.absorb_pos..self.absorb_pos + chunk_len]
+                self.permutation_state[self.absorb_pos..self.absorb_pos + chunk_len]
                     .clone_from_slice(chunk);
                 self.absorb_pos += chunk_len;
                 input = rest;
@@ -191,14 +215,14 @@ impl<P: Permutation, const RATE: usize> DuplexSpongeInterface for DuplexSponge<P
 
         if self.squeeze_pos == RATE {
             self.squeeze_pos = 0;
-            self.permutation.permute();
+            self.permutation.permute_mut(&mut self.permutation_state);
         }
 
         assert!(self.squeeze_pos < RATE);
         let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
         let (output, rest) = output.split_at_mut(chunk_len);
         output.clone_from_slice(
-            &self.permutation.as_ref()[self.squeeze_pos..self.squeeze_pos + chunk_len],
+            &self.permutation_state[self.squeeze_pos..self.squeeze_pos + chunk_len],
         );
         self.squeeze_pos += chunk_len;
         self.squeeze(rest)
@@ -207,6 +231,8 @@ impl<P: Permutation, const RATE: usize> DuplexSpongeInterface for DuplexSponge<P
     fn ratchet(&mut self) -> &mut Self {
         self.absorb_pos = RATE;
         self.squeeze_pos = RATE;
+        self.permutation_state[0..RATE].fill_with(|| P::U::ZERO);
+        self.permutation.permute(&mut self.permutation_state);
         self
     }
 }

@@ -1,4 +1,5 @@
 use alloc::{collections::vec_deque::VecDeque, format};
+use zeroize::Zeroize;
 use core::fmt;
 
 use crate::{
@@ -138,22 +139,20 @@ impl<H: DuplexSpongeInterface> HashStateWithInstructions<H> {
     }
 }
 
-impl<H: DuplexSpongeInterface> Drop for HashStateWithInstructions<H> {
-    /// Destroy the sponge state.
-    fn drop(&mut self) {
-        // it's a bit violent to panic here,
-        // because any other issue in the protocol transcript causing `Safe` to get out of scope
-        // (like another panic) will pollute the traceback.
-        // debug_assert!(self.stack.is_empty());
-        // In no_std we can't use eprintln
-        #[cfg(feature = "std")]
-        if !self.stack.is_empty() {
-            eprintln!("Unfinished operations:\n {:?}", self.stack);
-        }
-        // XXX. is the compiler going to optimize this out?
-        self.ds.zeroize();
-    }
-}
+// impl<H: DuplexSpongeInterface> Drop for HashStateWithInstructions<H> {
+//     /// Destroy the sponge state.
+//     fn drop(&mut self) {
+//         // it's a bit violent to panic here,
+//         // because any other issue in the protocol transcript causing `Safe` to get out of scope
+//         // (like another panic) will pollute the traceback.
+//         // debug_assert!(self.stack.is_empty());
+//         // In no_std we can't use eprintln
+//         #[cfg(feature = "std")]
+//         if !self.stack.is_empty() {
+//             eprintln!("Unfinished operations:\n {:?}", self.stack);
+//         }
+//     }
+// }
 
 impl<H: DuplexSpongeInterface> fmt::Debug for HashStateWithInstructions<H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

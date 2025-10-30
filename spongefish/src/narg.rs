@@ -10,7 +10,7 @@ use rand::{CryptoRng, Rng, RngCore, SeedableRng};
 
 use crate::{
     Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargSerialize, StdHash,
-    VerificationResult,
+    VerificationError, VerificationResult,
 };
 
 type StdRng = rand::rngs::StdRng;
@@ -61,7 +61,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> VerificationResult<T> {
-        let message = T::deserialize_from(&mut self.narg_string)?;
+        let message = T::deserialize_from_narg(&mut self.narg_string)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         Ok(message)
     }
@@ -109,11 +109,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    pub fn finish(&self) -> Result<(), &[u8]> {
-        if self.narg_string.is_empty() {
+    /// xxx
+    pub fn finish(&self, equation: impl Into<bool>) -> VerificationResult<()> {
+        if equation.into() && self.narg_string.is_empty() {
             Ok(())
         } else {
-            Err(self.narg_string)
+            Err(VerificationError)
         }
     }
 }
@@ -143,7 +144,7 @@ pub struct ReseedableRng<R: RngCore + CryptoRng> {
 
 impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
     fn from(mut csrng: R) -> Self {
-        let mut duplex_sponge = StdHash::new();
+        let mut duplex_sponge = StdHash::default();
         let seed: [u8; 32] = csrng.gen::<[u8; 32]>();
         duplex_sponge.absorb(&seed);
         ReseedableRng {
@@ -175,14 +176,12 @@ impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        // Seed (at most) 32 bytes of randomness from the CSRNG
-        let len = usize::min(dest.len(), 32);
-        self.csrng.fill_bytes(&mut dest[..len]);
-        self.duplex_sponge.absorb(&dest[..len]);
         // fill `dest` with the output of the sponge
         self.duplex_sponge.squeeze(dest);
+        // xxx. for extra safety we can imagine ratcheting here so that
+        // the state of the sponge can't be reverted after
         // erase the state from the sponge so that it can't be reverted
-        self.duplex_sponge.ratchet();
+        // self.duplex_sponge.ratchet();
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
@@ -225,7 +224,7 @@ where
     /// and serialize the prover message inside the [`narg_string`][ProverState::narg_string].
     pub fn prover_message<T: Encoding<[H::U]> + NargSerialize>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
-        message.serialize_into(&mut self.narg_string);
+        message.serialize_into_narg(&mut self.narg_string);
     }
 
     /// Outputs a uniformly-distributed verifier message.
@@ -239,13 +238,14 @@ where
     ///
     /// In interactive proofs, _transcript_ is the term used to denote set of prover and verifier messages.
     /// It is not the proof resulting from the Fiat-Shamir transformation.
-    /// Please use [narg_string][`ProverState::narg_string`] instead.
+    /// Please use [`narg_string`][`ProverState::narg_string`] instead.
     #[deprecated(note = "Please use ProverState::narg_string instead.")]
     pub fn transcript(&self) -> &[u8] {
         self.narg_string()
     }
 
     /// Alias for [`verifier_message`][`ProverState::verifier_message`].
+    #[deprecated(note = "Please use ProverState::verifier_message instead.")]
     pub fn challenge<T: Decoding<[H::U]>>(&mut self) -> T {
         self.verifier_message()
     }
@@ -297,10 +297,12 @@ where
 ///
 /// [`Default`] provides alternative initialization methods than the one provided by [`ProverState::new`].
 /// [`ProverState::default`] is meant to be used as a hack and its support in future releases is not guaranteed.
-impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> Default for ProverState<H, R> {
+impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> Default
+    for ProverState<H, R>
+{
     fn default() -> Self {
         ProverState {
-            duplex_sponge_state: H::new(),
+            duplex_sponge_state: H::default(),
             private_rng: R::from_entropy().into(),
             narg_string: Vec::new(),
         }
@@ -311,19 +313,17 @@ impl<H> ProverState<H, StdRng>
 where
     H: DuplexSpongeInterface<U = u8> + Default,
 {
-    pub fn new(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>) -> Self {
-        let session_id_length = session_id.as_ref().len().to_be_bytes();
+    pub fn new(protocol_id: [u8; 64], session_id: [u8; 64]) -> Self {
         let mut prover_state = Self::default();
         prover_state.public_message(&protocol_id);
-        prover_state.public_message(&session_id_length);
-        prover_state.public_message(session_id.as_ref());
+        prover_state.public_message(&session_id);
         prover_state
     }
 }
 
 impl ProverState<StdHash, StdRng> {
     #[cfg(feature = "sha3")]
-    pub fn new_std(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>) -> Self {
+    pub fn new_std(protocol_id: [u8; 64], session_id: [u8; 64]) -> Self {
         Self::new(protocol_id, session_id)
     }
 }
@@ -332,40 +332,34 @@ impl<'a, H> VerifierState<'a, H>
 where
     H: DuplexSpongeInterface<U = u8> + Default,
 {
-    pub fn new(protocol_id: [u8; 64], session_id: impl AsRef<[u8]>, narg_string: &'a [u8]) -> Self {
-        let session_id_length = session_id.as_ref().len().to_be_bytes();
+    pub fn new(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
         let mut verifier_state = VerifierState {
-            duplex_sponge_state: H::new(),
+            duplex_sponge_state: H::default(),
             narg_string,
         };
-        verifier_state.public_message(&protocol_id);
-        verifier_state.public_message(&[0u8; 32]);
-        verifier_state.public_message(&session_id_length);
-        verifier_state.public_message(session_id.as_ref());
+        verifier_state.public_message(protocol_id);
+        verifier_state.public_message(session_id);
         verifier_state
     }
 }
 
 impl<'a> VerifierState<'a, StdHash> {
     #[cfg(feature = "sha3")]
-    pub fn new_std(
-        protocol_id: [u8; 64],
-        session_id: impl AsRef<[u8]>,
-        narg_string: &'a [u8],
-    ) -> Self {
+    pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
         Self::new(protocol_id, session_id, narg_string)
     }
 }
 
 impl<R: RngCore + CryptoRng> ReseedableRng<R> {
     pub fn reseed_with(&mut self, value: &[u8]) {
+        self.duplex_sponge.ratchet();
         self.duplex_sponge.absorb(value);
+        self.duplex_sponge.ratchet();
     }
 
     pub fn reseed(&mut self) {
-        let mut seed = [0u8; 32];
-        self.csrng.fill(&mut seed);
-        self.duplex_sponge.absorb(&seed);
+        let seed = self.csrng.gen::<[u8; 32]>();
+        self.reseed_with(&seed);
     }
 }
 

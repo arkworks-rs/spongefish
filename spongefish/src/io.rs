@@ -22,13 +22,13 @@ pub trait NargSerialize {
     /// # Safety
     ///
     /// This procedure must compute an injective map.
-    fn serialize_into(&self, dst: &mut Vec<u8>);
+    fn serialize_into_narg(&self, dst: &mut Vec<u8>);
 
     /// Shorthand for [`NargSerialize::serialize_into`]
     /// serializing `self` in a new byte array and returning it.
-    fn serialize_new(&self) -> impl AsRef<[u8]> {
+    fn serialize_into_new_narg(&self) -> impl AsRef<[u8]> {
         let mut buf = alloc::vec::Vec::new();
-        self.serialize_into(&mut buf);
+        self.serialize_into_narg(&mut buf);
         buf.into_boxed_slice()
     }
 }
@@ -46,20 +46,20 @@ pub trait NargSerialize {
 ///
 /// [OS2IP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.2
 pub trait NargDeserialize: Sized {
-    /// This map must compute the inverse of [`NargSerialize::serialize_into`],
+    /// This map must compute the inverse of [`NargSerialize::serialize_into_narg`],
     /// or return an error if a pre-image does not exist.
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self>;
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self>;
 }
 
 impl<T: Encoding<[u8]>> NargSerialize for T {
     /// Serialization for byte strings is the identity map.
-    fn serialize_into(&self, dst: &mut Vec<u8>) {
+    fn serialize_into_narg(&self, dst: &mut Vec<u8>) {
         dst.extend_from_slice(self.encode().as_ref());
     }
 }
 
 impl<const N: usize> NargDeserialize for [u8; N] {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < N {
             return Err(VerificationError);
         }
@@ -71,9 +71,9 @@ impl<const N: usize> NargDeserialize for [u8; N] {
 }
 
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         let vec: Vec<T> = (0..N)
-            .map(|_| T::deserialize_from(buf))
+            .map(|_| T::deserialize_from_narg(buf))
             .collect::<Result<Vec<_>, _>>()?;
 
         // This is safe because we know vec.len() == N from the iterator above

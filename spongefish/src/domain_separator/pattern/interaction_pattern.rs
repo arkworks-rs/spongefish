@@ -12,7 +12,10 @@ pub struct InteractionPattern {
 /// Errors when validating a transcript.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum TranscriptError {
-    MissingBegin { position: usize, end: Interaction },
+    MissingBegin {
+        position: usize,
+        end: Interaction,
+    },
     InvalidKind {
         begin_position: usize,
         begin: Interaction,
@@ -25,7 +28,10 @@ pub enum TranscriptError {
         end_position: usize,
         end: Interaction,
     },
-    MissingEnd { position: usize, begin: Interaction },
+    MissingEnd {
+        position: usize,
+        begin: Interaction,
+    },
 }
 
 impl Display for TranscriptError {

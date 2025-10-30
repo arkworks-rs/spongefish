@@ -29,13 +29,6 @@ where
 {
     type U = u8;
 
-    fn new() -> Self {
-        Self {
-            hasher: H::default(),
-            xof_reader: None,
-        }
-    }
-
     fn absorb(&mut self, input: &[u8]) -> &mut Self {
         self.xof_reader = None;
         self.hasher.update(input);
@@ -48,6 +41,10 @@ where
             .read(output);
 
         self
+    }
+
+    fn ratchet(&mut self) -> &mut Self {
+        todo!()
     }
 }
 

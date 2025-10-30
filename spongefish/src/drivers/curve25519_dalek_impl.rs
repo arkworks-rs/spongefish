@@ -36,7 +36,7 @@ impl Decoding<[u8]> for RistrettoPoint {
 
 // Implement Deserialize for curve25519-dalek Scalar
 impl NargDeserialize for Scalar {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
@@ -55,7 +55,7 @@ impl NargDeserialize for Scalar {
 
 // Implement Deserialize for EdwardsPoint
 impl NargDeserialize for EdwardsPoint {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
@@ -69,7 +69,7 @@ impl NargDeserialize for EdwardsPoint {
 
 // Implement Deserialize for RistrettoPoint
 impl NargDeserialize for RistrettoPoint {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
             return Err(VerificationError);
         }

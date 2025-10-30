@@ -35,7 +35,7 @@ impl Decoding<[u8]> for KoalaBear {
 
 // Implement Deserialize for KoalaBear
 impl NargDeserialize for KoalaBear {
-    fn deserialize_from(buf: &mut &[u8]) -> VerificationResult<Self> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 4 {
             return Err(VerificationError);
         }
@@ -73,9 +73,9 @@ mod tests {
         let element = KoalaBear::new(12345);
 
         let mut buf = Vec::new();
-        element.serialize_into(&mut buf);
+        element.serialize_into_narg(&mut buf);
 
-        let deserialized = KoalaBear::deserialize_from(&mut &buf[..]).unwrap();
+        let deserialized = KoalaBear::deserialize_from_narg(&mut &buf[..]).unwrap();
         assert_eq!(element, deserialized);
     }
 
@@ -86,7 +86,7 @@ mod tests {
         let encoded = element.encode();
         let encoded_bytes = encoded.as_ref();
 
-        let deserialized = KoalaBear::deserialize_from(&mut &encoded_bytes[..]).unwrap();
+        let deserialized = KoalaBear::deserialize_from_narg(&mut &encoded_bytes[..]).unwrap();
         assert_eq!(element, deserialized);
     }
 
@@ -94,7 +94,7 @@ mod tests {
     fn test_koalabear_out_of_range() {
         // Try to deserialize a value larger than the modulus
         let buf = KoalaBear::ORDER_U32.to_le_bytes();
-        let result = KoalaBear::deserialize_from(&mut &buf[..]);
+        let result = KoalaBear::deserialize_from_narg(&mut &buf[..]);
         assert!(result.is_err());
     }
 }

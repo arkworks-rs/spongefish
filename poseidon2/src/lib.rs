@@ -27,8 +27,8 @@ pub struct PoseidonPermutation<const NAME: u32, F: PrimeField, const WIDTH: usiz
     pub state: [F; WIDTH],
 }
 
-pub type PoseidonHash<const NAME: u32, F, const RATE: usize, const WIDTH: usize> =
-    DuplexSponge<PoseidonPermutation<NAME, F, WIDTH>, RATE>;
+pub type PoseidonHash<F, const RATE: usize, const WIDTH: usize> =
+    DuplexSponge<PoseidonPermutation<F, WIDTH>, RATE>;
 
 impl<const NAME: u32, F: PrimeField, const WIDTH: usize> AsRef<[F]>
     for PoseidonPermutation<NAME, F, WIDTH>
@@ -89,18 +89,13 @@ impl<const NAME: u32, F: PrimeField, const WIDTH: usize> zeroize::Zeroize
     }
 }
 
-impl<const NAME: u32, F: Field, const WIDTH: usize> Permutation
+impl<const NAME: u32, F: Field, const WIDTH: usize> Permutation<WIDTH>
     for PoseidonPermutation<NAME, F, WIDTH>
 where
     Self: Default,
     F: PrimeField + Unit,
 {
     type U = F;
-    const WIDTH: usize = WIDTH;
-
-    fn new() -> Self {
-        Self::default()
-    }
 
     fn permute(&mut self) {
         let full_rounds_over_2 = self.full_rounds / 2;

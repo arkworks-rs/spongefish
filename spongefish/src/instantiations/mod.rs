@@ -30,6 +30,7 @@ pub use hash::Hash;
 pub use xof::XOF;
 
 pub use super::duplex_sponge::DuplexSponge;
+
 // Keccak-based duplex sponge
 #[cfg(feature = "keccak")]
 /// A [`DuplexSponge`] instantiated with [`keccak::f1600`].
@@ -38,12 +39,12 @@ pub use super::duplex_sponge::DuplexSponge;
 /// Despite internally we use the same permutation function,
 /// we build a duplex sponge in overwrite mode
 /// on the top of it using the `DuplexSponge` trait.
-pub type OWKeccakF1600 = DuplexSponge<permutations::KeccakF1600, 136>;
+pub type OWKeccakF1600 = DuplexSponge<permutations::KeccakF1600, 200, 136>;
 
 // Ascon
 #[cfg(feature = "ascon")]
 /// A [`DuplexSponge`] instantiated with [`ascon`].
-pub type OWAscon = DuplexSponge<permutations::Ascon12, 16>;
+pub type OWAscon = DuplexSponge<permutations::Ascon12, 40, 16>;
 
 // SHA-3 family
 #[cfg(feature = "sha3")]

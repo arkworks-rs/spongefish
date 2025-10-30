@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 spongefish-derive = { path = "../spongefish-derive", optional = true }
-zerocopy = { workspace = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 rand = { workspace = true, features = ["getrandom"] }
 digest = { workspace = true }
@@ -106,4 +105,4 @@ required-features = ["ark-ec"]
 
 [[example]]
 name = "bulletproof"
-required-features = ["ark-ec"]
+required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]

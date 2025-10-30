@@ -1,35 +1,12 @@
-#[cfg(feature = "zeroize")]
-use zeroize::{Zeroize, ZeroizeOnDrop};
-
 use crate::duplex_sponge::Permutation;
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "zeroize", derive(Zeroize, ZeroizeOnDrop))]
-pub struct Ascon12([u8; 40]);
+pub struct Ascon12;
 
-impl Permutation for Ascon12 {
+impl Permutation<40> for Ascon12 {
     type U = u8;
-    const WIDTH: usize = 40;
 
-    fn new() -> Self {
-        Self([0; Self::WIDTH])
-    }
-
-    fn permute(&mut self) {
-        let mut state = ascon::State::from(&self.0);
-        state.permute_12();
-        self.0.copy_from_slice(&state.as_bytes());
-    }
-}
-
-impl AsMut<[u8]> for Ascon12 {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.0.as_mut_slice()
-    }
-}
-
-impl AsRef<[u8]> for Ascon12 {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_slice()
+    fn permute(&self, state: &[u8; 40]) -> [u8; 40] {
+        ascon::State::from(state).as_bytes()
     }
 }
