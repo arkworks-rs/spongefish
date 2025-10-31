@@ -54,13 +54,13 @@ impl SchnorrProof {
         let new_h = fold_generators(h_left, h_right, &x, &x_inv);
         let new_generators = (&new_g[..], &new_h[..], generators.2);
 
-        let new_a = fold(a_left, a_right, &x, &x_inv);
-        let new_b = fold(b_left, b_right, &x_inv, &x);
+        let new_a = self.fold(a_left, a_right, &x, &x_inv);
+        let new_b = self.fold(b_left, b_right, &x_inv, &x);
         let new_witness = (&new_a[..], &new_b[..]);
 
         let new_statement = *statement + left * x * x + right * x_inv * x_inv;
 
-        prove(prover_state, new_generators, &new_statement, new_witness)
+        self.prove(prover_state, new_generators, &new_statement, new_witness)
     }
 
     pub fn verify(
@@ -82,8 +82,8 @@ impl SchnorrProof {
             let x: Scalar = verifier_state.verifier_message();
             let x_inv = x.invert();
 
-            g = fold_generators(g_left, g_right, &x_inv, &x);
-            h = fold_generators(h_left, h_right, &x, &x_inv);
+            g = self.fold_generators(g_left, g_right, &x_inv, &x);
+            h = self.fold_generators(h_left, h_right, &x, &x_inv);
             statement = statement + left * x * x + right * x_inv * x_inv;
         }
         let [a, b]: [Scalar; 2] = verifier_state.prover_messages()?;
@@ -104,13 +104,6 @@ impl SchnorrProof {
             .collect()
     }
 
-    /// Computes the inner prouct of vectors `a` and `b`.
-    ///
-    /// Useless once https://github.com/arkworks-rs/algebra/pull/665 gets merged.
-    fn dot_prod(a: &[Scalar], b: &[Scalar]) -> Scalar {
-        a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum()
-    }
-
     /// Folds together `(a, b)` using challenges `x` and `y`.
     fn fold(a: &[Scalar], b: &[Scalar], x: &Scalar, y: &Scalar) -> Vec<Scalar> {
         a.iter()
@@ -119,6 +112,14 @@ impl SchnorrProof {
             .collect()
     }
 }
+
+/// Computes the inner prouct of vectors `a` and `b`.
+///
+/// Useless once https://github.com/arkworks-rs/algebra/pull/665 gets merged.
+fn dot_prod(a: &[Scalar], b: &[Scalar]) -> Scalar {
+    a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum()
+}
+
 
 fn main() {
     let mut rng = rand::thread_rng();
@@ -150,7 +151,7 @@ fn main() {
         ProverState::new(SchnorrProof::protocol_id(), spongefish::session_id!("test"));
     prover_state.public_message(&statement);
     let narg_string =
-        prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
+        self.prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,
@@ -159,5 +160,5 @@ fn main() {
 
     let mut verifier_state = VerifierState::new(&protocol_id, &session_id, narg_string);
     verifier_state.public_message(&statement);
-    verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
+    BulletProof::verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
 }

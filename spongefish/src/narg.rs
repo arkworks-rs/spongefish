@@ -309,18 +309,6 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
     }
 }
 
-impl<H> ProverState<H, StdRng>
-where
-    H: DuplexSpongeInterface<U = u8> + Default,
-{
-    pub fn new(protocol_id: [u8; 64], session_id: [u8; 64]) -> Self {
-        let mut prover_state = Self::default();
-        prover_state.public_message(&protocol_id);
-        prover_state.public_message(&session_id);
-        prover_state
-    }
-}
-
 impl ProverState<StdHash, StdRng> {
     #[cfg(feature = "sha3")]
     pub fn new_std(protocol_id: [u8; 64], session_id: [u8; 64]) -> Self {

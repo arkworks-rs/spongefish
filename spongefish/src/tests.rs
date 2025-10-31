@@ -708,3 +708,42 @@ mod duplex_sponge {
         assert_eq!(sponge.squeeze_pos, 0);
     }
 }
+
+
+
+#[cfg(all(test, feature = "derive"))]
+mod unit_derive_tests {
+    use super::Unit;
+    use crate as spongefish;
+
+    #[derive(Clone, spongefish::Unit)]
+    struct NamedUnit {
+        first: u8,
+        second: u8,
+    }
+
+    #[derive(Clone, spongefish::Unit)]
+    struct TupleUnit(u8, u8);
+
+    #[derive(Clone, spongefish::Unit)]
+    struct MarkerUnit;
+
+    #[test]
+    fn zero_named_fields() {
+        let zero = NamedUnit::ZERO;
+        assert_eq!(zero.first, 0);
+        assert_eq!(zero.second, 0);
+    }
+
+    #[test]
+    fn zero_tuple_fields() {
+        let zero = TupleUnit::ZERO;
+        assert_eq!(zero.0, 0);
+        assert_eq!(zero.1, 0);
+    }
+
+    #[test]
+    fn zero_unit_struct() {
+        let _ = MarkerUnit::ZERO;
+    }
+}

@@ -1,144 +1,144 @@
-use ark_ec::CurveGroup;
-use ark_serialize::CanonicalSerialize;
-use group::GroupEncoding;
+use alloc::vec::Vec;
 
 use crate::{
-    drivers, keccak::Keccak, ByteDomainSeparator, DomainSeparator, DuplexSpongeInterface,
-    UnitToBytes,
+    codecs::{Decoding, Encoding},
+    io::{NargDeserialize, NargSerialize},
 };
 
-fn group_domain_separator<G, H>() -> DomainSeparator<H>
+fn encoded_bytes<T: Encoding<[u8]>>(value: &T) -> Vec<u8> {
+    value.encode().as_ref().to_vec()
+}
+
+
+fn assert_roundtrip<T>(value: &T)
 where
-    G: group::Group,
-    H: DuplexSpongeInterface,
-    DomainSeparator<H>: super::zkcrypto_group::GroupDomainSeparator<G>
-        + super::zkcrypto_group::FieldDomainSeparator<G::Scalar>,
+    T: Encoding<[u8]> + NargSerialize + NargDeserialize,
 {
-    use drivers::zkcrypto_group::{FieldDomainSeparator, GroupDomainSeparator};
-
-    DomainSeparator::new("github.com/mmaker/spongefish")
-        .add_scalars(1, "com")
-        .challenge_bytes(16, "chal")
-        .add_points(1, "com")
-        .challenge_bytes(16, "chal")
-        .challenge_scalars(1, "chal")
+    let serialized = value.serialize_into_new_narg();
+    let mut slice: &[u8] = serialized.as_ref();
+    let decoded = T::deserialize_from_narg(&mut slice).expect("failed to deserialize");
+    assert!(slice.is_empty(), "deserialize did not consume all bytes");
+    assert_eq!(encoded_bytes(value), encoded_bytes(&decoded));
 }
 
-fn ark_domain_separator<G, H>() -> DomainSeparator<H>
+fn assert_codec_compatibility<A, B>(value_a: &A, value_b: &B)
 where
-    G: ark_ec::CurveGroup,
-    H: DuplexSpongeInterface,
-    DomainSeparator<H>: super::arkworks_algebra::GroupDomainSeparator<G>
-        + super::arkworks_algebra::FieldDomainSeparator<G::Scalar>,
+    A: Encoding<[u8]> + NargSerialize + NargDeserialize,
+    B: Encoding<[u8]> + NargSerialize + NargDeserialize,
 {
-    use drivers::arkworks_algebra::{FieldDomainSeparator, GroupDomainSeparator};
+    assert_eq!(encoded_bytes(value_a), encoded_bytes(value_b));
 
-    DomainSeparator::new("github.com/mmaker/spongefish")
-        .add_scalars(1, "com")
-        .challenge_bytes(16, "chal")
-        .add_points(1, "com")
-        .challenge_bytes(16, "chal")
-        .challenge_scalars(1, "chal")
+    assert_roundtrip(value_a);
+    assert_roundtrip(value_b);
+
+    let serialized_a = value_a.serialize_into_new_narg();
+    let mut slice_a: &[u8] = serialized_a.as_ref();
+    let decoded_b =
+        B::deserialize_from_narg(&mut slice_a).expect("failed to deserialize bytes from A");
+    assert!(slice_a.is_empty(), "deserialize did not consume all bytes");
+    assert_eq!(encoded_bytes(&decoded_b), encoded_bytes(value_b));
+
+    let serialized_b = value_b.serialize_into_new_narg();
+    let mut slice_b: &[u8] = serialized_b.as_ref();
+    let decoded_a =
+        A::deserialize_from_narg(&mut slice_b).expect("failed to deserialize bytes from B");
+    assert!(slice_b.is_empty(), "deserialize did not consume all bytes");
+    assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(value_a));
 }
 
-#[test]
-fn test_compatible_curve25519() {
-    type ArkG = ark_curve25519::EdwardsProjective;
-    type GroupG = curve25519_dalek::edwards::EdwardsPoint;
-    compatible_groups::<ArkG, GroupG>();
-}
-
-#[test]
-fn test_compatible_bls12_381() {
-    type ArkG = ark_bls12_381::G1Projective;
-    type GroupG = bls12_381::G1Projective;
-    compatible_groups::<ArkG, GroupG>();
-}
-
-#[ignore = "arkworks adds trailing 0-byte"]
-#[test]
-fn test_compatible_pasta() {
-    type ArkG = ark_vesta::Projective;
-    type GroupG = pasta_curves::vesta::Point;
-    compatible_groups::<ArkG, GroupG>();
-
-    // type ArkG = ark_pallas::Projective;
-    // type GroupG = pasta_curves::pallas::Point;
-    // compatible_groups::<ArkG, GroupG>();
-}
-
-// Check that the transcripts generated using the Group trait can be compatible with transcripts generated using group.
-fn compatible_groups<ArkG, GroupG>()
+fn assert_decoding_compatibility<A, B>()
 where
-    ArkG: CurveGroup,
-    GroupG: group::Group + GroupEncoding,
-    GroupG::Repr: AsRef<[u8]>,
+    A: Decoding<[u8]> + Encoding<[u8]>,
+    B: Decoding<[u8]> + Encoding<[u8]>,
 {
-    use group::ff::PrimeField;
+    let mut repr_a = A::Repr::default();
+    let len_a = {
+        let slice = repr_a.as_mut();
+        slice.len()
+    };
 
-    let ark_scalar = ArkG::ScalarField::from(0x42);
-    let group_scalar = GroupG::Scalar::from(0x42u64);
-    // ***IMPORTANT***
-    // Looks like group and arkworks use different generator points.
-    let ark_generator = ArkG::generator();
-    let group_generator = GroupG::generator();
+    let mut repr_b = B::Repr::default();
+    let len_b = {
+        let slice = repr_b.as_mut();
+        slice.len()
+    };
 
-    // **basic checks**
-    // Check point encoding is the same in both libraries.
-    let mut ark_generator_bytes = Vec::new();
-    ark_generator
-        .serialize_compressed(&mut ark_generator_bytes)
-        .unwrap();
-    let group_generator_bytes = <GroupG as GroupEncoding>::to_bytes(&group_generator);
-    assert_eq!(&ark_generator_bytes, &group_generator_bytes.as_ref());
-    // Check scalar encoding is the same in both libraries.
-    let mut ark_scalar_bytes = Vec::new();
-    ark_scalar
-        .serialize_compressed(&mut ark_scalar_bytes)
-        .unwrap();
-    let group_scalar_bytes = group_scalar.to_repr();
-    assert_eq!(&ark_scalar_bytes, group_scalar_bytes.as_ref());
+    assert_eq!(len_a, len_b, "decoding buffer size mismatch");
 
-    let ark_point = ark_generator * ark_scalar;
-    let group_point = group_generator * group_scalar;
+    let pattern: Vec<u8> = (0..len_a)
+        .map(|i| (i.wrapping_mul(17).wrapping_add(3)) as u8)
+        .collect();
 
-    let ark_domsep = ark_domain_separator::<ArkG, Keccak>();
-    let group_domsep = group_domain_separator::<GroupG, Keccak>();
-    let mut ark_chal = [0u8; 16];
-    let mut group_chal = [0u8; 16];
+    repr_a.as_mut().copy_from_slice(&pattern);
+    repr_b.as_mut().copy_from_slice(&pattern);
 
-    // Check that the domain separators are the same.
-    let mut ark_prover = ark_domsep.to_prover_state();
-    let mut group_prover = group_domsep.to_prover_state();
-    assert_eq!(ark_domsep.as_bytes(), group_domsep.as_bytes());
+    let decoded_a = A::decode(repr_a);
+    let decoded_b = B::decode(repr_b);
 
-    // Check that scalars absorption leads to the same transcript.
-    drivers::arkworks_algebra::FieldToUnitSerialize::add_scalars(&mut ark_prover, &[ark_scalar])
-        .unwrap();
-    ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    drivers::zkcrypto_group::FieldToUnitSerialize::add_scalars(&mut group_prover, &[group_scalar])
-        .unwrap();
-    group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
-    assert_eq!(ark_chal, group_chal);
-
-    // Check that points absorption leads to the same transcript.
-    drivers::arkworks_algebra::GroupToUnitSerialize::add_points(&mut ark_prover, &[ark_point])
-        .unwrap();
-    ark_prover.fill_challenge_bytes(&mut ark_chal).unwrap();
-    drivers::zkcrypto_group::GroupToUnitSerialize::add_points(&mut group_prover, &[group_point])
-        .unwrap();
-    group_prover.fill_challenge_bytes(&mut group_chal).unwrap();
-    assert_eq!(ark_chal, group_chal);
-
-    // Check that scalars challenges are interpreted in the same way from bytes.
-    let [ark_chal_scalar]: [ArkG::ScalarField; 1] =
-        drivers::arkworks_algebra::UnitToField::challenge_scalars(&mut ark_prover).unwrap();
-    let [group_chal_scalar]: [GroupG::Scalar; 1] =
-        drivers::zkcrypto_group::UnitToField::challenge_scalars(&mut group_prover).unwrap();
-    let mut ark_scalar_bytes = Vec::new();
-    ark_chal_scalar
-        .serialize_compressed(&mut ark_scalar_bytes)
-        .unwrap();
-    let group_scalar_bytes = group_chal_scalar.to_repr();
-    assert_eq!(&ark_scalar_bytes, group_scalar_bytes.as_ref());
+    assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(&decoded_b));
 }
+
+#[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]
+mod curve25519 {
+    use super::*;
+    use ark_curve25519::EdwardsProjective;
+    use ark_ec::PrimeGroup;
+    use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, scalar::Scalar as DalekScalar};
+
+    type ArkScalar = <EdwardsProjective as PrimeGroup>::ScalarField;
+
+    #[test]
+    fn scalars_are_codec_compatible() {
+        for value in [0u64, 1, 42, 123_456_789] {
+            let ark_scalar = ArkScalar::from(value);
+            let dalek_scalar = DalekScalar::from(value);
+            assert_codec_compatibility(&ark_scalar, &dalek_scalar);
+        }
+
+        assert_decoding_compatibility::<ArkScalar, DalekScalar>();
+    }
+
+}
+
+#[cfg(all(feature = "ark-ec", feature = "k256"))]
+mod secp256k1 {
+    use super::*;
+    use ark_ec::PrimeGroup;
+    use ark_secp256k1::Projective as ArkProjective;
+    use k256::{ProjectivePoint, Scalar as K256Scalar};
+
+    type ArkScalar = <ArkProjective as PrimeGroup>::ScalarField;
+
+    #[test]
+    fn scalars_are_codec_compatible() {
+        for value in [0u64, 1, 42, 123_456_789] {
+            let ark_scalar = ArkScalar::from(value);
+            let k256_scalar = K256Scalar::from(value);
+            assert_codec_compatibility(&ark_scalar, &k256_scalar);
+        }
+
+        assert_decoding_compatibility::<ArkScalar, K256Scalar>();
+    }
+
+}
+
+// #[cfg(all(feature = "ark-ec", feature = "p256"))]
+// mod p256 {
+//     use super::*;
+//     use ark_ec::PrimeGroup;
+//     use ark_pallas::Projective as ArkProjective;
+//     use p256::{ProjectivePoint, Scalar as P256Scalar};
+
+//     type ArkScalar = <ArkProjective as PrimeGroup>::ScalarField;
+
+//     #[test]
+//     fn scalars_are_codec_compatible() {
+//         for value in [0u64, 1, 42, 123_456_789] {
+//             let ark_scalar = ArkScalar::from(value);
+//             let p256_scalar = P256Scalar::from(value);
+//             assert_codec_compatibility(&ark_scalar, &p256_scalar);
+//         }
+
+//         assert_decoding_compatibility::<ArkScalar, P256Scalar>();
+//     }
+// }

@@ -41,6 +41,7 @@ impl NargDeserialize for Scalar {
         *buf = &buf[32..];
 
         use k256::elliptic_curve::ff::PrimeField;
+        repr.reverse();
         Option::from(Scalar::from_repr(repr.into())).ok_or(VerificationError)
     }
 }
@@ -63,7 +64,9 @@ impl NargDeserialize for ProjectivePoint {
 // Implement Encoding for k256 Scalar
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_bytes()
+        let mut bytes = self.to_bytes();
+        bytes.reverse();
+        bytes
     }
 }
 

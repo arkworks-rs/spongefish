@@ -13,6 +13,8 @@ pub mod bls12_381_impl;
 pub mod curve25519_dalek_impl;
 #[cfg(feature = "k256")]
 pub mod secp256k1_impl;
+// #[cfg(feature = "p256")]
+// pub mod p256_impl;
 
 // Plonky3
 #[cfg(feature = "p3-baby-bear")]
@@ -54,6 +56,6 @@ pub const fn bytes_modp(modulus_bits: u32) -> u64 {
     (modulus_bits as u64).div_ceil(8)
 }
 
-// // Integration tests
-// #[cfg(test)]
-// mod tests;
+// Integration tests
+#[cfg(test)]
+mod tests;

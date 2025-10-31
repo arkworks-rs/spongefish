@@ -46,6 +46,7 @@ impl NargDeserialize for Scalar {
         // from_canonical_bytes returns CtOption<Scalar>
         let ct_option = Scalar::from_canonical_bytes(repr);
         if bool::from(ct_option.is_some()) {
+            *buf = &buf[32..];
             Ok(ct_option.unwrap())
         } else {
             Err(VerificationError)
