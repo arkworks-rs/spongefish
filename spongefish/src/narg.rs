@@ -127,6 +127,16 @@ impl<H: DuplexSpongeInterface + core::fmt::Debug> core::fmt::Debug for VerifierS
     }
 }
 
+impl<'a> VerifierState<'a, StdHash> {
+    #[cfg(feature = "sha3")]
+    pub fn default_std(narg_string: &'a [u8]) -> Self {
+        VerifierState {
+            duplex_sponge_state: StdHash::default(),
+            narg_string,
+        }
+    }
+}
+
 /// A cryptographically-secure random number generator that is bound to the proof string.
 ///
 /// For most public-coin protocols it is *vital* not to have two different verifier messages for the same prover message.
@@ -295,7 +305,7 @@ where
 
 /// Creates a new [`ProverState`] seeded using [`rand::SeedableRng::from_entropy`].
 ///
-/// [`Default`] provides alternative initialization methods than the one provided by [`ProverState::new`].
+/// [`Default`] provides alternative initialization methods than the one via [`DomainSeparator`][`crate::DomainSeparator`].
 /// [`ProverState::default`] is meant to be used as a hack and its support in future releases is not guaranteed.
 impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> Default
     for ProverState<H, R>
@@ -309,10 +319,14 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
     }
 }
 
-impl ProverState<StdHash, StdRng> {
-    #[cfg(feature = "sha3")]
-    pub fn new_std(protocol_id: [u8; 64], session_id: [u8; 64]) -> Self {
-        Self::new(protocol_id, session_id)
+/// Creates a new [`ProverState`] using the given duplex sponge interface.
+impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
+    fn from(value: H) -> Self {
+        ProverState {
+            duplex_sponge_state: value,
+            private_rng: R::from_entropy().into(),
+            narg_string: Vec::new(),
+        }
     }
 }
 

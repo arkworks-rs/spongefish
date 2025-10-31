@@ -120,7 +120,6 @@ fn dot_prod(a: &[Scalar], b: &[Scalar]) -> Scalar {
     a.iter().zip(b.iter()).map(|(&a, &b)| a * b).sum()
 }
 
-
 fn main() {
     let mut rng = rand::thread_rng();
     // the vector size
@@ -150,8 +149,9 @@ fn main() {
     let mut prover_state =
         ProverState::new(SchnorrProof::protocol_id(), spongefish::session_id!("test"));
     prover_state.public_message(&statement);
-    let narg_string =
-        self.prove(&mut prover_state, generators, &statement, witness).expect("Error proving");
+    let narg_string = self
+        .prove(&mut prover_state, generators, &statement, witness)
+        .expect("Error proving");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,

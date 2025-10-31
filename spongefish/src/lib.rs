@@ -34,15 +34,12 @@ pub mod codecs;
 /// Defines [`VerificationError`].
 mod error;
 
-pub use codecs::{Decoding, Encoding};
 /// Heuristics for building misuse-resistant protocol identifiers.
-mod domain_separator;
-
-// /// Unit-tests.
-// #[cfg(test)]
-// mod tests;
+pub mod domain_separator;
 
 // Re-export the core interfaces for building the FS transformation.
+pub use codecs::{Codec, Decoding, Encoding};
+pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -71,16 +68,6 @@ macro_rules! session_id {
 #[cfg(all(not(feature = "sha3"), feature = "blake3"))]
 pub type DefaultHash = instantiations::Shake128;
 
-/// Marker trait for types that implement `Encoding<T>`, and `Decoding<T>`; `NargSerialize` and `NargDeserialize`
-pub trait Codec<T = [u8]>: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>
-where
-    T: ?Sized,
-{
-}
-
-impl<T, E> Codec<T> for E
-where
-    T: ?Sized,
-    E: NargDeserialize + NargSerialize + Encoding<T> + Decoding<T>,
-{
-}
+// /// Unit-tests.
+// #[cfg(test)]
+// mod tests;

@@ -21,6 +21,14 @@
 //! - `Decoding`: Decodes from fixed-size buffer
 //! - `NargDeserialize`: Deserializes from byte stream
 
+/// Marker trait for types that implement `Encoding<T>`, and `Decoding<T>`; `NargSerialize` and `NargDeserialize`
+pub trait Codec<T = [u8]>:
+    crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>
+where
+    T: ?Sized,
+{
+}
+
 /// The interface for all prover messages that can be turned into an input for the duplex sponge.
 ///
 /// Byte-oriented sponges can enjoy built-in maps for strings, bytes and built-in integer types. Integers are encoded in big-endian format.
@@ -136,4 +144,15 @@ impl Encoding<[u8]> for &[u8] {
     fn encode(&self) -> impl AsRef<[u8]> {
         *self
     }
+}
+
+/// Blanket implementation of [`Codec`] for all traits implementing
+/// [`NargSerialize`][`crate::NargSerialize`],
+/// [`NargDeserialize`][`crate::NargSerialize`],
+/// [`Encoding`], and [`Decoding`]
+impl<T, E> Codec<T> for E
+where
+    T: ?Sized,
+    E: crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>,
+{
 }

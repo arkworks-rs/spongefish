@@ -9,7 +9,6 @@ fn encoded_bytes<T: Encoding<[u8]>>(value: &T) -> Vec<u8> {
     value.encode().as_ref().to_vec()
 }
 
-
 fn assert_roundtrip<T>(value: &T)
 where
     T: Encoding<[u8]> + NargSerialize + NargDeserialize,
@@ -80,10 +79,11 @@ where
 
 #[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]
 mod curve25519 {
-    use super::*;
     use ark_curve25519::EdwardsProjective;
     use ark_ec::PrimeGroup;
-    use curve25519_dalek::{constants::ED25519_BASEPOINT_POINT, scalar::Scalar as DalekScalar};
+    use curve25519_dalek::scalar::Scalar as DalekScalar;
+
+    use super::*;
 
     type ArkScalar = <EdwardsProjective as PrimeGroup>::ScalarField;
 
@@ -97,15 +97,15 @@ mod curve25519 {
 
         assert_decoding_compatibility::<ArkScalar, DalekScalar>();
     }
-
 }
 
 #[cfg(all(feature = "ark-ec", feature = "k256"))]
 mod secp256k1 {
-    use super::*;
     use ark_ec::PrimeGroup;
     use ark_secp256k1::Projective as ArkProjective;
-    use k256::{ProjectivePoint, Scalar as K256Scalar};
+    use k256::{Scalar as K256Scalar};
+
+    use super::*;
 
     type ArkScalar = <ArkProjective as PrimeGroup>::ScalarField;
 
@@ -119,7 +119,6 @@ mod secp256k1 {
 
         assert_decoding_compatibility::<ArkScalar, K256Scalar>();
     }
-
 }
 
 // #[cfg(all(feature = "ark-ec", feature = "p256"))]
