@@ -103,7 +103,7 @@ mod curve25519 {
 mod secp256k1 {
     use ark_ec::PrimeGroup;
     use ark_secp256k1::Projective as ArkProjective;
-    use k256::{Scalar as K256Scalar};
+    use k256::Scalar as K256Scalar;
 
     use super::*;
 

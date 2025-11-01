@@ -1,24 +1,18 @@
 use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, Data, DeriveInput, Fields, Type};
 
-/// Derive macro for the Encoding trait.
-///
-/// Generates an implementation that encodes struct fields sequentially.
-/// Fields can be skipped using `#[spongefish(skip)]`.
-#[proc_macro_derive(Encoding, attributes(spongefish))]
-pub fn derive_encoding(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
+fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
+    let name = &input.ident;
 
-    let encoding_impl = match input.data {
+    let encoding_impl = match &input.data {
         Data::Struct(data) => {
-            let field_encodings = match data.fields {
+            let field_encodings = match &data.fields {
                 Fields::Named(fields) => fields
                     .named
                     .iter()
-                    .enumerate()
-                    .filter_map(|(_, f)| {
+                    .filter_map(|f| {
                         if has_skip_attribute(&f.attrs) {
                             return None;
                         }
@@ -58,22 +52,15 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
         _ => panic!("Encoding can only be derived for structs"),
     };
 
-    TokenStream::from(encoding_impl)
+    encoding_impl
 }
 
-/// Derive macro for the Decoding trait.
-///
-/// Generates an implementation that decodes struct fields sequentially from a fixed-size buffer.
-/// Fields can be skipped using `#[spongefish(skip)]`.
-#[proc_macro_derive(Decoding, attributes(spongefish))]
-pub fn derive_decoding(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
+fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
+    let name = &input.ident;
 
-    let decoding_impl = match input.data {
+    let decoding_impl = match &input.data {
         Data::Struct(data) => {
-            // Calculate total size and generate field decodings
-            let (size_calc, field_decodings) = match data.fields {
+            let (size_calc, field_decodings) = match &data.fields {
                 Fields::Named(fields) => {
                     let mut offset = quote!(0usize);
                     let mut field_decodings = vec![];
@@ -113,7 +100,7 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                     }
 
                     let size_calc = if size_components.is_empty() {
-                        quote!(0)
+                        quote!(0usize)
                     } else {
                         quote!(#(#size_components)+*)
                     };
@@ -132,7 +119,7 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                     let mut field_decodings = vec![];
                     let mut size_components = vec![];
 
-                    for (_i, field) in fields.unnamed.iter().enumerate() {
+                    for field in fields.unnamed.iter() {
                         if has_skip_attribute(&field.attrs) {
                             field_decodings.push(quote! {
                                 Default::default(),
@@ -164,7 +151,7 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                     }
 
                     let size_calc = if size_components.is_empty() {
-                        quote!(0)
+                        quote!(0usize)
                     } else {
                         quote!(#(#size_components)+*)
                     };
@@ -176,7 +163,7 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
                         },
                     )
                 }
-                Fields::Unit => (quote!(0), quote!(Self)),
+                Fields::Unit => (quote!(0usize), quote!(Self)),
             };
 
             quote! {
@@ -195,21 +182,15 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
         _ => panic!("Decoding can only be derived for structs"),
     };
 
-    TokenStream::from(decoding_impl)
+    decoding_impl
 }
 
-/// Derive macro for the NargDeserialize trait.
-///
-/// Generates an implementation that deserializes struct fields sequentially from a byte buffer.
-/// Fields can be skipped using `#[spongefish(skip)]`.
-#[proc_macro_derive(NargDeserialize, attributes(spongefish))]
-pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
+fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
+    let name = &input.ident;
 
-    let deserialize_impl = match input.data {
+    let deserialize_impl = match &input.data {
         Data::Struct(data) => {
-            let field_deserializations = match data.fields {
+            let field_deserializations = match &data.fields {
                 Fields::Named(fields) => {
                     let field_inits = fields.named.iter().map(|f| {
                         let field_name = &f.ident;
@@ -221,7 +202,7 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
                             }
                         } else {
                             quote! {
-                                #field_name: <#field_type as spongefish::io::NargDeserialize>::deserialize_from(buf)?,
+                                #field_name: <#field_type as spongefish::io::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
                         }
                     });
@@ -242,7 +223,7 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
                             }
                         } else {
                             quote! {
-                                <#field_type as spongefish::io::NargDeserialize>::deserialize_from(buf)?,
+                                <#field_type as spongefish::io::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
                         }
                     });
@@ -258,7 +239,7 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
 
             quote! {
                 impl spongefish::io::NargDeserialize for #name {
-                    fn deserialize_from(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
+                    fn deserialize_from_narg(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
                         #field_deserializations
                     }
                 }
@@ -267,7 +248,52 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
         _ => panic!("NargDeserialize can only be derived for structs"),
     };
 
-    TokenStream::from(deserialize_impl)
+    deserialize_impl
+}
+
+/// Derive macro for the Encoding trait.
+///
+/// Generates an implementation that encodes struct fields sequentially.
+/// Fields can be skipped using `#[spongefish(skip)]`.
+#[proc_macro_derive(Encoding, attributes(spongefish))]
+pub fn derive_encoding(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    TokenStream::from(generate_encoding_impl(&input))
+}
+
+/// Derive macro for the Decoding trait.
+///
+/// Generates an implementation that decodes struct fields sequentially from a fixed-size buffer.
+/// Fields can be skipped using `#[spongefish(skip)]`.
+#[proc_macro_derive(Decoding, attributes(spongefish))]
+pub fn derive_decoding(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    TokenStream::from(generate_decoding_impl(&input))
+}
+
+/// Derive macro for the NargDeserialize trait.
+///
+/// Generates an implementation that deserializes struct fields sequentially from a byte buffer.
+/// Fields can be skipped using `#[spongefish(skip)]`.
+#[proc_macro_derive(NargDeserialize, attributes(spongefish))]
+pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    TokenStream::from(generate_narg_deserialize_impl(&input))
+}
+
+/// Derive macro that generates Encoding, Decoding, and NargDeserialize in one go.
+#[proc_macro_derive(Codec, attributes(spongefish))]
+pub fn derive_codec(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let encoding = generate_encoding_impl(&input);
+    let decoding = generate_decoding_impl(&input);
+    let deserialize = generate_narg_deserialize_impl(&input);
+
+    TokenStream::from(quote! {
+        #encoding
+        #decoding
+        #deserialize
+    })
 }
 
 /// Derive macro for the Unit trait.

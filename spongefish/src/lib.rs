@@ -45,7 +45,7 @@ pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg::{ProverState, VerifierState};
 #[cfg(feature = "derive")]
-pub use spongefish_derive::{Decoding, Encoding, NargDeserialize, Unit};
+pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]

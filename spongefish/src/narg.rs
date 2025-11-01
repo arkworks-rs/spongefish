@@ -35,7 +35,12 @@ where
     /// The randomness state of the prover.
     pub(crate) private_rng: ReseedableRng<R>,
     /// The public coins for the protocol.
-    pub(crate) duplex_sponge_state: H,
+    ///
+    /// # Safety
+    ///
+    /// Copying this object will break the soundness guarantees installed at the [`ProverState`] level.
+    /// In this release the duplex sponge state is accessible from the outside.
+    pub duplex_sponge_state: H,
     /// The argument string as it gets written throughout the execution of the prover.
     pub(crate) narg_string: Vec<u8>,
 }
@@ -326,6 +331,15 @@ impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for
             duplex_sponge_state: value,
             private_rng: R::from_entropy().into(),
             narg_string: Vec::new(),
+        }
+    }
+}
+
+impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
+    pub fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
+        VerifierState {
+            duplex_sponge_state,
+            narg_string,
         }
     }
 }

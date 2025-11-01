@@ -49,6 +49,8 @@ p3-symmetric = { workspace = true, optional = true }
 
 [features]
 default = ["sha3", "zeroize"]
+# feature flag for disabling warnings and accessing private states of the sponge.
+yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
 zeroize = ["dep:zeroize"]

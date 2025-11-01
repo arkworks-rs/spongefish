@@ -6,9 +6,9 @@
 //! With the `derive` feature enabled:
 //!
 //! ```ignore
-//! use spongefish::{Encoding, Decoding, NargDeserialize};
+//! use spongefish::Codec;
 //!
-//! #[derive(Encoding, Decoding, NargDeserialize)]
+//! #[derive(Codec)]
 //! struct MyStruct {
 //!     field1: u32,
 //!     field2: u64,
@@ -17,9 +17,8 @@
 //! }
 //! ```
 //!
-//! - `Encoding`: Encodes fields sequentially
-//! - `Decoding`: Decodes from fixed-size buffer
-//! - `NargDeserialize`: Deserializes from byte stream
+//! Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
+//! `#[spongefish(skip)]` are initialized via `Default`.
 
 /// Marker trait for types that implement `Encoding<T>`, and `Decoding<T>`; `NargSerialize` and `NargDeserialize`
 pub trait Codec<T = [u8]>:

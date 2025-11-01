@@ -3,7 +3,7 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState,
+    session_id, Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState,
     VerificationResult, VerifierState,
 };
 
@@ -75,11 +75,10 @@ fn main() {
     let sk = F::rand(&mut OsRng);
     let pk = generator * sk;
 
-    let protocol_id = spongefish::protocol_id!("schnorr::ark_curve25519");
-    let session_id = spongefish::session_id!("demo-session-{}", 1u8);
-    let instance = pk;
     // Create the prover transcript, add the statement to it, and then invoke the prover.
-    let domain_sep = DomainSeparator::new(protocol_id, session_id, instance);
+    let domain_sep = DomainSeparator::new(spongefish::protocol_id!("schnorr::ark_curve25519"))
+        .instance([generator, pk])
+        .session(session_id!("test test test"));
     let mut prover_state = domain_sep.std_prover();
     let narg_string = Bulletproof::prove(&mut prover_state, generator, sk);
 
@@ -87,7 +86,6 @@ fn main() {
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
-    let mut verifier_state = VerifierState::new(&protocol_id, &session_id, narg_string);
-    verifier_state.public_message(&[generator, pk]);
+    let mut verifier_state = domain_sep.std_verifier(narg_string);
     Bulletproof::verify(&mut verifier_state, generator, pk).expect("Verification failed");
 }

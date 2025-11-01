@@ -7,36 +7,44 @@
 //! $$
 
 use curve25519_dalek::{traits::MultiscalarMul, RistrettoPoint, Scalar};
-use spongefish::{ProverState, VerificationResult, VerifierState};
+use spongefish::{
+    session_id, DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState,
+};
 
-struct SchnorrProof;
+struct BulletProof;
 
-impl SchnorrProof {
+#[derive(Encoding, Clone)]
+struct Instance {
+    generators: (Vec<RistrettoPoint>, Vec<RistrettoPoint>, RistrettoPoint),
+    inner_product: RistrettoPoint,
+}
+
+impl BulletProof {
     fn protocol_id() -> [u8; 64] {
-        spongefish::protocol_id!("schnorr proofs for testing")
+        spongefish::protocol_id!("bulletproofs ipa over ristretto255 with blake128")
     }
 
     pub fn prove<'a>(
         prover_state: &'a mut ProverState,
-        generators: (&[RistrettoPoint], &[RistrettoPoint], &RistrettoPoint),
-        statement: &RistrettoPoint, // the actual inner-product of the witness is not really needed
+        instance: &Instance,
         witness: (&[Scalar], &[Scalar]),
     ) -> VerificationResult<&'a [u8]> {
         assert_eq!(witness.0.len(), witness.1.len());
 
         if witness.0.len() == 1 {
-            assert_eq!(generators.0.len(), 1);
+            assert_eq!(instance.generators.1.len(), instance.generators.0.len());
+            assert_eq!(instance.generators.1.len(), witness.0.len());
 
-            prover_state.prover_message(&[witness.0[0], witness.1[0]]);
+            prover_state.prover_messages(&[witness.0[0], witness.1[0]]);
             return Ok(prover_state.narg_string());
         }
 
         let n = witness.0.len() / 2;
         let (a_left, a_right) = witness.0.split_at(n);
         let (b_left, b_right) = witness.1.split_at(n);
-        let (g_left, g_right) = generators.0.split_at(n);
-        let (h_left, h_right) = generators.1.split_at(n);
-        let u = *generators.2;
+        let (g_left, g_right) = instance.generators.0.split_at(n);
+        let (h_left, h_right) = instance.generators.1.split_at(n);
+        let u = instance.generators.2;
 
         let left = u * dot_prod(a_left, b_right)
             + RistrettoPoint::multiscalar_mul(a_left, g_right)
@@ -50,29 +58,32 @@ impl SchnorrProof {
         let x: Scalar = prover_state.verifier_message();
         let x_inv = x.invert();
 
-        let new_g = fold_generators(g_left, g_right, &x_inv, &x);
-        let new_h = fold_generators(h_left, h_right, &x, &x_inv);
-        let new_generators = (&new_g[..], &new_h[..], generators.2);
+        let new_g = Self::fold_generators(g_left, g_right, &x_inv, &x);
+        let new_h = Self::fold_generators(h_left, h_right, &x, &x_inv);
+        let new_generators = (new_g, new_h, instance.generators.2);
+        let new_inner_product = left * x * x + right * x_inv * x_inv + instance.inner_product;
 
-        let new_a = self.fold(a_left, a_right, &x, &x_inv);
-        let new_b = self.fold(b_left, b_right, &x_inv, &x);
+        let new_a = Self::fold(a_left, a_right, &x, &x_inv);
+        let new_b = Self::fold(b_left, b_right, &x_inv, &x);
         let new_witness = (&new_a[..], &new_b[..]);
 
-        let new_statement = *statement + left * x * x + right * x_inv * x_inv;
-
-        self.prove(prover_state, new_generators, &new_statement, new_witness)
+        let instance = &Instance {
+            inner_product: new_inner_product,
+            generators: new_generators,
+        };
+        Self::prove(prover_state, &instance, new_witness)
     }
 
     pub fn verify(
         verifier_state: &mut VerifierState,
-        generators: (&[RistrettoPoint], &[RistrettoPoint], &RistrettoPoint),
-        mut n: usize,
-        instance: &RistrettoPoint,
+        instance: &Instance,
     ) -> VerificationResult<()> {
-        let mut g = generators.0.to_vec();
-        let mut h = generators.1.to_vec();
-        let u = *generators.2;
-        let mut statement = *instance;
+        let mut g = instance.generators.0.to_vec();
+        let mut h = instance.generators.1.to_vec();
+        let u = instance.generators.2;
+        assert_eq!(instance.generators.0.len(), instance.generators.1.len());
+        let mut n = instance.generators.0.len();
+        let mut inner_product = instance.inner_product;
 
         while n != 1 {
             let [left, right] = verifier_state.prover_messages::<RistrettoPoint, 2>()?;
@@ -82,14 +93,14 @@ impl SchnorrProof {
             let x: Scalar = verifier_state.verifier_message();
             let x_inv = x.invert();
 
-            g = self.fold_generators(g_left, g_right, &x_inv, &x);
-            h = self.fold_generators(h_left, h_right, &x, &x_inv);
-            statement = statement + left * x * x + right * x_inv * x_inv;
+            g = Self::fold_generators(g_left, g_right, &x_inv, &x);
+            h = Self::fold_generators(h_left, h_right, &x, &x_inv);
+            inner_product = inner_product + left * x * x + right * x_inv * x_inv;
         }
         let [a, b]: [Scalar; 2] = verifier_state.prover_messages()?;
 
         let c = a * b;
-        verifier_state.finish(g[0] * a + h[0] * b + u * c == statement)
+        verifier_state.finish(g[0] * a + h[0] * b + u * c == instance.inner_product)
     }
 
     fn fold_generators(
@@ -141,24 +152,26 @@ fn main() {
         .collect::<Vec<_>>();
     let u = RistrettoPoint::random(&mut rng);
 
-    let generators = (&g[..], &h[..], &u);
-    let statement =
-        RistrettoPoint::multiscalar_mul(&a, &g) + RistrettoPoint::multiscalar_mul(&b, &h) + u * ab;
+    let instance = Instance {
+        inner_product: RistrettoPoint::multiscalar_mul(&a, &g)
+            + RistrettoPoint::multiscalar_mul(&b, &h)
+            + u * ab,
+        generators: (g, h, u),
+    };
     let witness = (&a[..], &b[..]);
 
-    let mut prover_state =
-        ProverState::new(SchnorrProof::protocol_id(), spongefish::session_id!("test"));
-    prover_state.public_message(&statement);
-    let narg_string = self
-        .prove(&mut prover_state, generators, &statement, witness)
-        .expect("Error proving");
+    let domain_separator = DomainSeparator::new(BulletProof::protocol_id())
+        .session(session_id!("spongefish examples"))
+        .instance(&instance);
+    let mut prover_state = domain_separator.std_prover();
+    let narg_string = BulletProof::prove(&mut prover_state, &instance, witness)
+        .expect("error running the prover");
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,
         hex::encode(narg_string)
     );
 
-    let mut verifier_state = VerifierState::new(&protocol_id, &session_id, narg_string);
-    verifier_state.public_message(&statement);
-    BulletProof::verify(&mut verifier_state, generators, size, &statement).expect("Invalid proof");
+    let mut verifier_state = domain_separator.std_verifier(narg_string);
+    BulletProof::verify(&mut verifier_state, &instance).expect("Invalid proof")
 }
