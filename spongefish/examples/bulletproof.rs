@@ -8,15 +8,17 @@
 
 use curve25519_dalek::{traits::MultiscalarMul, RistrettoPoint, Scalar};
 use spongefish::{
-    session_id, DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState,
+    DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState, session_id
 };
 
 struct BulletProof;
 
 #[derive(Encoding, Clone)]
 struct Instance {
-    generators: (Vec<RistrettoPoint>, Vec<RistrettoPoint>, RistrettoPoint),
-    inner_product: RistrettoPoint,
+    lhs_generators: Vec<RistrettoPoint>,
+    rhs_generators: Vec<RistrettoPoint>,
+    iner_product_generator: RistrettoPoint,
+    ip_commitment: RistrettoPoint,
 }
 
 impl BulletProof {
@@ -28,23 +30,23 @@ impl BulletProof {
         prover_state: &'a mut ProverState,
         instance: &Instance,
         witness: (&[Scalar], &[Scalar]),
-    ) -> VerificationResult<&'a [u8]> {
+    ) -> &'a [u8] {
         assert_eq!(witness.0.len(), witness.1.len());
 
         if witness.0.len() == 1 {
-            assert_eq!(instance.generators.1.len(), instance.generators.0.len());
-            assert_eq!(instance.generators.1.len(), witness.0.len());
+            assert_eq!(instance.lhs_generators.len(), instance.rhs_generators.len());
+            assert_eq!(instance.lhs_generators.len(), witness.0.len());
 
             prover_state.prover_messages(&[witness.0[0], witness.1[0]]);
-            return Ok(prover_state.narg_string());
+            return prover_state.narg_string();
         }
 
         let n = witness.0.len() / 2;
         let (a_left, a_right) = witness.0.split_at(n);
         let (b_left, b_right) = witness.1.split_at(n);
-        let (g_left, g_right) = instance.generators.0.split_at(n);
-        let (h_left, h_right) = instance.generators.1.split_at(n);
-        let u = instance.generators.2;
+        let (g_left, g_right) = instance.lhs_generators.split_at(n);
+        let (h_left, h_right) = instance.rhs_generators.split_at(n);
+        let u = instance.iner_product_generator;
 
         let left = u * dot_prod(a_left, b_right)
             + RistrettoPoint::multiscalar_mul(a_left, g_right)
@@ -60,16 +62,17 @@ impl BulletProof {
 
         let new_g = Self::fold_generators(g_left, g_right, &x_inv, &x);
         let new_h = Self::fold_generators(h_left, h_right, &x, &x_inv);
-        let new_generators = (new_g, new_h, instance.generators.2);
-        let new_inner_product = left * x * x + right * x_inv * x_inv + instance.inner_product;
+        let new_inner_product = left * x * x + right * x_inv * x_inv + instance.ip_commitment;
 
         let new_a = Self::fold(a_left, a_right, &x, &x_inv);
         let new_b = Self::fold(b_left, b_right, &x_inv, &x);
         let new_witness = (&new_a[..], &new_b[..]);
 
         let instance = &Instance {
-            inner_product: new_inner_product,
-            generators: new_generators,
+            ip_commitment: new_inner_product,
+            lhs_generators: new_g,
+            rhs_generators: new_h,
+            iner_product_generator: instance.iner_product_generator
         };
         Self::prove(prover_state, &instance, new_witness)
     }
@@ -78,12 +81,12 @@ impl BulletProof {
         verifier_state: &mut VerifierState,
         instance: &Instance,
     ) -> VerificationResult<()> {
-        let mut g = instance.generators.0.to_vec();
-        let mut h = instance.generators.1.to_vec();
-        let u = instance.generators.2;
-        assert_eq!(instance.generators.0.len(), instance.generators.1.len());
-        let mut n = instance.generators.0.len();
-        let mut inner_product = instance.inner_product;
+        let mut g = instance.lhs_generators.to_vec();
+        let mut h = instance.rhs_generators.to_vec();
+        let u = instance.iner_product_generator;
+        assert_eq!(instance.lhs_generators.len(), instance.rhs_generators.len());
+        let mut n = instance.lhs_generators.len();
+        let mut inner_product = instance.ip_commitment;
 
         while n != 1 {
             let [left, right] = verifier_state.prover_messages::<RistrettoPoint, 2>()?;
@@ -100,7 +103,7 @@ impl BulletProof {
         let [a, b]: [Scalar; 2] = verifier_state.prover_messages()?;
 
         let c = a * b;
-        verifier_state.finish(g[0] * a + h[0] * b + u * c == instance.inner_product)
+        verifier_state.finish(g[0] * a + h[0] * b + u * c == instance.ip_commitment)
     }
 
     fn fold_generators(
@@ -153,19 +156,20 @@ fn main() {
     let u = RistrettoPoint::random(&mut rng);
 
     let instance = Instance {
-        inner_product: RistrettoPoint::multiscalar_mul(&a, &g)
+        ip_commitment: RistrettoPoint::multiscalar_mul(&a, &g)
             + RistrettoPoint::multiscalar_mul(&b, &h)
             + u * ab,
-        generators: (g, h, u),
+        lhs_generators: g,
+        rhs_generators: h,
+        iner_product_generator:u,
     };
     let witness = (&a[..], &b[..]);
 
     let domain_separator = DomainSeparator::new(BulletProof::protocol_id())
-        .session(session_id!("spongefish examples"))
-        .instance(&instance);
+        .instance(&instance)
+        .session(session_id!("spongefish examples"));
     let mut prover_state = domain_separator.std_prover();
-    let narg_string = BulletProof::prove(&mut prover_state, &instance, witness)
-        .expect("error running the prover");
+    let narg_string = BulletProof::prove(&mut prover_state, &instance, witness);
     println!(
         "Here's a bulletproof for {} elements:\n{}",
         size,

@@ -134,6 +134,51 @@ impl Encoding<[u8]> for [u8] {
     }
 }
 
+impl Encoding<[u8]> for alloc::vec::Vec<u8> {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        self.as_slice()
+    }
+}
+
+
+impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
+    fn encode(&self) -> impl AsRef<[U]> {
+        let mut out = alloc::vec::Vec::new();
+        for x in self.iter() {
+            out.extend_from_slice(x.encode().as_ref());
+        }
+        out
+    }
+}
+
+impl<A, B> Encoding<[u8]> for (A, B)
+where
+    A: Encoding<[u8]>,
+    B: Encoding<[u8]>,
+{
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let mut output = alloc::vec::Vec::new();
+        output.extend_from_slice(self.0.encode().as_ref());
+        output.extend_from_slice(self.1.encode().as_ref());
+        output
+    }
+}
+
+impl<A, B, C> Encoding<[u8]> for (A, B, C)
+where
+    A: Encoding<[u8]>,
+    B: Encoding<[u8]>,
+    C: Encoding<[u8]>,
+{
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let mut output = alloc::vec::Vec::new();
+        output.extend_from_slice(self.0.encode().as_ref());
+        output.extend_from_slice(self.1.encode().as_ref());
+        output.extend_from_slice(self.2.encode().as_ref());
+        output
+    }
+}
+
 /// Handy for serializing byte strings.
 ///
 /// Encoding functions must have size known upon choosing the protocol identifier.

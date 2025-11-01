@@ -19,7 +19,7 @@ pub struct WithInstance<'i, I>(&'i I);
 /// A domain separator for a Fiat-Shamir transformation.
 ///
 /// Three composen
-pub struct DomainSeparator<I, S = [u8; 64]> {
+pub struct DomainSeparator<I, S = u64> {
     pub protocol_id: [u8; 64],
     pub session_info: Option<S>,
     instance: I,
