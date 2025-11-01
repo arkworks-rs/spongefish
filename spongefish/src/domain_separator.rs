@@ -17,13 +17,15 @@ impl<I> WithoutInstance<I> {
 pub struct WithInstance<'i, I>(&'i I);
 
 /// A domain separator for a Fiat-Shamir transformation.
-pub struct DomainSeparator<S, I> {
+///
+/// Three composen
+pub struct DomainSeparator<I, S = [u8; 64]> {
     pub protocol_id: [u8; 64],
     pub session_info: Option<S>,
     instance: I,
 }
 
-impl<S, I> DomainSeparator<S, WithoutInstance<I>> {
+impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
     pub fn new(protocol_id: [u8; 64]) -> Self {
         Self {
             protocol_id,
@@ -33,7 +35,7 @@ impl<S, I> DomainSeparator<S, WithoutInstance<I>> {
     }
 }
 
-impl<S, I> DomainSeparator<S, I> {
+impl<I, S> DomainSeparator<I, S> {
     pub fn session(self, session_info: S) -> Self {
         assert!(self.session_info.is_none());
         Self {
@@ -44,8 +46,8 @@ impl<S, I> DomainSeparator<S, I> {
     }
 }
 
-impl<S, I> DomainSeparator<S, WithoutInstance<I>> {
-    pub fn instance<'a>(self, instance: &'a I) -> DomainSeparator<S, WithInstance<'a, I>> {
+impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
+    pub fn instance<'a>(self, instance: &'a I) -> DomainSeparator<WithInstance<'a, I>, S> {
         DomainSeparator {
             protocol_id: self.protocol_id,
             session_info: self.session_info,
@@ -54,7 +56,7 @@ impl<S, I> DomainSeparator<S, WithoutInstance<I>> {
     }
 }
 
-impl<'a, S, I> DomainSeparator<S, WithInstance<'a, I>>
+impl<'a, I, S> DomainSeparator<WithInstance<'a, I>, S>
 where
     I: Encoding,
     S: Encoding,
@@ -70,7 +72,7 @@ where
     }
 }
 
-impl<'inst, S, I> DomainSeparator<S, WithInstance<'inst, I>> {
+impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S> {
     pub fn to_prover<H>(&self, h: H) -> ProverState<H, StdRng>
     where
         H: DuplexSpongeInterface,
