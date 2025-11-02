@@ -82,23 +82,15 @@ pub trait DuplexSpongeInterface: Clone {
     }
 }
 
-/// The basic state of a cryptographic sponge.
-///
-/// A cryptographic sponge operates over some domain [`Permutation::U`] units.
-/// It has a width [`Permutation::N`] and can process elements at rate [`Permutation::R`],
-/// using the permutation function [`Permutation::permute`].
-///
-///
-/// The permutation state can be initialized via [`new`][Permutation::new], accessed via [`as_ref`][AsRef] and altered via [`as_mut`][AsMut].
-/// The constant [`WIDTH`] denotes the size of the permutation.
+/// A permutation over operating over an array of `WIDTH` [`Unit`]s.
 pub trait Permutation<const WIDTH: usize>: Clone {
-    /// The basic unit type over which the sponge operates.
+    /// The [`Unit`] defining the alphabet for the permutation function.
     type U: Unit;
 
-    /// Run the permutation function over `state`.
+    /// The permutation function.
     fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH];
 
-    /// Evaluate [`Permutation::permute`] in-place.
+    /// In-place permutation function evaluation [`Permutation::permute`].
     fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
         let new_state = self.permute(state);
         state.clone_from(&new_state)
@@ -107,15 +99,18 @@ pub trait Permutation<const WIDTH: usize>: Clone {
 
 /// The duplex sponge construction from [[CO25], Construction 3.3].
 ///
-/// Based on a [`Permutation`] and a [`usize`] constant [`RATE`] defining the rate.
-/// The rate segment of the [DuplexSponge] is written in the first
-/// [`as_mut()`][`Permutation::as_mut`] units of the sponge.
-/// The capacity segment is written in the last [`Permutation::WIDTH`]-[`RATE`] units of the sponge.
+/// Based on a [`Permutation`] for `WIDTH` elements.
+/// The parameter `RATE` defining the legth of the rate.
+///
+/// # Instantiation
+///
+/// The rate segment is written in the first units of the sponge;
+/// the capacity segment is written in the last `WIDTH`-`RATE` units of the sponge.
 ///
 ///
-/// # Safety
+/// # Panics
 ///
-/// Instantiation will fail if [`Permutation::WIDTH`] is less or equal to [`RATE`], or if [`RATE`] is zero.
+/// Instantiation will panic if `WIDTH` is less or equal to `RATE`, or if `RATE` is zero.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 #[derive(Clone, PartialEq, Eq)]
@@ -134,6 +129,8 @@ where
     P: Permutation<WIDTH>,
 {
     fn with_permutation(permutation: P) -> Self {
+        assert!(WIDTH > RATE, "capacity segment must be non-empty");
+        assert!(RATE > 0, "rate segment must be non-empty");
         Self {
             permutation,
             permutation_state: [P::U::ZERO; WIDTH],
@@ -194,7 +191,7 @@ where
                 self.permutation.permute_mut(&mut self.permutation_state);
                 self.absorb_pos = 0;
             } else {
-                assert!(self.absorb_pos < RATE);
+                debug_assert!(self.absorb_pos < RATE);
                 let chunk_len = usize::min(input.len(), RATE - self.absorb_pos);
                 let (chunk, rest) = input.split_at(chunk_len);
 
@@ -218,7 +215,7 @@ where
             self.permutation.permute_mut(&mut self.permutation_state);
         }
 
-        assert!(self.squeeze_pos < RATE);
+        debug_assert!(self.squeeze_pos < RATE);
         let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
         let (output, rest) = output.split_at_mut(chunk_len);
         output.clone_from_slice(

@@ -28,9 +28,27 @@ where
 {
 }
 
-/// The interface for all prover messages that can be turned into an input for the duplex sponge.
+/// Interface for turning a type into a duplex sponge input.
 ///
-/// Byte-oriented sponges can enjoy built-in maps for strings, bytes and built-in integer types. Integers are encoded in big-endian format.
+/// [`Encoding<T>`] defines an encoding into a type `T`.
+/// By default `T = [u8]` in order to serve encoding for byte-oriented hash functions.
+///
+/// # Safety
+///
+/// [`spongefish`][`crate`] assumes that prover and verifier will know the length of all the prover messages.
+/// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of any other
+/// instance of the same type.
+///
+/// More information on the theoretical requirements is in [[CO25], Theorem 6.2].
+///
+/// # Blanket implementations
+///
+/// # Encoding conventions
+///
+/// For byte sequences, encoding must be the identity function.
+/// Integers are encoded via []
+///
+/// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub trait Encoding<T = [u8]>
 where
     T: ?Sized,
@@ -139,7 +157,6 @@ impl Encoding<[u8]> for alloc::vec::Vec<u8> {
         self.as_slice()
     }
 }
-
 
 impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
     fn encode(&self) -> impl AsRef<[U]> {

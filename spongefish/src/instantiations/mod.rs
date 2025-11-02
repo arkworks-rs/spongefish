@@ -1,21 +1,38 @@
 /// Multiple instantiations of the duplex sponge interface.
 ///
-/// This module contains:
+/// # Default instances.
 ///
-/// - The [`DuplexSponge`] construction from [[CO25]] based on top of a permutation function.
-///   Two instantiations are provided:
+/// 1. [`OWKeccakF1600`], the duplex sponge construction [[CO25], Section 3.3] for the
+/// [`keccak::f1600`] permutation [Keccak-f].
+/// Available with the `keccak` feature flag;
+/// 2. [`OWAscon`], the duplex sponge construction [[CO25], Section 3.3] for the
+/// [`ascon`] permutation [Ascon], used in overwrite mode.
+/// Available with the `ascon` feature flag;
+/// 3. [`Shake128`], based on the extensible output function [sha3::Shake128].
+/// Available with the `sha3` feature flag (enabled by default);
+/// 4. [`Blake3`], based on the extensible output function [blake3::Hasher].
+/// Available with the `sha3` feature flag (enabled by default);
+/// 5. [`SHA256`][self::SHA256], based on [sha2::Sha256] used as a stateful hash object.
+/// Available with the `sha2` feature flag;
+/// 6. [`SHA512`], based on [sha2::Sha512] used as a stateful hash object.
+/// Available with the `sha2` feature flag.
 ///
-///   1. [`OWKeccakF1600`], based on the [Keccak-f] permutation and available with the `keccak` feature flag;
-///   2. [`OWAscon`], based on the [Ascon] permutation and available with the `ascon` feature flag;
+/// # Security considerations
 ///
-/// - A [`Hash`] interfacing the [`digest::Digest`] trait implementations with the [`DuplexSponge`] API.
-///   This is instantiated for:
+/// Only Constructions (1) and (2) are proven secure.
+/// All other constructions are built using heuristics.
 ///
-///   1. [`SHA256`], based on [SHA2] and available with the `sha2` feature flag;
-///   2. [`SHA512`], based on [SHA2] and available with the `sha2` feature flag.
+/// # Implementing your own hash
 ///
+/// The duplex sponge construction [`DuplexSponge`] is described
+/// in [[CO25], Section 3.3].
 ///
-/// - A [`XOF`] interfacing the [`digest::ExtensibleOutput`]
+/// The extensible output function [`XOF`] wraps an object implementing [`digest::ExtendableOutput`]
+/// and implements the duplex sponge interface with little-to-no code.
+/// Its implementation has little differences with [`DuplexSponge`].
+///
+/// The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
+/// the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`][crate::DuplexSpongeInterface]
 ///
 /// [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
 /// [Keccak-f]: https://keccak.team/keccak_specs_summary.html
@@ -31,22 +48,19 @@ pub use xof::XOF;
 
 pub use super::duplex_sponge::DuplexSponge;
 
-// Keccak-based duplex sponge
 #[cfg(feature = "keccak")]
 /// A [`DuplexSponge`] instantiated with [`keccak::f1600`].
 ///
-/// **Warning**: This function is not SHA3.
+/// **Warning**: This function is not SHA-3.
 /// Despite internally we use the same permutation function,
 /// we build a duplex sponge in overwrite mode
 /// on the top of it using the `DuplexSponge` trait.
 pub type OWKeccakF1600 = DuplexSponge<permutations::KeccakF1600, 200, 136>;
 
-// Ascon
 #[cfg(feature = "ascon")]
 /// A [`DuplexSponge`] instantiated with [`ascon`].
 pub type OWAscon = DuplexSponge<permutations::Ascon12, 40, 16>;
 
-// SHA-3 family
 #[cfg(feature = "sha3")]
 pub type Shake128 = xof::XOF<sha3::Shake128>;
 
@@ -72,6 +86,7 @@ pub type Blake2b512 = hash::Hash<blake2::Blake2b512>;
 pub type Blake2s256 = hash::Hash<blake2::Blake2s256>;
 
 // Make sure that all instantiations satisfy the DuplexSpongeInterface trait.
+#[cfg(test)]
 #[allow(unused)]
 fn _assert_duplex_sponge_impls() {
     fn assert_impl<T: crate::duplex_sponge::DuplexSpongeInterface>() {}
@@ -79,7 +94,6 @@ fn _assert_duplex_sponge_impls() {
     #[cfg(feature = "sha3")]
     {
         assert_impl::<Shake128>();
-        // assert_impl::<TurboShake128>();
     }
     #[cfg(feature = "k12")]
     assert_impl::<KangarooTwelve>();

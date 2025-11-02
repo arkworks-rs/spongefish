@@ -8,17 +8,25 @@
 
 use curve25519_dalek::{traits::MultiscalarMul, RistrettoPoint, Scalar};
 use spongefish::{
-    DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState, session_id
+    session_id, DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState,
 };
 
 struct BulletProof;
 
+/// xxx. Instance are prefix-free
 #[derive(Encoding, Clone)]
 struct Instance {
+    len: usize,
     lhs_generators: Vec<RistrettoPoint>,
     rhs_generators: Vec<RistrettoPoint>,
     iner_product_generator: RistrettoPoint,
     ip_commitment: RistrettoPoint,
+}
+
+impl Instance {
+    fn new() -> Self {
+        let i = Instance {};
+    }
 }
 
 impl BulletProof {
@@ -72,7 +80,7 @@ impl BulletProof {
             ip_commitment: new_inner_product,
             lhs_generators: new_g,
             rhs_generators: new_h,
-            iner_product_generator: instance.iner_product_generator
+            iner_product_generator: instance.iner_product_generator,
         };
         Self::prove(prover_state, &instance, new_witness)
     }
@@ -161,13 +169,13 @@ fn main() {
             + u * ab,
         lhs_generators: g,
         rhs_generators: h,
-        iner_product_generator:u,
+        iner_product_generator: u,
     };
     let witness = (&a[..], &b[..]);
 
     let domain_separator = DomainSeparator::new(BulletProof::protocol_id())
-        .instance(&instance)
-        .session(session_id!("spongefish examples"));
+        .session(session_id!("spongefish examples"))
+        .instance(&instance);
     let mut prover_state = domain_separator.std_prover();
     let narg_string = BulletProof::prove(&mut prover_state, &instance, witness);
     println!(

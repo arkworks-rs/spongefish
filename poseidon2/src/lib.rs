@@ -28,7 +28,7 @@ pub struct PoseidonPermutation<const NAME: u32, F: PrimeField, const WIDTH: usiz
 }
 
 pub type PoseidonHash<F, const RATE: usize, const WIDTH: usize> =
-    DuplexSponge<PoseidonPermutation<F, WIDTH>, RATE>;
+    DuplexSponge<PoseidonPermutation<F, WIDTH>, WIDTH, RATE>;
 
 impl<const NAME: u32, F: PrimeField, const WIDTH: usize> AsRef<[F]>
     for PoseidonPermutation<NAME, F, WIDTH>

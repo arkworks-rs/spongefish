@@ -24,8 +24,7 @@ pub trait NargSerialize {
     /// This procedure must compute an injective map.
     fn serialize_into_narg(&self, dst: &mut Vec<u8>);
 
-    /// Shorthand for [`NargSerialize::serialize_into`]
-    /// serializing `self` in a new byte array and returning it.
+    /// Shorthand for [`NargSerialize::serialize_into_narg`] for an empty byte array.
     fn serialize_into_new_narg(&self) -> impl AsRef<[u8]> {
         let mut buf = alloc::vec::Vec::new();
         self.serialize_into_narg(&mut buf);

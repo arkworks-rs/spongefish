@@ -3,13 +3,17 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    session_id, Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState,
-    VerificationResult, VerifierState,
+    domain_separator::protocol_id, session_id, Codec, DomainSeparator, Encoding, NargDeserialize,
+    NargSerialize, ProverState, VerificationResult, VerifierState,
 };
 
-struct Bulletproof;
+struct Schnorr;
 
-impl Bulletproof {
+impl Schnorr {
+    pub const fn protocol_id() -> [u8; 64] {
+        protocol_id!("schnoor proof")
+    }
+
     /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
     ///
     /// The [`ProverState`] actually depends on a duplex sponge interface (over any field) and a random number generator.
@@ -19,32 +23,27 @@ impl Bulletproof {
     /// Both are required to implement [`Encoding`], which for bytes also tells us how to serialize them.
     /// The verifier messages are scalars, and thus required to implement [`Decoding`].
     #[allow(non_snake_case)]
-    fn prove<'a, G>(
-        prover_state: &'a mut ProverState,
-        P: G, // the secret key
-        x: G::ScalarField,
-    ) -> &'a [u8]
+    fn prove<'a, G>(session: [u8; 64], instance: &[G; 2], x: G::ScalarField) -> &'a [u8]
     where
         G: CurveGroup + NargSerialize + Encoding,
         G::ScalarField: Codec,
     {
-        // `ProverState` types implement a cryptographically-secure random number generator that is tied to the protocol transcript
-        // and that can be accessed via the `rng()` function.
+        // Create the domain separator
+        let domain_sep = DomainSeparator::new(Schnorr::protocol_id())
+            .session(session)
+            .instance(instance);
+        let prover_state = domain_sep.std_prover();
+
+        // `ProverState` types implement a cryptographically-secure random number generator.
         let k = G::ScalarField::rand(prover_state.rng());
-        let K = P * k;
+        let K = instance[0] * k;
 
-        // Add a sequence of points to the protocol transcript.
-        // An error is returned in case of failed serialization, or inconsistencies with the domain separator provided (see below).
         prover_state.prover_message(&K);
-
-        // Fetch a challenge from the current transcript state.
         let c = prover_state.verifier_message::<G::ScalarField>();
 
         let r = k + c * x;
-        // Add a sequence of scalar elements to the protocol transcript.
         prover_state.prover_message(&r);
 
-        // Output the current protocol transcript as a sequence of bytes.
         prover_state.narg_string()
     }
 
@@ -75,17 +74,14 @@ fn main() {
     let sk = F::rand(&mut OsRng);
     let pk = generator * sk;
 
-    // Create the prover transcript, add the statement to it, and then invoke the prover.
-    let domain_sep = DomainSeparator::new(spongefish::protocol_id!("schnorr::ark_curve25519"))
-        .instance([generator, pk])
-        .session(session_id!("test test test"));
+    // Prove the relation sk * G::generator() = pk
     let mut prover_state = domain_sep.std_prover();
-    let narg_string = Bulletproof::prove(&mut prover_state, generator, sk);
+    let narg_string = Schnorr::prove(&mut prover_state, generator, sk);
 
     // Print out the hex-encoded schnorr proof.
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
     let mut verifier_state = domain_sep.std_verifier(narg_string);
-    Bulletproof::verify(&mut verifier_state, generator, pk).expect("Verification failed");
+    Schnorr::verify(&mut verifier_state, generator, pk).expect("Verification failed");
 }

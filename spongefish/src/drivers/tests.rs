@@ -20,6 +20,7 @@ where
     assert_eq!(encoded_bytes(value), encoded_bytes(&decoded));
 }
 
+#[allow(unused)]
 fn assert_codec_compatibility<A, B>(value_a: &A, value_b: &B)
 where
     A: Encoding<[u8]> + NargSerialize + NargDeserialize,
@@ -45,10 +46,11 @@ where
     assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(value_a));
 }
 
+#[allow(unused)]
 fn assert_decoding_compatibility<A, B>()
 where
-    A: Decoding<[u8]> + Encoding<[u8]>,
-    B: Decoding<[u8]> + Encoding<[u8]>,
+    A: Encoding<[u8]> + Decoding<[u8]>,
+    B: Encoding<[u8]> + Decoding<[u8]>,
 {
     let mut repr_a = A::Repr::default();
     let len_a = {
@@ -78,17 +80,11 @@ where
 }
 
 #[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]
-mod curve25519 {
-    use ark_curve25519::EdwardsProjective;
-    use ark_ec::PrimeGroup;
+#[test]
+fn curve25519_scalars_arkworks_and_dalek() {
+    use ark_curve25519::Fr as ArkScalar;
     use curve25519_dalek::scalar::Scalar as DalekScalar;
 
-    use super::*;
-
-    type ArkScalar = <EdwardsProjective as PrimeGroup>::ScalarField;
-
-    #[test]
-    fn scalars_are_codec_compatible() {
         for value in [0u64, 1, 42, 123_456_789] {
             let ark_scalar = ArkScalar::from(value);
             let dalek_scalar = DalekScalar::from(value);
@@ -97,28 +93,21 @@ mod curve25519 {
 
         assert_decoding_compatibility::<ArkScalar, DalekScalar>();
     }
-}
 
 #[cfg(all(feature = "ark-ec", feature = "k256"))]
-mod secp256k1 {
+#[test]
+fn secp256k1_scalars_arkworks_and_k256() {
     use ark_ec::PrimeGroup;
-    use ark_secp256k1::Projective as ArkProjective;
+    use ark_secp256k1::Fr as ArkScalar;
     use k256::Scalar as K256Scalar;
 
-    use super::*;
-
-    type ArkScalar = <ArkProjective as PrimeGroup>::ScalarField;
-
-    #[test]
-    fn scalars_are_codec_compatible() {
-        for value in [0u64, 1, 42, 123_456_789] {
-            let ark_scalar = ArkScalar::from(value);
-            let k256_scalar = K256Scalar::from(value);
-            assert_codec_compatibility(&ark_scalar, &k256_scalar);
-        }
-
-        assert_decoding_compatibility::<ArkScalar, K256Scalar>();
+    for value in [0u64, 1, 42, 123_456_789] {
+        let ark_scalar = ArkScalar::from(value);
+        let k256_scalar = K256Scalar::from(value);
+        assert_codec_compatibility(&ark_scalar, &k256_scalar);
     }
+
+    assert_decoding_compatibility::<ArkScalar, K256Scalar>();
 }
 
 // #[cfg(all(feature = "ark-ec", feature = "p256"))]

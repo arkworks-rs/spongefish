@@ -1,4 +1,4 @@
-/// XXX
+/// The non-interactive prover and verifier.
 ///
 /// we are not going to provide the narg prover and verifier.
 /// we provide these utilities so that the user can assemble it.
@@ -20,8 +20,8 @@ type StdRng = rand::rngs::StdRng;
 /// It provides the **secret coins** of the prover for zero-knowledge, and
 /// the hash function state for the verifier's **public coins**.
 ///
-/// [`ProverState`] works by default over bytes with [`DefaultHash`] and
-/// relies on the default random number generator [`DefaultRng`].
+/// The internal random number generator is instantiated with [`sha3::Shake128`],
+/// seeded via [`rand::rngs::StdRng`].
 ///
 /// # Safety
 ///
@@ -124,11 +124,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 }
 
-impl<H: DuplexSpongeInterface + core::fmt::Debug> core::fmt::Debug for VerifierState<'_, H> {
+impl<H> core::fmt::Debug for VerifierState<'_, H>
+where
+    H: DuplexSpongeInterface,
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("VerifierState")
-            .field(&self.duplex_sponge_state)
-            .finish()
+        write!(f, "ProverState<{}>", core::any::type_name::<H>())
     }
 }
 
@@ -227,7 +228,7 @@ where
     /// This function will absorb the message inside the prover's [`DuplexSpongeInterface`]
     /// but it will not serialize it inside the [`narg_string`][ProverState::narg_string].
     ///
-    /// It is similar to [`prover_message`], but the input provided here will not end up
+    /// It is similar to [`prover_message`][Self::prover_message], but the input provided here will not end up
     /// in the final proof string.
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
@@ -249,11 +250,11 @@ where
         T::decode(buf)
     }
 
-    /// Alias for [`narg_string`][`ProverState::narg_string`].
+    /// Alias for [`narg_string`][ProverState::narg_string].
     ///
     /// In interactive proofs, _transcript_ is the term used to denote set of prover and verifier messages.
     /// It is not the proof resulting from the Fiat-Shamir transformation.
-    /// Please use [`narg_string`][`ProverState::narg_string`] instead.
+    /// Please use [`narg_string`][ProverState::narg_string] instead.
     #[deprecated(note = "Please use ProverState::narg_string instead.")]
     pub fn transcript(&self) -> &[u8] {
         self.narg_string()
@@ -295,14 +296,14 @@ where
 
     /// Produce a fixed-length list of verifier messages at once.
     ///
-    /// Equivalent to calling [`verifier_message`][`ProverState::verifier_message`] for each element in the list.
+    /// Equivalent to calling [`verifier_message`][`Self::verifier_message`] for each element in the list.
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Produce a vector of verifier messages whose size `len` is given as input.
     ///
-    /// Equivalent to calling `len` times the [`verifier_message`] function.
+    /// Equivalent to calling `len` times the [`verifier_message`][Self::verifier_message] function.
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }

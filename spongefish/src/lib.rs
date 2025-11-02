@@ -1,7 +1,6 @@
-//! The Fiat-Shamir for any public-coin protocol.
+//! The Fiat-Shamir transformation for public-coin protocols.
 //!
-//! [`spongefish`] assists in the construction of non-interactive arguments using hash functions.
-//!
+//! # Examples
 //!
 #![no_std]
 extern crate alloc;

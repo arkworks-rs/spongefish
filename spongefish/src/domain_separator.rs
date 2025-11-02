@@ -16,47 +16,48 @@ impl<I> WithoutInstance<I> {
 
 pub struct WithInstance<'i, I>(&'i I);
 
-/// A domain separator for a Fiat-Shamir transformation.
-///
-/// Three composen
-pub struct DomainSeparator<I, S = u64> {
-    pub protocol_id: [u8; 64],
-    pub session_info: Option<S>,
+/// Domain separator for a Fiat-Shamir transformation.
+pub struct DomainSeparator<I, S = [u8; 64]> {
+    /// **what** this interactive protocol is.
+    pub protocol: [u8; 64],
+    // **where** this interactive protocol is being used.
+    pub session: Option<S>,
+    /// **how** this interactive protocol is used.
     instance: I,
 }
 
 impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
-    pub fn new(protocol_id: [u8; 64]) -> Self {
+    pub fn new(protocol: [u8; 64]) -> Self {
         Self {
-            protocol_id,
-            session_info: None,
+            protocol,
+            session: None,
             instance: WithoutInstance::new(),
         }
     }
 }
 
 impl<I, S> DomainSeparator<I, S> {
-    pub fn session(self, session_info: S) -> Self {
-        assert!(self.session_info.is_none());
+    pub fn session(self, value: S) -> Self {
+        assert!(self.session.is_none());
         Self {
             instance: self.instance,
-            session_info: Some(session_info),
-            protocol_id: self.protocol_id,
+            session: Some(value),
+            protocol: self.protocol,
         }
     }
 }
 
 impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
-    pub fn instance<'a>(self, instance: &'a I) -> DomainSeparator<WithInstance<'a, I>, S> {
+    pub fn instance<'a>(self, value: &'a I) -> DomainSeparator<WithInstance<'a, I>, S> {
         DomainSeparator {
-            protocol_id: self.protocol_id,
-            session_info: self.session_info,
-            instance: WithInstance(instance),
+            protocol: self.protocol,
+            session: self.session,
+            instance: WithInstance(value),
         }
     }
 }
 
-impl<'a, I, S> DomainSeparator<WithInstance<'a, I>, S>
+impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S>
 where
     I: Encoding,
     S: Encoding,
@@ -81,8 +82,8 @@ impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S> {
         I: Encoding<[H::U]>,
     {
         let mut prover_state = ProverState::from(h);
-        prover_state.public_message(&self.protocol_id);
-        if let Some(session_info) = &self.session_info {
+        prover_state.public_message(&self.protocol);
+        if let Some(session_info) = &self.session {
             prover_state.public_message(session_info);
         }
         prover_state.public_message(self.instance.0);
@@ -97,8 +98,8 @@ impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S> {
         I: Encoding<[H::U]>,
     {
         let mut verifier_state = VerifierState::from_parts(h, narg_string);
-        verifier_state.public_message(&self.protocol_id);
-        if let Some(session_info) = &self.session_info {
+        verifier_state.public_message(&self.protocol);
+        if let Some(session_info) = &self.session {
             verifier_state.public_message(session_info);
         }
         verifier_state.public_message(self.instance.0);
