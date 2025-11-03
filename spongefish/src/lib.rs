@@ -8,7 +8,7 @@
 //! use spongefish::domain_separator;
 //!
 //! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
-//! fn language(x: u32) -> u32 { 2u32.pow(42) % ((1 << 31) -1) }
+//! fn language(x: u32) -> u32 { (2u64.pow(x) % ((1 << 31) -1)) as u32 }
 //! let witness = 42;
 //! let instance = [2, language(witness)];
 //!
@@ -119,7 +119,7 @@ pub type StdHash = instantiations::Shake128;
 #[macro_export]
 macro_rules! domain_separator {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::domain_separator::protocol_id(core::format_args!($fmt $(, $arg)*)))
+        $crate::DomainSeparator::<_, [u8; 64]>::new($crate::domain_separator::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};
 }
 

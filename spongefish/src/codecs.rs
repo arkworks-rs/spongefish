@@ -72,7 +72,7 @@ where
     ///
     /// ```
     /// # use spongefish::Decoding;
-    /// assert_eq!(<u32 as Decoding<[u8]>>::Repr::default(), [0u8; 4])
+    /// assert_eq!(<u32 as Decoding<[u8]>>::Repr::default().as_ref(), &[0u8; 4])
     /// ```
     type Repr: Default + AsMut<T>;
 
@@ -126,7 +126,10 @@ impl_int_decoding!(u64);
 impl_int_encoding!(u128);
 impl_int_decoding!(u128);
 
+#[derive(Debug, Clone)]
 pub struct ByteArray<const N: usize>([u8; N]);
+
+
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
         ByteArray([0; N])
