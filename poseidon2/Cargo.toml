@@ -8,24 +8,31 @@ license = "MIT/Apache-2.0"
 workspace = true
 
 [dependencies]
-spongefish = { workspace = true, features = ["ark-ff"] }
-ark-ff = { workspace = true }
-zeroize = { workspace = true }
-ark-bls12-381 = { workspace = true, optional = true }
-ark-bn254 = { workspace = true, optional = true }
+spongefish = { workspace = true, default-features = false }
+# ark-ff = { workspace = true }
+# zeroize = { workspace = true }
+# ark-bls12-381 = { workspace = true, optional = true }
+# ark-bn254 = { workspace = true, optional = true }
+p3-poseidon2 = { workspace = true, optional = true }
+p3-symmetric = { workspace = true, optional = true }
 
 [dev-dependencies]
-ark-bls12-381 = { workspace = true }
-ark-ec = { workspace = true }
-ark-std = { workspace = true }
-hex = { workspace = true }
-blake2 = { workspace = true }
+# ark-bls12-381 = { workspace = true, optional = true }
+# ark-ec = { workspace = true }
+# ark-std = { workspace = true }
+# hex = { workspace = true }
+# blake2 = { workspace = true }
 
 [features]
-bn254 = ["ark-bn254"]
-solinas = []
-bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
-ark-bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
+# arkworks
+# bn254 = ["ark-bn254"]
+# solinas = []
+# bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
+# ark-bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
+
+# plonky3
+p3-koala-bear = ["spongefish/p3-koala-bear", "dep:p3-symmetric"]
+p3-baby-bear = ["spongefish/p3-baby-bear", "dep:p3-symmetric"]
 
 [[example]]
 name = "schnorr_algebraic_hash"

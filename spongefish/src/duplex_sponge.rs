@@ -44,7 +44,7 @@ pub trait DuplexSpongeInterface: Clone {
     /// In [[CO25]], this is called "alphabet".
     /// The alphabet must be a non-empty set.
     ///
-    /// [[CO25]]: eprint.iacr.org/2025/536.pdf
+    /// [CO25]: https://eprint.iacr.org/2025/536.pdf
     type U: Unit;
 
     /// Absorbs new elements in the sponge.

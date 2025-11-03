@@ -115,7 +115,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// xxx
-    pub fn finish(&self, equation: impl Into<bool>) -> VerificationResult<()> {
+    pub fn finish_checking(self, equation: impl Into<bool>) -> VerificationResult<()> {
         if equation.into() && self.narg_string.is_empty() {
             Ok(())
         } else {

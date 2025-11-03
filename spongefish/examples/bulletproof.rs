@@ -111,7 +111,7 @@ impl BulletProof {
         let [a, b]: [Scalar; 2] = verifier_state.prover_messages()?;
 
         let c = a * b;
-        verifier_state.finish(g[0] * a + h[0] * b + u * c == instance.ip_commitment)
+        verifier_state.finish_checking(g[0] * a + h[0] * b + u * c == instance.ip_commitment)
     }
 
     fn fold_generators(

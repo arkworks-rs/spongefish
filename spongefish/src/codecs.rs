@@ -1,26 +1,28 @@
-//! A codec is a set of maps for encoding prover messages into inputs for the duplex sponge
-//! and outputs to be re-mapped into verifier messages.
-//!
-//! # Derive Macros
-//!
-//! With the `derive` feature enabled:
-//!
-//! ```ignore
-//! use spongefish::Codec;
-//!
-//! #[derive(Codec)]
-//! struct MyStruct {
-//!     field1: u32,
-//!     field2: u64,
-//!     #[spongefish(skip)]  // Skip this field (uses Default)
-//!     cached: Option<String>,
-//! }
-//! ```
-//!
-//! Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
-//! `#[spongefish(skip)]` are initialized via `Default`.
+//! Maps for encoding prover messages and decoding verifier messages.
 
-/// Marker trait for types that implement `Encoding<T>`, and `Decoding<T>`; `NargSerialize` and `NargDeserialize`
+/// Marker trait for types that have encoding and decoding maps.
+///
+/// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
+/// [`NargSerialize`][crate::io::NargSerialize], and [`NargDeserialize`][crate::io::NargDeserialize]
+///
+/// # Derive Macros
+///
+/// With the `derive` feature enabled:
+///
+/// ```ignore
+/// use spongefish::Codec;
+///
+/// #[derive(Codec)]
+/// struct MyStruct {
+///     field1: u32,
+///     field2: u64,
+///     #[spongefish(skip)]  // Skip this field (uses Default)
+///     cached: Option<String>,
+/// }
+/// ```
+///
+/// Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
+/// `#[spongefish(skip)]` are initialized via `Default`.
 pub trait Codec<T = [u8]>:
     crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>
 where
@@ -69,7 +71,7 @@ where
     /// # Example
     ///
     /// ```
-    /// # use spongefish::codecs::Decoding;
+    /// # use spongefish::Decoding;
     /// assert_eq!(<u32 as Decoding<[u8]>>::Repr::default(), [0u8; 4])
     /// ```
     type Repr: Default + AsMut<T>;
@@ -91,53 +93,65 @@ impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
     }
 }
 
-impl Encoding<[u8]> for u32 {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_be_bytes()
+macro_rules! impl_int_encoding {
+    ($type: ty) => {
+        impl Encoding<[u8]> for $type {
+            fn encode(&self) -> impl AsRef<[u8]> {
+                self.to_le_bytes()
+            }
+        }
+    };
+}
+
+macro_rules! impl_int_decoding {
+    ($type: ty) => {
+        impl Decoding<[u8]> for $type {
+            type Repr = ByteArray<{core::mem::size_of::<$type>()}>;
+
+            fn decode(buf: Self::Repr) -> Self {
+                <$type>::from_le_bytes(Decoding::decode(buf))
+            }
+        }
+    };
+}
+
+impl_int_encoding!(u8);
+impl_int_decoding!(u8);
+impl_int_encoding!(u16);
+impl_int_decoding!(u16);
+impl_int_encoding!(u32);
+impl_int_decoding!(u32);
+impl_int_encoding!(u64);
+impl_int_decoding!(u64);
+impl_int_encoding!(u128);
+impl_int_decoding!(u128);
+
+pub struct ByteArray<const N: usize>([u8; N]);
+impl<const N: usize> Default for ByteArray<N> {
+    fn default() -> Self {
+        ByteArray([0; N])
+    }
+}
+impl<const N: usize> AsRef<[u8; N]> for ByteArray<N> {
+    fn as_ref(&self) -> &[u8; N] {
+        &self.0
     }
 }
 
-impl Encoding<[u8]> for u64 {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_be_bytes()
+impl<const N: usize> AsMut<[u8]> for ByteArray<N> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
     }
 }
 
-impl Encoding<[u8]> for u128 {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_be_bytes()
-    }
-}
-
-impl Decoding<[u8]> for u32 {
-    type Repr = [u8; 4];
+impl<const N: usize> Decoding<[u8]> for [u8; N] {
+    type Repr = ByteArray<N>;
 
     fn decode(buf: Self::Repr) -> Self {
-        Self::from_be_bytes(buf)
+        buf.0
     }
 }
 
-impl Decoding<[u8]> for u64 {
-    type Repr = [u8; 8];
-
-    fn decode(buf: Self::Repr) -> Self {
-        Self::from_be_bytes(buf)
-    }
-}
-
-impl Decoding<[u8]> for u128 {
-    type Repr = [u8; 16];
-
-    fn decode(buf: Self::Repr) -> Self {
-        Self::from_be_bytes(buf)
-    }
-}
-
-impl<const N: usize> Encoding<[u8]> for [u8; N] {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_slice()
-    }
-}
 
 /// Handy for serializing byte strings.
 ///
@@ -152,11 +166,6 @@ impl Encoding<[u8]> for [u8] {
     }
 }
 
-impl Encoding<[u8]> for alloc::vec::Vec<u8> {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_slice()
-    }
-}
 
 impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
     fn encode(&self) -> impl AsRef<[U]> {

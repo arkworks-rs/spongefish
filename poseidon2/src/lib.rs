@@ -1,165 +1,50 @@
-//! This code has been blatantly stolen from `ark-crypto-primitive::sponge`
-//! from William Lin, with contributions from Pratyush Mishra, Weikeng Chen, Yuwen Zhang, Kristian Sosnin, Merlyn, Wilson Nguyen, Hossein Moghaddas, and others.
-use std::fmt::Debug;
+#[cfg(feature = "p3-baby-bear")]
+pub use p3_baby_bear_poseidon2::{BabyBearPoseidon2_16, BabyBearPoseidon2_24};
+#[cfg(feature = "p3-koala-bear")]
+pub use p3_koala_bear_poseidon2::{KoalaBearPoseidon2_16, KoalaBearPoseidon2_24};
 
-use ark_ff::{Field, PrimeField};
-use spongefish::duplex_sponge::{DuplexSponge, Permutation, Unit};
+/// Wrapper on Poseidon2KoalaBear of width 16.
 
-/// Poseidon Sponge.
-///
-/// The `NAME` const is between different bitsizes of the same Field.
-/// For instance Bls12_381 and Bn254 both have field type Fp<MontBackend<FrConfig, 4>, 4> but are different fields.
-#[derive(Clone)]
-pub struct PoseidonPermutation<const NAME: u32, F: PrimeField, const WIDTH: usize> {
-    /// Number of rounds in a full-round operation.
-    pub full_rounds: usize,
-    /// Number of rounds in a partial-round operation.
-    pub partial_rounds: usize,
-    /// Exponent used in S-boxes.
-    pub alpha: u64,
-    /// Additive Round keys. These are added before each MDS matrix application to make it an affine shift.
-    /// They are indexed by `ark[round_num][state_element_index]`
-    pub ark: &'static [[F; WIDTH]],
-    /// Maximally Distance Separating (MDS) Matrix.
-    pub mds: &'static [[F; WIDTH]],
+macro_rules! impl_permutation {
+    ($name:ident via $permutation:ident<$width:literal> over $field:ty) => {
+        #[derive(Clone)]
+        pub struct $name($permutation<$width>);
 
-    /// Permutation state
-    pub state: [F; WIDTH],
-}
-
-pub type PoseidonHash<F, const RATE: usize, const WIDTH: usize> =
-    DuplexSponge<PoseidonPermutation<F, WIDTH>, WIDTH, RATE>;
-
-impl<const NAME: u32, F: PrimeField, const WIDTH: usize> AsRef<[F]>
-    for PoseidonPermutation<NAME, F, WIDTH>
-{
-    fn as_ref(&self) -> &[F] {
-        &self.state
-    }
-}
-
-impl<const NAME: u32, F: PrimeField, const WIDTH: usize> AsMut<[F]>
-    for PoseidonPermutation<NAME, F, WIDTH>
-{
-    fn as_mut(&mut self) -> &mut [F] {
-        &mut self.state
-    }
-}
-
-impl<const NAME: u32, F: PrimeField, const WIDTH: usize> PoseidonPermutation<NAME, F, WIDTH> {
-    fn apply_s_box(&self, state: &mut [F], is_full_round: bool) {
-        // Full rounds apply the S Box (x^alpha) to every element of state
-        if is_full_round {
-            for elem in state {
-                *elem = elem.pow([self.alpha]);
+        impl From<$permutation<$width>> for $name {
+            fn from(inner: $permutation<$width>) -> Self {
+                Self(inner)
             }
         }
-        // Partial rounds apply the S Box (x^alpha) to just the first element of state
-        else {
-            state[0] = state[0].pow([self.alpha]);
-        }
-    }
 
-    #[inline]
-    fn apply_ark(&self, state: &mut [F], round_number: usize) {
-        state.iter_mut().enumerate().for_each(|(i, state_elem)| {
-            *state_elem += self.ark[round_number][i];
-        });
-    }
+        impl spongefish::Permutation<$width> for $name
+        where
+            $permutation<$width>: p3_symmetric::Permutation<[$field; $width]>,
+        {
+            type U = $field;
 
-    #[allow(clippy::needless_range_loop)]
-    fn apply_mds(&self, state: &mut [F]) {
-        let mut new_state = [F::ZERO; WIDTH];
-        for i in 0..WIDTH {
-            let mut cur = F::zero();
-            for j in 0..WIDTH {
-                cur += state[j] * self.mds[i][j];
+            fn permute(&self, state: &[Self::U; $width]) -> [Self::U; $width] {
+                p3_symmetric::Permutation::permute(&self.0, state.clone())
             }
-            new_state[i] = cur;
-        }
-        state.clone_from_slice(&new_state);
-    }
-}
 
-impl<const NAME: u32, F: PrimeField, const WIDTH: usize> zeroize::Zeroize
-    for PoseidonPermutation<NAME, F, WIDTH>
-{
-    fn zeroize(&mut self) {
-        self.state.zeroize();
-    }
-}
-
-impl<const NAME: u32, F: Field, const WIDTH: usize> Permutation<WIDTH>
-    for PoseidonPermutation<NAME, F, WIDTH>
-where
-    Self: Default,
-    F: PrimeField + Unit,
-{
-    type U = F;
-
-    fn permute(&mut self) {
-        let full_rounds_over_2 = self.full_rounds / 2;
-        let mut state = self.state;
-        for i in 0..full_rounds_over_2 {
-            self.apply_ark(&mut state, i);
-            self.apply_s_box(&mut state, true);
-            self.apply_mds(&mut state);
-        }
-
-        for i in 0..self.partial_rounds {
-            self.apply_ark(&mut state, full_rounds_over_2 + i);
-            self.apply_s_box(&mut state, false);
-            self.apply_mds(&mut state);
-        }
-
-        for i in 0..full_rounds_over_2 {
-            self.apply_ark(&mut state, full_rounds_over_2 + self.partial_rounds + i);
-            self.apply_s_box(&mut state, true);
-            self.apply_mds(&mut state);
-        }
-        self.state = state;
-    }
-}
-
-impl<const NAME: u32, F: PrimeField, const WIDTH: usize> Debug
-    for PoseidonPermutation<NAME, F, WIDTH>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.state.fmt(f)
-    }
-}
-
-/// Initialization of constants.
-#[allow(unused)]
-macro_rules! poseidon_permutation {
-    ($bits: expr, $name: ident, $path: tt) => {
-        pub type $name = crate::PoseidonPermutation<$bits, $path::Field, { $path::N }>;
-
-        impl Default for $name {
-            fn default() -> Self {
-                let alpha = $path::ALPHA;
-                Self {
-                    full_rounds: $path::R_F,
-                    partial_rounds: $path::R_P,
-                    alpha,
-                    ark: $path::ARK,
-                    mds: $path::MDS,
-                    state: [ark_ff::Zero::zero(); $path::N],
-                }
+            fn permute_mut(&self, state: &mut [Self::U; $width]) {
+                p3_symmetric::Permutation::permute_mut(&self.0, state);
             }
         }
     };
 }
 
-#[cfg(feature = "bls12-381")]
-pub mod bls12_381;
+#[cfg(feature = "p3-koala-bear")]
+#[allow(unused)]
+mod p3_koala_bear_poseidon2 {
+    use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear};
+    impl_permutation!(KoalaBearPoseidon2_16 via Poseidon2KoalaBear<16> over KoalaBear);
+    impl_permutation!(KoalaBearPoseidon2_24 via Poseidon2KoalaBear<24> over KoalaBear);
+}
 
-#[cfg(feature = "bn254")]
-pub mod bn254;
+#[cfg(feature = "p3-baby-bear")]
+mod p3_baby_bear_poseidon2 {
+    use p3_baby_bear::{BabyBear, Poseidon2BabyBear};
 
-#[cfg(feature = "solinas")]
-pub mod f64;
-
-/// Unit-tests.
-#[cfg(test)]
-mod tests;
+    impl_permutation!(BabyBearPoseidon2_16 via Poseidon2BabyBear<16> over BabyBear);
+    impl_permutation!(BabyBearPoseidon2_24 via Poseidon2BabyBear<24> over BabyBear);
+}

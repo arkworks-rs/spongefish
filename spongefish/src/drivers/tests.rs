@@ -85,14 +85,14 @@ fn curve25519_scalars_arkworks_and_dalek() {
     use ark_curve25519::Fr as ArkScalar;
     use curve25519_dalek::scalar::Scalar as DalekScalar;
 
-        for value in [0u64, 1, 42, 123_456_789] {
-            let ark_scalar = ArkScalar::from(value);
-            let dalek_scalar = DalekScalar::from(value);
-            assert_codec_compatibility(&ark_scalar, &dalek_scalar);
-        }
-
-        assert_decoding_compatibility::<ArkScalar, DalekScalar>();
+    for value in [0u64, 1, 42, 123_456_789] {
+        let ark_scalar = ArkScalar::from(value);
+        let dalek_scalar = DalekScalar::from(value);
+        assert_codec_compatibility(&ark_scalar, &dalek_scalar);
     }
+
+    assert_decoding_compatibility::<ArkScalar, DalekScalar>();
+}
 
 #[cfg(all(feature = "ark-ec", feature = "k256"))]
 #[test]

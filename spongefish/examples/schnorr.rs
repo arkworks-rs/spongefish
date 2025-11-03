@@ -61,7 +61,7 @@ impl Schnorr {
         let c = verifier_state.verifier_message::<G::ScalarField>();
         let r = verifier_state.prover_message::<G::ScalarField>()?;
 
-        verifier_state.finish(P * r == K + X * c)
+        verifier_state.finish_checking(P * r == K + X * c)
     }
 }
 

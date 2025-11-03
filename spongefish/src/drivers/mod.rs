@@ -23,8 +23,6 @@ pub mod p3_baby_bear;
 pub mod p3_koala_bear;
 #[cfg(feature = "p3-mersenne-31")]
 pub mod p3_mersenne31;
-#[cfg(feature = "p3-poseidon2")]
-pub mod p3_poseidon2;
 
 // Buffer of 512-bytes, useful for decoding 256-bit scalars.
 #[repr(C)]
