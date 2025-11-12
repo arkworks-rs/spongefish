@@ -128,9 +128,11 @@
 //!
 //! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way,
 //! but the library requiring three elements on initialization:
-//! - a mandatory 64-bytes protocol identifier, uniquely identifying the non-interactive protocol being built.
-//! - a 64-bytes session identifier, corresponding to session and sub-session identifiers in universal composability lingo)
-//! - for a mandatory instance
+//! - a mandatory 64-bytes protocol identifier,
+//!   uniquely identifying the non-interactive protocol being built.
+//! - a 64-bytes session identifier,
+//!   corresponding to session and sub-session identifiers in universal composability lingo.
+//! - a mandatory instance that will be used in the proof system.
 //!
 //! The developer is in charge of making sure they are chosen appropriately.
 //! In particular, the instance encoding function prefix-free.
