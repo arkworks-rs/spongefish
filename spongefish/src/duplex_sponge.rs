@@ -99,8 +99,7 @@ pub trait Permutation<const WIDTH: usize>: Clone {
 
 /// The duplex sponge construction from [[CO25], Construction 3.3].
 ///
-/// Based on a [`Permutation`] for `WIDTH` elements.
-/// The parameter `RATE` defining the legth of the rate.
+/// Based on a [`Permutation`] for `WIDTH` elements, with rate `RATE`.
 ///
 /// # Instantiation
 ///
