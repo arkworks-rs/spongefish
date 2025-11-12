@@ -7,7 +7,7 @@
 //! The snippets below illustrate three typical situations.
 //!
 //!
-//! ```no_run
+//! ```
 //! use spongefish::{VerificationError, VerificationResult};
 //!
 //! fn integer_round_trip(secret: u32) -> VerificationResult<()> {
@@ -43,15 +43,16 @@
 //! a single round of sumcheck where the prover commits to a vector `(a, b)`, receives a challenge
 //! `c`, and responds with `a * c + b`.
 //!
-//! ```ignore
+//! ```
 //! # // Requires the `p3-baby-bear` feature.
 //! # use p3_baby_bear::BabyBear;
+//! # use p3_field::PrimeCharacteristicRing;
 //! # use spongefish::{VerificationError, VerificationResult};
 //!
 //! fn single_round_sumcheck() -> VerificationResult<()> {
 //!     let witness = [
-//!         BabyBear::from_canonical_u32(5),
-//!         BabyBear::from_canonical_u32(9),
+//!         BabyBear::new(5),
+//!         BabyBear::new(9),
 //!     ];
 //!     let domain = spongefish::domain_separator!("sumcheck")
 //!         .session(spongefish::session!("round 1"))
@@ -77,13 +78,13 @@
 //! }
 //! ```
 //!
-//! ## 3. Public keys as prover metadata
+//! ## Public keys as prover metadata
 //!
 //! You can wrap any byte representation inside your own type and implement [`Encoding`] to make it
 //! transcript-friendly. Below we model a public key as the digest of a verification key and inject
 //! it into both the domain separator and the public transcript.
 //!
-//! ```no_run
+//! ```
 //! use spongefish::{Encoding, VerificationError, VerificationResult};
 //!
 //! #[derive(Clone, Copy)]
@@ -177,8 +178,10 @@ mod duplex_sponge;
 /// Instantiations of the [`DuplexSpongeInterface`].
 pub mod instantiations;
 
-/// The NARG prover and verifier components.
+/// The NARG prover state.
 mod narg_prover;
+
+/// The NARG verifier state.
 mod narg_verifier;
 
 /// Trait implementation for common ZKP libraries.
