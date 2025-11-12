@@ -79,7 +79,7 @@ fn main() {
     let instance = [generator, pk];
 
     let domain_sep = DomainSeparator::new(Schnorr::protocol_id())
-        .session(spongefish::session_id!("spongefish examples"))
+        .session(spongefish::session!("spongefish examples"))
         .instance(&instance);
 
     // Prove the relation sk * G::generator() = pk

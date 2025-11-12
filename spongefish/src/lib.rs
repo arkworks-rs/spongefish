@@ -54,7 +54,7 @@
 //!         BabyBear::from_canonical_u32(9),
 //!     ];
 //!     let domain = spongefish::domain_separator!("sumcheck")
-//!         .session(spongefish::session_id!("round 1"))
+//!         .session(spongefish::session!("round 1"))
 //!         .instance(&witness);
 //!     let mut prover = domain.std_prover();
 //!     prover.prover_message(&witness); // commitment to (a, b)
@@ -97,7 +97,7 @@
 //!
 //! fn prove_with_public_key(pk: PublicKey) -> VerificationResult<()> {
 //!     let domain = spongefish::domain_separator!("pk demo")
-//!         .session(spongefish::session_id!("demo session"))
+//!         .session(spongefish::session!("demo session"))
 //!         .instance(&pk);
 //!     let mut prover = domain.std_prover();
 //!     // Public messages are absorbed verbatim and become part of the hash transcript.
@@ -216,9 +216,7 @@ pub type StdHash = instantiations::Shake128;
 /// Build a [`DomainSeparator`] from a formatted string.
 ///
 /// ```
-/// let domsep = spongefish::domain_separator!("protocol {}", 1)
-///     .session(spongefish::session_id!("session"))
-///     .instance(&());
+/// let domsep = spongefish::domain_separator!("spongefish").instance(b"trivial");
 /// let _prover = domsep.std_prover();
 /// ```
 #[macro_export]
@@ -231,11 +229,15 @@ macro_rules! domain_separator {
 /// Produce a 64-byte session identifier using the default hash.
 ///
 /// ```
-/// let session = spongefish::session_id!("session {}", 1);
-/// assert_eq!(session.len(), 64);
+/// use spongefish::{domain_separator, session};
+///
+/// let domsep = domain_separator!("spongefish")
+///     .session(session!("DomainSeparator"))
+///     .instance(b"trivial");
+/// let _prover = domsep.std_prover();
 /// ```
 #[macro_export]
-macro_rules! session_id {
+macro_rules! session {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
         $crate::session_id(core::format_args!($fmt $(, $arg)*))
     }};

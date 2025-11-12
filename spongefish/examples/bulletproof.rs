@@ -180,7 +180,7 @@ fn main() {
     let witness = (&a[..], &b[..]);
 
     let domain_separator = DomainSeparator::new(BulletProof::protocol_id())
-        .session(session_id!("spongefish examples"))
+        .session(session!("spongefish examples"))
         .instance(&instance);
     let mut prover_state = domain_separator.std_prover();
     let narg_string = BulletProof::prove(&mut prover_state, &instance, witness);

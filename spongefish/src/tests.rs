@@ -4,7 +4,7 @@ use rand::RngCore;
 fn prover_rng_emits_entropy() {
     let instance = [42u32, 7u32];
     let domain = crate::domain_separator!("rng test")
-        .session(crate::session_id!("rng session"))
+        .session(crate::session!("rng session"))
         .instance(&instance);
 
     let mut prover = domain.std_prover();
@@ -52,7 +52,7 @@ fn check_eof_reports_remaining_bytes() {
 fn verifier_challenge_matches_prover() {
     let instance = [10u32, 11u32];
     let domain = crate::domain_separator!("challenge sync")
-        .session(crate::session_id!("challenge session"))
+        .session(crate::session!("challenge session"))
         .instance(&instance);
 
     let mut prover = domain.std_prover();
