@@ -2,28 +2,104 @@
 //!
 //! # Examples
 //!
-//! The starting point is building a [`DomainSeparator`], from which
-//! a [`ProverState`] and [`VerifierState`] can be built.
+//! The first step in every transcript is building a [`DomainSeparator`], which binds a protocol
+//! identifier, an optional session identifier, and the public instance. From there we derive a
+//! [`ProverState`] and a [`VerifierState`]. The snippets below illustrate three typical situations.
+//!
+//! ## 1. Absorbing and squeezing simple integers
+//!
+//! ```no_run
+//! use spongefish::VerificationResult;
+//!
+//! fn integer_round_trip(secret: u32) -> VerificationResult<()> {
+//!     // Everything that is absorbed becomes part of the proof transcript.
+//!     let domain = spongefish::domain_separator!("integer demo").instance(&secret);
+//!     let mut prover = domain.std_prover();
+//!     // Commit to the witness and derive a random challenge from the transcript.
+//!     prover.prover_message(&secret);
+//!     let challenge: u32 = prover.verifier_message();
+//!     let response = secret.wrapping_add(challenge);
+//!     prover.prover_message(&response);
+//!     let proof = prover.narg_string();
+//!
+//!     // The verifier replays the same transcript and checks the relation.
+//!     let mut verifier = domain.std_verifier(proof);
+//!     let witness = verifier.prover_message::<u32>()?;
+//!     let challenge = verifier.verifier_message::<u32>();
+//!     let response = verifier.prover_message::<u32>()?;
+//!     verifier.finish_checking(response == witness.wrapping_add(challenge))
+//! }
 //! ```
-//! use spongefish::domain_separator;
 //!
-//! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
-//! fn language(x: u32) -> u32 { (2u64.pow(x) % ((1 << 31) -1)) as u32 }
-//! let witness = 42;
-//! let instance = [2, language(witness)];
+//! ## 2. Using field elements via feature flags (single-round sumcheck)
 //!
-//! let domsep = domain_separator!("The simplest interactive proof is just sending the witness")
-//!             .instance(&instance);
+//! When the `p3-baby-bear` feature is enabled, [`BabyBear`][p3_baby_bear::BabyBear] implements the
+//! [`Encoding`] and [`Decoding`] traits through the Plonky3 drivers. The following snippet sketches
+//! a single round of sumcheck where the prover commits to a vector `(a, b)`, receives a challenge
+//! `c`, and responds with `a * c + b`.
 //!
-//! // create the prover using the standard construction.
-//! let mut prover = domsep.std_prover();
-//! prover.prover_message(&witness);
-//! let proof = prover.narg_string();
+//! ```ignore
+//! # // Requires the `p3-baby-bear` feature.
+//! # use p3_baby_bear::BabyBear;
+//! # use spongefish::VerificationResult;
 //!
-//! // check that the verifier got the actual proof.
-//! let mut verifier = domsep.std_verifier(proof);
-//! let claimed_witness = verifier.prover_message::<u32>().expect("unable to read a u32");
-//! verifier.finish_checking(language(claimed_witness) == language(witness)).expect("verification failure")
+//! fn single_round_sumcheck() -> VerificationResult<()> {
+//!     let witness = [
+//!         BabyBear::from_canonical_u32(5),
+//!         BabyBear::from_canonical_u32(9),
+//!     ];
+//!     let domain = spongefish::domain_separator!("sumcheck")
+//!         .session(spongefish::session_id!("round 1"))
+//!         .instance(&witness);
+//!     let mut prover = domain.std_prover();
+//!     prover.prover_message(&witness); // commitment to (a, b)
+//!     let challenge: BabyBear = prover.verifier_message();
+//!     let response = witness[0] * challenge + witness[1];
+//!     prover.prover_message(&response);
+//!     let proof = prover.narg_string();
+//!
+//!     let mut verifier = domain.std_verifier(proof);
+//!     let committed = verifier.prover_messages::<BabyBear, 2>()?;
+//!     let challenge = verifier.verifier_message::<BabyBear>();
+//!     let response = verifier.prover_message::<BabyBear>()?;
+//!     verifier.finish_checking(response == committed[0] * challenge + committed[1])
+//! }
+//! ```
+//!
+//! ## 3. Public keys as prover metadata
+//!
+//! You can wrap any byte representation inside your own type and implement [`Encoding`] to make it
+//! transcript-friendly. Below we model a public key as the digest of a verification key and inject
+//! it into both the domain separator and the public transcript.
+//!
+//! ```no_run
+//! use spongefish::{Encoding, VerificationResult};
+//!
+//! #[derive(Clone, Copy)]
+//! struct PublicKey([u8; 32]);
+//!
+//! impl Encoding<[u8]> for PublicKey {
+//!     fn encode(&self) -> impl AsRef<[u8]> {
+//!         self.0
+//!     }
+//! }
+//!
+//! fn prove_with_public_key(pk: PublicKey) -> VerificationResult<()> {
+//!     let domain = spongefish::domain_separator!("pk demo")
+//!         .session(spongefish::session_id!("demo session"))
+//!         .instance(&pk);
+//!     let mut prover = domain.std_prover();
+//!     // Public messages are absorbed verbatim and become part of the hash transcript.
+//!     prover.public_message(&pk);
+//!     let attestation: u32 = 42;
+//!     prover.prover_message(&attestation);
+//!     let proof = prover.narg_string();
+//!
+//!     let mut verifier = domain.std_verifier(proof);
+//!     verifier.public_message(&pk);
+//!     let value = verifier.prover_message::<u32>()?;
+//!     verifier.finish_checking(value == 42)
+//! }
 //! ```
 //!
 //! # Supported hash functions

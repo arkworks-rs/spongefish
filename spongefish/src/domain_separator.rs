@@ -6,6 +6,18 @@ use rand::rngs::StdRng;
 use crate::VerifierState;
 use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 
+/// Marker structure for domain separators without an associated instance.
+///
+/// The Fiat-Shamir transformation requires an instance to provide a sound non-interactive proof.
+/// This type is used to make sure that the developer does not forget to add it.
+///
+/// ```compile_fail
+/// # // a BAD EXAMPLE of instantiating a domain separator.
+/// # // It will fail at compilation time.
+/// use spongefish::domain_separator;
+///
+/// domain_separator!("this will not compile").std_prover();
+/// ```
 pub struct WithoutInstance<I>(PhantomData<I>);
 
 impl<I> WithoutInstance<I> {
@@ -14,6 +26,17 @@ impl<I> WithoutInstance<I> {
     }
 }
 
+/// Marker structure storing the instance once it has been provided.
+///
+/// ```no_run
+/// use spongefish::domain_separator;
+///
+/// let instance = b"yellowsubmarine";
+/// let domain = domain_separator!("this will compile").instance(&instance);
+/// let mut prover = domain.std_prover();
+/// prover.prover_message(&instance[..]);
+/// let _proof = prover.narg_string();
+/// ```
 pub struct WithInstance<'i, I>(&'i I);
 
 /// Domain separator for a Fiat-Shamir transformation.
