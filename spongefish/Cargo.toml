@@ -1,19 +1,19 @@
 [package]
 name = "spongefish"
-version = "0.2.0-alpha"
 authors = [
     "Michele Orrù <m@orru.net>",
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
 ]
 description = "An implementation of the Fiat-Shamir transformation from Duplex Sponges."
-edition = "2021"
-license = "BSD-3-Clause"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-spongefish-derive = { path = "../spongefish-derive", optional = true }
+spongefish-derive = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 rand = { workspace = true, features = ["getrandom"] }
 digest = { workspace = true }

@@ -1,18 +1,18 @@
 [package]
 name = "spongefish-pow"
-version = "0.1.0-alpha"
-edition = "2021"
 authors = [
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
     "Remco Bloemen <remco@wicked.ventures>",
 ]
-license = "BSD-3-Clause"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-spongefish = { path = "../spongefish" }
+spongefish = { workspace = true }
 blake3 = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }

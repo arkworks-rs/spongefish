@@ -3,15 +3,15 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    domain_separator::protocol_id, session_id, Codec, DomainSeparator, Encoding, NargDeserialize,
+    domain_separator::protocol_id, Codec, DomainSeparator, Encoding, NargDeserialize,
     NargSerialize, ProverState, VerificationResult, VerifierState,
 };
 
 struct Schnorr;
 
 impl Schnorr {
-    pub const fn protocol_id() -> [u8; 64] {
-        protocol_id!("schnoor proof")
+    pub fn protocol_id() -> [u8; 64] {
+        protocol_id(core::format_args!("schnorr proof"))
     }
 
     /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
@@ -23,20 +23,14 @@ impl Schnorr {
     /// Both are required to implement [`Encoding`], which for bytes also tells us how to serialize them.
     /// The verifier messages are scalars, and thus required to implement [`Decoding`].
     #[allow(non_snake_case)]
-    fn prove<'a, G>(session: [u8; 64], instance: &[G; 2], x: G::ScalarField) -> &'a [u8]
+    fn prove<'a, G>(prover_state: &'a mut ProverState, instance: &[G; 2], x: G::ScalarField) -> &'a [u8]
     where
-        G: CurveGroup + NargSerialize + Encoding,
+        G: CurveGroup + NargSerialize + Encoding + Clone,
         G::ScalarField: Codec,
     {
-        // Create the domain separator
-        let domain_sep = DomainSeparator::new(Schnorr::protocol_id())
-            .session(session)
-            .instance(instance);
-        let prover_state = domain_sep.std_prover();
-
         // `ProverState` types implement a cryptographically-secure random number generator.
         let k = G::ScalarField::rand(prover_state.rng());
-        let K = instance[0] * k;
+        let K = instance[0].clone() * k;
 
         prover_state.prover_message(&K);
         let c = prover_state.verifier_message::<G::ScalarField>();
@@ -52,7 +46,7 @@ impl Schnorr {
     /// - the secret key `witness`
     /// It returns a zero-knowledge proof of knowledge of `witness` as a sequence of bytes.
     #[allow(non_snake_case)]
-    fn verify<'a, G>(verifier_state: &'a mut VerifierState, P: G, X: G) -> VerificationResult<()>
+    fn verify<G>(mut verifier_state: VerifierState, P: G, X: G) -> VerificationResult<()>
     where
         G: CurveGroup + NargDeserialize + Encoding,
         G::ScalarField: Codec,
@@ -73,15 +67,25 @@ fn main() {
     let generator = G::generator();
     let sk = F::rand(&mut OsRng);
     let pk = generator * sk;
+    let instance = [generator, pk];
+
+    let domain_sep = DomainSeparator::new(Schnorr::protocol_id())
+        .session(spongefish::session_id!("spongefish examples"))
+        .instance(&instance);
 
     // Prove the relation sk * G::generator() = pk
     let mut prover_state = domain_sep.std_prover();
-    let narg_string = Schnorr::prove(&mut prover_state, generator, sk);
+    let narg_string = Schnorr::prove(&mut prover_state, &instance, sk);
 
     // Print out the hex-encoded schnorr proof.
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
-    let mut verifier_state = domain_sep.std_verifier(narg_string);
-    Schnorr::verify(&mut verifier_state, generator, pk).expect("Verification failed");
+    let verifier_state = domain_sep.std_verifier(narg_string);
+    Schnorr::verify(
+        verifier_state,
+        instance[0].clone(),
+        instance[1].clone(),
+    )
+    .expect("Verification failed");
 }

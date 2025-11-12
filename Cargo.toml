@@ -1,11 +1,16 @@
 [workspace]
-resolver = "2"
-
 members = [
     "spongefish",
+    "spongefish-derive",
     "pow",
     "poseidon2",
 ]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "BSD-3-Clause"
+version = "0.2.0-alpha"
 
 [workspace.lints.clippy]
 # all lints that are on by default (correctness, suspicious, style, complexity, perf)
@@ -56,6 +61,8 @@ k256 = "^0.13"
 k12 = "^0.3.0"
 keccak = "^0.1.5"
 spongefish = { path = "spongefish" }
+spongefish-derive = { path = "spongefish-derive" }
+spongefish-poseidon2 = { path = "poseidon2" }
 # p256 = "^0.13"
 p3-baby-bear = "^0.3"
 p3-field = "^0.3"
