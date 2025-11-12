@@ -1,3 +1,5 @@
+//! Helpers for bridging `ark_ec` curve types with `spongefish` codecs.
+
 use alloc::vec::Vec;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};

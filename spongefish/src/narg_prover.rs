@@ -31,8 +31,10 @@ where
     /// # Safety
     ///
     /// Copying this object will break the soundness guarantees installed at the [`ProverState`] level.
-    /// In this release the duplex sponge state is accessible from the outside.
+    #[cfg(feature = "yolocrypto")]
     pub duplex_sponge_state: H,
+    #[cfg(not(feature = "yolocrypto"))]
+    pub(crate) duplex_sponge_state: H,
     /// The argument string as it gets written throughout the execution of the prover.
     pub(crate) narg_string: Vec<u8>,
 }
@@ -65,6 +67,7 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
 }
 
 impl ReseedableRng<StdRng> {
+    /// Creates a reseedable RNG backed by `StdRng`.
     pub fn new() -> Self {
         let csrng = StdRng::from_entropy();
         csrng.into()
@@ -100,12 +103,14 @@ impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
 }
 
 impl<R: RngCore + CryptoRng> ReseedableRng<R> {
+    /// Reseeds the internal sponge with the provided bytes.
     pub fn reseed_with(&mut self, value: &[u8]) {
         self.duplex_sponge.ratchet();
         self.duplex_sponge.absorb(value);
         self.duplex_sponge.ratchet();
     }
 
+    /// Reseeds the internal sponge with fresh entropy from the CSRNG.
     pub fn reseed(&mut self) {
         let seed = self.csrng.gen::<[u8; 32]>();
         self.reseed_with(&seed);
@@ -129,28 +134,60 @@ where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
-    /// Return a reference to the random number generator associated to the proof string.
+    /// Returns the reseedable RNG bound to this transcript.
     pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
         &mut self.private_rng
     }
 
-    /// Return the current proof string containing the serialized prover messages.
+    /// Returns the current serialized NARG string.
     pub fn narg_string(&self) -> &[u8] {
         self.narg_string.as_slice()
     }
 
-    /// Declare a new public message without committing it to the proof string.
+    /// Input a public message to the Fiat-Shamir transformation.
+    ///
+    /// A public message in this context is a message that is shared among prover and verifier
+    /// outside of the NARG, and is to be included in the Fiat-Shamir transformation but not in
+    /// the final NARG string.
+    ///
+    /// ```
+    /// use spongefish::ProverState;
+    ///
+    /// let mut prover_state = spongefish::domain_separator!("examples")
+    ///     .session(spongefish::session_id!("ProverState::public_message"))
+    ///     .instance(&0u32)
+    ///     .std_prover();
+    /// prover_state.public_message(&123u32);
+    /// assert_eq!(prover_state.narg_string(), b"");
+    /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Declare a new prover message, absorbing it and serializing it into the proof string.
+    /// Input a prover message of type `T` into the Fiat-Shamir transformation.
+    ///
+    /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
+    /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
+    ///
+    /// ```
+    /// use spongefish::ProverState;
+    ///
+    /// let mut prover_state = spongefish::domain_separator!("examples")
+    ///     .session(spongefish::session_id!("ProverState::prover_message"))
+    ///     .instance(&0u32)
+    ///     .std_prover();
+    /// prover_state.prover_message(&42u32);
+    /// let expected = 42u32.to_le_bytes();
+    /// assert_eq!(prover_state.narg_string(), expected.as_slice());
+    /// ```
     pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into_narg(&mut self.narg_string);
     }
 
-    /// Outputs a uniformly-distributed verifier message.
+    /// Returns a verifier message `T` that is uniformly distributed.
+    ///
+    /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -169,14 +206,14 @@ where
         self.verifier_message()
     }
 
-    /// Absorb a slice of public messages.
+    /// Input to the Fiat-Shamir transformation an array of public messages.
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message)
         }
     }
 
-    /// Absorb an iterator of public messages.
+    /// Input to the Fiat-Shamir transformation an iterator of public messages.
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
@@ -187,19 +224,19 @@ where
             .for_each(|message| self.public_message(&message))
     }
 
-    /// Absorb a list of prover messages at once.
+    /// Absorbs a list of prover messages at once.
     pub fn prover_messages<T: Encoding<[H::U]> + NargSerialize>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
         }
     }
 
-    /// Produce a fixed-length list of verifier messages at once.
+    /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Produce a variable-length list of verifier messages.
+    /// Returns a vector of uniformly-distributed verifier messages `[T; N]`.
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
@@ -209,7 +246,9 @@ where
 ///
 /// [`Default`] provides alternative initialization methods than the one via
 /// [`DomainSeparator`][`crate::DomainSeparator`].
-/// [`ProverState::default`] is meant to be used as a hack and its support in future releases is not guaranteed.
+/// [`ProverState::default`] is only available with the `yolocrypto` feature and its support in
+/// future releases is not guaranteed.
+#[cfg(feature = "yolocrypto")]
 impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> Default
     for ProverState<H, R>
 {

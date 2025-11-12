@@ -2,14 +2,13 @@
 //!
 //! # Examples
 //!
-//! The first step in every transcript is building a [`DomainSeparator`], which binds a protocol
-//! identifier, an optional session identifier, and the public instance. From there we derive a
-//! [`ProverState`] and a [`VerifierState`]. The snippets below illustrate three typical situations.
+//! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
+//! is composed of a protocol identifier, an optional session identifier, and the public instance.
+//! The snippets below illustrate three typical situations.
 //!
-//! ## 1. Absorbing and squeezing simple integers
 //!
 //! ```no_run
-//! use spongefish::VerificationResult;
+//! use spongefish::{VerificationError, VerificationResult};
 //!
 //! fn integer_round_trip(secret: u32) -> VerificationResult<()> {
 //!     // Everything that is absorbed becomes part of the proof transcript.
@@ -27,7 +26,13 @@
 //!     let witness = verifier.prover_message::<u32>()?;
 //!     let challenge = verifier.verifier_message::<u32>();
 //!     let response = verifier.prover_message::<u32>()?;
-//!     verifier.finish_checking(response == witness.wrapping_add(challenge))
+//!     let relation_holds = response == witness.wrapping_add(challenge);
+//!     if relation_holds {
+//!         verifier.check_eof()?;
+//!         Ok(())
+//!     } else {
+//!         Err(VerificationError)
+//!     }
 //! }
 //! ```
 //!
@@ -41,7 +46,7 @@
 //! ```ignore
 //! # // Requires the `p3-baby-bear` feature.
 //! # use p3_baby_bear::BabyBear;
-//! # use spongefish::VerificationResult;
+//! # use spongefish::{VerificationError, VerificationResult};
 //!
 //! fn single_round_sumcheck() -> VerificationResult<()> {
 //!     let witness = [
@@ -62,7 +67,13 @@
 //!     let committed = verifier.prover_messages::<BabyBear, 2>()?;
 //!     let challenge = verifier.verifier_message::<BabyBear>();
 //!     let response = verifier.prover_message::<BabyBear>()?;
-//!     verifier.finish_checking(response == committed[0] * challenge + committed[1])
+//!     let relation_holds = response == committed[0] * challenge + committed[1];
+//!     if relation_holds {
+//!         verifier.check_eof()?;
+//!         Ok(())
+//!     } else {
+//!         Err(VerificationError)
+//!     }
 //! }
 //! ```
 //!
@@ -73,7 +84,7 @@
 //! it into both the domain separator and the public transcript.
 //!
 //! ```no_run
-//! use spongefish::{Encoding, VerificationResult};
+//! use spongefish::{Encoding, VerificationError, VerificationResult};
 //!
 //! #[derive(Clone, Copy)]
 //! struct PublicKey([u8; 32]);
@@ -98,7 +109,13 @@
 //!     let mut verifier = domain.std_verifier(proof);
 //!     verifier.public_message(&pk);
 //!     let value = verifier.prover_message::<u32>()?;
-//!     verifier.finish_checking(value == 42)
+//!     let attestation_matches = value == 42;
+//!     verifier.check_eof()?;
+//!     if attestation_matches {
+//!         Ok(())
+//!     } else {
+//!         Err(VerificationError)
+//!     }
 //! }
 //! ```
 //!
@@ -155,7 +172,7 @@ This crate doesn't support big-endian targets.
 );
 
 /// Definition of the [`DuplexSpongeInterface`] and the [`DuplexSponge`] construction.
-pub mod duplex_sponge;
+mod duplex_sponge;
 
 /// Instantiations of the [`DuplexSpongeInterface`].
 pub mod instantiations;
@@ -165,7 +182,7 @@ mod narg_prover;
 mod narg_verifier;
 
 /// Trait implementation for common ZKP libraries.
-pub mod drivers;
+mod drivers;
 
 /// Utilities for serializing prover messages and de-serializing NARG strings.
 pub(crate) mod io;
@@ -177,11 +194,11 @@ pub(crate) mod codecs;
 pub(crate) mod error;
 
 /// Heuristics for building misuse-resistant protocol identifiers.
-pub mod domain_separator;
+mod domain_separator;
 
 // Re-export the core interfaces for building the FS transformation.
 pub use codecs::{Codec, Decoding, Encoding};
-pub use domain_separator::DomainSeparator;
+pub use domain_separator::{DomainSeparator};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -189,28 +206,44 @@ pub use narg_prover::ProverState;
 pub use narg_verifier::VerifierState;
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
+#[doc(hidden)]
+pub use domain_separator::{protocol_id, session_id};
 
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
 
+/// Build a [`DomainSeparator`] from a formatted string.
+///
+/// ```
+/// let domsep = spongefish::domain_separator!("protocol {}", 1)
+///     .session(spongefish::session_id!("session"))
+///     .instance(&());
+/// let _prover = domsep.std_prover();
+/// ```
 #[macro_export]
 macro_rules! domain_separator {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::<_, [u8; 64]>::new($crate::domain_separator::protocol_id(core::format_args!($fmt $(, $arg)*)))
+        $crate::DomainSeparator::<_, [u8; 64]>::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};
 }
 
+/// Produce a 64-byte session identifier using the default hash.
+///
+/// ```
+/// let session = spongefish::session_id!("session {}", 1);
+/// assert_eq!(session.len(), 64);
+/// ```
 #[macro_export]
 macro_rules! session_id {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::domain_separator::session_id(core::format_args!($fmt $(, $arg)*))
+        $crate::session_id(core::format_args!($fmt $(, $arg)*))
     }};
 }
 
 #[cfg(all(not(feature = "sha3"), feature = "blake3"))]
 pub type DefaultHash = instantiations::Shake128;
 
-// /// Unit-tests.
-// #[cfg(test)]
-// mod tests;
+/// Unit-tests.
+#[cfg(test)]
+mod tests;

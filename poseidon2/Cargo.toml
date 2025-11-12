@@ -36,7 +36,3 @@ p3-baby-bear = { workspace = true, optional = true }
 # plonky3
 p3-koala-bear = ["spongefish/p3-koala-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-koala-bear"]
 p3-baby-bear = ["spongefish/p3-baby-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-baby-bear"]
-
-[[example]]
-name = "schnorr_algebraic_hash"
-required-features = ["ark-bls12-381"]

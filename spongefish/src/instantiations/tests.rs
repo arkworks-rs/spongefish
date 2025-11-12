@@ -159,7 +159,7 @@ fn test_prover_empty_absorb() {
     assert!(domain_separator.to_verifier_state(b"").next_bytes::<1>().is_err());
 }
 
-/// Absorbs and squeeze over byte-Units should be streamable.
+/// Absorbs and squeeze over byte-Units should be stream-able.
 fn test_streaming_absorb_and_squeeze<H: DuplexInterface>()
 where
     ProverState<H>: BytesToUnitSerialize + UnitToBytes,

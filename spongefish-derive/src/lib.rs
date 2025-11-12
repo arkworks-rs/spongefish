@@ -40,7 +40,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             quote! {
-                impl spongefish::codecs::Encoding<[u8]> for #name {
+                impl spongefish::Encoding<[u8]> for #name {
                     fn encode(&self) -> impl AsRef<[u8]> {
                         let mut output = ::std::vec::Vec::new();
                         #(#field_encodings)*
@@ -79,23 +79,23 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         let field_type = &field.ty;
 
                         size_components.push(quote! {
-                            <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             #field_name: {
-                                let field_size = <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len();
+                                let field_size = <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len();
                                 let start = #current_offset;
                                 let end = start + field_size;
-                                let mut field_buf = <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default();
+                                let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
                                 field_buf.as_mut().copy_from_slice(&buf[start..end]);
-                                <#field_type as spongefish::codecs::Decoding<[u8]>>::decode(field_buf)
+                                <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
 
                         offset = quote! {
-                            #offset + <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            #offset + <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         };
                     }
 
@@ -130,23 +130,23 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         let field_type = &field.ty;
 
                         size_components.push(quote! {
-                            <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             {
-                                let field_size = <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len();
+                                let field_size = <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len();
                                 let start = #current_offset;
                                 let end = start + field_size;
-                                let mut field_buf = <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default();
+                                let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
                                 field_buf.as_mut().copy_from_slice(&buf[start..end]);
-                                <#field_type as spongefish::codecs::Decoding<[u8]>>::decode(field_buf)
+                                <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
 
                         offset = quote! {
-                            #offset + <#field_type as spongefish::codecs::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            #offset + <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         };
                     }
 
@@ -167,7 +167,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             quote! {
-                impl spongefish::codecs::Decoding<[u8]> for #name {
+                impl spongefish::Decoding<[u8]> for #name {
                     type Repr = [u8; {
                         const SIZE: usize = #size_calc;
                         SIZE
@@ -202,7 +202,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                             }
                         } else {
                             quote! {
-                                #field_name: <#field_type as spongefish::io::NargDeserialize>::deserialize_from_narg(buf)?,
+                                #field_name: <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
                         }
                     });
@@ -223,7 +223,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                             }
                         } else {
                             quote! {
-                                <#field_type as spongefish::io::NargDeserialize>::deserialize_from_narg(buf)?,
+                                <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
                         }
                     });
@@ -238,7 +238,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             quote! {
-                impl spongefish::io::NargDeserialize for #name {
+                impl spongefish::NargDeserialize for #name {
                     fn deserialize_from_narg(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
                         #field_deserializations
                     }
@@ -251,17 +251,33 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
     deserialize_impl
 }
 
-/// Derive macro for the Encoding trait.
+/// Derive [`Encoding`](https://docs.rs/spongefish/latest/spongefish/trait.Encoding.html) for structs.
 ///
-/// Generates an implementation that encodes struct fields sequentially.
-/// Fields can be skipped using `#[spongefish(skip)]`.
+/// Skipped fields fall back to `Default`.
+///
+/// ```
+/// use spongefish::Encoding;
+/// # use spongefish_derive::Encoding;
+///
+/// #[derive(Encoding)]
+/// struct Rgb {
+///     r: u8,
+///     g: u8,
+///     b: u8,
+/// }
+///
+/// let colors = Rgb { r: 1, g: 2, b: 3 };
+/// let data = colors.encode();
+/// assert_eq!(data.as_ref(), [1, 2, 3]);
+///
+/// ```
 #[proc_macro_derive(Encoding, attributes(spongefish))]
 pub fn derive_encoding(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     TokenStream::from(generate_encoding_impl(&input))
 }
 
-/// Derive macro for the Decoding trait.
+/// Derive macro for the [`Decoding`](https://docs.rs/spongefish/latest/spongefish/trait.Decoding.html) trait.
 ///
 /// Generates an implementation that decodes struct fields sequentially from a fixed-size buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
@@ -271,7 +287,7 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
     TokenStream::from(generate_decoding_impl(&input))
 }
 
-/// Derive macro for the NargDeserialize trait.
+/// Derive macro for the [`NargDeserialize`](https://docs.rs/spongefish/latest/spongefish/trait.NargDeserialize.html) trait.
 ///
 /// Generates an implementation that deserializes struct fields sequentially from a byte buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
@@ -281,7 +297,9 @@ pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
     TokenStream::from(generate_narg_deserialize_impl(&input))
 }
 
-/// Derive macro that generates Encoding, Decoding, and NargDeserialize in one go.
+/// Derive macro that generates [`Encoding`](https://docs.rs/spongefish/latest/spongefish/trait.Encoding.html),
+/// [`Decoding`](https://docs.rs/spongefish/latest/spongefish/trait.Decoding.html), and
+/// [`NargDeserialize`](https://docs.rs/spongefish/latest/spongefish/trait.NargDeserialize.html) in one go.
 #[proc_macro_derive(Codec, attributes(spongefish))]
 pub fn derive_codec(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -296,9 +314,22 @@ pub fn derive_codec(input: TokenStream) -> TokenStream {
     })
 }
 
-/// Derive macro for the Unit trait.
+/// Derive [`Unit`](https://docs.rs/spongefish/latest/spongefish/trait.Unit.html) for structs.
 ///
-/// Generates an implementation whose zero element sets every field to its [`Unit::ZERO`].
+/// ```
+/// use spongefish::Unit;
+/// # use spongefish_derive::Unit;
+///
+/// #[derive(Clone, Unit)]
+/// struct Rgb {
+///     r: u8,
+///     g: u8,
+///     b: u8,
+/// }
+///
+/// assert_eq!((Rgb::ZERO.r, Rgb::ZERO.g, Rgb::ZERO.b), (0, 0, 0));
+///
+/// ```
 #[proc_macro_derive(Unit, attributes(spongefish))]
 pub fn derive_unit(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

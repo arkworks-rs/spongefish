@@ -8,7 +8,8 @@
 
 use curve25519_dalek::{traits::MultiscalarMul, RistrettoPoint, Scalar};
 use spongefish::{
-    session_id, DomainSeparator, Encoding, ProverState, VerificationResult, VerifierState,
+    session_id, DomainSeparator, Encoding, ProverState, VerificationError, VerificationResult,
+    VerifierState,
 };
 
 struct BulletProof;
@@ -86,7 +87,7 @@ impl BulletProof {
     }
 
     pub fn verify(
-        verifier_state: &mut VerifierState,
+        mut verifier_state: VerifierState,
         instance: &Instance,
     ) -> VerificationResult<()> {
         let mut g = instance.lhs_generators.to_vec();
@@ -111,7 +112,12 @@ impl BulletProof {
         let [a, b]: [Scalar; 2] = verifier_state.prover_messages()?;
 
         let c = a * b;
-        verifier_state.finish_checking(g[0] * a + h[0] * b + u * c == instance.ip_commitment)
+        let relation_holds = g[0] * a + h[0] * b + u * c == instance.ip_commitment;
+        if relation_holds {
+            verifier_state.check_eof()
+        } else {
+            Err(VerificationError)
+        }
     }
 
     fn fold_generators(
@@ -184,6 +190,6 @@ fn main() {
         hex::encode(narg_string)
     );
 
-    let mut verifier_state = domain_separator.std_verifier(narg_string);
-    BulletProof::verify(&mut verifier_state, &instance).expect("Invalid proof")
+    let verifier_state = domain_separator.std_verifier(narg_string);
+    BulletProof::verify(verifier_state, &instance).expect("Invalid proof")
 }

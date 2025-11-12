@@ -40,20 +40,6 @@ impl AsMut<[u8]> for Array64 {
     }
 }
 
-/// Bytes needed in order to obtain a uniformly distributed random element of `modulus_bits`
-#[inline]
-#[must_use]
-pub const fn bytes_uniform_modp(modulus_bits: u32) -> usize {
-    (modulus_bits as usize + 128) / 8
-}
-
-/// Bytes needed in order to encode an element of F.
-#[inline]
-#[must_use]
-pub const fn bytes_modp(modulus_bits: u32) -> u64 {
-    (modulus_bits as u64).div_ceil(8)
-}
-
 // Integration tests
 #[cfg(test)]
 mod tests;

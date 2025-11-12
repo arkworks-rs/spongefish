@@ -1,4 +1,4 @@
-/// XXX add arkworks. we provide encoding, decoding, and serialize/deserialize
+//! Helpers for bridging `ark_ff` field types with `spongefish` codecs.
 use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 
@@ -143,18 +143,6 @@ impl_decoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_decoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
 
-// Helper function to get uniformly random bytes from a field element
-pub fn to_random_bytes<C: FpConfig<N>, const N: usize>(field_elem: &Fp<C, N>) -> Vec<u8> {
-    let bytes = field_elem.into_bigint().to_bytes_le();
-    let useful_bytes = random_bytes_in_random_modp::<N>(Fp::<C, N>::MODULUS);
-    bytes[..useful_bytes].to_vec()
-}
-
-/// Number of uniformly random bytes in a uniformly-distributed element in `[0, b)`
-fn random_bytes_in_random_modp<const N: usize>(modulus: ark_ff::BigInt<N>) -> usize {
-    random_bits_in_random_modp(modulus) / 8
-}
-
 /// Number of uniformly random bits in a uniformly-distributed element in `[0, b)`
 ///
 /// This function returns the maximum n for which
@@ -164,6 +152,7 @@ fn random_bytes_in_random_modp<const N: usize>(modulus: ark_ff::BigInt<N>) -> us
 /// are statistically indistinguishable.
 /// Given \(b = q 2^n + r\) the statistical distance
 /// is \(\frac{2r}{ab}(a-r)\).
+#[allow(unused)]
 fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
     use ark_ff::{BigInt, BigInteger};
     // XXX. is it correct to have num_bits+1 here?
