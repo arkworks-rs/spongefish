@@ -160,8 +160,9 @@ pub mod duplex_sponge;
 /// Instantiations of the [`DuplexSpongeInterface`].
 pub mod instantiations;
 
-/// The NARG prover and the verifier states [`ProverState`] and [`VerifierState`].
-mod narg;
+/// The NARG prover and verifier components.
+mod narg_prover;
+mod narg_verifier;
 
 /// Trait implementation for common ZKP libraries.
 pub mod drivers;
@@ -184,7 +185,8 @@ pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
-pub use narg::{ProverState, VerifierState};
+pub use narg_prover::ProverState;
+pub use narg_verifier::VerifierState;
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
