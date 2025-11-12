@@ -60,11 +60,10 @@ impl Schnorr {
         let r = verifier_state.prover_message::<G::ScalarField>()?;
 
         let relation_holds = P * r == K + X * c;
-        if relation_holds {
-            verifier_state.check_eof()
-        } else {
-            Err(VerificationError)
+        if !relation_holds {
+            return Err(VerificationError);
         }
+        verifier_state.check_eof();
     }
 }
 

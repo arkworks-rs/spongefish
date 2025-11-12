@@ -92,6 +92,7 @@ sha3 = { workspace = true }
 ark-secp256k1 = { workspace = true }
 
 [package.metadata.docs.rs]
+all-features = true
 rustdoc-args = [
     "--html-in-header",
     "../doc/katex-header.html",

@@ -79,17 +79,17 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         let field_type = &field.ty;
 
                         size_components.push(quote! {
-                            <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             #field_name: {
-                                let field_size = <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len();
+                                let field_size = ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>();
                                 let start = #current_offset;
                                 let end = start + field_size;
                                 let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
-                                field_buf.as_mut().copy_from_slice(&buf[start..end]);
+                                field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
                                 <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
@@ -130,17 +130,17 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         let field_type = &field.ty;
 
                         size_components.push(quote! {
-                            <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             {
-                                let field_size = <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len();
+                                let field_size = ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>();
                                 let start = #current_offset;
                                 let end = start + field_size;
                                 let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
-                                field_buf.as_mut().copy_from_slice(&buf[start..end]);
+                                field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
                                 <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
@@ -168,10 +168,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
 
             quote! {
                 impl spongefish::Decoding<[u8]> for #name {
-                    type Repr = [u8; {
-                        const SIZE: usize = #size_calc;
-                        SIZE
-                    }];
+                    type Repr = spongefish::ByteArray<{ #size_calc }>;
 
                     fn decode(buf: Self::Repr) -> Self {
                         #field_decodings

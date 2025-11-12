@@ -1,123 +1,90 @@
 //! The Fiat-Shamir transformation for public-coin protocols.
 //!
+//! Implements the DSFS transformation from [CO25] that are wire-compatible with [draft-irtf-cfrg-fiat-shamir].
+//!
 //! # Examples
 //!
 //! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
 //! is composed of a protocol identifier, an optional session identifier, and the public instance.
 //! The snippets below illustrate three typical situations.
 //!
+//! ```
+//! use spongefish::domain_separator;
+//!
+//! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
+//! const P: u64 = (1 << 31) -1;
+//! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
+//! let witness = 42;
+//! let instance = [2, language(witness)];
+//!
+//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
+//!              .instance(&instance);
+//!
+//! // non-interactive prover
+//! let mut prover = domsep.std_prover();
+//! prover.prover_message(&witness);
+//! let proof = prover.narg_string();
+//!
+//! // non-interactive verifier
+//! let mut verifier = domsep.std_verifier(proof);
+//! let claimed_witness = verifier.prover_message::<u32>().expect("unable to read a u32");
+//! assert_eq!(language(claimed_witness), language(witness));
+//! assert!(verifier.check_eof().is_ok()) // the proof has been fully read
+//! ```
+//!
+//! ## Building on external libraries
+//!
+//! Spongefish only depends on [`digest`] and [`rand`].
+//! Support for common SNARK libraries is available optional feature flags.
+//! For instance [`KoalaBear`][`p3_koala_bear::KoalaBear`] can be used to build a sumcheck round:
 //!
 //! ```
+//! // Requires the `p3-baby-bear` feature.
+//! use p3_koala_bear::KoalaBear;
+//! use p3_field::PrimeCharacteristicRing;
 //! use spongefish::{VerificationError, VerificationResult};
 //!
-//! fn integer_round_trip(secret: u32) -> VerificationResult<()> {
-//!     // Everything that is absorbed becomes part of the proof transcript.
-//!     let domain = spongefish::domain_separator!("integer demo").instance(&secret);
-//!     let mut prover = domain.std_prover();
-//!     // Commit to the witness and derive a random challenge from the transcript.
-//!     prover.prover_message(&secret);
-//!     let challenge: u32 = prover.verifier_message();
-//!     let response = secret.wrapping_add(challenge);
-//!     prover.prover_message(&response);
-//!     let proof = prover.narg_string();
+//! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
 //!
-//!     // The verifier replays the same transcript and checks the relation.
-//!     let mut verifier = domain.std_verifier(proof);
-//!     let witness = verifier.prover_message::<u32>()?;
-//!     let challenge = verifier.verifier_message::<u32>();
-//!     let response = verifier.prover_message::<u32>()?;
-//!     let relation_holds = response == witness.wrapping_add(challenge);
-//!     if relation_holds {
-//!         verifier.check_eof()?;
-//!         Ok(())
-//!     } else {
-//!         Err(VerificationError)
-//!     }
-//! }
+//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
+//! let mut prover = domain.std_prover();
+//! let challenge: KoalaBear = prover.verifier_message::<KoalaBear>();
+//! let response = witness[0] * challenge + witness[1];
+//! prover.prover_message(&response);
+//! let narg_string = prover.narg_string();
+//!
+//! let mut verifier = domain.std_verifier(narg_string);
+//! let challenge = verifier.verifier_message::<KoalaBear>();
+//! let response = verifier.prover_message::<KoalaBear>().unwrap();
+//! assert_eq!(response, witness[0] * challenge + witness[1]);
+//! assert!(verifier.check_eof().is_ok())
 //! ```
 //!
-//! ## 2. Using field elements via feature flags (single-round sumcheck)
+//! ## Deriving your own encoding and decoding
 //!
-//! When the `p3-baby-bear` feature is enabled, [`BabyBear`][p3_baby_bear::BabyBear] implements the
-//! [`Encoding`] and [`Decoding`] traits through the Plonky3 drivers. The following snippet sketches
-//! a single round of sumcheck where the prover commits to a vector `(a, b)`, receives a challenge
-//! `c`, and responds with `a * c + b`.
+//! A prover message must implement:
+//! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
+//! - [`NargSerialize`], to serialize the message in a NARG string.
+//! - [`NargDeserialize`], to read from a NARG string.
 //!
-//! ```
-//! # // Requires the `p3-baby-bear` feature.
-//! # use p3_baby_bear::BabyBear;
-//! # use p3_field::PrimeCharacteristicRing;
-//! # use spongefish::{VerificationError, VerificationResult};
+//! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
 //!
-//! fn single_round_sumcheck() -> VerificationResult<()> {
-//!     let witness = [
-//!         BabyBear::new(5),
-//!         BabyBear::new(9),
-//!     ];
-//!     let domain = spongefish::domain_separator!("sumcheck")
-//!         .session(spongefish::session!("round 1"))
-//!         .instance(&witness);
-//!     let mut prover = domain.std_prover();
-//!     prover.prover_message(&witness); // commitment to (a, b)
-//!     let challenge: BabyBear = prover.verifier_message();
-//!     let response = witness[0] * challenge + witness[1];
-//!     prover.prover_message(&response);
-//!     let proof = prover.narg_string();
 //!
-//!     let mut verifier = domain.std_verifier(proof);
-//!     let committed = verifier.prover_messages::<BabyBear, 2>()?;
-//!     let challenge = verifier.verifier_message::<BabyBear>();
-//!     let response = verifier.prover_message::<BabyBear>()?;
-//!     let relation_holds = response == committed[0] * challenge + committed[1];
-//!     if relation_holds {
-//!         verifier.check_eof()?;
-//!         Ok(())
-//!     } else {
-//!         Err(VerificationError)
-//!     }
-//! }
-//! ```
+//! The interface [`Codec`] is a shorthand for all of the above. It is easy to derive these types via derive macros
+//! ```ignore
+//! use spongefish::{Codec, domain_separator};
+//! use curve25519_dalek::RistrettoPoint;
 //!
-//! ## Public keys as prover metadata
-//!
-//! You can wrap any byte representation inside your own type and implement [`Encoding`] to make it
-//! transcript-friendly. Below we model a public key as the digest of a verification key and inject
-//! it into both the domain separator and the public transcript.
-//!
-//! ```
-//! use spongefish::{Encoding, VerificationError, VerificationResult};
-//!
-//! #[derive(Clone, Copy)]
+//! #[derive(Clone, Copy, Codec)]
 //! struct PublicKey([u8; 32]);
 //!
-//! impl Encoding<[u8]> for PublicKey {
-//!     fn encode(&self) -> impl AsRef<[u8]> {
-//!         self.0
-//!     }
-//! }
+//! let domain = spongefish::domain_separator!("pk demo"; session = "demo session").instance(b"");
 //!
-//! fn prove_with_public_key(pk: PublicKey) -> VerificationResult<()> {
-//!     let domain = spongefish::domain_separator!("pk demo")
-//!         .session(spongefish::session!("demo session"))
-//!         .instance(&pk);
-//!     let mut prover = domain.std_prover();
-//!     // Public messages are absorbed verbatim and become part of the hash transcript.
-//!     prover.public_message(&pk);
-//!     let attestation: u32 = 42;
-//!     prover.prover_message(&attestation);
-//!     let proof = prover.narg_string();
+//! let pk = PublicKey([42; 32]);
+//! let mut prover = domain.std_prover();
+//! prover.public_message(&pk);
+//! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
 //!
-//!     let mut verifier = domain.std_verifier(proof);
-//!     verifier.public_message(&pk);
-//!     let value = verifier.prover_message::<u32>()?;
-//!     let attestation_matches = value == 42;
-//!     verifier.check_eof()?;
-//!     if attestation_matches {
-//!         Ok(())
-//!     } else {
-//!         Err(VerificationError)
-//!     }
-//! }
 //! ```
 //!
 //! # Supported hash functions
@@ -139,11 +106,6 @@
 //! 6. [`SHA512`][instantiations::SHA512], based on [`sha2::Sha512`] used as a stateful hash object.
 //! Available with the `sha2` feature flag.
 //!
-//! ## Security considerations
-//!
-//! Only Constructions (1) and (2) are proven secure.
-//! All other constructions are built using heuristics.
-//!
 //! # Implementing your own hash functions
 //!
 //! The duplex sponge construction [`DuplexSponge`] is described
@@ -157,10 +119,28 @@
 //! The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
 //! the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`]
 //!
+//! ## Security considerations
+//!
+//! Only Constructions (1) and (2) are proven secure, in the ideal permutation model;
+//! all other constructions are built using heuristics.
+//!
+//! Previous version of this library were audited by [Radically Open Security].
+//!
+//! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way,
+//! but the library requiring three elements on initialization:
+//! - a mandatory 64-bytes protocol identifier, uniquely identifying the non-interactive protocol being built.
+//! - a 64-bytes session identifier, corresponding to session and sub-session identifiers in universal composability lingo)
+//! - for a mandatory instance
+//!
+//! The developer is in charge of making sure they are chosen appropriately.
+//! In particular, the instance encoding function prefix-free.
+//!
 //! [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
 //! [Keccak-f]: https://keccak.team/keccak_specs_summary.html
 //! [Ascon]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf
 //! [CO25]: https://eprint.iacr.org/2025/536.pdf
+//! [Radically Open Security]: https://www.radicallyopensecurity.com/
+//! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 
 #![no_std]
 extern crate alloc;
@@ -204,6 +184,8 @@ pub use codecs::{Codec, Decoding, Encoding};
 pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
 pub use domain_separator::{protocol_id, session_id};
+#[doc(hidden)]
+pub use codecs::ByteArray;
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -219,25 +201,29 @@ pub type StdHash = instantiations::Shake128;
 /// Build a [`DomainSeparator`] from a formatted string.
 ///
 /// ```
-/// let domsep = spongefish::domain_separator!("spongefish").instance(b"trivial");
+/// let domsep = spongefish::domain_separator!("spongefish"; "DomainSeparator")
+///     .instance(b"trivial");
 /// let _prover = domsep.std_prover();
 /// ```
 #[macro_export]
 macro_rules! domain_separator {
+    ($fmt:literal $(, $arg:expr)* $(,)? ; $sess_fmt:literal $(, $sess_arg:expr)* $(,)?) => {{
+        $crate::domain_separator!($fmt $(, $arg)*)
+            .session($crate::session_id(core::format_args!($sess_fmt $(, $sess_arg)*)))
+    }};
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
         $crate::DomainSeparator::<_, [u8; 64]>::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};
 }
 
-/// Produce a 64-byte session identifier using the default hash.
+/// Attaches a 64-byte session identifier to the domain separator.
 ///
 /// ```
-/// use spongefish::{domain_separator, session};
+/// # use spongefish::{DomainSeparator, session};
 ///
-/// let domsep = domain_separator!("spongefish")
-///     .session(session!("DomainSeparator"))
-///     .instance(b"trivial");
-/// let _prover = domsep.std_prover();
+/// DomainSeparator::new([0u8; 64])
+///     .session(session!("example at L{{line!()}}"))
+///     .instance(b"empty");
 /// ```
 #[macro_export]
 macro_rules! session {

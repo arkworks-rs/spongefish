@@ -18,12 +18,7 @@ impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
 
 /// A buffer meant to hold enough bytes for obtaining a uniformly-distributed
 /// random field element.
-/// In practice, for [`DecodingFieldBuffer`] is meant to hold
-///
-/// ```ignore
-/// F::MODULUS_BIT_SIZE.div_ceil(8) + 32
-/// ```
-///
+/// In practice, for [`DecodingFieldBuffer`] is meant to hold `F::MODULUS_BIT_SIZE.div_ceil(8) + 32`
 /// bytes. Unfortunately Rust does not support const generic expressions,
 /// and so [`DecodingFieldBuffer`] is implemented as a vector of [`u8`] with a [`PhantomData`]
 /// marker binding it to the [`ark_ff::Field`].

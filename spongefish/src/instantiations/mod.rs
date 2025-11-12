@@ -1,5 +1,3 @@
-//! instantiations of the duplex sponge interface.
-
 pub mod hash;
 
 pub mod permutations;
@@ -24,20 +22,23 @@ pub type Keccak = DuplexSponge<permutations::KeccakF1600, 200, 136>;
 pub type Ascon12 = DuplexSponge<permutations::Ascon12, 40, 16>;
 
 #[cfg(feature = "sha3")]
+/// SHAKE-128's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
 pub type Shake128 = xof::XOF<sha3::Shake128>;
 
-// KangarooTwelve (K12) - fast reduced-round Keccak variant
-// Note: K12 requires a static lifetime for the customization string
+/// KangarooTwelve (K12) - fast reduced-round Keccak variant
+///
+/// Note: K12 uses a static lifetime for the customization string
 #[cfg(feature = "k12")]
 pub type KangarooTwelve = xof::XOF<k12::KangarooTwelve<'static>>;
 
-// Blake3
+/// Blake3's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
 #[cfg(feature = "blake3")]
 pub type Blake3 = xof::XOF<blake3::Hasher>;
 
-// SHA-2 family
+/// SHA-256's [`Digest`][`digest::Digest`] used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`]
 #[cfg(feature = "sha2")]
 pub type SHA256 = hash::Hash<sha2::Sha256>;
+/// SHA-512's [`Digest`][`digest::Digest`] used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`]
 #[cfg(feature = "sha2")]
 pub type SHA512 = hash::Hash<sha2::Sha512>;
 

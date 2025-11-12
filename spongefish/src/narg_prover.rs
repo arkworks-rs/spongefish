@@ -153,8 +153,7 @@ where
     /// ```
     /// use spongefish::ProverState;
     ///
-    /// let mut prover_state = spongefish::domain_separator!("examples")
-    ///     .session(spongefish::session!("ProverState::public_message"))
+    /// let mut prover_state = spongefish::domain_separator!("examples"; "ProverState::public_message")
     ///     .instance(&0u32)
     ///     .std_prover();
     /// prover_state.public_message(&123u32);
@@ -172,8 +171,7 @@ where
     /// ```
     /// use spongefish::ProverState;
     ///
-    /// let mut prover_state = spongefish::domain_separator!("examples")
-    ///     .session(spongefish::session!("ProverState::prover_message"))
+    /// let mut prover_state = spongefish::domain_separator!("examples"; "ProverState::prover_message")
     ///     .instance(&0u32)
     ///     .std_prover();
     /// prover_state.prover_message(&42u32);

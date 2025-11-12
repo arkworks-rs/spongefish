@@ -9,13 +9,13 @@
 ///
 /// With the `derive` feature enabled:
 ///
-/// ```ignore
+/// ```
 /// use spongefish::Codec;
 ///
 /// #[derive(Codec)]
 /// struct MyStruct {
 ///     field1: u32,
-///     field2: u64,
+///     field2: u32,
 ///     #[spongefish(skip)]  // Skip this field (uses Default)
 ///     cached: Option<String>,
 /// }

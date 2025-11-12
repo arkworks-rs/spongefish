@@ -113,11 +113,10 @@ impl BulletProof {
 
         let c = a * b;
         let relation_holds = g[0] * a + h[0] * b + u * c == instance.ip_commitment;
-        if relation_holds {
-            verifier_state.check_eof()
-        } else {
+        if !relation_holds {
             Err(VerificationError)
         }
+        verifier_state.check_eof()
     }
 
     fn fold_generators(
@@ -179,9 +178,9 @@ fn main() {
     };
     let witness = (&a[..], &b[..]);
 
-    let domain_separator = DomainSeparator::new(BulletProof::protocol_id())
-        .session(session!("spongefish examples"))
-        .instance(&instance);
+    let domain_separator =
+        spongefish::domain_separator!("bulletproofs"; session = "spongefish examples")
+            .instance(&instance);
     let mut prover_state = domain_separator.std_prover();
     let narg_string = BulletProof::prove(&mut prover_state, &instance, witness);
     println!(
