@@ -31,11 +31,9 @@ impl<I> WithoutInstance<I> {
 /// ```no_run
 /// use spongefish::domain_separator;
 ///
-/// let instance = b"yellowsubmarine";
-/// let domain = domain_separator!("this will compile").instance(&instance);
-/// let mut prover = domain.std_prover();
-/// prover.prover_message(&instance[..]);
-/// let _proof = prover.narg_string();
+/// let _prover = domain_separator!("this will compile")
+///     .instance(b"yellowsubmarine")
+///     .std_prover();
 /// ```
 pub struct WithInstance<'i, I>(&'i I);
 

@@ -102,7 +102,6 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_messages<T: Encoding<[H::U]> + NargDeserialize, const N: usize>(
         &mut self,
     ) -> VerificationResult<[T; N]> {
-        // core::array::try_from_fn(|_| self.prover_message())
         let result = self.prover_messages_vec::<T>(N)?;
         Ok(result.try_into().unwrap_or_else(|_| unreachable!()))
     }
@@ -238,7 +237,7 @@ where
     ///
     /// This function will absorb the prover message inside the prover's [`DuplexSpongeInterface`] instance
     /// and serialize the prover message inside the [`narg_string`][ProverState::narg_string].
-    pub fn prover_message<T: Encoding<[H::U]> + NargSerialize>(&mut self, message: &T) {
+    pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into_narg(&mut self.narg_string);
     }

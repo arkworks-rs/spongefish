@@ -23,7 +23,11 @@ impl Schnorr {
     /// Both are required to implement [`Encoding`], which for bytes also tells us how to serialize them.
     /// The verifier messages are scalars, and thus required to implement [`Decoding`].
     #[allow(non_snake_case)]
-    fn prove<'a, G>(prover_state: &'a mut ProverState, instance: &[G; 2], x: G::ScalarField) -> &'a [u8]
+    fn prove<'a, G>(
+        prover_state: &'a mut ProverState,
+        instance: &[G; 2],
+        x: G::ScalarField,
+    ) -> &'a [u8]
     where
         G: CurveGroup + NargSerialize + Encoding + Clone,
         G::ScalarField: Codec,
@@ -82,10 +86,6 @@ fn main() {
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
     let verifier_state = domain_sep.std_verifier(narg_string);
-    Schnorr::verify(
-        verifier_state,
-        instance[0].clone(),
-        instance[1].clone(),
-    )
-    .expect("Verification failed");
+    Schnorr::verify(verifier_state, instance[0].clone(), instance[1].clone())
+        .expect("Verification failed");
 }

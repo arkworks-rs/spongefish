@@ -106,7 +106,7 @@ macro_rules! impl_int_encoding {
 macro_rules! impl_int_decoding {
     ($type: ty) => {
         impl Decoding<[u8]> for $type {
-            type Repr = ByteArray<{core::mem::size_of::<$type>()}>;
+            type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
 
             fn decode(buf: Self::Repr) -> Self {
                 <$type>::from_le_bytes(Decoding::decode(buf))
@@ -128,7 +128,6 @@ impl_int_decoding!(u128);
 
 #[derive(Debug, Clone)]
 pub struct ByteArray<const N: usize>([u8; N]);
-
 
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
@@ -155,7 +154,6 @@ impl<const N: usize> Decoding<[u8]> for [u8; N] {
     }
 }
 
-
 /// Handy for serializing byte strings.
 ///
 /// # Safety
@@ -169,6 +167,11 @@ impl Encoding<[u8]> for [u8] {
     }
 }
 
+impl<const N: usize> Encoding<[u8]> for &[u8; N] {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        *self
+    }
+}
 
 impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
     fn encode(&self) -> impl AsRef<[U]> {
