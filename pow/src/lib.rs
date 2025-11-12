@@ -17,6 +17,7 @@ impl<S: PowStrategy> PoWGrinder<S> {
     /// # Arguments
     /// * `challenge` - A 32-byte challenge array
     /// * `bits` - The difficulty in bits (logarithm of expected work)
+    #[must_use]
     pub fn new(challenge: [u8; 32], bits: f64) -> Self {
         Self {
             strategy: S::new(challenge, bits),

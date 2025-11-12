@@ -47,7 +47,8 @@ mod keccak {
 
         fn permute_mut(&self, state: &mut [Self::U; 200]) {
             // SAFETY: `state` represents 25 little-endian u64 lanes.
-            let words: &mut [u64; 25] = unsafe { &mut *(state.as_mut_ptr() as *mut [u64; 25]) };
+            let ptr = state.as_mut_ptr().cast::<[u64; 25]>();
+            let words = unsafe { &mut *ptr };
             keccak::f1600(words);
         }
     }
