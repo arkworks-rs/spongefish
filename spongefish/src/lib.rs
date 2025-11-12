@@ -70,15 +70,15 @@
 //! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
 //!
 //!
-//! The interface [`Codec`] is a shorthand for all of the above. It is easy to derive these types via derive macros
-//! ```ignore
+//! The interface [`Codec`] is a shorthand for all of the above.
+//! ```
 //! use spongefish::{Codec, domain_separator};
 //! use curve25519_dalek::RistrettoPoint;
 //!
 //! #[derive(Clone, Copy, Codec)]
 //! struct PublicKey([u8; 32]);
 //!
-//! let domain = spongefish::domain_separator!("pk demo"; session = "demo session").instance(b"");
+//! let domain = spongefish::domain_separator!("simplest proof system over 32B pks"; "example").instance(b"");
 //!
 //! let pk = PublicKey([42; 32]);
 //! let mut prover = domain.std_prover();
