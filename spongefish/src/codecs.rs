@@ -86,8 +86,8 @@ where
 impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
     fn encode(&self) -> impl AsRef<[U]> {
         let mut output = alloc::vec::Vec::new();
-        for element in self.iter() {
-            output.extend_from_slice(element.encode().as_ref())
+        for element in self {
+            output.extend_from_slice(element.encode().as_ref());
         }
         output
     }
@@ -131,7 +131,7 @@ pub struct ByteArray<const N: usize>([u8; N]);
 
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
-        ByteArray([0; N])
+        Self([0; N])
     }
 }
 impl<const N: usize> AsRef<[u8; N]> for ByteArray<N> {
@@ -176,7 +176,7 @@ impl<const N: usize> Encoding<[u8]> for &[u8; N] {
 impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
     fn encode(&self) -> impl AsRef<[U]> {
         let mut out = alloc::vec::Vec::new();
-        for x in self.iter() {
+        for x in self {
             out.extend_from_slice(x.encode().as_ref());
         }
         out

@@ -48,7 +48,8 @@ pub struct DomainSeparator<I, S = [u8; 64]> {
 }
 
 impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
-    pub fn new(protocol: [u8; 64]) -> Self {
+    #[must_use]
+    pub const fn new(protocol: [u8; 64]) -> Self {
         Self {
             protocol,
             session: None,
@@ -58,6 +59,7 @@ impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
 }
 
 impl<I, S> DomainSeparator<I, S> {
+    #[must_use]
     pub fn session(self, value: S) -> Self {
         assert!(self.session.is_none());
         Self {
@@ -69,7 +71,7 @@ impl<I, S> DomainSeparator<I, S> {
 }
 
 impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
-    pub fn instance<'a>(self, value: &'a I) -> DomainSeparator<WithInstance<'a, I>, S> {
+    pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>, S> {
         DomainSeparator {
             protocol: self.protocol,
             session: self.session,
@@ -78,7 +80,7 @@ impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
     }
 }
 
-impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S>
+impl<I, S> DomainSeparator<WithInstance<'_, I>, S>
 where
     I: Encoding,
     S: Encoding,
@@ -94,7 +96,7 @@ where
     }
 }
 
-impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S> {
+impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
     pub fn to_prover<H>(&self, h: H) -> ProverState<H, StdRng>
     where
         H: DuplexSpongeInterface,
@@ -129,6 +131,7 @@ impl<'inst, I, S> DomainSeparator<WithInstance<'inst, I>, S> {
 }
 
 #[inline]
+#[must_use]
 pub fn protocol_id(args: Arguments) -> [u8; 64] {
     let mut sponge = StdHash::default();
 
@@ -143,6 +146,7 @@ pub fn protocol_id(args: Arguments) -> [u8; 64] {
 }
 
 #[inline]
+#[must_use]
 pub fn session_id(args: Arguments) -> [u8; 64] {
     let mut sponge = StdHash::default();
 

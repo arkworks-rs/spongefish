@@ -59,7 +59,7 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
         let mut duplex_sponge = StdHash::default();
         let seed: [u8; 32] = csrng.gen::<[u8; 32]>();
         duplex_sponge.absorb(&seed);
-        ReseedableRng {
+        Self {
             duplex_sponge,
             csrng,
         }
@@ -209,7 +209,7 @@ where
     /// Input to the Fiat-Shamir transformation an array of public messages.
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
-            self.public_message(message)
+            self.public_message(message);
         }
     }
 
@@ -221,7 +221,7 @@ where
     {
         messages
             .into_iter()
-            .for_each(|message| self.public_message(&message))
+            .for_each(|message| self.public_message(&message));
     }
 
     /// Absorbs a list of prover messages at once.
@@ -264,7 +264,7 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
 /// Creates a new [`ProverState`] using the given duplex sponge interface.
 impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
     fn from(value: H) -> Self {
-        ProverState {
+        Self {
             duplex_sponge_state: value,
             private_rng: R::from_entropy().into(),
             narg_string: Vec::new(),

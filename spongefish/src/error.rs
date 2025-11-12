@@ -17,7 +17,7 @@ impl core::ops::Deref for VerificationError {
     type Target = VerificationResult<()>;
 
     fn deref(&self) -> &Self::Target {
-        &Err(VerificationError)
+        &Err(Self)
     }
 }
 

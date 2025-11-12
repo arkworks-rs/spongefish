@@ -40,13 +40,15 @@ mod keccak {
         type U = u8;
 
         fn permute(&self, state: &[u8; 200]) -> [u8; 200] {
-            let mut new_state = state.clone();
+            let mut new_state = *state;
             self.permute_mut(&mut new_state);
             new_state
         }
 
         fn permute_mut(&self, state: &mut [Self::U; 200]) {
-            unsafe { keccak::f1600(core::mem::transmute(state)) };
+            // SAFETY: `state` represents 25 little-endian u64 lanes.
+            let words: &mut [u64; 25] = unsafe { &mut *(state.as_mut_ptr() as *mut [u64; 25]) };
+            keccak::f1600(words);
         }
     }
 }

@@ -30,7 +30,7 @@ where
     pub(crate) narg_string: &'a [u8],
 }
 
-impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
+impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Reads a prover message and absorbs it into the duplex sponge state.
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
@@ -74,7 +74,7 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     /// ```
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
-            self.public_message(message)
+            self.public_message(message);
         }
     }
 
@@ -95,7 +95,7 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     {
         messages
             .into_iter()
-            .for_each(|message| self.public_message(&message))
+            .for_each(|message| self.public_message(&message));
     }
 
     /// Reads a fixed-size array of prover messages `T`, each implementing `Encoding<[H::U]>`.
@@ -136,6 +136,7 @@ where
 impl<'a> VerifierState<'a, StdHash> {
     #[cfg(feature = "sha3")]
     /// Builds a verifier using the default sponge implementation.
+    #[must_use]
     pub fn default_std(narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state: StdHash::default(),
@@ -146,7 +147,7 @@ impl<'a> VerifierState<'a, StdHash> {
 
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     /// Creates a verifier state from a duplex sponge and transcript slice.
-    pub fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
+    pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state,
             narg_string,
@@ -159,6 +160,7 @@ where
     H: DuplexSpongeInterface<U = u8> + Default,
 {
     /// Initializes a verifier state from protocol and session identifiers plus a transcript.
+    #[must_use]
     pub fn new(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
         let mut verifier_state = VerifierState {
             duplex_sponge_state: H::default(),
@@ -173,6 +175,7 @@ where
 impl<'a> VerifierState<'a, StdHash> {
     #[cfg(feature = "sha3")]
     /// Initializes a verifier with `StdHash` as duplex sponge.
+    #[must_use]
     pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
         Self::new(protocol_id, session_id, narg_string)
     }

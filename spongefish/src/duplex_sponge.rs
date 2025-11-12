@@ -93,7 +93,7 @@ pub trait Permutation<const WIDTH: usize>: Clone {
     /// In-place permutation function evaluation [`Permutation::permute`].
     fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
         let new_state = self.permute(state);
-        state.clone_from(&new_state)
+        state.clone_from(&new_state);
     }
 }
 
@@ -228,7 +228,7 @@ where
         self.absorb_pos = RATE;
         self.squeeze_pos = RATE;
         self.permutation_state[0..RATE].fill_with(|| P::U::ZERO);
-        self.permutation.permute(&mut self.permutation_state);
+        self.permutation.permute_mut(&mut self.permutation_state);
         self
     }
 }

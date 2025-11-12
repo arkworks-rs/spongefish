@@ -30,7 +30,7 @@ pub struct Array64([u8; 64]);
 
 impl Default for Array64 {
     fn default() -> Self {
-        Array64([0u8; 64])
+        Self([0u8; 64])
     }
 }
 
