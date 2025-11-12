@@ -139,7 +139,7 @@ pub fn protocol_id(args: Arguments) -> [u8; 64] {
         sponge.absorb(formatted.as_bytes());
     }
 
-    sponge.squeeze_array::<64>()
+    sponge.squeeze_array()
 }
 
 #[inline]
@@ -153,5 +153,5 @@ pub fn session_id(args: Arguments) -> [u8; 64] {
         sponge.absorb(formatted.as_bytes());
     }
 
-    sponge.squeeze_array::<64>()
+    sponge.squeeze_array()
 }
