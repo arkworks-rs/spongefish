@@ -180,12 +180,12 @@ pub(crate) mod error;
 mod domain_separator;
 
 // Re-export the core interfaces for building the FS transformation.
+#[doc(hidden)]
+pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
 pub use domain_separator::{protocol_id, session_id};
-#[doc(hidden)]
-pub use codecs::ByteArray;
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};

@@ -71,8 +71,9 @@ where
     /// # Example
     ///
     /// ```
-    /// # use spongefish::Decoding;
-    /// assert_eq!(<u32 as Decoding<[u8]>>::Repr::default().as_ref(), &[0u8; 4])
+    /// # use spongefish::{Decoding, ByteArray};
+    /// let repr: ByteArray<4> = Default::default();
+    /// assert_eq!(repr.as_ref(), &[0u8; 4]);
     /// ```
     type Repr: Default + AsMut<T>;
 
