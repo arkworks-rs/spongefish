@@ -23,7 +23,7 @@ mod ascon {
 
 #[cfg(feature = "keccak")]
 mod keccak {
-    use core::fmt::Debug;
+    use core::{fmt::Debug, ptr};
 
     use crate::duplex_sponge::Permutation;
 
@@ -46,11 +46,22 @@ mod keccak {
         }
 
         fn permute_mut(&self, state: &mut [u8; 200]) {
-            // SAFETY: `state` represents 25 little-endian u64 lanes.
-            assert!(state.as_ptr().align_offset(align_of::<u64>()) == 0);
-            let ptr = state.as_mut_ptr().cast::<u64>();
-            let words = unsafe { &mut *ptr.cast() };
-            keccak::f1600(words);
+            let mut words = [0u64; 25];
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    state.as_ptr(),
+                    words.as_mut_ptr().cast::<u8>(),
+                    state.len(),
+                );
+            }
+            keccak::f1600(&mut words);
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    words.as_ptr().cast::<u8>(),
+                    state.as_mut_ptr(),
+                    state.len(),
+                );
+            }
         }
     }
 }

@@ -12,33 +12,38 @@
 //! use spongefish::domain_separator;
 //!
 //! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
-//! const P: u64 = (1 << 31) -1;
+//! const P: u64 = (1 << 31) - 1;
 //! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
 //! let witness = 42;
-//! let instance = [2, language(witness)];
 //!
 //! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
-//!              .instance(&instance);
+//!              .instance(&[2, language(witness)]);
 //!
 //! // non-interactive prover
-//! let mut prover = domsep.std_prover();
-//! prover.prover_message(&witness);
-//! let proof = prover.narg_string();
+//! let mut prover_state = domsep.std_prover();
+//! prover_state.prover_message(&witness);
+//! let nizk = prover_state.narg_string();
+//! assert!(nizk.len() > 0);
 //!
 //! // non-interactive verifier
-//! let mut verifier = domsep.std_verifier(proof);
-//! let claimed_witness = verifier.prover_message::<u32>().expect("unable to read a u32");
+//! let mut verifier_state = domsep.std_verifier(nizk);
+//! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
 //! assert_eq!(language(claimed_witness), language(witness));
 //! assert!(verifier.check_eof().is_ok()) // the proof has been fully read
 //! ```
+//!
+//! The above code will fail to compile if no instance is given. The implementor has full responsibility
+//! in providing the instance of the proof system.
 //!
 //! ## Building on external libraries
 //!
 //! Spongefish only depends on [`digest`] and [`rand`].
 //! Support for common SNARK libraries is available optional feature flags.
-//! For instance [`KoalaBear`][`p3_koala_bear::KoalaBear`] can be used to build a sumcheck round:
-//!
+//! For instance  `p3-koala-bear` provides allows to encode/decode [KoalaBear][`p3_koala_bear::KoalaBear`]
+//! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
+//! # #[cfg(feature = "p3-koala-bear")]
+//! # {
 //! // Requires the `p3-baby-bear` feature.
 //! use p3_koala_bear::KoalaBear;
 //! use p3_field::PrimeCharacteristicRing;
@@ -48,7 +53,7 @@
 //!
 //! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
 //! let mut prover = domain.std_prover();
-//! let challenge: KoalaBear = prover.verifier_message::<KoalaBear>();
+//! let challenge = prover.verifier_message::<KoalaBear>();
 //! let response = witness[0] * challenge + witness[1];
 //! prover.prover_message(&response);
 //! let narg_string = prover.narg_string();
@@ -58,6 +63,7 @@
 //! let response = verifier.prover_message::<KoalaBear>().unwrap();
 //! assert_eq!(response, witness[0] * challenge + witness[1]);
 //! assert!(verifier.check_eof().is_ok())
+//! # }
 //! ```
 //!
 //! ## Deriving your own encoding and decoding
@@ -86,10 +92,23 @@
 //! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
 //!
 //! ```
+//! # Supported types
+//!
+//! Unsigned integers and byte arrays have codecs attached to them.
+//! Popular algebraic types are also implemented in [`drivers`][spongefish::drivers]:
+//!
+//! 1. arkworks field elements (including `Fp` and extension `Fp2`, Fp3`, `Fp4`, `Fp6`, `Fp12`)
+//! are available via the `ark-ff` feature flag;
+//! 2. arkworks elliptic curve elements are available via the `ark-ec` feature flag;
+//! 3. Ristretto points of curve25519_dalek are available via the `curve25519-dalek` feature flag;
+//! 4. Plonky3's `BabyBear`, `KoalaBear`, and `Mersenne31` field elements
+//! are available via (respectively) `p3-baby-bear`, `p3-koala-bear`, `p3-mersenne-31` feature flags.
+//! 3. p256 field and elliptic curve elements are available via the `p256` feature flag.
+//!
 //!
 //! # Supported hash functions
 //!
-//! All hash functions are available in [`spogefish::instantiations`][instantiations]:
+//! All hash functions are available in [`instantiations`]:
 //!
 //! 1. [`Keccak`][instantiations::Keccak], the duplex sponge construction [[CO25], Section 3.3] for the
 //! [`keccak::f1600`] permutation [Keccak-f].
@@ -184,15 +203,18 @@ mod domain_separator;
 // Re-export the core interfaces for building the FS transformation.
 #[doc(hidden)]
 pub use codecs::ByteArray;
-pub use codecs::{Codec, Decoding, Encoding};
-pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
 pub use domain_separator::{protocol_id, session_id};
+
+
+pub use codecs::{Codec, Decoding, Encoding};
+pub use domain_separator::DomainSeparator;
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg_prover::ProverState;
 pub use narg_verifier::VerifierState;
+
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 

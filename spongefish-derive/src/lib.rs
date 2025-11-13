@@ -311,7 +311,7 @@ pub fn derive_codec(input: TokenStream) -> TokenStream {
     })
 }
 
-/// Derive [`Unit`](https://docs.rs/spongefish/latest/spongefish/trait.Unit.html) for structs.
+/// Derive [`Unit`]s for structs.
 ///
 /// ```
 /// use spongefish::Unit;
@@ -327,6 +327,8 @@ pub fn derive_codec(input: TokenStream) -> TokenStream {
 /// assert_eq!((Rgb::ZERO.r, Rgb::ZERO.g, Rgb::ZERO.b), (0, 0, 0));
 ///
 /// ```
+///
+/// [Unit]: https://docs.rs/spongefish/latest/spongefish/trait.Unit.html
 #[proc_macro_derive(Unit, attributes(spongefish))]
 pub fn derive_unit(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

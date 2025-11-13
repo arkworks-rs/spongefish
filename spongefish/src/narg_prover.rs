@@ -140,7 +140,8 @@ where
     }
 
     /// Returns the current serialized NARG string.
-    pub fn narg_string(&self) -> &[u8] {
+    #[inline]
+    pub const fn narg_string(&self) -> &[u8] {
         self.narg_string.as_slice()
     }
 
@@ -194,7 +195,8 @@ where
 
     /// Alias for [`narg_string`][ProverState::narg_string].
     #[deprecated(note = "Please use ProverState::narg_string instead.")]
-    pub fn transcript(&self) -> &[u8] {
+    #[inline]
+    pub const fn transcript(&self) -> &[u8] {
         self.narg_string()
     }
 

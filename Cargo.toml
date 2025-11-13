@@ -88,8 +88,6 @@ zeroize = "^1.8.1"
 # ark-pallas = { git = "https://github.com/arkworks-rs/algebra" }
 # ark-vesta = { git = "https://github.com/arkworks-rs/algebra" }
 p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3" }
-p3-challenger = { git = "https://github.com/Plonky3/Plonky3" }
-p3-commit = { git = "https://github.com/Plonky3/Plonky3" }
 p3-dft = { git = "https://github.com/Plonky3/Plonky3" }
 p3-koala-bear = { git = "https://github.com/Plonky3/Plonky3" }
 p3-mersenne-31 = { git = "https://github.com/Plonky3/Plonky3" }

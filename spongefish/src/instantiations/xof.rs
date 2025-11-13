@@ -37,7 +37,7 @@ where
 
     fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
         self.xof_reader
-            .get_or_insert(self.hasher.clone().finalize_xof())
+            .get_or_insert_with(|| self.hasher.clone().finalize_xof())
             .read(output);
 
         self
