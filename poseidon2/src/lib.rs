@@ -36,26 +36,60 @@ macro_rules! impl_permutation {
 #[cfg(feature = "p3-koala-bear")]
 #[allow(unused)]
 mod p3_koala_bear_poseidon2 {
-    use p3_koala_bear::{KoalaBear, Poseidon2KoalaBear};
+    use p3_koala_bear::{KOALABEAR_RC16_EXTERNAL_FINAL, KOALABEAR_RC16_EXTERNAL_INITIAL, KOALABEAR_RC16_INTERNAL, KoalaBear, Poseidon2ExternalLayerKoalaBear, Poseidon2InternalLayerKoalaBear, Poseidon2KoalaBear};
+
+    type SpongefishPoseidon2KoalaBear<const WIDTH: usize> = p3_poseidon2::Poseidon2<
+        KoalaBear,
+        Poseidon2ExternalLayerKoalaBear<WIDTH>,
+        Poseidon2InternalLayerKoalaBear<WIDTH>,
+        WIDTH,
+        7,
+    >;
+
+
     impl_permutation!(KoalaBearPoseidon2_16 via Poseidon2KoalaBear<16> over KoalaBear);
     impl_permutation!(KoalaBearPoseidon2_24 via Poseidon2KoalaBear<24> over KoalaBear);
+
+    impl Default for crate::KoalaBearPoseidon2_16 {
+        fn default() -> Self {
+            let p2 = p3_poseidon2::Poseidon2::new(p3_poseidon2::ExternalLayerConstants::new(
+                KOALABEAR_RC16_EXTERNAL_INITIAL.to_vec(),
+                KOALABEAR_RC16_EXTERNAL_FINAL.to_vec(),
+            ),
+                KOALABEAR_RC16_INTERNAL.to_vec(),
+            );
+            Self(p2)
+                }
+    }
 }
 
 #[cfg(feature = "p3-baby-bear")]
 mod p3_baby_bear_poseidon2 {
-    use p3_baby_bear::{BabyBear, Poseidon2BabyBear};
+    use p3_baby_bear::{
+        BabyBear, Poseidon2ExternalLayerBabyBear, Poseidon2InternalLayerBabyBear,
+        BABYBEAR_RC16_EXTERNAL_FINAL, BABYBEAR_RC16_EXTERNAL_INITIAL, BABYBEAR_RC16_INTERNAL,
+        BABYBEAR_RC24_EXTERNAL_FINAL, BABYBEAR_RC24_EXTERNAL_INITIAL, BABYBEAR_RC24_INTERNAL,
+    };
 
-    impl_permutation!(BabyBearPoseidon2_16 via Poseidon2BabyBear<16> over BabyBear);
-    impl_permutation!(BabyBearPoseidon2_24 via Poseidon2BabyBear<24> over BabyBear);
+    type SpongefishPoseidon2BabyBear<const WIDTH: usize> = p3_poseidon2::Poseidon2<
+        BabyBear,
+        Poseidon2ExternalLayerBabyBear<WIDTH>,
+        Poseidon2InternalLayerBabyBear<WIDTH>,
+        WIDTH,
+        7,
+    >;
+
+    impl_permutation!(BabyBearPoseidon2_16 via SpongefishPoseidon2BabyBear<16> over BabyBear);
+    impl_permutation!(BabyBearPoseidon2_24 via SpongefishPoseidon2BabyBear<24> over BabyBear);
 
     impl Default for crate::BabyBearPoseidon2_24 {
         fn default() -> Self {
             let p2 = p3_poseidon2::Poseidon2::new(
                 p3_poseidon2::ExternalLayerConstants::new(
-                    p3_baby_bear::BABYBEAR_RC24_EXTERNAL_INITIAL.to_vec(),
-                    p3_baby_bear::BABYBEAR_RC24_EXTERNAL_FINAL.to_vec(),
+                    BABYBEAR_RC24_EXTERNAL_INITIAL.to_vec(),
+                    BABYBEAR_RC24_EXTERNAL_FINAL.to_vec(),
                 ),
-                p3_baby_bear::BABYBEAR_RC24_INTERNAL.to_vec(),
+                BABYBEAR_RC24_INTERNAL.to_vec(),
             );
             Self(p2)
         }
@@ -65,26 +99,12 @@ mod p3_baby_bear_poseidon2 {
         fn default() -> Self {
             let p2 = p3_poseidon2::Poseidon2::new(
                 p3_poseidon2::ExternalLayerConstants::new(
-                    p3_baby_bear::BABYBEAR_RC16_EXTERNAL_INITIAL.to_vec(),
-                    p3_baby_bear::BABYBEAR_RC16_EXTERNAL_FINAL.to_vec(),
+                    BABYBEAR_RC16_EXTERNAL_INITIAL.to_vec(),
+                    BABYBEAR_RC16_EXTERNAL_FINAL.to_vec(),
                 ),
-                p3_baby_bear::BABYBEAR_RC16_INTERNAL.to_vec(),
+                BABYBEAR_RC16_INTERNAL.to_vec(),
             );
             Self(p2)
         }
     }
-
-    // xxx. this implementation does not set the sbox degree correctly?
-    // it should be 7, the default sets instead 3.
-    // impl Default for crate::KoalaBearPoseidon2_16 {
-    //     fn default() -> Self {
-    //         let p2_16 = Poseidon2BabyBear::<16>::new_from_rng(rounds_f, rounds_p, rng)
-    //     }
-    // }
-
-    // impl Default for crate::KoalaBearPoseidon2_16 {
-    //     fn default() -> Self {
-    //         Self(p3_baby_bear::default_babybear_poseidon2_16())
-    //     }
-    // }
 }

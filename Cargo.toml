@@ -71,15 +71,14 @@ p3-mersenne-31 = "^0.3"
 p3-poseidon2 = "^0.3"
 p3-symmetric = "^0.3"
 pallas = "^0.32"
-pasta_curves = "^0.5.1"
 rand = "^0.8.5"
 rayon = "^1.10.0"
 sha2 = "^0.10.7"
 sha3 = "^0.10.8"
 zeroize = "^1.8.1"
 
-# Un-comment below for latest arkworks libraries.
-# [patch.crates-io]
+# Un-comment below for pulling zkp libraries from git.
+[patch.crates-io]
 # ark-std = { git = "https://github.com/arkworks-rs/utils" }
 # ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
 # ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
@@ -88,3 +87,12 @@ zeroize = "^1.8.1"
 # ark-curve25519 = { git = "https://github.com/arkworks-rs/algebra" }
 # ark-pallas = { git = "https://github.com/arkworks-rs/algebra" }
 # ark-vesta = { git = "https://github.com/arkworks-rs/algebra" }
+p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3" }
+p3-challenger = { git = "https://github.com/Plonky3/Plonky3" }
+p3-commit = { git = "https://github.com/Plonky3/Plonky3" }
+p3-dft = { git = "https://github.com/Plonky3/Plonky3" }
+p3-koala-bear = { git = "https://github.com/Plonky3/Plonky3" }
+p3-mersenne-31 = { git = "https://github.com/Plonky3/Plonky3" }
+p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3" }
+p3-symmetric = { git = "https://github.com/Plonky3/Plonky3" }
+p3-field = { git = "https://github.com/Plonky3/Plonky3" }

@@ -49,7 +49,8 @@ fn check_eof_reports_remaining_bytes() {
 #[test]
 fn verifier_challenge_matches_prover() {
     let instance = [10u32, 11u32];
-    let domain = crate::domain_separator!("challenge sync"; "challenge session").instance(&instance);
+    let domain =
+        crate::domain_separator!("challenge sync"; "challenge session").instance(&instance);
 
     let mut prover = domain.std_prover();
     let challenge: u32 = prover.verifier_message();

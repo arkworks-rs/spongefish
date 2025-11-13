@@ -3,8 +3,8 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    protocol_id, session_id, Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize,
-    ProverState, VerificationError, VerificationResult, VerifierState,
+    protocol_id, Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState,
+    VerificationError, VerificationResult, VerifierState,
 };
 
 struct Schnorr;
@@ -63,7 +63,8 @@ impl Schnorr {
         if !relation_holds {
             return Err(VerificationError);
         }
-        verifier_state.check_eof();
+        verifier_state.check_eof()?;
+        Ok(())
     }
 }
 

@@ -97,7 +97,6 @@ fn curve25519_scalars_arkworks_and_dalek() {
 #[cfg(all(feature = "ark-ec", feature = "k256"))]
 #[test]
 fn secp256k1_scalars_arkworks_and_k256() {
-    use ark_ec::PrimeGroup;
     use ark_secp256k1::Fr as ArkScalar;
     use k256::Scalar as K256Scalar;
 

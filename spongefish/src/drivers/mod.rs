@@ -26,7 +26,7 @@ pub mod p3_mersenne31;
 
 // Buffer of 512-bytes, useful for decoding 256-bit scalars.
 #[repr(C)]
-pub struct Array64([u8; 64]);
+pub struct  Array64([u8; 64]);
 
 impl Default for Array64 {
     fn default() -> Self {

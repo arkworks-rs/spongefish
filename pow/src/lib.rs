@@ -47,7 +47,6 @@ pub struct PoWSolution {
 pub mod convenience {
     use crate::{PoWGrinder, PoWSolution, PowStrategy};
 
-
     /// Performs proof-of-work on a challenge and returns the solution.
     ///
     /// This is a simple wrapper that creates a grounder and immediately grinds.
