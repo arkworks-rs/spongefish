@@ -45,17 +45,20 @@ pub struct PoWSolution {
 
 /// Convenience functions for using PoW with byte arrays.
 pub mod convenience {
-    use super::*;
+    use crate::{PoWGrinder, PoWSolution, PowStrategy};
+
 
     /// Performs proof-of-work on a challenge and returns the solution.
     ///
     /// This is a simple wrapper that creates a grounder and immediately grinds.
+    #[must_use]
     pub fn grind_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64) -> Option<PoWSolution> {
         let mut grounder = PoWGrinder::<S>::new(challenge, bits);
         grounder.grind()
     }
 
     /// Verifies a proof-of-work nonce.
+    #[must_use]
     pub fn verify_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64, nonce: u64) -> bool {
         let mut grounder = PoWGrinder::<S>::new(challenge, bits);
         grounder.verify(nonce)

@@ -24,7 +24,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 ///
 /// assert_eq!(Rgb::ZERO, Rgb(0, 0, 0))
 /// ```
-
+///
 pub trait Unit: Clone + Sized {
     /// The zero element.
     const ZERO: Self;
