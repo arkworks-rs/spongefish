@@ -36,7 +36,11 @@ macro_rules! impl_permutation {
 #[cfg(feature = "p3-koala-bear")]
 #[allow(unused)]
 mod p3_koala_bear_poseidon2 {
-    use p3_koala_bear::{KOALABEAR_RC16_EXTERNAL_FINAL, KOALABEAR_RC16_EXTERNAL_INITIAL, KOALABEAR_RC16_INTERNAL, KoalaBear, Poseidon2ExternalLayerKoalaBear, Poseidon2InternalLayerKoalaBear, Poseidon2KoalaBear};
+    use p3_koala_bear::{
+        KoalaBear, Poseidon2ExternalLayerKoalaBear, Poseidon2InternalLayerKoalaBear,
+        Poseidon2KoalaBear, KOALABEAR_RC16_EXTERNAL_FINAL, KOALABEAR_RC16_EXTERNAL_INITIAL,
+        KOALABEAR_RC16_INTERNAL,
+    };
 
     type SpongefishPoseidon2KoalaBear<const WIDTH: usize> = p3_poseidon2::Poseidon2<
         KoalaBear,
@@ -46,20 +50,20 @@ mod p3_koala_bear_poseidon2 {
         7,
     >;
 
-
     impl_permutation!(KoalaBearPoseidon2_16 via Poseidon2KoalaBear<16> over KoalaBear);
     impl_permutation!(KoalaBearPoseidon2_24 via Poseidon2KoalaBear<24> over KoalaBear);
 
     impl Default for crate::KoalaBearPoseidon2_16 {
         fn default() -> Self {
-            let p2 = p3_poseidon2::Poseidon2::new(p3_poseidon2::ExternalLayerConstants::new(
-                KOALABEAR_RC16_EXTERNAL_INITIAL.to_vec(),
-                KOALABEAR_RC16_EXTERNAL_FINAL.to_vec(),
-            ),
+            let p2 = p3_poseidon2::Poseidon2::new(
+                p3_poseidon2::ExternalLayerConstants::new(
+                    KOALABEAR_RC16_EXTERNAL_INITIAL.to_vec(),
+                    KOALABEAR_RC16_EXTERNAL_FINAL.to_vec(),
+                ),
                 KOALABEAR_RC16_INTERNAL.to_vec(),
             );
             Self(p2)
-                }
+        }
     }
 }
 
