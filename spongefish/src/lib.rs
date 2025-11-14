@@ -1,6 +1,6 @@
 //! The Fiat-Shamir transformation for public-coin protocols.
 //!
-//! Implements the DSFS transformation from [CO25] that are wire-compatible with [draft-irtf-cfrg-fiat-shamir].
+//! Implements the DSFS transformation from [CO25], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
 //!
 //! # Examples
 //!
@@ -15,9 +15,10 @@
 //! const P: u64 = (1 << 31) - 1;
 //! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
 //! let witness = 42;
+//! let instance = [2, language(witness)];
 //!
 //! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
-//!              .instance(&[2, language(witness)]);
+//!              .instance(&instance);
 //!
 //! // non-interactive prover
 //! let mut prover_state = domsep.std_prover();
@@ -29,17 +30,17 @@
 //! let mut verifier_state = domsep.std_verifier(nizk);
 //! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
 //! assert_eq!(language(claimed_witness), language(witness));
-//! assert!(verifier.check_eof().is_ok()) // the proof has been fully read
+//! assert!(verifier_state.check_eof().is_ok()) // the proof has been fully read
 //! ```
 //!
-//! The above code will fail to compile if no instance is given. The implementor has full responsibility
-//! in providing the instance of the proof system.
+//! The above code will fail to compile if no instance is given.
+//! The implementor has full responsibility in providing the correct instance of the proof system.
 //!
 //! ## Building on external libraries
 //!
 //! Spongefish only depends on [`digest`] and [`rand`].
 //! Support for common SNARK libraries is available optional feature flags.
-//! For instance  `p3-koala-bear` provides allows to encode/decode [KoalaBear][`p3_koala_bear::KoalaBear`]
+//! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
 //! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
 //! # #[cfg(feature = "p3-koala-bear")]
@@ -78,24 +79,29 @@
 //!
 //! The interface [`Codec`] is a shorthand for all of the above.
 //! ```
+//! #[cfg(feature = "curve25519-dalek")]
+//! # {
+//! // Requires the `curve25519-dalek` feature.
 //! use spongefish::{Codec, domain_separator};
-//! use curve25519_dalek::RistrettoPoint;
+//! use curve25519_dalek::{RistrettoPoint, Scalar};
 //!
 //! #[derive(Clone, Copy, Codec)]
-//! struct PublicKey([u8; 32]);
+//! struct PublicKey(RistrettoPoint);
 //!
-//! let domain = spongefish::domain_separator!("simplest proof system over 32B pks"; "example").instance(b"");
+//! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+//! let domain = spongefish::domain_separator!("challenge-response"; "example")
+//!              .instance(&generator);
 //!
-//! let pk = PublicKey([42; 32]);
+//! let pk = PublicKey(generator * Scalar::from(42u64));
 //! let mut prover = domain.std_prover();
 //! prover.public_message(&pk);
 //! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
-//!
+//! # }
 //! ```
 //! # Supported types
 //!
 //! Unsigned integers and byte arrays have codecs attached to them.
-//! Popular algebraic types are also implemented in [`drivers`][spongefish::drivers]:
+//! Popular algebraic types are also implemented:
 //!
 //! 1. arkworks field elements (including `Fp` and extension `Fp2`, Fp3`, `Fp4`, `Fp6`, `Fp12`)
 //! are available via the `ark-ff` feature flag;

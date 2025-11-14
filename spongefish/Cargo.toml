@@ -9,9 +9,6 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lib]
-doctest = false
-
 [lints]
 workspace = true
 
@@ -110,3 +107,7 @@ required-features = ["ark-ec"]
 [[example]]
 name = "bulletproof"
 required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]
+
+[target.'cfg(doc)'.dependencies]
+sha2 = { workspace = true }
+p3-koala-bear = { workspace = true }
