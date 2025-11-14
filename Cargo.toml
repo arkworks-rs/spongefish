@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "BSD-3-Clause"
-version = "0.2.0-alpha"
+version = "1.0.0-rc1"
 
 [workspace.lints.clippy]
 # all lints that are on by default (correctness, suspicious, style, complexity, perf)
