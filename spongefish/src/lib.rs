@@ -1,123 +1,176 @@
+//! The Fiat-Shamir transformation for public-coin protocols.
 //!
-//! **This crate is work in progress, not suitable for production.**
+//! Implements the DSFS transformation from [CO25], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
 //!
-//! spongefish helps performing Fiat-Shamir on any public-coin protocol.
-//! It enables secure provision of randomness for the prover and secure generation
-//! of random coins for the verifier.
-//! It is inspired by the [SAFE] API, with minor variations.
+//! # Examples
 //!
-//!
-//! # Overview
-//!
-//! The library does two things:
-//!
-//! - Assist in the construction of a protocol transcript for a public-coin zero-knowledge proof ([`ProverState`]),
-//! - Assist in the deserialization and verification of a public-coin protocol ([`VerifierState`]).
-//!
-//! The basic idea behind spongefish is that prover and verifier "commit" to the protocol before running the actual protocol.
-//! A string encoding the sequence of messages sent from the prover and the verifier (the [`DomainSeparator`]) is used to generate an  "IV" that initialises the duplex sponge interface.
-//!
-//! The prover just proceeds with concatenation, without ever worrying
-//! about encoding length and special flags to embed in the hash function.
-//! This allows for
-//! better preprocessing,
-//! friendliness with algebraic hashes,
-//! static composition of protocol (and prevention of composition during the execution of a protocol),
-//! and inspection of the Fiat-Shamir transformation.
+//! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
+//! is composed of a protocol identifier, an optional session identifier, and the public instance.
+//! The snippets below illustrate three typical situations.
 //!
 //! ```
-//! use spongefish::{DomainSeparator, DefaultHash};
+//! use spongefish::domain_separator;
 //!
-//! let domain_separator = DomainSeparator::<DefaultHash>::new("👩‍💻🥷🏻👨‍💻 building 🔐🔒🗝️")
-//!         // this indicates the prover is sending 10 elements (bytes)
-//!         .absorb(10, "first")
-//!         // this indicates the verifier is sending 10 elements (bytes)
-//!         .squeeze(10, "second");
-//! assert_eq!(domain_separator.as_bytes(), "👩‍💻🥷🏻👨‍💻 building 🔐🔒🗝️\0A10first\0S10second".as_bytes())
-//! ```
-//! An [`DomainSeparator`] is a UTF8-encoded string wrapper. Absorptions are marked by `A` and
-//! squeezes by `S`, followed by the respective length
-//! (note: length is expressed in terms of [`Unit`], native elements over which the hash function works).
-//! A label is added at the end of each absorb/squeeze, to describe the *type* and
-//! *the variable* as used in the protocol. Operations are separated by a NULL byte and therefore labels cannot contain
-//! NULL bytes themselves, nor they can start with an ASCII digit.
+//! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
+//! const P: u64 = (1 << 31) - 1;
+//! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
+//! let witness = 42;
+//! let instance = [2, language(witness)];
 //!
-//! # Batteries included
-//! The library comes with support for algebraic objects over arkworks and zkcrypto:
-//! - with feature flag `--feature=ark`, the module [`codecs::arkworks_algebra`] provides extension traits for arkworks fields and groups;
-//! - with feature flag `--feature=group`, the module [`codecs::zkcrypto_group`] provides extension traits for zkcrypto's field and group traits.
-//! See the [`codecs`] module for more information.
+//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
+//!              .instance(&instance);
 //!
+//! // non-interactive prover
+//! let mut prover_state = domsep.std_prover();
+//! prover_state.prover_message(&witness);
+//! let nizk = prover_state.narg_string();
+//! assert!(nizk.len() > 0);
 //!
-//! # Non-interactive arguments (NARGs) strings
-//!
-//! Prover and verifier argument strings are built respectively with [`ProverState`] and [`VerifierState`].
-//! [`ProverState`] is meant to be **private** and also holds the prover's random coins, while [`VerifierState`] provides the **public coins** of the protocol.
-//! Given the `DomainSeparator``, it is possible to build a [`ProverState`] instance that can
-//! build the protocol transcript, and seed the private randomness for the prover.
-//!
-//! ```
-//! use spongefish::*;
-//! use rand::Rng;
-//!
-//! // Create a new protocol that will absorb 1 byte and squeeze 16 bytes.
-//! let domain_separator = DomainSeparator::<DefaultHash>::new("example-protocol 🤌").absorb(1, "↪️").squeeze(16, "↩️");
-//! let mut prover_state = domain_separator.to_prover_state();
-//! // The prover sends the byte 0x42.
-//! prover_state.add_bytes(&[0x42]).unwrap();
-//! // The prover receive a 128-bit challenge.
-//! let mut chal = [0u8; 16];
-//! prover_state.fill_challenge_bytes(&mut chal).unwrap();
-//! // The transcript is recording solely the bytes sent by the prover so far.
-//! assert_eq!(prover_state.narg_string(), [0x42]);
-//! // Generate some private randomness bound to the protocol transcript.
-//! let private = prover_state.rng().gen::<[u8; 2]>();
-//!
-//! assert_eq!(prover_state.narg_string(), [0x42]);
+//! // non-interactive verifier
+//! let mut verifier_state = domsep.std_verifier(nizk);
+//! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
+//! assert_eq!(language(claimed_witness), language(witness));
+//! assert!(verifier_state.check_eof().is_ok()) // the proof has been fully read
 //! ```
 //!
-//! (Note: spongefish provides aliases [`DefaultHash`] and [`DefaultRng`] mapping to secure hash functions and random number generators).
-//! An [`ProverState`] instance can generate public coins (via a [`StatefulHashObject`] instance) and private coins.
-//! Private coins are generated with a sponge that absorbs whatever the public sponge absorbs, and is seeded by a cryptographic random number generator throughout the protocol by the prover.
-//! This way, it is really hard to produce two different challenges for the same prover message.
+//! The above code will fail to compile if no instance is given.
+//! The implementor has full responsibility in providing the correct instance of the proof system.
 //!
-//! The verifier can use a [`VerifierState`] instance to recover the protocol transcript and public coins:
+//! ## Building on external libraries
+//!
+//! Spongefish only depends on [`digest`] and [`rand`].
+//! Support for common SNARK libraries is available optional feature flags.
+//! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
+//! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
-//! use spongefish::{DomainSeparator, VerifierState};
-//! use spongefish::traits::*;
-//! use spongefish::keccak::Keccak;
-//! use rand::{Rng, rngs::OsRng};
+//! # #[cfg(feature = "p3-koala-bear")]
+//! # {
+//! // Requires the `p3-baby-bear` feature.
+//! use p3_koala_bear::KoalaBear;
+//! use p3_field::PrimeCharacteristicRing;
+//! use spongefish::{VerificationError, VerificationResult};
 //!
-//! let domain_separator = DomainSeparator::<Keccak>::new("example-protocol 🧀").absorb(1, "in 🍽️").squeeze(16, "out 🤮");
-//! let transcript = [0x42];
-//! let mut verifier_state = domain_separator.to_verifier_state(&transcript);
+//! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
 //!
-//! // Read the first message.
-//! let [first_message] = verifier_state.next_bytes().unwrap();
-//! assert_eq!(first_message, 0x42);
+//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
+//! let mut prover = domain.std_prover();
+//! let challenge = prover.verifier_message::<KoalaBear>();
+//! let response = witness[0] * challenge + witness[1];
+//! prover.prover_message(&response);
+//! let narg_string = prover.narg_string();
 //!
-//! // Squeeze out randomness.
-//! let chal = verifier_state.challenge_bytes::<16>().expect("Squeezing 128 bits");
+//! let mut verifier = domain.std_verifier(narg_string);
+//! let challenge = verifier.verifier_message::<KoalaBear>();
+//! let response = verifier.prover_message::<KoalaBear>().unwrap();
+//! assert_eq!(response, witness[0] * challenge + witness[1]);
+//! assert!(verifier.check_eof().is_ok())
+//! # }
 //! ```
 //!
+//! ## Deriving your own encoding and decoding
+//!
+//! A prover message must implement:
+//! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
+//! - [`NargSerialize`], to serialize the message in a NARG string.
+//! - [`NargDeserialize`], to read from a NARG string.
+//!
+//! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
 //!
 //!
-//! # Acknowledgements
+//! The interface [`Codec`] is a shorthand for all of the above.
+//! ```
+//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek"))]
+//! # {
+//! // Requires the `derive` and `curve25519-dalek` features.
+//! use spongefish::{Codec, domain_separator};
+//! use curve25519_dalek::{RistrettoPoint, Scalar};
 //!
-//! This library is an implementation of
-//! "A Fiat–Shamir Transformation From Duplex Sponges",
-//! by Alessandro Chiesa and Michele Orrù.
+//! #[derive(Clone, Copy, Codec)]
+//! struct PublicKey(RistrettoPoint);
 //!
-//! Internally it takes inspiration from:
-//! - Libsignal's [shosha256], by Trevor Perrin. It provides an absorb/squeeze interface over legacy hash functions.
-//! - the [SAFE] API, by Dmitry Khovratovich, JP Aumasson, Porçu Quine, Bart Mennink. To my knowledge they are the first to introduce this idea of using an domain separator to build a transcript and the SAFE API.
-//! - [Merlin], by Henry de Valence. To my knowledge it introduced this idea of a `Transcript` object carrying over the state of the hash function throughout the protocol.
+//! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
+//! let domain = spongefish::domain_separator!("challenge-response"; "example")
+//!              .instance(&generator);
+//!
+//! let pk = PublicKey(generator * Scalar::from(42u64));
+//! let mut prover = domain.std_prover();
+//! prover.public_message(&pk);
+//! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
+//! # }
+//! ```
+//! # Supported types
+//!
+//! Unsigned integers and byte arrays have codecs attached to them.
+//! Popular algebraic types are also implemented:
+//!
+//! 1. arkworks field elements (including `Fp` and extension `Fp2`, Fp3`, `Fp4`, `Fp6`, `Fp12`)
+//! are available via the `ark-ff` feature flag;
+//! 2. arkworks elliptic curve elements are available via the `ark-ec` feature flag;
+//! 3. Ristretto points of curve25519_dalek are available via the `curve25519-dalek` feature flag;
+//! 4. Plonky3's `BabyBear`, `KoalaBear`, and `Mersenne31` field elements
+//! are available via (respectively) `p3-baby-bear`, `p3-koala-bear`, `p3-mersenne-31` feature flags.
+//! 3. p256 field and elliptic curve elements are available via the `p256` feature flag.
 //!
 //!
-//! [shosha256]: https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs
-//! [SAFE]: https://eprint.iacr.org/2023/522
-//! [Merlin]: https://github.com/dalek-cryptography/merlin
-//! [`digest::Digest`]: https://docs.rs/digest/latest/digest/trait.Digest.html
+//! # Supported hash functions
+//!
+//! All hash functions are available in [`instantiations`]:
+//!
+//! 1. [`Keccak`][instantiations::Keccak], the duplex sponge construction [[CO25], Section 3.3] for the
+//! [`keccak::f1600`] permutation [Keccak-f].
+//! Available with the `keccak` feature flag;
+//! 2. [`Ascon12`][instantiations::Ascon12], the duplex sponge construction [[CO25], Section 3.3] for the
+//! [`ascon`] permutation [Ascon], used in overwrite mode.
+//! Available with the `ascon` feature flag;
+//! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [sha3::Shake128].
+//! Available with the `sha3` feature flag (enabled by default);
+//! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
+//! Available with the `sha3` feature flag (enabled by default);
+//! 5. [`SHA256`][instantiations::SHA256], based on [`sha2::Sha256`] used as a stateful hash object.
+//! Available with the `sha2` feature flag;
+//! 6. [`SHA512`][instantiations::SHA512], based on [`sha2::Sha512`] used as a stateful hash object.
+//! Available with the `sha2` feature flag.
+//!
+//! # Implementing your own hash functions
+//!
+//! The duplex sponge construction [`DuplexSponge`] is described
+//! in [[CO25], Section 3.3].
+//!
+//! The extensible output function [`instantiations::XOF`]
+//! wraps an object implementing [`digest::ExtendableOutput`]
+//! and implements the duplex sponge interface with little-to-no code.
+//! Its implementation has little differences with [`DuplexSponge`].
+//!
+//! The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
+//! the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`]
+//!
+//! ## Security considerations
+//!
+//! Only Constructions (1) and (2) are proven secure, in the ideal permutation model;
+//! all other constructions are built using heuristics.
+//!
+//! Previous version of this library were audited by [Radically Open Security].
+//!
+//! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way,
+//! but the library requiring three elements on initialization:
+//! - a mandatory 64-bytes protocol identifier,
+//!   uniquely identifying the non-interactive protocol being built.
+//! - a 64-bytes session identifier,
+//!   corresponding to session and sub-session identifiers in universal composability lingo.
+//! - a mandatory instance that will be used in the proof system.
+//!
+//! The developer is in charge of making sure they are chosen appropriately.
+//! In particular, the instance encoding function prefix-free.
+//!
+//! [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
+//! [Keccak-f]: https://keccak.team/keccak_specs_summary.html
+//! [Ascon]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf
+//! [CO25]: https://eprint.iacr.org/2025/536.pdf
+//! [Radically Open Security]: https://www.radicallyopensecurity.com/
+//! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+
+#![no_std]
+extern crate alloc;
 
 #[cfg(target_endian = "big")]
 compile_error!(
@@ -126,44 +179,89 @@ This crate doesn't support big-endian targets.
 "#
 );
 
-/// Hash functions traits and implementations.
-pub mod duplex_sponge;
-/// Built-in proof results.
-mod errors;
-/// Verifier state and transcript deserialization.
-mod verifier;
+/// Definition of the [`DuplexSpongeInterface`] and the [`DuplexSponge`] construction.
+mod duplex_sponge;
 
-/// Built-in permutation functions.
-pub mod keccak;
+/// Instantiations of the [`DuplexSpongeInterface`].
+pub mod instantiations;
 
-/// APIs for common zkp libraries.
-pub mod codecs;
-/// domain separator
+/// The NARG prover state.
+mod narg_prover;
+
+/// The NARG verifier state.
+mod narg_verifier;
+
+/// Trait implementation for common ZKP libraries.
+mod drivers;
+
+/// Utilities for serializing prover messages and de-serializing NARG strings.
+pub(crate) mod io;
+
+/// Codecs are functions for encoding prover messages into [`Unit`]s  and producing verifier messages.
+pub(crate) mod codecs;
+
+/// Defines [`VerificationError`].
+pub(crate) mod error;
+
+/// Heuristics for building misuse-resistant protocol identifiers.
 mod domain_separator;
-/// Prover's internal state and transcript generation.
-mod prover;
-/// SAFE API.
-mod sho;
+
+// Re-export the core interfaces for building the FS transformation.
+#[doc(hidden)]
+pub use codecs::ByteArray;
+pub use codecs::{Codec, Decoding, Encoding};
+pub use domain_separator::DomainSeparator;
+#[doc(hidden)]
+pub use domain_separator::{protocol_id, session_id};
+pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
+pub use error::{VerificationError, VerificationResult};
+pub use io::{NargDeserialize, NargSerialize};
+pub use narg_prover::ProverState;
+pub use narg_verifier::VerifierState;
+#[cfg(feature = "derive")]
+pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
+
+/// The default hash function provided by the library.
+#[cfg(feature = "sha3")]
+pub type StdHash = instantiations::Shake128;
+
+/// Build a [`DomainSeparator`] from a formatted string.
+///
+/// ```
+/// let domsep = spongefish::domain_separator!("spongefish"; "DomainSeparator")
+///     .instance(b"trivial");
+/// let _prover = domsep.std_prover();
+/// ```
+#[macro_export]
+macro_rules! domain_separator {
+    ($fmt:literal $(, $arg:expr)* $(,)? ; $sess_fmt:literal $(, $sess_arg:expr)* $(,)?) => {{
+        $crate::domain_separator!($fmt $(, $arg)*)
+            .session($crate::session_id(core::format_args!($sess_fmt $(, $sess_arg)*)))
+    }};
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::DomainSeparator::<_, [u8; 64]>::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
+    }};
+}
+
+/// Attaches a 64-byte session identifier to the domain separator.
+///
+/// ```
+/// # use spongefish::{DomainSeparator, session};
+///
+/// DomainSeparator::new([0u8; 64])
+///     .session(session!("example at L{{line!()}}"))
+///     .instance(b"empty");
+/// ```
+#[macro_export]
+macro_rules! session {
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::session_id(core::format_args!($fmt $(, $arg)*))
+    }};
+}
+
+#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
+pub type DefaultHash = instantiations::Shake128;
+
 /// Unit-tests.
 #[cfg(test)]
 mod tests;
-
-/// Proposed alternative domain separator
-pub mod pattern;
-
-/// Traits for byte support.
-pub mod traits;
-
-pub use domain_separator::DomainSeparator;
-pub use duplex_sponge::{legacy::DigestBridge, DuplexSpongeInterface, Unit};
-pub use errors::{DomainSeparatorMismatch, ProofError, ProofResult};
-pub use prover::ProverState;
-pub use sho::HashStateWithInstructions;
-pub use traits::*;
-pub use verifier::VerifierState;
-
-/// Default random number generator used ([`rand::rngs::OsRng`]).
-pub type DefaultRng = rand::rngs::OsRng;
-
-/// Default hash function used ([`keccak::Keccak`]).
-pub type DefaultHash = keccak::Keccak;

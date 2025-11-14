@@ -1,0 +1,26 @@
+[package]
+name = "spongefish-pow"
+authors = [
+    "Giacomo Fenzi <giacomofenzi@outlook.com>",
+    "Remco Bloemen <remco@wicked.ventures>",
+]
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+spongefish = { workspace = true }
+blake3 = { workspace = true, optional = true }
+keccak = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+rayon = { workspace = true, optional = true }
+rand = { workspace = true }
+
+[features]
+default = ["parallel", "blake3", "keccak"]
+parallel = ["dep:rayon"]
+blake3 = ["dep:blake3", "spongefish/blake3"]
+keccak = ["dep:keccak", "dep:bytemuck", "spongefish/keccak"]
