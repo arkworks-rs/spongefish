@@ -1,4 +1,4 @@
-//! The Fiat-Shamir transformation for public-coin protocols.
+//! The Fiat--Shamir transformation for public-coin protocols.
 //!
 //! Implements the DSFS transformation from [[CO25]], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
 //!
@@ -30,7 +30,8 @@
 //! let mut verifier_state = domsep.std_verifier(nizk);
 //! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
 //! assert_eq!(language(claimed_witness), language(witness));
-//! assert!(verifier_state.check_eof().is_ok()) // the proof has been fully read
+//! // a proof is malleable if we don't check we read everything
+//! assert!(verifier_state.check_eof().is_ok())
 //! ```
 //!
 //! The above code will fail to compile if no instance is given.
@@ -63,6 +64,7 @@
 //! let challenge = verifier.verifier_message::<KoalaBear>();
 //! let response = verifier.prover_message::<KoalaBear>().unwrap();
 //! assert_eq!(response, witness[0] * challenge + witness[1]);
+//! // a proof is malleable if we don't check we read everything
 //! assert!(verifier.check_eof().is_ok())
 //! # }
 //! ```
@@ -96,6 +98,7 @@
 //! let mut prover = domain.std_prover();
 //! prover.public_message(&pk);
 //! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
+//!
 //! # }
 //! ```
 //! # Supported types
