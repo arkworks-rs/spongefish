@@ -1,6 +1,6 @@
 //! The Fiat-Shamir transformation for public-coin protocols.
 //!
-//! Implements the DSFS transformation from [CO25], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
+//! Implements the DSFS transformation from [[CO25]], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
 //!
 //! # Examples
 //!
@@ -103,7 +103,7 @@
 //! Unsigned integers and byte arrays have codecs attached to them.
 //! Popular algebraic types are also implemented:
 //!
-//! 1. arkworks field elements (including `Fp` and extension `Fp2`, Fp3`, `Fp4`, `Fp6`, `Fp12`)
+//! 1. arkworks field elements (including `Fp` and extension `Fp2`, `Fp3`, `Fp4`, `Fp6`, `Fp12`)
 //! are available via the `ark-ff` feature flag;
 //! 2. arkworks elliptic curve elements are available via the `ark-ec` feature flag;
 //! 3. Ristretto points of curve25519_dalek are available via the `curve25519-dalek` feature flag;
