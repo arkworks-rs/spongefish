@@ -17,14 +17,16 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// A trait denoting the requirements for the elements of the alphabet.
 ///
 /// ```
+/// # #[cfg(feature = "derive")]
+/// # {
 /// use spongefish::Unit;
 ///
 /// #[derive(Clone, Debug, Unit, PartialEq, Eq)]
 /// pub struct Rgb(pub u8, pub u8, pub u8);
 ///
 /// assert_eq!(Rgb::ZERO, Rgb(0, 0, 0))
+/// # }
 /// ```
-///
 pub trait Unit: Clone + Sized {
     /// The zero element.
     const ZERO: Self;

@@ -79,9 +79,9 @@
 //!
 //! The interface [`Codec`] is a shorthand for all of the above.
 //! ```
-//! #[cfg(feature = "curve25519-dalek")]
+//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek"))]
 //! # {
-//! // Requires the `curve25519-dalek` feature.
+//! // Requires the `derive` and `curve25519-dalek` features.
 //! use spongefish::{Codec, domain_separator};
 //! use curve25519_dalek::{RistrettoPoint, Scalar};
 //!

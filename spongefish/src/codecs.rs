@@ -10,6 +10,8 @@
 /// With the `derive` feature enabled:
 ///
 /// ```
+/// # #[cfg(feature = "derive")]
+/// # {
 /// use spongefish::Codec;
 ///
 /// #[derive(Codec)]
@@ -19,6 +21,7 @@
 ///     #[spongefish(skip)]  // Skip this field (uses Default)
 ///     cached: Option<String>,
 /// }
+/// # }
 /// ```
 ///
 /// Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
