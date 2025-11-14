@@ -4,7 +4,7 @@ authors = [
     "Michele Orrù <m@orru.net>",
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
 ]
-description = "An implementation of the Fiat-Shamir transformation from Duplex Sponges."
+description = "An implementation of the Fiat--Shamir transformation from Duplex Sponges."
 edition.workspace = true
 license.workspace = true
 version.workspace = true

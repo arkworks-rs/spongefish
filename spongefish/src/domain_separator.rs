@@ -8,7 +8,7 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 
 /// Marker structure for domain separators without an associated instance.
 ///
-/// The Fiat-Shamir transformation requires an instance to provide a sound non-interactive proof.
+/// The Fiat--Shamir transformation requires an instance to provide a sound non-interactive proof.
 /// This type is used to make sure that the developer does not forget to add it.
 ///
 /// ```compile_fail
@@ -37,7 +37,7 @@ impl<I> WithoutInstance<I> {
 /// ```
 pub struct WithInstance<'i, I>(&'i I);
 
-/// Domain separator for a Fiat-Shamir transformation.
+/// Domain separator for a Fiat--Shamir transformation.
 pub struct DomainSeparator<I, S = [u8; 64]> {
     /// **what** this interactive protocol is.
     pub protocol: [u8; 64],

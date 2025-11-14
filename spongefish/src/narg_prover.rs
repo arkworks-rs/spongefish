@@ -145,10 +145,10 @@ where
         self.narg_string.as_slice()
     }
 
-    /// Input a public message to the Fiat-Shamir transformation.
+    /// Input a public message to the Fiat--Shamir transformation.
     ///
     /// A public message in this context is a message that is shared among prover and verifier
-    /// outside of the NARG, and is to be included in the Fiat-Shamir transformation but not in
+    /// outside of the NARG, and is to be included in the Fiat--Shamir transformation but not in
     /// the final NARG string.
     ///
     /// ```
@@ -164,7 +164,7 @@ where
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Input a prover message of type `T` into the Fiat-Shamir transformation.
+    /// Input a prover message of type `T` into the Fiat--Shamir transformation.
     ///
     /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
     /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
@@ -206,14 +206,14 @@ where
         self.verifier_message()
     }
 
-    /// Input to the Fiat-Shamir transformation an array of public messages.
+    /// Input to the Fiat--Shamir transformation an array of public messages.
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
         }
     }
 
-    /// Input to the Fiat-Shamir transformation an iterator of public messages.
+    /// Input to the Fiat--Shamir transformation an iterator of public messages.
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
