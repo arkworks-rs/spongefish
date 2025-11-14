@@ -209,18 +209,15 @@ mod domain_separator;
 // Re-export the core interfaces for building the FS transformation.
 #[doc(hidden)]
 pub use codecs::ByteArray;
-#[doc(hidden)]
-pub use domain_separator::{protocol_id, session_id};
-
-
 pub use codecs::{Codec, Decoding, Encoding};
 pub use domain_separator::DomainSeparator;
+#[doc(hidden)]
+pub use domain_separator::{protocol_id, session_id};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg_prover::ProverState;
 pub use narg_verifier::VerifierState;
-
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
