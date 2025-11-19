@@ -1,3 +1,4 @@
+use alloc::string::String;
 use rand::RngCore;
 
 #[test]
@@ -59,4 +60,32 @@ fn verifier_challenge_matches_prover() {
     let mut verifier = domain.std_verifier(&proof);
     let reproduced: u32 = verifier.verifier_message();
     assert_eq!(challenge, reproduced);
+}
+
+#[test]
+fn domain_separator_accepts_variable_sessions() {
+    let instance = [0u8; 0];
+    let literal_session = crate::domain_separator!("variable sessions"; "shared session")
+        .instance(&instance)
+        .session
+        .expect("literal session missing");
+    let session_str = "shared session";
+    let from_str = crate::domain_separator!("variable sessions"; session_str)
+        .instance(&instance)
+        .session
+        .expect("string session missing");
+    assert_eq!(literal_session, from_str);
+
+    let session_owned = String::from("shared session");
+    let from_owned = crate::domain_separator!("variable sessions"; session_owned.clone())
+        .instance(&instance)
+        .session
+        .expect("owned session missing");
+    assert_eq!(literal_session, from_owned);
+
+    let from_owned_ref = crate::domain_separator!("variable sessions"; &session_owned)
+        .instance(&instance)
+        .session
+        .expect("reference session missing");
+    assert_eq!(literal_session, from_owned_ref);
 }

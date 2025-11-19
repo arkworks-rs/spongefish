@@ -215,7 +215,7 @@ pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
-pub use domain_separator::{protocol_id, session_id};
+pub use domain_separator::{protocol_id, session_id, session_id_from_str};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -240,6 +240,10 @@ macro_rules! domain_separator {
     ($fmt:literal $(, $arg:expr)* $(,)? ; $sess_fmt:literal $(, $sess_arg:expr)* $(,)?) => {{
         $crate::domain_separator!($fmt $(, $arg)*)
             .session($crate::session_id(core::format_args!($sess_fmt $(, $sess_arg)*)))
+    }};
+    ($fmt:literal $(, $arg:expr)* $(,)? ; $session:expr $(,)?) => {{
+        $crate::domain_separator!($fmt $(, $arg)*)
+            .session($crate::session_id_from_str(&$session))
     }};
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
         $crate::DomainSeparator::<_, [u8; 64]>::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))

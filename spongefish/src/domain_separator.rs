@@ -159,3 +159,15 @@ pub fn session_id(args: Arguments) -> [u8; 64] {
 
     sponge.squeeze_array()
 }
+
+#[inline]
+#[doc(hidden)]
+#[must_use]
+pub fn session_id_from_str<S>(value: &S) -> [u8; 64]
+where
+    S: AsRef<str> + ?Sized,
+{
+    let mut sponge = StdHash::default();
+    sponge.absorb(value.as_ref().as_bytes());
+    sponge.squeeze_array()
+}

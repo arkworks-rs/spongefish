@@ -231,6 +231,17 @@ where
         }
     }
 
+    /// Absorbs an iterator of prover messages.
+    pub fn prover_messages_iter<J>(&mut self, messages: J)
+    where
+        J: IntoIterator,
+        J::Item: Encoding<[H::U]> + NargSerialize,
+    {
+        messages
+            .into_iter()
+            .for_each(|message| self.prover_message(&message));
+    }
+
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
