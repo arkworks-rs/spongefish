@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "spongefish",
-    "spongefish-derive",
+    "derive",
     "pow",
     "poseidon2",
 ]
@@ -61,7 +61,7 @@ k256 = "^0.13"
 k12 = "^0.3.0"
 keccak = "^0.1.5"
 spongefish = { path = "spongefish" }
-spongefish-derive = { path = "spongefish-derive" }
+spongefish-derive = { path = "derive" }
 spongefish-poseidon2 = { path = "poseidon2" }
 # p256 = "^0.13"
 p3-baby-bear = "^0.3"

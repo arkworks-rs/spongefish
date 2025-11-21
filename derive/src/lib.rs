@@ -8,6 +8,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
 
     let encoding_impl = match &input.data {
         Data::Struct(data) => {
+            let mut encoding_bounds = Vec::new();
             let field_encodings = match &data.fields {
                 Fields::Named(fields) => fields
                     .named
@@ -17,6 +18,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
                             return None;
                         }
                         let field_name = &f.ident;
+                        encoding_bounds.push(f.ty.clone());
                         Some(quote! {
                             output.extend_from_slice(self.#field_name.encode().as_ref());
                         })
@@ -31,6 +33,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
                             return None;
                         }
                         let index = syn::Index::from(i);
+                        encoding_bounds.push(f.ty.clone());
                         Some(quote! {
                             output.extend_from_slice(self.#index.encode().as_ref());
                         })
@@ -39,8 +42,12 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
                 Fields::Unit => vec![],
             };
 
+            let bound = quote!(::spongefish::Encoding<[u8]>);
+            let generics = add_trait_bounds_for_fields(input.generics.clone(), &encoding_bounds, &bound);
+            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
             quote! {
-                impl spongefish::Encoding<[u8]> for #name {
+                impl #impl_generics ::spongefish::Encoding<[u8]> for #name #ty_generics #where_clause {
                     fn encode(&self) -> impl AsRef<[u8]> {
                         let mut output = ::std::vec::Vec::new();
                         #(#field_encodings)*
@@ -60,6 +67,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
 
     let decoding_impl = match &input.data {
         Data::Struct(data) => {
+            let mut decoding_bounds = Vec::new();
             let (size_calc, field_decodings) = match &data.fields {
                 Fields::Named(fields) => {
                     let mut offset = quote!(0usize);
@@ -77,6 +85,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
 
                         let field_name = &field.ident;
                         let field_type = &field.ty;
+                        decoding_bounds.push(field_type.clone());
 
                         size_components.push(quote! {
                             ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
@@ -128,6 +137,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         }
 
                         let field_type = &field.ty;
+                        decoding_bounds.push(field_type.clone());
 
                         size_components.push(quote! {
                             ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
@@ -166,8 +176,12 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                 Fields::Unit => (quote!(0usize), quote!(Self)),
             };
 
+            let bound = quote!(::spongefish::Decoding<[u8]>);
+            let generics = add_trait_bounds_for_fields(input.generics.clone(), &decoding_bounds, &bound);
+            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
             quote! {
-                impl spongefish::Decoding<[u8]> for #name {
+                impl #impl_generics ::spongefish::Decoding<[u8]> for #name #ty_generics #where_clause {
                     type Repr = spongefish::ByteArray<{ #size_calc }>;
 
                     fn decode(buf: Self::Repr) -> Self {
@@ -187,6 +201,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 
     let deserialize_impl = match &input.data {
         Data::Struct(data) => {
+            let mut deserialize_bounds = Vec::new();
             let field_deserializations = match &data.fields {
                 Fields::Named(fields) => {
                     let field_inits = fields.named.iter().map(|f| {
@@ -198,6 +213,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                                 #field_name: Default::default(),
                             }
                         } else {
+                            deserialize_bounds.push(field_type.clone());
                             quote! {
                                 #field_name: <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
@@ -219,6 +235,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                                 Default::default(),
                             }
                         } else {
+                            deserialize_bounds.push(field_type.clone());
                             quote! {
                                 <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
                             }
@@ -234,8 +251,12 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                 },
             };
 
+            let bound = quote!(::spongefish::NargDeserialize);
+            let generics = add_trait_bounds_for_fields(input.generics.clone(), &deserialize_bounds, &bound);
+            let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
             quote! {
-                impl spongefish::NargDeserialize for #name {
+                impl #impl_generics ::spongefish::NargDeserialize for #name #ty_generics #where_clause {
                     fn deserialize_from_narg(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
                         #field_deserializations
                     }
@@ -432,4 +453,23 @@ fn has_skip_attribute(attrs: &[syn::Attribute]) -> bool {
         })
         .is_ok()
     })
+}
+
+fn add_trait_bounds_for_fields(
+    mut generics: syn::Generics,
+    field_types: &[Type],
+    trait_bound: &TokenStream2,
+) -> syn::Generics {
+    if field_types.is_empty() {
+        return generics;
+    }
+
+    let where_clause = generics.make_where_clause();
+    for ty in field_types {
+        where_clause
+            .predicates
+            .push(parse_quote!(#ty: #trait_bound));
+    }
+
+    generics
 }
