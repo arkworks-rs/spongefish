@@ -4,6 +4,7 @@ members = [
     "derive",
     "pow",
     "poseidon2",
+    "circuit",
 ]
 resolver = "2"
 
@@ -63,6 +64,7 @@ keccak = "^0.1.5"
 spongefish = { path = "spongefish" }
 spongefish-derive = { path = "derive" }
 spongefish-poseidon2 = { path = "poseidon2" }
+spongefish-circuit = { path = "circuit" }
 # p256 = "^0.13"
 p3-baby-bear = "^0.3"
 p3-field = "^0.3"

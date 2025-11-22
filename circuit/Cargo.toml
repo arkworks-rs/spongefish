@@ -1,0 +1,28 @@
+[package]
+name = "spongefish-circuit"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+p3-field = { workspace = true }
+spongefish = { workspace = true, features = ["derive"] }
+
+# Optional Plonky3/BabyBear support
+p3-baby-bear = { workspace = true, optional = true }
+spongefish-poseidon2 = { workspace = true, optional = true }
+
+[dev-dependencies]
+p3-baby-bear = { workspace = true }
+
+[features]
+default = ["p3-baby-bear"]
+p3-baby-bear = [
+  "dep:p3-baby-bear",
+  "dep:spongefish-poseidon2",
+  "spongefish/p3-baby-bear",
+  "spongefish-poseidon2/p3-baby-bear",
+]
