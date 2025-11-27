@@ -18,6 +18,7 @@ p3-symmetric = { workspace = true, optional = true }
 p3-koala-bear = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
+p3-field = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -35,6 +36,6 @@ risc0-zkp = { workspace = true, optional = true }
 # ark-bls12-381 = ["spongefish/ark-ec", "dep:ark-bls12-381"]
 
 # plonky3
-p3-koala-bear = ["spongefish/p3-koala-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-koala-bear"]
-p3-baby-bear = ["spongefish/p3-baby-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-baby-bear"]
+p3-koala-bear = ["spongefish/p3-koala-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-koala-bear", "dep:p3-field"]
+p3-baby-bear = ["spongefish/p3-baby-bear", "dep:p3-symmetric", "dep:p3-poseidon2", "dep:p3-baby-bear", "dep:p3-field"]
 risc0-zkp = ["spongefish/risc0-zkp", "dep:risc0-zkp"]

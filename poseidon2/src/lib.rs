@@ -117,3 +117,25 @@ mod p3_baby_bear_poseidon2 {
         }
     }
 }
+
+
+#[cfg(all(feature = "risc0-zkp", feature = "p3-baby-bear"))]
+#[test]
+fn compatibility_risc0_plonky3 () {
+    use p3_baby_bear::BabyBear;
+    use spongefish::Permutation;
+    use p3_field::{PrimeField32, PrimeCharacteristicRing};
+    use risc0_zkp::field::Elem;
+
+    let p3_poseidon2 = crate::BabyBearPoseidon2_24::default();
+    let mut p3_cells = [BabyBear::ONE; 24];
+    p3_poseidon2.permute_mut(&mut p3_cells);
+    let p3_cells = p3_cells.map(|x| x.as_canonical_u32());
+
+    let mut r0_cells = [risc0_zkp::field::baby_bear::BabyBearElem::ONE; 24];
+    risc0_zkp::core::hash::poseidon2::poseidon2_mix(&mut r0_cells);
+    let r0_cells = r0_cells
+        .map(|x| x.as_u32());
+
+    assert_eq!(r0_cells, p3_cells);
+}
