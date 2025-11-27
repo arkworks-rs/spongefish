@@ -23,6 +23,8 @@ pub mod p3_baby_bear;
 pub mod p3_koala_bear;
 #[cfg(feature = "p3-mersenne-31")]
 pub mod p3_mersenne31;
+#[cfg(feature = "risc0-zkp")]
+pub mod risc0_zkp_impl;
 
 // Buffer of 512-bytes, useful for decoding 256-bit scalars.
 #[allow(dead_code)]

@@ -18,9 +18,9 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 ///
 /// domain_separator!("this will not compile").std_prover();
 /// ```
-pub struct WithoutInstance<I>(PhantomData<I>);
+pub struct WithoutInstance<I: ?Sized>(PhantomData<I>);
 
-impl<I> WithoutInstance<I> {
+impl<I: ?Sized> WithoutInstance<I> {
     const fn new() -> Self {
         Self(PhantomData)
     }
@@ -35,7 +35,7 @@ impl<I> WithoutInstance<I> {
 ///     .instance(b"yellowsubmarine")
 ///     .std_prover();
 /// ```
-pub struct WithInstance<'i, I>(&'i I);
+pub struct WithInstance<'i, I: ?Sized>(&'i I);
 
 /// Domain separator for a Fiat--Shamir transformation.
 pub struct DomainSeparator<I, S = [u8; 64]> {
@@ -47,7 +47,7 @@ pub struct DomainSeparator<I, S = [u8; 64]> {
     instance: I,
 }
 
-impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
+impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, S> {
     #[must_use]
     pub const fn new(protocol: [u8; 64]) -> Self {
         Self {
@@ -70,7 +70,7 @@ impl<I, S> DomainSeparator<I, S> {
     }
 }
 
-impl<I, S> DomainSeparator<WithoutInstance<I>, S> {
+impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, S> {
     pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>, S> {
         DomainSeparator {
             protocol: self.protocol,
