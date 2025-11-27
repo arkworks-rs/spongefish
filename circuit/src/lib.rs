@@ -3,6 +3,3 @@
 extern crate alloc;
 pub mod allocator;
 pub mod permutation;
-
-#[cfg(test)]
-pub mod tests;

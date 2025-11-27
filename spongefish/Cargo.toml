@@ -43,6 +43,7 @@ p3-field = { workspace = true, optional = true }
 p3-baby-bear = { workspace = true, optional = true }
 p3-mersenne-31 = { workspace = true, optional = true }
 p3-koala-bear = { workspace = true, optional = true }
+risc0-zkp = { workspace = true, optional = true }
 
 
 [features]
@@ -75,6 +76,8 @@ p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
 # Performance features
 asm = ["keccak?/asm", "keccak?/simd", "ark-ff?/asm"]
 std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
+# risc0-zkp
+risc0-zkp = ["dep:risc0-zkp"]
 
 [dev-dependencies]
 ark-std = { workspace = true }

@@ -1,10 +1,10 @@
 use p3_baby_bear::BabyBear;
 use spongefish::{DuplexSponge, DuplexSpongeInterface};
 
-use crate::permutation::PermutationInstanceBuilder;
+use spongefish_circuit::permutation::PermutationInstanceBuilder;
 
 #[test]
-fn test_xof() {
+pub fn test_xof() {
     // Create a new dummy permutation.
     // The permutation contains internally a "FieldVar" allocator, which is simply a `usize`
     // representing a field variable.
