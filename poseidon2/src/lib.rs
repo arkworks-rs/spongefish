@@ -2,6 +2,11 @@
 pub use p3_baby_bear_poseidon2::{BabyBearPoseidon2_16, BabyBearPoseidon2_24};
 #[cfg(feature = "p3-koala-bear")]
 pub use p3_koala_bear_poseidon2::{KoalaBearPoseidon2_16, KoalaBearPoseidon2_24};
+#[cfg(feature = "risc0-zkp")]
+pub use risc0_poseidon2::RiscZeroBabyBearPoseidon2_24;
+
+#[cfg(feature = "risc0-zkp")]
+mod risc0_poseidon2;
 
 /// Wrapper on Poseidon2KoalaBear of width 16.
 #[cfg(any(feature = "p3-koala-bear", feature = "p3-baby-bear"))]
