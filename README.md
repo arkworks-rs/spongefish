@@ -1,6 +1,6 @@
-# spongefish: a duplex sponge Fiat--Shamir library 🧽🐟
+# spongefish: a duplex sponge Fiat–Shamir library 🧽🐟
 
-Sponge FiSh (duplex **sponge** **Fi**at--**Sh**amir) is a permutation-agnostic Fiat--Shamir library that believes in random oracles.
+Sponge FiSh (duplex **sponge** **Fi**at–**Sh**amir) is a permutation-agnostic Fiat–Shamir library that believes in random oracles.
 It facilitates the writing of multi-round public coin protocols.
 It provides a generic API for generating the verifier's random coins and the prover randomness.
 The project is split into three crates:
