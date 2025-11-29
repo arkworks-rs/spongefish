@@ -7,8 +7,14 @@ use spongefish::Unit;
 
 /// A symbolic wire over which we perform out computation.
 /// Wraps over a [`usize`]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Unit)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Unit)]
 pub struct FieldVar(pub usize);
+
+impl core::fmt::Debug for FieldVar {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "v({})", self.0)
+    }
+}
 
 // /// A witness-instance pair that builds at the same time the instance and the relation.
 // ///
@@ -95,12 +101,13 @@ impl<T: Clone> VarAllocator<T> {
         )
     }
 
-    pub fn public_vars(&self) -> Vec<(usize, T)> {
+    pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.state
             .borrow()
             .public_values
             .iter()
-            .map(|(var, val)| (var.0, val.clone()))
+            .cloned()
+            .map(|(var, val)| (var, val.clone()))
             .collect()
     }
 }

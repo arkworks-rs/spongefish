@@ -65,7 +65,7 @@ impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         self.constraints.borrow_mut().state.clone()
     }
 
-    pub fn public_vars(&self) -> Vec<(usize, T)> {
+    pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
     }
 }
