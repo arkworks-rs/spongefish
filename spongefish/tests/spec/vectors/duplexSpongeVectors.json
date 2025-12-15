@@ -1,0 +1,328 @@
+{
+  "test_absorb_empty_after_does_not_break_Keccak": {
+    "Expected": "30837d887e28e7fccda401051fc14f666e79cd235ba1f27afae21969262d51d22acebf59c4d07e03f54e2a6a5141b9815da0513f98f487b7418d315f2613a9a4",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "",
+        "type": "absorb"
+      },
+      {
+        "data": "656d707479206d657373616765206265666f7265",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_absorb_empty_after_does_not_break_SHAKE128": {
+    "Expected": "6e475edd3c400bec314d5891af570841a547c95d1a651adff9a8bfb70719a79b5afde316386da13fa83525662df3c5b2367d987bf3dc4199efdb9d0612572785",
+    "HashFunction": "SHAKE128",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "",
+        "type": "absorb"
+      },
+      {
+        "data": "656d707479206d657373616765206265666f7265",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_absorb_empty_before_does_not_break_Keccak": {
+    "Expected": "e9b56085153c758ce1305371309bc39fc7e08cb82706ab766fa6c5869090e81f332844ebec52dde7b8c020e977d4e7589c8f93f733b8639c3bc728320730d324",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "656d707479206d657373616765206166746572",
+        "type": "absorb"
+      },
+      {
+        "data": "",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_absorb_empty_before_does_not_break_SHAKE128": {
+    "Expected": "3953e577d9e5d4dc7b86d1a62e881f2d1eb750ea3550fcae315854d166136ae816ca922a4c7e54d711b8721c8969598449922122768c50313f47eef35020b73c",
+    "HashFunction": "SHAKE128",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "656d707479206d657373616765206166746572",
+        "type": "absorb"
+      },
+      {
+        "data": "",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_absorb_squeeze_absorb_consistency_Keccak": {
+    "Expected": "c81f5779e63bf853c89a3108bd9c65aca437a7680f849f6c0bbdcd517d6b5dcf",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "656467652d636173652d746573742d646f6d61696e2d6162736f7262000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "696e7465726c65617665206669727374",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      },
+      {
+        "data": "696e7465726c65617665207365636f6e64",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_absorb_squeeze_absorb_consistency_SHAKE128": {
+    "Expected": "4d31a75f29851f9f15cd54fa6f2335cbe07b947b9d3c28092c1ba7315e295921",
+    "HashFunction": "SHAKE128",
+    "IV": "656467652d636173652d746573742d646f6d61696e2d6162736f7262000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "696e7465726c65617665206669727374",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      },
+      {
+        "data": "696e7465726c65617665207365636f6e64",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_associativity_of_absorb_Keccak": {
+    "Expected": "28536e7df3b7fd15b0b6ee38ebf930c3162dee584c655e6a8896d4fb2f3a6cef",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "6162736f72622d6173736f6369617469766974792d646f6d61696e00000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "6173736f63696174697669747920746573742066756c6c",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_associativity_of_absorb_SHAKE128": {
+    "Expected": "c0faa351141d60678dceff4f3a5760381bb335ad113958b70edf7b242df01c8a",
+    "HashFunction": "SHAKE128",
+    "IV": "6162736f72622d6173736f6369617469766974792d646f6d61696e00000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "6173736f63696174697669747920746573742066756c6c",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_iv_affects_output_Keccak": {
+    "Expected": "ad8446208ba3a95a5673bc4e8885074d5e6b48836cee66b64343bbea05bd3369",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "646f6d61696e2d6f6e652d646966666572732d686572650000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "697620646966666572656e63652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_iv_affects_output_SHAKE128": {
+    "Expected": "7650642267cc544abf0e01ce28e2595aec4c2f5b5e5e3720ab551449637b35f2",
+    "HashFunction": "SHAKE128",
+    "IV": "646f6d61696e2d6f6e652d646966666572732d686572650000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "697620646966666572656e63652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 32,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_keccak_duplex_sponge_Keccak": {
+    "Expected": "920dc791ed15ee912e3d8595b0b8718380f6678c5601128555dfeaecea0ec923597e0b9db5d5952c17ddf94eba5f8dff9e50ea581ef40d749086dbf5d1b0a9d4",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "6261736963206475706c65782073706f6e67652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_keccak_duplex_sponge_SHAKE128": {
+    "Expected": "f845c3ef4231a4d6e09c29b1eea0055842246fd57558fd7d93e1302f7799dd9593d2e4d06eda72d5252ca5b2feff4b8cb324ec96673a7417cf70fa77b1898991",
+    "HashFunction": "SHAKE128",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "6261736963206475706c65782073706f6e67652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_multiple_blocks_absorb_squeeze_Keccak": {
+    "Expected": "711ed4286a9656423a8f95b24208cf298fc7023c8b3254f5bad04c21b752f524a7c4fcd0559d7ce6f749a4a144fb76dc42089bc56c97b1354370e6f66ff80cbbeedd7e2b9506de87e54099bb04a172e099925a200b1b8a35a7b5c5f70cb725bd3ca840bc2bfd25498914cf5b02c4d65ea6f84aa82db6e7411304c69622ef90011955dbffb86abedbd918608273965788ed2eb40d1168b6f6bce287b5791f9e6bdfc1b298e4179ae339d390b08ef5b049723b159f6c2646ff6f4a9add7a268f99839c24ae79c6c0115c88ab852fdbc253e2e3d21033957428d603c71bc3ac8b3356ed8cc6a46519a4ab0825916e5c6591ec97036a6c27779c28fc736a399d2f1fff964c8c4afd754eec0c790c0d6f8959049e2337b10765c8b72dc1815238f7088407b818da90f61399f96ab3a632a6a2d14638d1c7d91ba693e8099bfe6a4cebe977500ec439a6bb07f3c52484cb39ebf58df05c68eefcf9d796c747051356d86ffaa576484fc000b02332f229c0bcf6044c1b6cdba0d0d6a828cc16194ab0aae9d646ffb95807a74a6a4101b3d7b4385cea43acdea0fde6ada9621075838157fdd4e2e89d5fc6bebc9d25a5738ac6eaa550cd6f6231b5897d64e086727b5430f21fa5759dc58076ad922e8b4c751210c97b1db01942474bce5d242ad14124da5ec79a6b841acaf290097455129b5b40d136fca40bff0dd23efe53993dd610c025fa224f28e58fc675b59ec52513b402729030bb0ebd65aca21175b1ae11228018389aac78a371ed72c8d466a171ff5e6b7b12614731c93071a5d6f41afc48c5b54c0a5d6d1f8aef1f32ef0207a2aa944012cbfd6568382a",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "6d756c74692d626c6f636b2d6162736f72622d746573740000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+        "type": "absorb"
+      },
+      {
+        "length": 600,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_multiple_blocks_absorb_squeeze_SHAKE128": {
+    "Expected": "526d4f6cfca230e0654bf8749bddc0f4416a8a164c50f3c1b0bc1d5272a88b9a524e73cafad76691a29c0e03a5255fd8fb9d778ef5a0c8c9e11e003011d256bf92dd36233e4c6c360baca0f8ac305d459adb1231a801742669efa051396e96417814448b5328336d028a62dbddf24d1bb68496d27f1944eb24d4b2812d9ad4eae6c260b720c44ed2be8bfeeed3acc2640edbab987674f2cef8ceacda1e04f254170aba4241dabc6364ed5afc09b58205682d5e8413bf5f9d97e9c799b97876ccd1c48d86759ade5871acc4c5d41d37f2b1843c8b6f9e0bade78342d56f9b1e8232d4c7553674d889e69fe24dea31f42f0b02b70161876ceb12cc0b36868c262cbebb5e815a1eceaee97aed3402a518287c32f2f469c3a38a17afd0f0d82433acf695ae143ded9412b4e6b6144bd6d4be6bb7de33c05f560480c63aa89336954f1cf5992399e6ed59d406adb4497bb88aa897fd3d65646cf86e796da4f193c418a74d662f57e0e0c775386abdace02157e519ba54495555145016c550ff32004981d0e34f0abe7d814ac4fe25260473ffa87460a736f20954e8d3b9f16140e79451953fe6cfc222cba6ad4f85a2e2efd6ff8f5fef65d8480e6af40baab298c4de57f30d08a5e1b4c10d123a5af7702ff26ba9a84a6fe92f48391b23a7e8e8cb06deda74d1b10870611995f6bfe4df60320a0b7f2c891cad5a5645ecec80868ed568591a74dafb35cabb42dae1a1085269b655db1ebf09929f63d5af775a24e43759f673b83aeefef382bc2b7bf175bb9d90e77911466ffb3b2307547765cd5adc30a6b07881a88fd1511e5f8d2dcc4347c076e6c79676d8df",
+    "HashFunction": "SHAKE128",
+    "IV": "6d756c74692d626c6f636b2d6162736f72622d746573740000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "data": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab",
+        "type": "absorb"
+      },
+      {
+        "length": 600,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_squeeze_zero_after_behavior_Keccak": {
+    "Expected": "8532fba67d7e5a2241eab397cf2e26a3e5b4f1f54f2a7e3d47f17448e0149354d5f54c43c88d7c45de8aadc24c83e519cec9286e567b5401e4072065d6c8bd3e",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "data": "7a65726f2073717565657a65206166746572",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_squeeze_zero_after_behavior_SHAKE128": {
+    "Expected": "bd9278e6f65cb854935b3f6b2c51ab158be8ea09744509519b8f06f0c501d07c429e37f232b6f0955b620ff6226d9d02e4817b1447e7309023a3a14f735876ec",
+    "HashFunction": "SHAKE128",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "data": "7a65726f2073717565657a65206166746572",
+        "type": "absorb"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_squeeze_zero_behavior_Keccak": {
+    "Expected": "affcac33ae7d12f1d986e109175fbc46be1821f77f67779e2357232f88b5959e0c244a67099ac4a7f7706bcfc5803b7ad0affa9ef7a5f93615b2df82e900dc3f",
+    "HashFunction": "Keccak-f[1600] overwrite mode",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "data": "7a65726f2073717565657a652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  },
+  "test_squeeze_zero_behavior_SHAKE128": {
+    "Expected": "4cf7f008057b63cb615547a143f42cf793b86b239f404d2f28b3f09197d850eb029df3024ad468be5aceb2fa60e9fb7add98436236be69ddb34314ce7a905f23",
+    "HashFunction": "SHAKE128",
+    "IV": "756e69745f74657374735f6b656363616b5f69760000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "Operations": [
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "data": "7a65726f2073717565657a652074657374",
+        "type": "absorb"
+      },
+      {
+        "length": 0,
+        "type": "squeeze"
+      },
+      {
+        "length": 64,
+        "type": "squeeze"
+      }
+    ]
+  }
+}
