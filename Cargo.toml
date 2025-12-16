@@ -66,12 +66,12 @@ spongefish-derive = { path = "derive" }
 spongefish-poseidon2 = { path = "poseidon2" }
 spongefish-circuit = { path = "circuit" }
 # p256 = "^0.13"
-p3-baby-bear = "^0.3"
-p3-field = "^0.3"
-p3-koala-bear = "^0.3"
-p3-mersenne-31 = "^0.3"
-p3-poseidon2 = "^0.3"
-p3-symmetric = "^0.3"
+p3-baby-bear = "^0.4"
+p3-field = "^0.4"
+p3-koala-bear = "^0.4"
+p3-mersenne-31 = "^0.4"
+p3-poseidon2 = "^0.4"
+p3-symmetric = "^0.4"
 pallas = "^0.32"
 rand = "^0.8.5"
 rayon = "^1.10.0"
