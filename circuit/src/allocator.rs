@@ -39,7 +39,14 @@ struct AllocatorState<T> {
     public_values: Vec<(FieldVar, T)>,
 }
 
+impl<T: Clone> Default for VarAllocator<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Clone> VarAllocator<T> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             state: Rc::new(RefCell::new(AllocatorState {
@@ -49,6 +56,7 @@ impl<T: Clone> VarAllocator<T> {
         }
     }
 
+    #[must_use]
     pub fn new_field_var(&self) -> FieldVar {
         let mut state = self.state.borrow_mut();
         let var = FieldVar(state.vars_count);
@@ -56,12 +64,14 @@ impl<T: Clone> VarAllocator<T> {
         var
     }
 
+    #[must_use]
     pub fn allocate_vars<const N: usize>(&self) -> [FieldVar; N] {
         let mut buf = [FieldVar::default(); N];
         buf.iter_mut().for_each(|x| *x = self.new_field_var());
         buf
     }
 
+    #[must_use]
     pub fn allocate_vars_vec(&self, count: usize) -> Vec<FieldVar> {
         (0..count).map(|_| self.new_field_var()).collect()
     }
@@ -78,6 +88,7 @@ impl<T: Clone> VarAllocator<T> {
         vars
     }
 
+    #[must_use]
     pub fn vars_count(&self) -> usize {
         self.state.borrow().vars_count
     }
@@ -98,16 +109,16 @@ impl<T: Clone> VarAllocator<T> {
             vars.into_iter()
                 .zip(vals)
                 .map(|(var, val)| (*var.borrow(), val.borrow().clone())),
-        )
+        );
     }
 
+    #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.state
             .borrow()
             .public_values
             .iter()
             .cloned()
-            .map(|(var, val)| (var, val.clone()))
             .collect()
     }
 }

@@ -36,21 +36,25 @@ impl<T: Clone, const WIDTH: usize> Default for PermutationInstanceBuilder<T, WID
 }
 
 impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
+    #[must_use] 
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
-            allocator: allocator.clone(),
+            allocator: allocator,
             constraints: Default::default(),
         }
     }
 
+    #[must_use] 
     pub fn new() -> Self {
         Self::with_allocator(VarAllocator::new())
     }
 
-    pub fn allocator(&self) -> &VarAllocator<T> {
+    #[must_use] 
+    pub const fn allocator(&self) -> &VarAllocator<T> {
         &self.allocator
     }
 
+    #[must_use] 
     pub fn allocate_permutation(&self, &input: &[FieldVar; WIDTH]) -> [FieldVar; WIDTH] {
         let output = self.allocator.allocate_vars();
         self.constraints.borrow_mut().state.push((input, output));
@@ -61,10 +65,12 @@ impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         self.constraints.borrow_mut().state.push((input, output));
     }
 
+    #[must_use] 
     pub fn constraints(&self) -> impl AsRef<[([FieldVar; WIDTH], [FieldVar; WIDTH])]> {
         self.constraints.borrow_mut().state.clone()
     }
 
+    #[must_use] 
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
     }

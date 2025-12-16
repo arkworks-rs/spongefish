@@ -1,9 +1,10 @@
 #![cfg(feature = "sha3")]
 
+use std::collections::HashMap;
+
 use libtest_mimic::{Arguments, Failed, Trial};
 use serde::{Deserialize, Serialize};
 use spongefish::DuplexSpongeInterface;
-use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct TestVector {
@@ -116,9 +117,7 @@ fn run_test_vector(name: &str, test_vector: &TestVector) -> Result<(), Failed> {
     if hex::encode(final_output) == test_vector.expected {
         Ok(())
     } else {
-        Err(Failed::from(format!(
-            "Test vector '{name}' failed"
-        )))
+        Err(Failed::from(format!("Test vector '{name}' failed")))
     }
 }
 
