@@ -1,6 +1,7 @@
 //! Builders for permutation evaluation relations.
-use alloc::{rc::Rc, vec::Vec};
-use core::cell::RefCell;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use spin::RwLock;
 
 use spongefish::{Permutation, Unit};
 
@@ -11,7 +12,7 @@ use crate::allocator::{FieldVar, VarAllocator};
 #[derive(Clone)]
 pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     allocator: VarAllocator<T>,
-    constraints: Rc<RefCell<PermutationInstance<WIDTH>>>,
+    constraints: Arc<RwLock<PermutationInstance<WIDTH>>>,
 }
 
 /// The internal state of the instance,
@@ -36,7 +37,7 @@ impl<T: Clone, const WIDTH: usize> Default for PermutationInstanceBuilder<T, WID
 }
 
 impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
-    #[must_use] 
+    #[must_use]
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
             allocator: allocator,
@@ -44,33 +45,33 @@ impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         Self::with_allocator(VarAllocator::new())
     }
 
-    #[must_use] 
+    #[must_use]
     pub const fn allocator(&self) -> &VarAllocator<T> {
         &self.allocator
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn allocate_permutation(&self, &input: &[FieldVar; WIDTH]) -> [FieldVar; WIDTH] {
         let output = self.allocator.allocate_vars();
-        self.constraints.borrow_mut().state.push((input, output));
+        self.constraints.write().state.push((input, output));
         output
     }
 
     pub fn add_permutation(&self, input: [FieldVar; WIDTH], output: [FieldVar; WIDTH]) {
-        self.constraints.borrow_mut().state.push((input, output));
+        self.constraints.write().state.push((input, output));
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn constraints(&self) -> impl AsRef<[([FieldVar; WIDTH], [FieldVar; WIDTH])]> {
-        self.constraints.borrow_mut().state.clone()
+        self.constraints.read().state.clone()
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
     }

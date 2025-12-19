@@ -82,6 +82,7 @@ risc0-zkp = "3.0.3"
 libtest-mimic = "0.8.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+spin = { version = "0.9", default-features = false, features = ["rwlock"] }
 
 
 # Un-comment below for pulling zkp libraries from git.

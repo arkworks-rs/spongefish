@@ -1,7 +1,8 @@
 //! Defines the allocator and wires to be used for computing the key-derivation steps.
 
-use alloc::{rc::Rc, vec::Vec};
-use core::{cell::RefCell, usize};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use spin::RwLock;
 
 use spongefish::Unit;
 
@@ -16,22 +17,13 @@ impl core::fmt::Debug for FieldVar {
     }
 }
 
-// /// A witness-instance pair that builds at the same time the instance and the relation.
-// ///
-// /// # Semantics
-// ///
-// /// When we deref this object, we are talking about its value.
-// /// When we get the ref of this object, we are talking about its symbolic value.
-// #[derive(Clone, Debug, Unit)]
-// pub struct WitnessInstancePair<T: Unit>(FieldVar, T);
-
 /// Allocator for field variables.
 ///
 /// Creates a new wire identifier when requested,
 /// and keeps tracks of the wires that have been declared as public.
 #[derive(Clone)]
 pub struct VarAllocator<T> {
-    state: Rc<RefCell<AllocatorState<T>>>,
+    state: Arc<RwLock<AllocatorState<T>>>,
 }
 
 struct AllocatorState<T> {
@@ -49,7 +41,7 @@ impl<T: Clone> VarAllocator<T> {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            state: Rc::new(RefCell::new(AllocatorState {
+            state: Arc::new(RwLock::new(AllocatorState {
                 vars_count: 0,
                 public_values: Vec::new(),
             })),
@@ -58,7 +50,7 @@ impl<T: Clone> VarAllocator<T> {
 
     #[must_use]
     pub fn new_field_var(&self) -> FieldVar {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.write();
         let var = FieldVar(state.vars_count);
         state.vars_count += 1;
         var
@@ -90,11 +82,11 @@ impl<T: Clone> VarAllocator<T> {
 
     #[must_use]
     pub fn vars_count(&self) -> usize {
-        self.state.borrow().vars_count
+        self.state.read().vars_count
     }
 
     pub fn set_public_var(&self, val: FieldVar, var: T) {
-        self.state.borrow_mut().public_values.push((val, var));
+        self.state.write().public_values.push((val, var));
     }
 
     pub fn set_public_vars<Val, Var>(
@@ -105,7 +97,7 @@ impl<T: Clone> VarAllocator<T> {
         Var: core::borrow::Borrow<FieldVar>,
         Val: core::borrow::Borrow<T>,
     {
-        self.state.borrow_mut().public_values.extend(
+        self.state.write().public_values.extend(
             vars.into_iter()
                 .zip(vals)
                 .map(|(var, val)| (*var.borrow(), val.borrow().clone())),
@@ -114,11 +106,6 @@ impl<T: Clone> VarAllocator<T> {
 
     #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
-        self.state
-            .borrow()
-            .public_values
-            .iter()
-            .cloned()
-            .collect()
+        self.state.read().public_values.iter().cloned().collect()
     }
 }

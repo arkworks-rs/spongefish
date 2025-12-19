@@ -10,6 +10,7 @@ workspace = true
 [dependencies]
 p3-field = { workspace = true }
 spongefish = { workspace = true, features = ["derive"] }
+spin = { workspace = true }
 
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
