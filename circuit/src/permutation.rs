@@ -1,8 +1,7 @@
 //! Builders for permutation evaluation relations.
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use spin::RwLock;
+use alloc::{sync::Arc, vec::Vec};
 
+use spin::RwLock;
 use spongefish::{Permutation, Unit};
 
 use crate::allocator::{FieldVar, VarAllocator};
@@ -13,6 +12,12 @@ use crate::allocator::{FieldVar, VarAllocator};
 pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     allocator: VarAllocator<T>,
     constraints: Arc<RwLock<PermutationInstance<WIDTH>>>,
+}
+
+#[derive(Clone)]
+pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> {
+    trace: Arc<RwLock<Vec<([P::U; WIDTH], [P::U; WIDTH])>>>,
+    permutation: P,
 }
 
 /// The internal state of the instance,
@@ -30,6 +35,16 @@ impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationInstanceBuil
     }
 }
 
+impl<P: Permutation<WIDTH>, const WIDTH: usize> Permutation<WIDTH>
+    for PermutationWitnessBuilder<P, WIDTH>
+{
+    type U = P::U;
+
+    fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH] {
+        self.allocate_permutation(state)
+    }
+}
+
 impl<T: Clone, const WIDTH: usize> Default for PermutationInstanceBuilder<T, WIDTH> {
     fn default() -> Self {
         Self::new()
@@ -40,7 +55,7 @@ impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     #[must_use]
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
-            allocator: allocator,
+            allocator,
             constraints: Default::default(),
         }
     }
@@ -74,5 +89,37 @@ impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
+    }
+}
+
+impl<P: Permutation<WIDTH>, const WIDTH: usize> From<P> for PermutationWitnessBuilder<P, WIDTH> {
+    fn from(value: P) -> Self {
+        Self::new(value)
+    }
+}
+
+impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WIDTH> {
+    #[must_use]
+    pub fn new(permutation: P) -> Self {
+        Self {
+            trace: Default::default(),
+            permutation,
+        }
+    }
+
+    #[must_use]
+    pub fn allocate_permutation(&self, input: &[P::U; WIDTH]) -> [P::U; WIDTH] {
+        let output = self.permutation.permute(input);
+        self.add_permutation(input, &output);
+        output
+    }
+
+    pub fn add_permutation(&self, input: &[P::U; WIDTH], output: &[P::U; WIDTH]) {
+        self.trace.write().push((input.clone(), output.clone()));
+    }
+
+    #[must_use]
+    pub fn trace(&self) -> impl AsRef<[([P::U; WIDTH], [P::U; WIDTH])]> {
+        self.trace.read().clone()
     }
 }

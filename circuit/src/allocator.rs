@@ -1,9 +1,8 @@
 //! Defines the allocator and wires to be used for computing the key-derivation steps.
 
-use alloc::sync::Arc;
-use alloc::vec::Vec;
-use spin::RwLock;
+use alloc::{sync::Arc, vec::Vec};
 
+use spin::RwLock;
 use spongefish::Unit;
 
 /// A symbolic wire over which we perform out computation.
@@ -59,7 +58,7 @@ impl<T: Clone> VarAllocator<T> {
     #[must_use]
     pub fn allocate_vars<const N: usize>(&self) -> [FieldVar; N] {
         let mut buf = [FieldVar::default(); N];
-        buf.iter_mut().for_each(|x| *x = self.new_field_var());
+        for x in buf.iter_mut() {  *x = self.new_field_var() };
         buf
     }
 
@@ -106,6 +105,6 @@ impl<T: Clone> VarAllocator<T> {
 
     #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
-        self.state.read().public_values.iter().cloned().collect()
+        self.state.read().public_values.clone()
     }
 }
