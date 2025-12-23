@@ -45,13 +45,13 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> Permutation<WIDTH>
     }
 }
 
-impl<T: Clone, const WIDTH: usize> Default for PermutationInstanceBuilder<T, WIDTH> {
+impl<T: Clone + Unit, const WIDTH: usize> Default for PermutationInstanceBuilder<T, WIDTH> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Clone, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
+impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     #[must_use]
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {

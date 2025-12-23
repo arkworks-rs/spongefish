@@ -7,7 +7,7 @@ use spongefish::Unit;
 
 /// A symbolic wire over which we perform out computation.
 /// Wraps over a [`usize`]
-#[derive(Clone, Copy, Default, PartialEq, Eq, Unit)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, Unit)]
 pub struct FieldVar(pub usize);
 
 impl core::fmt::Debug for FieldVar {
@@ -30,19 +30,20 @@ struct AllocatorState<T> {
     public_values: Vec<(FieldVar, T)>,
 }
 
-impl<T: Clone> Default for VarAllocator<T> {
+impl<T: Clone + Unit> Default for VarAllocator<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T: Clone> VarAllocator<T> {
+impl<T: Clone + Unit> VarAllocator<T> {
     #[must_use]
     pub fn new() -> Self {
+        let zero_var = FieldVar::ZERO;
         Self {
             state: Arc::new(RwLock::new(AllocatorState {
-                vars_count: 0,
-                public_values: Vec::new(),
+                vars_count: 1,
+                public_values: Vec::from([(zero_var, T::ZERO)]),
             })),
         }
     }
