@@ -78,7 +78,7 @@ fn domain_separator_accepts_variable_sessions() {
     assert_eq!(literal_session, from_str);
 
     let session_owned = String::from("shared session");
-    let from_owned = crate::domain_separator!("variable sessions"; session_owned.clone())
+    let from_owned = crate::domain_separator!("variable sessions"; session_owned)
         .instance(&instance)
         .session
         .expect("owned session missing");
