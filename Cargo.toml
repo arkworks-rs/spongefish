@@ -66,12 +66,12 @@ spongefish-derive = { path = "derive" }
 spongefish-poseidon2 = { path = "poseidon2" }
 spongefish-circuit = { path = "circuit" }
 # p256 = "^0.13"
-p3-baby-bear = "^0.4"
-p3-field = "^0.4"
-p3-koala-bear = "^0.4"
-p3-mersenne-31 = "^0.4"
-p3-poseidon2 = "^0.4"
-p3-symmetric = "^0.4"
+p3-baby-bear = "^0.4.1"
+p3-field = "^0.4.1"
+p3-koala-bear = "^0.4.1"
+p3-mersenne-31 = "^0.4.1"
+p3-poseidon2 = "^0.4.1"
+p3-symmetric = "^0.4.1"
 pallas = "^0.32"
 rand = "^0.8.5"
 rayon = "^1.10.0"
@@ -85,20 +85,3 @@ serde_json = "1.0"
 spin = { version = "0.9", default-features = false, features = ["rwlock"] }
 
 
-# Un-comment below for pulling zkp libraries from git.
-[patch.crates-io]
-# ark-std = { git = "https://github.com/arkworks-rs/utils" }
-# ark-ec = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-ff = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-serialize = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-bls12-381 = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-curve25519 = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-pallas = { git = "https://github.com/arkworks-rs/algebra" }
-# ark-vesta = { git = "https://github.com/arkworks-rs/algebra" }
-p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3" }
-p3-dft = { git = "https://github.com/Plonky3/Plonky3" }
-p3-koala-bear = { git = "https://github.com/Plonky3/Plonky3" }
-p3-mersenne-31 = { git = "https://github.com/Plonky3/Plonky3" }
-p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3" }
-p3-symmetric = { git = "https://github.com/Plonky3/Plonky3" }
-p3-field = { git = "https://github.com/Plonky3/Plonky3" }
