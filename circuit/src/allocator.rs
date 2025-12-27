@@ -59,7 +59,9 @@ impl<T: Clone + Unit> VarAllocator<T> {
     #[must_use]
     pub fn allocate_vars<const N: usize>(&self) -> [FieldVar; N] {
         let mut buf = [FieldVar::default(); N];
-        for x in buf.iter_mut() {  *x = self.new_field_var() };
+        for x in &mut buf {
+            *x = self.new_field_var();
+        }
         buf
     }
 

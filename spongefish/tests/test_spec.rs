@@ -128,7 +128,7 @@ fn test_all_duplex_sponge_vectors() {
         .filter(|(_, test_vector)| test_vector.hash_function == "SHAKE128")
         .map(|(name, test_vector)| {
             Trial::test(
-                format!("tests::spec::test_duplex_sponge::{}", name),
+                format!("tests::spec::test_duplex_sponge::{name}"),
                 move || run_test_vector(&name, &test_vector),
             )
         })

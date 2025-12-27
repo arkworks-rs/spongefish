@@ -14,9 +14,11 @@ pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     constraints: Arc<RwLock<PermutationInstance<WIDTH>>>,
 }
 
+type QueryAnswerPair<U, const WIDTH: usize> = ([U; WIDTH], [U; WIDTH]);
+
 #[derive(Clone)]
 pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> {
-    trace: Arc<RwLock<Vec<([P::U; WIDTH], [P::U; WIDTH])>>>,
+    trace: Arc<RwLock<Vec<QueryAnswerPair<P::U, WIDTH>>>>,
     permutation: P,
 }
 
@@ -119,7 +121,7 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
     }
 
     #[must_use]
-    pub fn trace(&self) -> impl AsRef<[([P::U; WIDTH], [P::U; WIDTH])]> {
+    pub fn trace(&self) -> impl AsRef<[QueryAnswerPair<P::U, WIDTH>]> {
         self.trace.read().clone()
     }
 }
