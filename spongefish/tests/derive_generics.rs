@@ -27,6 +27,7 @@ fn codec_derive_handles_generic_types() {
     assert_eq!(roundtrip.value, tagged.value);
     assert!(buf.is_empty());
 
+    #[allow(clippy::items_after_statements)]
     fn assert_codec<T: Codec>(_: &T) {}
     assert_codec(&tagged);
 }

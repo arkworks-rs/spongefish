@@ -1,6 +1,5 @@
 use p3_baby_bear::BabyBear;
 use spongefish::{DuplexSponge, DuplexSpongeInterface};
-
 use spongefish_circuit::permutation::PermutationInstanceBuilder;
 
 #[test]
@@ -43,6 +42,9 @@ pub fn test_xof() {
     assert_eq!(inst_builder.constraints().as_ref().len(), 2);
 
     // the instance is a set of:
-    println!("input/otutput vars: {:?}", inst_builder.constraints().as_ref());
+    println!(
+        "input/otutput vars: {:?}",
+        inst_builder.constraints().as_ref()
+    );
     println!("public vars: {:?}", inst_builder.allocator().public_vars());
 }

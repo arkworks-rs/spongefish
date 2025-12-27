@@ -43,7 +43,8 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             let bound = quote!(::spongefish::Encoding<[u8]>);
-            let generics = add_trait_bounds_for_fields(input.generics.clone(), &encoding_bounds, &bound);
+            let generics =
+                add_trait_bounds_for_fields(input.generics.clone(), &encoding_bounds, &bound);
             let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
             quote! {
@@ -177,7 +178,8 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             let bound = quote!(::spongefish::Decoding<[u8]>);
-            let generics = add_trait_bounds_for_fields(input.generics.clone(), &decoding_bounds, &bound);
+            let generics =
+                add_trait_bounds_for_fields(input.generics.clone(), &decoding_bounds, &bound);
             let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
             quote! {
@@ -252,7 +254,8 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
             };
 
             let bound = quote!(::spongefish::NargDeserialize);
-            let generics = add_trait_bounds_for_fields(input.generics.clone(), &deserialize_bounds, &bound);
+            let generics =
+                add_trait_bounds_for_fields(input.generics.clone(), &deserialize_bounds, &bound);
             let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
             quote! {
