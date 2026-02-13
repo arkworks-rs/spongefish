@@ -36,7 +36,7 @@ ark-serialize = { workspace = true, optional = true }
 bls12_381 = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, optional = true }
 k256 = { workspace = true, optional = true, features = ["arithmetic"] }
-# p256 = { workspace = true, optional = true, features = ["arithmetic"] }
+p256 = { workspace = true, optional = true, features = ["arithmetic"] }
 
 # plonky3
 p3-field = { workspace = true, optional = true }
@@ -68,7 +68,7 @@ ark-ec = ["ark-ff", "dep:ark-ec"]
 bls12_381 = ["dep:bls12_381"]
 curve25519-dalek = ["dep:curve25519-dalek"]
 k256 = ["dep:k256"]
-#p256 = ["dep:p256"]
+p256 = ["dep:p256"]
 # plonky3
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
@@ -93,6 +93,7 @@ pallas = { workspace = true }
 ark-vesta = { workspace = true }
 sha3 = { workspace = true }
 ark-secp256k1 = { workspace = true }
+ark-secp256r1 = { workspace = true }
 libtest-mimic = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
