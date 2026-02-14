@@ -48,6 +48,7 @@ ark-ff = "^0.5"
 ark-pallas = "^0.5"
 ark-serialize = "^0.5"
 ark-secp256k1 = "^0.5"
+ark-secp256r1 = "^0.5"
 ark-std = "^0.5"
 ark-vesta = "^0.5"
 arrayvec = "0.7.6"
@@ -65,7 +66,7 @@ spongefish = { path = "spongefish" }
 spongefish-derive = { path = "derive" }
 spongefish-poseidon2 = { path = "poseidon2" }
 spongefish-circuit = { path = "circuit" }
-# p256 = "^0.13"
+p256 = "^0.13"
 p3-baby-bear = "^0.4.1"
 p3-field = "^0.4.1"
 p3-koala-bear = "^0.4.1"

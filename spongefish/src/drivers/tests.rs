@@ -109,23 +109,17 @@ fn secp256k1_scalars_arkworks_and_k256() {
     assert_decoding_compatibility::<ArkScalar, K256Scalar>();
 }
 
-// #[cfg(all(feature = "ark-ec", feature = "p256"))]
-// mod p256 {
-//     use super::*;
-//     use ark_ec::PrimeGroup;
-//     use ark_pallas::Projective as ArkProjective;
-//     use p256::{ProjectivePoint, Scalar as P256Scalar};
+#[cfg(all(feature = "ark-ec", feature = "p256"))]
+#[test]
+fn secp256r1_scalars_arkworks_and_p256() {
+    use ::p256::Scalar as P256Scalar;
+    type ArkP256Scalar = <ark_secp256r1::Projective as ark_ec::PrimeGroup>::ScalarField;
 
-//     type ArkScalar = <ArkProjective as PrimeGroup>::ScalarField;
+    for value in [0u64, 1, 42, 123_456_789] {
+        let ark_scalar = ArkP256Scalar::from(value);
+        let p256_scalar = P256Scalar::from(value);
+        assert_codec_compatibility(&ark_scalar, &p256_scalar);
+    }
 
-//     #[test]
-//     fn scalars_are_codec_compatible() {
-//         for value in [0u64, 1, 42, 123_456_789] {
-//             let ark_scalar = ArkScalar::from(value);
-//             let p256_scalar = P256Scalar::from(value);
-//             assert_codec_compatibility(&ark_scalar, &p256_scalar);
-//         }
-
-//         assert_decoding_compatibility::<ArkScalar, P256Scalar>();
-//     }
-// }
+    assert_decoding_compatibility::<ArkP256Scalar, P256Scalar>();
+}
