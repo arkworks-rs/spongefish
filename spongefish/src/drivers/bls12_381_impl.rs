@@ -25,14 +25,19 @@ impl Decoding<[u8]> for Scalar {
 // Implement Deserialize for BLS12-381 Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < 32 {
+        const N: usize = 32;
+        if buf.len() < N {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 32];
-        repr.copy_from_slice(&buf[..32]);
-        repr.reverse();
-        *buf = &buf[32..];
-        Option::from(Scalar::from_bytes(&repr)).ok_or(VerificationError)
+
+        let be_bytes = &buf[..N];
+        let mut le_bytes = [0u8; N];
+        le_bytes.copy_from_slice(be_bytes);
+        le_bytes.reverse();
+        Scalar::from_bytes(&le_bytes)
+            .into_option()
+            .inspect(|_| *buf = &buf[N..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -40,19 +45,18 @@ impl NargDeserialize for Scalar {
 impl NargDeserialize for G1Projective {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G1 compressed points are 48 bytes
-        if buf.len() < 48 {
+        const N: usize = 48;
+        if buf.len() < N {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 48];
-        repr.copy_from_slice(&buf[..48]);
-        *buf = &buf[48..];
 
-        let ct_option = G1Affine::from_compressed(&repr);
-        if bool::from(ct_option.is_some()) {
-            Ok(G1Projective::from(ct_option.unwrap()))
-        } else {
-            Err(VerificationError)
-        }
+        let mut repr = [0u8; N];
+        repr.copy_from_slice(&buf[..N]);
+        G1Affine::from_compressed(&repr)
+            .into_option()
+            .map(|af| af.into())
+            .inspect(|_| *buf = &buf[N..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -60,28 +64,28 @@ impl NargDeserialize for G1Projective {
 impl NargDeserialize for G2Projective {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         // G2 compressed points are 96 bytes
-        if buf.len() < 96 {
+        const N: usize = 96;
+        if buf.len() < N {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 96];
-        repr.copy_from_slice(&buf[..96]);
-        *buf = &buf[96..];
 
-        let ct_option = G2Affine::from_compressed(&repr);
-        if bool::from(ct_option.is_some()) {
-            Ok(G2Projective::from(ct_option.unwrap()))
-        } else {
-            Err(VerificationError)
-        }
+        let mut repr = [0u8; N];
+        repr.copy_from_slice(&buf[..N]);
+        G2Affine::from_compressed(&repr)
+            .into_option()
+            .map(|af| af.into())
+            .inspect(|_| *buf = &buf[N..])
+            .ok_or(VerificationError)
     }
 }
 
 // Implement Encoding for BLS12-381 Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut b = self.to_bytes();
-        b.reverse();
-        b
+        let mut le_bytes = self.to_bytes();
+        le_bytes.reverse();
+        let be_bytes = le_bytes;
+        be_bytes
     }
 }
 

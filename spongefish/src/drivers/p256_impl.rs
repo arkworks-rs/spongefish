@@ -1,4 +1,5 @@
 //! p256 codec implementations
+
 use p256::{
     elliptic_curve::{group::GroupEncoding, ops::Reduce, sec1::ToEncodedPoint, PrimeField},
     AffinePoint, ProjectivePoint, Scalar, U256,
@@ -41,8 +42,10 @@ impl NargDeserialize for Scalar {
         }
 
         repr.copy_from_slice(&buf[..n]);
-        *buf = &buf[n..];
-        Self::from_repr(repr).into_option().ok_or(VerificationError)
+        Self::from_repr(repr)
+            .into_option()
+            .inspect(|_| *buf = &buf[n..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -56,9 +59,9 @@ impl NargDeserialize for ProjectivePoint {
         }
 
         repr.copy_from_slice(&buf[..n]);
-        *buf = &buf[n..];
         Self::from_bytes(&repr)
             .into_option()
+            .inspect(|_| *buf = &buf[n..])
             .ok_or(VerificationError)
     }
 }
