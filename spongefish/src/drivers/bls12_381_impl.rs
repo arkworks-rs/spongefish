@@ -22,7 +22,7 @@ impl Decoding<[u8]> for Scalar {
     }
 }
 
-// Implement Deserialize for BLS12-381 Scalar
+// Implement Deserialize for BLS12-381 Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         if buf.len() < 32 {
@@ -30,6 +30,7 @@ impl NargDeserialize for Scalar {
         }
         let mut repr = [0u8; 32];
         repr.copy_from_slice(&buf[..32]);
+        repr.reverse();
         *buf = &buf[32..];
         Option::from(Scalar::from_bytes(&repr)).ok_or(VerificationError)
     }
@@ -75,10 +76,12 @@ impl NargDeserialize for G2Projective {
     }
 }
 
-// Implement Encoding for BLS12-381 Scalar
+// Implement Encoding for BLS12-381 Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_bytes()
+        let mut b = self.to_bytes();
+        b.reverse();
+        b
     }
 }
 
