@@ -31,7 +31,7 @@ impl Decoding<[u8]> for Scalar {
     }
 }
 
-// Implement Deserialize for p256 Scalar
+// Implement Deserialize for p256 Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         let mut repr = <Self as PrimeField>::Repr::default();
@@ -42,7 +42,6 @@ impl NargDeserialize for Scalar {
 
         repr.copy_from_slice(&buf[..n]);
         *buf = &buf[n..];
-        repr.reverse();
         Self::from_repr(repr).into_option().ok_or(VerificationError)
     }
 }
@@ -64,12 +63,10 @@ impl NargDeserialize for ProjectivePoint {
     }
 }
 
-// Implement Encoding for p256 Scalar
+// Implement Encoding for p256 Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut bytes = self.to_bytes();
-        bytes.reverse();
-        bytes
+        self.to_bytes()
     }
 }
 
