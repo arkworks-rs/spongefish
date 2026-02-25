@@ -2,7 +2,7 @@
 use k256::{
     elliptic_curve::{
         bigint::U512,
-        ff::Field,
+        ff::{Field, PrimeField},
         sec1::{FromEncodedPoint, ToEncodedPoint},
     },
     AffinePoint, ProjectivePoint, Scalar,
@@ -30,19 +30,20 @@ impl Decoding<[u8]> for Scalar {
     }
 }
 
-// Implement Deserialize for k256 Scalar
+// Implement Deserialize for k256 Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < 32 {
+        let mut repr = <Self as PrimeField>::Repr::default();
+        let n = repr.len();
+        if buf.len() < n {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 32];
-        repr.copy_from_slice(&buf[..32]);
-        *buf = &buf[32..];
 
-        use k256::elliptic_curve::ff::PrimeField;
-        repr.reverse();
-        Option::from(Scalar::from_repr(repr.into())).ok_or(VerificationError)
+        repr.copy_from_slice(&buf[..n]);
+        Self::from_repr(repr)
+            .into_option()
+            .inspect(|_| *buf = &buf[n..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -61,12 +62,10 @@ impl NargDeserialize for ProjectivePoint {
     }
 }
 
-// Implement Encoding for k256 Scalar
+// Implement Encoding for k256 Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut bytes = self.to_bytes();
-        bytes.reverse();
-        bytes
+        self.to_bytes()
     }
 }
 
