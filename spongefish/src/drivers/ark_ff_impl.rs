@@ -57,7 +57,7 @@ macro_rules! impl_deserialize {
 
                 let mut base_elems = Vec::with_capacity(extension_degree);
                 for chunk in head.chunks_exact(base_field_size) {
-                    let elem = <<Self as Field>::BasePrimeField as PrimeField>::from_le_bytes_mod_order(chunk);
+                    let elem = <<Self as Field>::BasePrimeField as PrimeField>::from_be_bytes_mod_order(chunk);
                     base_elems.push(elem);
                 }
                 debug_assert_eq!(base_elems.len(), extension_degree);
@@ -81,7 +81,7 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let mut bytes = base_element.into_bigint().to_bytes_le();
+                    let mut bytes = base_element.into_bigint().to_bytes_be();
                     bytes.resize(base_field_size, 0);
                     buf.extend_from_slice(&bytes);
                 }

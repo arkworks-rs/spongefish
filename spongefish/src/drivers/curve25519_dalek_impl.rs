@@ -34,23 +34,22 @@ impl Decoding<[u8]> for RistrettoPoint {
     }
 }
 
-// Implement Deserialize for curve25519-dalek Scalar
+// Implement Deserialize for curve25519-dalek Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < 32 {
+        const N: usize = 32;
+        if buf.len() < N {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 32];
-        repr.copy_from_slice(&buf[..32]);
 
-        // from_canonical_bytes returns CtOption<Scalar>
-        let ct_option = Scalar::from_canonical_bytes(repr);
-        if bool::from(ct_option.is_some()) {
-            *buf = &buf[32..];
-            Ok(ct_option.unwrap())
-        } else {
-            Err(VerificationError)
-        }
+        let be_bytes = &buf[..N];
+        let mut le_bytes = [0u8; N];
+        le_bytes.copy_from_slice(be_bytes);
+        le_bytes.reverse();
+        Scalar::from_canonical_bytes(le_bytes)
+            .into_option()
+            .inspect(|_| *buf = &buf[N..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -82,10 +81,13 @@ impl NargDeserialize for RistrettoPoint {
     }
 }
 
-// Implement Encoding for curve25519-dalek Scalar
+// Implement Encoding for curve25519-dalek Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_bytes()
+        let mut le_bytes = self.to_bytes();
+        le_bytes.reverse();
+        let be_bytes = le_bytes;
+        be_bytes
     }
 }
 
