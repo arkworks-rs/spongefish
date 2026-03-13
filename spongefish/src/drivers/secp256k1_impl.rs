@@ -25,8 +25,8 @@ impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        use k256::elliptic_curve::{bigint::Encoding, ops::Reduce};
-        Scalar::reduce(U512::from_le_bytes(buf.0))
+        use k256::elliptic_curve::ops::Reduce;
+        Scalar::reduce(U512::from_be_slice(&buf.0))
     }
 }
 

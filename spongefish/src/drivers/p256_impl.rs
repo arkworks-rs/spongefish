@@ -23,8 +23,8 @@ impl Decoding<[u8]> for Scalar {
     type Repr = Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        let lo = Self::reduce(U256::from_le_slice(&buf.0[0..32]));
-        let mut hi = Self::reduce(U256::from_le_slice(&buf.0[32..64]));
+        let mut hi = Self::reduce(U256::from_be_slice(&buf.0[0..32]));
+        let lo = Self::reduce(U256::from_be_slice(&buf.0[32..64]));
         for _ in 0..256 {
             hi += hi;
         }
