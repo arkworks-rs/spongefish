@@ -22,7 +22,9 @@ impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        Scalar::from_bytes_mod_order_wide(&buf.0)
+        let mut le_bytes = buf.0;
+        le_bytes.reverse();
+        Scalar::from_bytes_mod_order_wide(&le_bytes)
     }
 }
 
