@@ -81,8 +81,9 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let mut bytes = base_element.into_bigint().to_bytes_be();
-                    bytes.resize(base_field_size, 0);
+                    let bytes = base_element.into_bigint().to_bytes_be();
+                    let padding = base_field_size.saturating_sub(bytes.len());
+                    buf.extend(core::iter::repeat_n(0, padding));
                     buf.extend_from_slice(&bytes);
                 }
                 buf
@@ -106,7 +107,7 @@ macro_rules! impl_decoding {
                 let base_field_size = decoding_field_buffer_size::<<Self as Field>::BasePrimeField>();
 
                 let result = repr.buf.chunks(base_field_size)
-                    .map(|chunk| <Self as Field>::BasePrimeField::from_le_bytes_mod_order(chunk))
+                    .map(|chunk| <Self as Field>::BasePrimeField::from_be_bytes_mod_order(chunk))
                     .collect::<Vec<_>>();
                 // Convert Vec to array - this unwrap is safe because we know the length
                 Self::from_base_prime_field_elems(result).unwrap()
@@ -192,6 +193,17 @@ mod test_ark_ff {
         encoding_testsuite::<ark_bls12_381::Fq>();
         encoding_testsuite::<ark_bls12_381::Fq2>();
         encoding_testsuite::<ark_bls12_381::Fq12>();
+    }
+
+    #[test]
+    fn test_prime_field_encoding_is_left_padded_big_endian() {
+        let value = ark_secp256k1::Fr::from(1u64);
+        let encoded = Encoding::<[u8]>::encode(&value);
+        let bytes = encoded.as_ref();
+
+        assert_eq!(bytes.len(), 32);
+        assert!(bytes[..31].iter().all(|&byte| byte == 0));
+        assert_eq!(bytes[31], 1);
     }
 }
 
