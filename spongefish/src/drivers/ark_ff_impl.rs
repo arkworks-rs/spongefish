@@ -2,7 +2,7 @@
 use alloc::{vec, vec::Vec};
 use core::marker::PhantomData;
 
-use ark_ff::{BigInteger, Field, Fp, FpConfig, PrimeField};
+use ark_ff::{BigInteger, Field, Fp, FpConfig, PrimeField, SmallFp, SmallFpConfig};
 
 use crate::{
     codecs::{Decoding, Encoding},
@@ -14,6 +14,11 @@ use crate::{
 // Make arkworks field elements a valid Unit type
 impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
+}
+
+// Make SmallFp field elements a valid Unit type
+impl<P: SmallFpConfig> crate::Unit for SmallFp<P> {
+    const ZERO: Self = P::ZERO;
 }
 
 /// A buffer meant to hold enough bytes for obtaining a uniformly-distributed
@@ -81,9 +86,11 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let mut bytes = base_element.into_bigint().to_bytes_be();
-                    bytes.resize(base_field_size, 0);
-                    buf.extend_from_slice(&bytes);
+                    let bytes = base_element.into_bigint().to_bytes_be();
+                    // In BE representation, the significant bytes are at the end.
+                    // For SmallFp (BigInt<2> = 16 bytes), a 64-bit field only uses the last 8 bytes.
+                    let start = bytes.len().saturating_sub(base_field_size);
+                    buf.extend_from_slice(&bytes[start..]);
                 }
                 buf
             }
@@ -122,6 +129,7 @@ impl_deserialize!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+impl_deserialize!(impl [P: SmallFpConfig] for SmallFp<P>);
 // Implement Encoding for prime-order field and field extensions.
 // The NargSerialize implementation is inherited here.
 impl_encoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
@@ -130,6 +138,7 @@ impl_encoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_encoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_encoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_encoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+impl_encoding!(impl [P: SmallFpConfig] for SmallFp<P>);
 // Implement Decoding for prime-order fields and field extensions.
 impl_decoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
 impl_decoding!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
@@ -137,6 +146,7 @@ impl_decoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_decoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_decoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+impl_decoding!(impl [P: SmallFpConfig] for SmallFp<P>);
 
 /// Number of uniformly random bits in a uniformly-distributed element in `[0, b)`
 ///
@@ -192,6 +202,56 @@ mod test_ark_ff {
         encoding_testsuite::<ark_bls12_381::Fq>();
         encoding_testsuite::<ark_bls12_381::Fq2>();
         encoding_testsuite::<ark_bls12_381::Fq12>();
+    }
+
+    // ----- SmallFp test fields -----
+
+    /// Goldilocks field: p = 2^64 - 2^32 + 1
+    #[derive(ark_ff::SmallFpConfig)]
+    #[modulus = "18446744069414584321"]
+    #[generator = "7"]
+    pub struct GoldilocksConfig;
+    pub type Goldilocks = ark_ff::SmallFp<GoldilocksConfig>;
+
+    /// Mersenne31 field: p = 2^31 - 1
+    #[derive(ark_ff::SmallFpConfig)]
+    #[modulus = "2147483647"]
+    #[generator = "7"]
+    pub struct M31Config;
+    pub type M31 = ark_ff::SmallFp<M31Config>;
+
+    /// BabyBear field: p = 15 * 2^27 + 1
+    #[derive(ark_ff::SmallFpConfig)]
+    #[modulus = "2013265921"]
+    #[generator = "31"]
+    pub struct BabyBearConfig;
+    pub type BabyBear = ark_ff::SmallFp<BabyBearConfig>;
+
+    /// A 16-bit test field: p = 65521 (largest 16-bit prime)
+    #[derive(ark_ff::SmallFpConfig)]
+    #[modulus = "65521"]
+    #[generator = "6"]
+    pub struct F16Config;
+    pub type F16 = ark_ff::SmallFp<F16Config>;
+
+    #[test]
+    fn test_encoding_small_fp_goldilocks() {
+        encoding_testsuite::<Goldilocks>();
+    }
+
+    #[test]
+    fn test_encoding_small_fp_m31() {
+        encoding_testsuite::<M31>();
+    }
+
+    #[test]
+    fn test_encoding_small_fp_babybear() {
+        encoding_testsuite::<BabyBear>();
+    }
+
+    #[test]
+    fn test_encoding_small_fp_f16() {
+        encoding_testsuite::<F16>();
     }
 }
 
