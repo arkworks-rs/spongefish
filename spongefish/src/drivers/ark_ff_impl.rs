@@ -149,9 +149,11 @@ impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
 impl<P: SmallFpConfig> Encoding<[u8]> for SmallFp<P> {
     fn encode(&self) -> impl AsRef<[u8]> {
         let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
-        let bytes = self.into_bigint().to_bytes_be();
-        let start = bytes.len().saturating_sub(base_field_size);
-        bytes[start..].to_vec()
+        let mut bytes = self.into_bigint().to_bytes_be();
+        // BigInt<2> produces 16 BE bytes; drop the leading zeros to keep
+        // only the ⌈MODULUS_BIT_SIZE / 8⌉ significant bytes.
+        bytes.drain(..bytes.len() - base_field_size);
+        bytes
     }
 }
 
