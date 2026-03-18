@@ -86,11 +86,9 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let bytes = base_element.into_bigint().to_bytes_be();
-                    // In BE representation, the significant bytes are at the end.
-                    // For SmallFp (BigInt<2> = 16 bytes), a 64-bit field only uses the last 8 bytes.
-                    let start = bytes.len().saturating_sub(base_field_size);
-                    buf.extend_from_slice(&bytes[start..]);
+                    let mut bytes = base_element.into_bigint().to_bytes_be();
+                    bytes.resize(base_field_size, 0);
+                    buf.extend_from_slice(&bytes);
                 }
                 buf
             }
@@ -138,7 +136,6 @@ impl_encoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_encoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_encoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_encoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-impl_encoding!(impl [P: SmallFpConfig] for SmallFp<P>);
 // Implement Decoding for prime-order fields and field extensions.
 impl_decoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
 impl_decoding!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
@@ -146,7 +143,27 @@ impl_decoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_decoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_decoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-impl_decoding!(impl [P: SmallFpConfig] for SmallFp<P>);
+
+// SmallFp Encoding: serialize exactly ⌈MODULUS_BIT_SIZE / 8⌉ bytes per element,
+// computed from the modulus rather than the BigInt backing width.
+impl<P: SmallFpConfig> Encoding<[u8]> for SmallFp<P> {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
+        let bytes = self.into_bigint().to_bytes_be();
+        let start = bytes.len().saturating_sub(base_field_size);
+        bytes[start..].to_vec()
+    }
+}
+
+// SmallFp Decoding: uniform random sampling from squeezed bytes.
+impl<P: SmallFpConfig> Decoding<[u8]> for SmallFp<P> {
+    type Repr = DecodingFieldBuffer<SmallFp<P>>;
+
+    fn decode(repr: Self::Repr) -> Self {
+        debug_assert_eq!(repr.buf.len(), decoding_field_buffer_size::<Self>());
+        Self::from_le_bytes_mod_order(&repr.buf)
+    }
+}
 
 /// Number of uniformly random bits in a uniformly-distributed element in `[0, b)`
 ///
