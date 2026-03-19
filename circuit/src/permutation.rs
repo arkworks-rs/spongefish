@@ -12,43 +12,49 @@ use crate::allocator::{FieldVar, VarAllocator};
 pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     allocator: VarAllocator<T>,
     permutation_constraints: Arc<RwLock<PermutationInstance<WIDTH>>>,
-    linear_constraints: Arc<RwLock<LinearConstraints<FieldVar>>>,
+    linear_constraints: Arc<RwLock<LinearConstraints<FieldVar, T>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LinearEquation<T> {
-    pub linear_combination: Vec<T>,
+pub struct LinearEquation<T, U> {
+    /// Coefficient-variable pairs representing the left-hand side of
+    /// `sum_i coefficient_i * variable_i = image`.
+    pub linear_combination: Vec<(U, T)>,
+    /// The right-hand side of the linear relation.
+    pub image: U,
 }
 
-impl<T> LinearEquation<T> {
+impl<T, U> LinearEquation<T, U> {
     #[must_use]
-    pub fn new(terms: impl IntoIterator<Item = T>) -> Self {
+    pub fn new(linear_combination: impl IntoIterator<Item = (U, T)>, image: U) -> Self {
         Self {
-            linear_combination: terms.into_iter().collect(),
+            linear_combination: linear_combination.into_iter().collect(),
+            image,
         }
     }
 }
 
-impl<T> Default for LinearEquation<T> {
+impl<T, U: Unit> Default for LinearEquation<T, U> {
     fn default() -> Self {
         Self {
             linear_combination: Vec::new(),
+            image: U::ZERO,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LinearConstraints<T> {
-    pub equations: Vec<LinearEquation<T>>,
+pub struct LinearConstraints<T, U> {
+    pub equations: Vec<LinearEquation<T, U>>,
 }
 
-impl<T> AsRef<[LinearEquation<T>]> for LinearConstraints<T> {
-    fn as_ref(&self) -> &[LinearEquation<T>] {
+impl<T, U> AsRef<[LinearEquation<T, U>]> for LinearConstraints<T, U> {
+    fn as_ref(&self) -> &[LinearEquation<T, U>] {
         &self.equations
     }
 }
 
-impl<T> Default for LinearConstraints<T> {
+impl<T, U> Default for LinearConstraints<T, U> {
     fn default() -> Self {
         Self {
             equations: Vec::new(),
@@ -62,7 +68,7 @@ type QueryAnswerPair<U, const WIDTH: usize> = ([U; WIDTH], [U; WIDTH]);
 pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> {
     permutation: P,
     trace: Arc<RwLock<Vec<QueryAnswerPair<P::U, WIDTH>>>>,
-    linear_constraints: Arc<RwLock<LinearConstraints<P::U>>>,
+    linear_constraints: Arc<RwLock<LinearConstraints<P::U, P::U>>>,
 }
 
 /// The internal state of the instance,
@@ -130,7 +136,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
             .push((input, output));
     }
 
-    pub fn add_equation(&self, equation: LinearEquation<FieldVar>) {
+    pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>) {
         self.linear_constraints.write().equations.push(equation);
     }
 
@@ -140,7 +146,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     }
 
     #[must_use]
-    pub fn linear_constraints(&self) -> LinearConstraints<FieldVar> {
+    pub fn linear_constraints(&self) -> LinearConstraints<FieldVar, T> {
         self.linear_constraints.read().clone()
     }
 
@@ -177,7 +183,7 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
         self.trace.write().push((input.clone(), output.clone()));
     }
 
-    pub fn add_equation(&self, equation: LinearEquation<P::U>) {
+    pub fn add_equation(&self, equation: LinearEquation<P::U, P::U>) {
         self.linear_constraints.write().equations.push(equation);
     }
 
@@ -187,7 +193,7 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
     }
 
     #[must_use]
-    pub fn linear_constraints(&self) -> LinearConstraints<P::U> {
+    pub fn linear_constraints(&self) -> LinearConstraints<P::U, P::U> {
         self.linear_constraints.read().clone()
     }
 }

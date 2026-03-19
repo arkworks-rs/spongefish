@@ -56,29 +56,52 @@ pub fn test_xof() {
 pub fn test_linear_equations() {
     let inst_builder = PermutationInstanceBuilder::<BabyBear, 16>::new();
     let [a, b, c] = inst_builder.allocator().allocate_vars();
-    inst_builder.add_equation(LinearEquation::new([a, b, c]));
-    inst_builder.add_equation(LinearEquation::new([c, a]));
+    inst_builder.add_equation(LinearEquation::new(
+        [
+            (BabyBear::new(1), a),
+            (BabyBear::new(1), b),
+            (BabyBear::new(1), c),
+        ],
+        BabyBear::new(0),
+    ));
+    inst_builder.add_equation(LinearEquation::new(
+        [(BabyBear::new(2), c), (BabyBear::new(3), a)],
+        BabyBear::new(7),
+    ));
 
     let equations = inst_builder.linear_constraints();
     assert_eq!(equations.as_ref().len(), 2);
-    assert_eq!(equations.as_ref()[0].linear_combination, vec![a, b, c]);
+    assert_eq!(
+        equations.as_ref()[0].linear_combination,
+        vec![
+            (BabyBear::new(1), a),
+            (BabyBear::new(1), b),
+            (BabyBear::new(1), c),
+        ]
+    );
+    assert_eq!(equations.as_ref()[0].image, BabyBear::new(0));
+    assert_eq!(equations.as_ref()[1].image, BabyBear::new(7));
 }
 
 #[test]
 pub fn test_witness_linear_equations() {
     let witness =
         PermutationWitnessBuilder::<SpongePoseidon2_16, 16>::new(SpongePoseidon2_16::default());
-    witness.add_equation(LinearEquation::new([
-        BabyBear::new(3),
-        BabyBear::new(5),
-        BabyBear::new(8),
-    ]));
+    witness.add_equation(LinearEquation::new(
+        [
+            (BabyBear::new(2), BabyBear::new(3)),
+            (BabyBear::new(4), BabyBear::new(5)),
+            (BabyBear::new(6), BabyBear::new(8)),
+        ],
+        BabyBear::new(9),
+    ));
 
     let equations = witness.linear_constraints();
     assert_eq!(equations.as_ref().len(), 1);
     assert_eq!(equations.as_ref()[0].linear_combination.len(), 3);
     assert_eq!(
         equations.as_ref()[0].linear_combination[2],
-        BabyBear::new(8)
+        (BabyBear::new(6), BabyBear::new(8))
     );
+    assert_eq!(equations.as_ref()[0].image, BabyBear::new(9));
 }
