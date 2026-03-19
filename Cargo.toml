@@ -84,3 +84,7 @@ libtest-mimic = "0.8.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 spin = { version = "0.9", default-features = false, features = ["rwlock"] }
+# SmallFp is not yet published in ark-ff 0.5.0, so we patch ark-ff and ark-serialize from git master.
+[patch.crates-io]
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", package = "ark-ff" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", package = "ark-serialize" }
