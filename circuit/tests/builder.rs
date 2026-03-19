@@ -77,5 +77,8 @@ pub fn test_witness_linear_equations() {
     let equations = witness.linear_constraints();
     assert_eq!(equations.as_ref().len(), 1);
     assert_eq!(equations.as_ref()[0].linear_combination.len(), 3);
-    assert_eq!(equations.as_ref()[0].linear_combination[2], BabyBear::new(8));
+    assert_eq!(
+        equations.as_ref()[0].linear_combination[2],
+        BabyBear::new(8)
+    );
 }
