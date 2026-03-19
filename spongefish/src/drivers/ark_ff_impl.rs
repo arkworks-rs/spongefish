@@ -127,7 +127,27 @@ impl_deserialize!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-impl_deserialize!(impl [P: SmallFpConfig] for SmallFp<P>);
+// SmallFp NargDeserialize: read exactly ⌈MODULUS_BIT_SIZE / 8⌉ BE bytes and
+// reconstruct via BigInt. We can't use the macro because `from_be_bytes_mod_order`
+// misinterprets short byte slices on SmallFp (whose BigInt<2> expects 16 bytes).
+impl<P: SmallFpConfig> NargDeserialize for SmallFp<P> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+        let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
+        if buf.len() < base_field_size {
+            return Err(VerificationError);
+        }
+        let (head, tail) = buf.split_at(base_field_size);
+        *buf = tail;
+        // Convert BE bytes to a u128, then construct BigInt<2> from its two u64 limbs.
+        let mut padded = [0u8; 16];
+        padded[16 - base_field_size..].copy_from_slice(head);
+        let value = u128::from_be_bytes(padded);
+        let lo = value as u64;
+        let hi = (value >> 64) as u64;
+        let bigint = ark_ff::BigInt::new([lo, hi]);
+        Self::from_bigint(bigint).ok_or(VerificationError)
+    }
+}
 // Implement Encoding for prime-order field and field extensions.
 // The NargSerialize implementation is inherited here.
 impl_encoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
@@ -271,6 +291,52 @@ mod test_ark_ff {
     #[test]
     fn test_encoding_small_fp_f16() {
         encoding_testsuite::<F16>();
+    }
+
+    // Roundtrip test: encode → NargSerialize → NargDeserialize → encode
+    fn roundtrip_testsuite<F>()
+    where
+        F: ark_ff::Field
+            + crate::codecs::Encoding<[u8]>
+            + crate::io::NargSerialize
+            + crate::io::NargDeserialize,
+    {
+        for v in [0u64, 1, 42, 12345] {
+            let original = F::from(v);
+            let serialized = original.serialize_into_new_narg();
+            let mut slice: &[u8] = serialized.as_ref();
+            let deserialized = F::deserialize_from_narg(&mut slice)
+                .unwrap_or_else(|_| panic!("failed to deserialize value {v}"));
+            assert!(
+                slice.is_empty(),
+                "deserialize did not consume all bytes for value {v}"
+            );
+            assert_eq!(
+                Encoding::encode(&original).as_ref(),
+                Encoding::encode(&deserialized).as_ref(),
+                "roundtrip failed for value {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_roundtrip_small_fp_goldilocks() {
+        roundtrip_testsuite::<Goldilocks>();
+    }
+
+    #[test]
+    fn test_roundtrip_small_fp_m31() {
+        roundtrip_testsuite::<M31>();
+    }
+
+    #[test]
+    fn test_roundtrip_small_fp_babybear() {
+        roundtrip_testsuite::<BabyBear>();
+    }
+
+    #[test]
+    fn test_roundtrip_small_fp_f16() {
+        roundtrip_testsuite::<F16>();
     }
 }
 
