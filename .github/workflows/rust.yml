@@ -31,12 +31,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ matrix.toolchain }}
-        profile: minimal
-        override: true
-        components: rustfmt, clippy
+      uses: dtolnay/rust-toolchain@nightly
 
     - name: Build (nightly)
       run: cargo build --all-features --verbose
