@@ -34,28 +34,49 @@ jobs:
       - run: cargo sort --check --workspace
 
   clippy:
-    name: Clippy
+    name: Clippy (${{ matrix.toolchain }}, ${{ matrix.features }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [stable, nightly]
+        features: [default, no-default, all]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ matrix.toolchain }}
           components: clippy
-      - run: cargo clippy --all-targets -- -D warnings
+      - name: Run clippy
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo clippy --all-targets -- -D warnings ;;
+            no-default) cargo clippy --all-targets --no-default-features -- -D warnings ;;
+            all)        cargo clippy --all-targets --all-features -- -D warnings ;;
+          esac
 
   test:
-    name: Test
+    name: Test (${{ matrix.toolchain }}, ${{ matrix.features }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [stable, nightly]
+        features: [default, no-default, all]
     steps:
       - uses: actions/checkout@v4
-      - run: cargo build --verbose
-      - run: cargo test --verbose
-
-  test-nightly:
-    name: Test (nightly, all features)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo build --all-features --verbose
-      - run: cargo test --all-features --verbose
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Build
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo build --verbose ;;
+            no-default) cargo build --no-default-features --verbose ;;
+            all)        cargo build --all-features --verbose ;;
+          esac
+      - name: Test
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo test --verbose ;;
+            no-default) cargo test --no-default-features --verbose ;;
+            all)        cargo test --all-features --verbose ;;
+          esac
