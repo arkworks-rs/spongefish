@@ -1,4 +1,4 @@
-
+name: Linter and Formatter
 
 on:
   pull_request:
@@ -6,8 +6,6 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
-
-name: Linter and Formatter
 
 jobs:
   format:
