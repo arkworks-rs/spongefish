@@ -22,17 +22,11 @@ jobs:
 
 
   full-setup:
-
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        toolchain: [nightly]
-
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@nightly
-
     - name: Build (nightly)
       run: cargo build --all-features --verbose
     - name: Run tests (nightly)
