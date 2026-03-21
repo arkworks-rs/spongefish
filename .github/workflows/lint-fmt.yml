@@ -11,39 +11,13 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
+      - uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
-      
-      - name: Check for formatting differences
-        id: fmt-check
-        run: |
-          if ! cargo fmt --all -- --check; then
-            echo "Formatting differences found"
-            cargo fmt --all
-            echo "needs_commit=true" >> $GITHUB_OUTPUT
-          else
-            echo "No formatting differences"
-            echo "needs_commit=false" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Commit and push formatting changes
-        if: steps.fmt-check.outputs.needs_commit == 'true'
-        run: |
-          git config --local user.name 'github-actions[bot]'
-          git config --local user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
-          git commit -m "Apply rustfmt changes"
-          git push
 
   clippy:
     name: Clippy
