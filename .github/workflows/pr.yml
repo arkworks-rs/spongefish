@@ -30,6 +30,8 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+      - run: cargo install cargo-sort
+      - run: cargo sort --check --workspace
 
   clippy:
     name: Clippy
