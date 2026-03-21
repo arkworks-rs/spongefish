@@ -81,6 +81,17 @@ jobs:
             all)        cargo test --all-features --verbose ;;
           esac
 
+  # Build docs with the same flags docs.rs uses. Reduces risk of broken public docs.
+  docs-rs:
+    name: docs.rs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo doc --all-features --no-deps
+
   # Anchor job for branch protection. Point required status checks at this.
   # see: https://github.com/orgs/community/discussions/26822
   status-check:
@@ -90,6 +101,7 @@ jobs:
       - format
       - clippy
       - test
+      - docs-rs
     runs-on: ubuntu-latest
     steps:
       - name: Check all job results
