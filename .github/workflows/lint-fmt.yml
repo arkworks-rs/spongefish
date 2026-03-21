@@ -7,6 +7,10 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   format:
     runs-on: ubuntu-latest
