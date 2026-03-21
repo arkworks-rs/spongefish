@@ -80,3 +80,18 @@ jobs:
             no-default) cargo test --no-default-features --verbose ;;
             all)        cargo test --all-features --verbose ;;
           esac
+
+  # Anchor job for branch protection. Point required status checks at this.
+  # see: https://github.com/orgs/community/discussions/26822
+  status-check:
+    if: always()
+    needs:
+      - typos
+      - format
+      - clippy
+      - test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all job results
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1
