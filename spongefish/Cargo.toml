@@ -1,50 +1,14 @@
 [package]
 name = "spongefish"
-authors = [
-    "Michele Orrù <m@orru.net>",
-    "Giacomo Fenzi <giacomofenzi@outlook.com>",
-]
+authors = ["Michele Orrù <m@orru.net>", "Giacomo Fenzi <giacomofenzi@outlook.com>"]
 description = "An implementation of the Fiat--Shamir transformation from Duplex Sponges."
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-[lints]
-workspace = true
-
-[dependencies]
-spongefish-derive = { workspace = true, optional = true }
-zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
-rand = { workspace = true, features = ["getrandom"] }
-digest = { workspace = true }
-
-# Optional hash functions
-k12 = { workspace = true, optional = true }
-keccak = { workspace = true, optional = true }
-sha3 = { workspace = true, optional = true }
-blake3 = { workspace = true, optional = true }
-sha2 = { workspace = true, features = ["asm"], optional = true }
-blake2 = { workspace = true, optional = true }
-ascon = { version = "^0.4.0", optional = true }
-
-# arkworks-rs
-ark-ff = { workspace = true, optional = true }
-ark-ec = { workspace = true, optional = true }
-ark-serialize = { workspace = true, optional = true }
-
-# zkcrypto/group
-bls12_381 = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, optional = true }
-k256 = { workspace = true, optional = true, features = ["arithmetic"] }
-p256 = { workspace = true, optional = true, features = ["arithmetic"] }
-
-# plonky3
-p3-field = { workspace = true, optional = true }
-p3-baby-bear = { workspace = true, optional = true }
-p3-mersenne-31 = { workspace = true, optional = true }
-p3-koala-bear = { workspace = true, optional = true }
-risc0-zkp = { workspace = true, optional = true }
-
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--html-in-header", "../doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
 default = ["sha3", "zeroize"]
@@ -74,38 +38,69 @@ p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
 p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
 # Performance features
-asm = ["keccak?/asm", "keccak?/simd", "ark-ff?/asm"]
+asm = ["keccak?/asm", "ark-ff?/asm"]
 std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
 # risc0-zkp
 risc0-zkp = ["dep:risc0-zkp"]
 
-[dev-dependencies]
-ark-std = { workspace = true }
+[dependencies]
+ark-ec = { workspace = true, optional = true }
+
+# arkworks-rs
+ark-ff = { workspace = true, optional = true }
+ark-serialize = { workspace = true, optional = true }
+ascon = { version = "^0.4.0", optional = true }
+blake2 = { workspace = true, optional = true }
+blake3 = { workspace = true, optional = true }
+
+# zkcrypto/group
+bls12_381 = { workspace = true, optional = true }
+curve25519-dalek = { workspace = true, optional = true }
+digest = { workspace = true }
+
+# Optional hash functions
+k12 = { workspace = true, optional = true }
+k256 = { workspace = true, optional = true, features = ["arithmetic"] }
+keccak = { workspace = true, optional = true }
+p256 = { workspace = true, optional = true, features = ["arithmetic"] }
+p3-baby-bear = { workspace = true, optional = true }
+
+# plonky3
+p3-field = { workspace = true, optional = true }
+p3-koala-bear = { workspace = true, optional = true }
+p3-mersenne-31 = { workspace = true, optional = true }
+rand = { workspace = true, features = ["getrandom"] }
+risc0-zkp = { workspace = true, optional = true }
+sha2 = { workspace = true, features = ["asm"], optional = true }
+sha3 = { workspace = true, optional = true }
+spongefish-derive = { workspace = true, optional = true }
+zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
+
+[target.'cfg(doc)'.dependencies]
+p3-koala-bear = { workspace = true }
 sha2 = { workspace = true }
-blake2 = { workspace = true }
-hex = { workspace = true }
-curve25519-dalek = { workspace = true }
-ark-curve25519 = { workspace = true }
-bls12_381 = { workspace = true }
+
+[dev-dependencies]
 ark-bls12-381 = { workspace = true }
+ark-curve25519 = { workspace = true }
 ark-pallas = { workspace = true }
-pallas = { workspace = true }
-ark-vesta = { workspace = true }
-sha3 = { workspace = true }
 ark-secp256k1 = { workspace = true }
 ark-secp256r1 = { workspace = true }
+ark-std = { workspace = true }
+ark-vesta = { workspace = true }
+blake2 = { workspace = true }
+bls12_381 = { workspace = true }
+curve25519-dalek = { workspace = true }
+hex = { workspace = true }
 libtest-mimic = { workspace = true }
+pallas = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+sha3 = { workspace = true }
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = [
-    "--html-in-header",
-    "../doc/katex-header.html",
-    "--cfg",
-    "docsrs",
-]
+[lints]
+workspace = true
 
 [[example]]
 name = "schnorr"
@@ -114,7 +109,3 @@ required-features = ["ark-ec"]
 [[example]]
 name = "bulletproof"
 required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]
-
-[target.'cfg(doc)'.dependencies]
-sha2 = { workspace = true }
-p3-koala-bear = { workspace = true }

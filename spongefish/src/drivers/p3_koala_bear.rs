@@ -29,7 +29,7 @@ impl Decoding<[u8]> for KoalaBear {
 
     fn decode(buf: Self::Repr) -> Self {
         let n = u64::from_le_bytes(buf);
-        KoalaBear::new((n % (KoalaBear::ORDER_U32 as u64)) as u32)
+        Self::new((n % u64::from(Self::ORDER_U32)) as u32)
     }
 }
 
@@ -44,12 +44,12 @@ impl NargDeserialize for KoalaBear {
         let value = u32::from_le_bytes(repr);
 
         // Check that the value is in the valid range
-        if value >= KoalaBear::ORDER_U32 {
+        if value >= Self::ORDER_U32 {
             return Err(VerificationError);
         }
 
         *buf = &buf[4..];
-        Ok(KoalaBear::new(value))
+        Ok(Self::new(value))
     }
 }
 

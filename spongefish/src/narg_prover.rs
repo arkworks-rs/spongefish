@@ -264,7 +264,7 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
     for ProverState<H, R>
 {
     fn default() -> Self {
-        ProverState {
+        Self {
             duplex_sponge_state: H::default(),
             private_rng: R::from_entropy().into(),
             narg_string: Vec::new(),

@@ -29,7 +29,7 @@ pub struct DecodingFieldBuffer<F: Field> {
 
 /// The function determining the size of [`DecodingFieldBuffer`]:
 pub fn decoding_field_buffer_size<F: Field>() -> usize {
-    let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
+    let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
     // Get 32 bytes of extra randomness for every base field element in the extension
     let length = (base_field_modulus_bytes + 32) * F::extension_degree();
     length as usize
@@ -164,6 +164,24 @@ fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
     0
 }
 
+impl<F: Field> Default for DecodingFieldBuffer<F> {
+    fn default() -> Self {
+        let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
+        // Get 32 bytes of extra randomness for every base field element in the extension
+        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
+        Self {
+            buf: vec![0u8; len as usize],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.buf.as_mut()
+    }
+}
+
 #[cfg(test)]
 mod test_ark_ff {
     use crate::codecs::Encoding;
@@ -184,7 +202,7 @@ mod test_ark_ff {
         assert_eq!(
             Encoding::encode(&[first, second]).as_ref(),
             Encoding::encode(&[second, first]).as_ref()
-        )
+        );
     }
 
     #[test]
@@ -204,23 +222,5 @@ mod test_ark_ff {
         assert_eq!(bytes.len(), 32);
         assert!(bytes[..31].iter().all(|&byte| byte == 0));
         assert_eq!(bytes[31], 1);
-    }
-}
-
-impl<F: Field> Default for DecodingFieldBuffer<F> {
-    fn default() -> Self {
-        let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
-        // Get 32 bytes of extra randomness for every base field element in the extension
-        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
-        Self {
-            buf: vec![0u8; len as usize],
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.buf.as_mut()
     }
 }

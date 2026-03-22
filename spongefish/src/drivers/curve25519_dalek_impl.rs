@@ -14,7 +14,7 @@ use crate::{
 
 // Make curve25519-dalek Scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = Scalar::ZERO;
+    const ZERO: Self = Self::ZERO;
 }
 
 // Implement Decoding for curve25519-dalek Scalar
@@ -24,7 +24,7 @@ impl Decoding<[u8]> for Scalar {
     fn decode(buf: Self::Repr) -> Self {
         let mut le_bytes = buf.0;
         le_bytes.reverse();
-        Scalar::from_bytes_mod_order_wide(&le_bytes)
+        Self::from_bytes_mod_order_wide(&le_bytes)
     }
 }
 
@@ -32,7 +32,7 @@ impl Decoding<[u8]> for RistrettoPoint {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        RistrettoPoint::from_uniform_bytes(&buf.0)
+        Self::from_uniform_bytes(&buf.0)
     }
 }
 
@@ -48,7 +48,7 @@ impl NargDeserialize for Scalar {
         let mut le_bytes = [0u8; N];
         le_bytes.copy_from_slice(be_bytes);
         le_bytes.reverse();
-        Scalar::from_canonical_bytes(le_bytes)
+        Self::from_canonical_bytes(le_bytes)
             .into_option()
             .inspect(|_| *buf = &buf[N..])
             .ok_or(VerificationError)
@@ -88,8 +88,8 @@ impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut le_bytes = self.to_bytes();
         le_bytes.reverse();
-        let be_bytes = le_bytes;
-        be_bytes
+
+        le_bytes
     }
 }
 
