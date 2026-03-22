@@ -5,7 +5,7 @@ use k256::{
         ff::{Field, PrimeField},
         sec1::{FromEncodedPoint, ToEncodedPoint},
     },
-    AffinePoint, ProjectivePoint, Scalar,
+    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
 };
 
 use crate::{
@@ -55,7 +55,6 @@ impl NargDeserialize for ProjectivePoint {
             return Err(VerificationError);
         }
 
-        use k256::EncodedPoint;
         let encoded = EncodedPoint::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
         *buf = &buf[33..];
         Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)
