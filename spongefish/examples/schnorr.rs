@@ -34,7 +34,7 @@ impl Schnorr {
     {
         // `ProverState` types implement a cryptographically-secure random number generator.
         let k = G::ScalarField::rand(prover_state.rng());
-        let K = instance[0].clone() * k;
+        let K = instance[0] * k;
 
         prover_state.prover_message(&K);
         let c = prover_state.verifier_message::<G::ScalarField>();
@@ -91,6 +91,6 @@ fn main() {
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
     let verifier_state = domain_sep.std_verifier(narg_string);
-    Schnorr::verify(verifier_state, instance[0].clone(), instance[1].clone())
+    Schnorr::verify(verifier_state, instance[0], instance[1])
         .expect("Verification failed");
 }

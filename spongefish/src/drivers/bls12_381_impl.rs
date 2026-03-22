@@ -10,7 +10,7 @@ use crate::{
 
 // Make BLS12-381 scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = Scalar::zero();
+    const ZERO: Self = Self::zero();
 }
 
 // Implement Decoding for curve25519-dalek Scalar
@@ -20,7 +20,7 @@ impl Decoding<[u8]> for Scalar {
     fn decode(buf: Self::Repr) -> Self {
         let mut wide = buf.0;
         wide.reverse();
-        Scalar::from_bytes_wide(&wide)
+        Self::from_bytes_wide(&wide)
     }
 }
 
@@ -36,7 +36,7 @@ impl NargDeserialize for Scalar {
         let mut le_bytes = [0u8; N];
         le_bytes.copy_from_slice(be_bytes);
         le_bytes.reverse();
-        Scalar::from_bytes(&le_bytes)
+        Self::from_bytes(&le_bytes)
             .into_option()
             .inspect(|_| *buf = &buf[N..])
             .ok_or(VerificationError)
@@ -56,7 +56,7 @@ impl NargDeserialize for G1Projective {
         repr.copy_from_slice(&buf[..N]);
         G1Affine::from_compressed(&repr)
             .into_option()
-            .map(|af| af.into())
+            .map(core::convert::Into::into)
             .inspect(|_| *buf = &buf[N..])
             .ok_or(VerificationError)
     }
@@ -75,7 +75,7 @@ impl NargDeserialize for G2Projective {
         repr.copy_from_slice(&buf[..N]);
         G2Affine::from_compressed(&repr)
             .into_option()
-            .map(|af| af.into())
+            .map(core::convert::Into::into)
             .inspect(|_| *buf = &buf[N..])
             .ok_or(VerificationError)
     }
@@ -86,8 +86,8 @@ impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut le_bytes = self.to_bytes();
         le_bytes.reverse();
-        let be_bytes = le_bytes;
-        be_bytes
+        
+        le_bytes
     }
 }
 
