@@ -24,6 +24,8 @@ spongefish-poseidon2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
+spongefish = { workspace = true, features = ["p3-baby-bear"] }
+spongefish-poseidon2 = { workspace = true, features = ["p3-baby-bear"] }
 
 [lints]
 workspace = true
