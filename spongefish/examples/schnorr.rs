@@ -91,6 +91,5 @@ fn main() {
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
     let verifier_state = domain_sep.std_verifier(narg_string);
-    Schnorr::verify(verifier_state, instance[0], instance[1])
-        .expect("Verification failed");
+    Schnorr::verify(verifier_state, instance[0], instance[1]).expect("Verification failed");
 }

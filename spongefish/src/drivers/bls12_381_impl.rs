@@ -86,7 +86,7 @@ impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut le_bytes = self.to_bytes();
         le_bytes.reverse();
-        
+
         le_bytes
     }
 }
