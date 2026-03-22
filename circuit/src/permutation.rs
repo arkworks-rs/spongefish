@@ -62,7 +62,18 @@ impl<T, U> Default for LinearConstraints<T, U> {
     }
 }
 
-type QueryAnswerPair<U, const WIDTH: usize> = ([U; WIDTH], [U; WIDTH]);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QueryAnswerPair<T, const WIDTH: usize> {
+    pub input: [T; WIDTH],
+    pub output: [T; WIDTH],
+}
+
+impl<T, const WIDTH: usize> QueryAnswerPair<T, WIDTH> {
+    #[must_use]
+    pub const fn new(input: [T; WIDTH], output: [T; WIDTH]) -> Self {
+        Self { input, output }
+    }
+}
 
 #[derive(Clone)]
 pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> {
@@ -75,7 +86,7 @@ pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> 
 /// holding the input-output pairs of the wires to be proven.
 #[derive(Clone, Default)]
 struct PermutationInstance<const WIDTH: usize> {
-    state: Vec<([FieldVar; WIDTH], [FieldVar; WIDTH])>,
+    state: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
 }
 
 impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationInstanceBuilder<T, WIDTH> {
@@ -133,7 +144,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         self.permutation_constraints
             .write()
             .state
-            .push((input, output));
+            .push(QueryAnswerPair::new(input, output));
     }
 
     pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>) {
@@ -141,7 +152,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     }
 
     #[must_use]
-    pub fn constraints(&self) -> impl AsRef<[([FieldVar; WIDTH], [FieldVar; WIDTH])]> {
+    pub fn constraints(&self) -> impl AsRef<[QueryAnswerPair<FieldVar, WIDTH>]> {
         self.permutation_constraints.read().state.clone()
     }
 
@@ -180,7 +191,9 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
     }
 
     pub fn add_permutation(&self, input: &[P::U; WIDTH], output: &[P::U; WIDTH]) {
-        self.trace.write().push((input.clone(), output.clone()));
+        self.trace
+            .write()
+            .push(QueryAnswerPair::new(input.clone(), output.clone()));
     }
 
     pub fn add_equation(&self, equation: LinearEquation<P::U, P::U>) {
