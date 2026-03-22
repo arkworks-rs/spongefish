@@ -38,7 +38,7 @@ p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
 p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
 # Performance features
-asm = ["keccak?/asm", "keccak?/simd", "ark-ff?/asm"]
+asm = ["keccak?/asm", "ark-ff?/asm"]
 std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
 # risc0-zkp
 risc0-zkp = ["dep:risc0-zkp"]
