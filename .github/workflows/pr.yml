@@ -37,6 +37,7 @@ jobs:
     name: Clippy (${{ matrix.toolchain }}, ${{ matrix.features }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         toolchain: [stable, nightly]
         features: [default, no-default, all]
@@ -58,6 +59,7 @@ jobs:
     name: Test (${{ matrix.toolchain }}, ${{ matrix.features }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         toolchain: [stable, nightly]
         features: [default, no-default, all]
