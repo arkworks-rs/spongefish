@@ -1,7 +1,9 @@
 [package]
 name = "spongefish-derive"
+description = "Derive macros for the spongefish Fiat-Shamir library"
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 version.workspace = true
 
 [lib]

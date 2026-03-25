@@ -6,6 +6,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 version = "0.3.0"
+repository = "https://github.com/arkworks-rs/spongefish"
 
 [workspace.lints.clippy]
 # all lints that are on by default (correctness, suspicious, style, complexity, perf)
