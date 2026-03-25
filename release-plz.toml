@@ -1,7 +1,8 @@
 [workspace]
 changelog_update = false
 custom_minor_increment_regex = "^"
-git_release_enable = true
+git_release_enable = false
+git_tag_enable = false
 pr_branch_prefix = "release-plz-"
 pr_labels = ["release"]
 release_always = false
@@ -10,6 +11,9 @@ semver_check = false
 
 [[package]]
 name = "spongefish"
+git_release_enable = true
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
 version_group = "workspace"
 
 [[package]]
