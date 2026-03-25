@@ -21,9 +21,5 @@ name = "spongefish-derive"
 version_group = "workspace"
 
 [[package]]
-name = "spongefish-poseidon2"
-version_group = "workspace"
-
-[[package]]
 name = "spongefish-pow"
 version_group = "workspace"
