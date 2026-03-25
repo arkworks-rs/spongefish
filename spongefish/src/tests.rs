@@ -1,6 +1,9 @@
 use alloc::string::String;
 
 use rand::RngCore;
+use sha3::digest::{ExtendableOutput, Update, XofReader};
+
+use crate::{DuplexSpongeInterface, Encoding};
 
 #[test]
 fn prover_rng_emits_entropy() {
@@ -89,4 +92,52 @@ fn domain_separator_accepts_variable_sessions() {
         .session
         .expect("reference session missing");
     assert_eq!(literal_session, from_owned_ref);
+}
+
+#[test]
+fn protocol_id_zero_pads_ascii() {
+    let protocol_id = crate::protocol_id(core::format_args!("sigma-proofs_Shake128_P256"));
+
+    assert_eq!(&protocol_id[..26], b"sigma-proofs_Shake128_P256",);
+    assert!(protocol_id[26..].iter().all(|&byte| byte == 0));
+}
+
+#[test]
+fn session_id_matches_rfc_construction() {
+    let mut initial_block = [0u8; 168];
+    let domain = b"fiat-shamir/session-id";
+    initial_block[..domain.len()].copy_from_slice(domain);
+
+    let mut shake = sha3::Shake128::default();
+    shake.update(&initial_block);
+    shake.update(b"discrete_logarithm");
+    let mut reader = shake.finalize_xof();
+    let mut expected_tail = [0u8; 32];
+    reader.read(&mut expected_tail);
+
+    let session_id = crate::session_id(core::format_args!("discrete_logarithm"));
+    assert!(session_id[..32].iter().all(|&byte| byte == 0));
+    assert_eq!(&session_id[32..], &expected_tail);
+}
+
+#[test]
+fn std_transcript_initialization_matches_manual_shake128() {
+    let protocol = crate::protocol_id(core::format_args!("sigma-proofs_Shake128_P256"));
+    let session = crate::session_id(core::format_args!("discrete_logarithm"));
+    let instance = [42u32, 7u32];
+
+    let domain = crate::DomainSeparator::new(protocol)
+        .session(session)
+        .instance(&instance);
+
+    let mut prover = domain.std_prover();
+    let challenge: [u8; 32] = prover.verifier_message();
+
+    let mut manual = crate::StdHash::from_protocol_id(protocol);
+    manual.absorb(&session);
+    let encoded_instance = instance.encode();
+    manual.absorb(encoded_instance.as_ref());
+    let expected = manual.squeeze_array::<32>();
+
+    assert_eq!(challenge, expected);
 }

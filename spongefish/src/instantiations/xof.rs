@@ -70,3 +70,22 @@ impl<H: ExtendableOutput + Default> Default for XOF<H> {
         }
     }
 }
+
+#[cfg(feature = "sha3")]
+impl XOF<sha3::Shake128> {
+    pub(crate) fn from_protocol_id(protocol_id: [u8; 64]) -> Self {
+        use digest::Update;
+
+        const RATE: usize = 168;
+
+        let mut hasher = sha3::Shake128::default();
+        let mut initial_block = [0u8; RATE];
+        initial_block[..protocol_id.len()].copy_from_slice(&protocol_id);
+        hasher.update(&initial_block);
+
+        Self {
+            hasher,
+            xof_reader: None,
+        }
+    }
+}
