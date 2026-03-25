@@ -1,15 +1,16 @@
 [package]
 name = "spongefish-circuit"
+description = "Circuits for proving relations over spongefish transcripts"
+documentation = "https://docs.rs/spongefish-circuit"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
+repository.workspace = true
 version.workspace = true
 
 [features]
 default = ["p3-baby-bear"]
-p3-baby-bear = [
-    "dep:p3-baby-bear",
-    "spongefish/p3-baby-bear",
-]
+p3-baby-bear = ["dep:p3-baby-bear", "spongefish/p3-baby-bear"]
 
 [dependencies]
 
