@@ -114,3 +114,44 @@ pub fn test_witness_linear_equations() {
     );
     assert_eq!(equations.as_ref()[0].image, BabyBear::new(9));
 }
+
+#[test]
+pub fn test_instance_builder_reuses_identical_permutations() {
+    let inst_builder = PermutationInstanceBuilder::<BabyBear, 16>::new();
+    let input = inst_builder.allocator().allocate_vars::<16>();
+
+    let first_output = inst_builder.allocate_permutation(&input);
+    let second_output = inst_builder.allocate_permutation(&input);
+
+    assert_eq!(first_output, second_output);
+    assert_eq!(inst_builder.constraints().as_ref().len(), 1);
+}
+
+#[test]
+pub fn test_witness_builder_reuses_identical_permutations() {
+    let witness =
+        PermutationWitnessBuilder::<SpongePoseidon2_16, 16>::new(SpongePoseidon2_16::default());
+    let input = [BabyBear::new(7); 16];
+
+    let first_output = witness.allocate_permutation(&input);
+    let second_output = witness.allocate_permutation(&input);
+
+    assert_eq!(first_output, second_output);
+    assert_eq!(witness.trace().as_ref().len(), 1);
+}
+
+#[test]
+pub fn test_allocator_reuses_public_constants_with_dedup_api() {
+    let inst_builder = PermutationInstanceBuilder::<BabyBear, 16>::new();
+    let vars = inst_builder.allocator().allocate_public_dedup(&[
+        BabyBear::new(7),
+        BabyBear::new(7),
+        BabyBear::new(9),
+        BabyBear::new(7),
+    ]);
+
+    assert_eq!(vars[0], vars[1]);
+    assert_eq!(vars[0], vars[3]);
+    assert_ne!(vars[0], vars[2]);
+    assert_eq!(inst_builder.allocator().public_vars().len(), 3);
+}
