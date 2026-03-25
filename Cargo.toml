@@ -1,5 +1,5 @@
 [workspace]
-members = ["circuit", "derive", "poseidon2", "pow", "spongefish"]
+members = ["circuit", "derive", "pow", "spongefish"]
 resolver = "2"
 
 [workspace.package]
@@ -76,5 +76,4 @@ spin = { version = "0.9", default-features = false, features = ["rwlock"] }
 spongefish = { path = "spongefish" }
 spongefish-circuit = { path = "circuit" }
 spongefish-derive = { path = "derive" }
-spongefish-poseidon2 = { path = "poseidon2" }
 zeroize = "^1.8.1"

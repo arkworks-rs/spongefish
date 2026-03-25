@@ -1,9 +1,19 @@
 use p3_baby_bear::BabyBear;
-use spongefish::{DuplexSponge, DuplexSpongeInterface};
+use spongefish::{DuplexSponge, DuplexSpongeInterface, Permutation};
 use spongefish_circuit::permutation::{
     LinearEquation, PermutationInstanceBuilder, PermutationWitnessBuilder,
 };
-use spongefish_poseidon2::BabyBearPoseidon2_16 as SpongePoseidon2_16;
+
+#[derive(Clone, Default)]
+struct DummyPermutation;
+
+impl Permutation<16> for DummyPermutation {
+    type U = BabyBear;
+
+    fn permute(&self, state: &[Self::U; 16]) -> [Self::U; 16] {
+        *state
+    }
+}
 
 #[test]
 pub fn test_xof() {
@@ -85,8 +95,7 @@ pub fn test_linear_equations() {
 
 #[test]
 pub fn test_witness_linear_equations() {
-    let witness =
-        PermutationWitnessBuilder::<SpongePoseidon2_16, 16>::new(SpongePoseidon2_16::default());
+    let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
     witness.add_equation(LinearEquation::new(
         [
             (BabyBear::new(2), BabyBear::new(3)),

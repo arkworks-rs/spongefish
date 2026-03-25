@@ -3,11 +3,12 @@
 Sponge FiSh (duplex **sponge** **Fi**at–**Sh**amir) is a permutation-agnostic Fiat–Shamir library that believes in random oracles.
 It facilitates the writing of multi-round public coin protocols.
 It provides a generic API for generating the verifier's random coins and the prover randomness.
-The project is split into three crates:
+The project is split into several crates:
 
 - `spongefish`: the core library and trait implementations for arkworks/zkcrypto types together with the duplex sponge API.
+- `spongefish-circuit`: constraint builders for permutation-based relations.
+- `spongefish-derive`: derive macros for codecs and related traits.
 - `spongefish-pow`: proof‑of‑work helpers for deriving Fiat–Shamir challenges via grinding.
-- `spongefish-poseidon2`: Poseidon2 permutations and wrappers you can compose with the duplex sponge interface today.
 
 Hash function can also be derived via bridges to Rust's generic [`Digest`](https://docs.rs/digest/latest/digest/) API, and [`XofReader`](https://docs.rs/digest/latest/digest/trait.XofReader.html).
 
