@@ -1,27 +1,38 @@
 name: Release
 
 on:
-  push:
+  pull_request_target:
+    types: [closed]
     branches: [main]
   workflow_dispatch:
     inputs:
-      publish:
-        description: Publish crates and push the version bump commit
-        type: boolean
-        default: false
+      mode:
+        description: Choose whether to prepare or publish a release
+        type: choice
+        options:
+          - prepare
+          - publish
+        default: prepare
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.pull_request.base.ref || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  prepare-release-pr:
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'prepare') ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main' &&
+       !startsWith(github.event.pull_request.title, 'release: v'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -48,24 +59,80 @@ jobs:
           next_version="$(./scripts/bump-workspace-minor.sh)"
           echo "next_version=$next_version" >> "$GITHUB_OUTPUT"
 
-      - name: Configure git identity
-        if: github.event_name == 'push' || inputs.publish
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Create or update release PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          base: main
+          branch: release/next
+          delete-branch: true
+          commit-message: release: v${{ steps.bump.outputs.next_version }}
+          title: release: v${{ steps.bump.outputs.next_version }}
+          body: |
+            This automated release PR was generated after a pull request merged into `main`.
 
-      - name: Commit and tag release
-        if: github.event_name == 'push' || inputs.publish
+            Merge this PR to publish `v${{ steps.bump.outputs.next_version }}` to crates.io.
+
+            Flow:
+            - this branch and PR are managed with the default `GITHUB_TOKEN`
+            - merging this PR reruns `cargo test` and docs.rs-style documentation checks
+            - crates publish in dependency order after those gates pass
+            - repository settings must allow GitHub Actions to create pull requests
+
+            Required secret:
+            - `CRATES_IO_TOKEN`
+          labels: release
+
+  publish-release:
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish') ||
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main' &&
+       startsWith(github.event.pull_request.title, 'release: v'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Read workspace version
+        id: version
         run: |
-          git add Cargo.toml
-          git commit -m "release: v${{ steps.bump.outputs.next_version }}"
-          git tag "v${{ steps.bump.outputs.next_version }}"
+          version="$(
+            awk '
+              $0 == "[workspace.package]" { in_workspace_package = 1; next }
+              /^\[/ && $0 != "[workspace.package]" { in_workspace_package = 0 }
+              in_workspace_package && $1 == "version" {
+                gsub(/"/, "", $3)
+                print $3
+                exit
+              }
+            ' Cargo.toml
+          )"
+          if [ -z "$version" ]; then
+            echo "failed to read workspace version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test release candidate
+        run: cargo test --workspace --all-features --locked --verbose
+
+      - name: Build docs with docs.rs flags
+        env:
+          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+        run: cargo doc --workspace --all-features --no-deps --locked
 
       - name: Publish crates to crates.io
-        if: github.event_name == 'push' || inputs.publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-          NEXT_VERSION: ${{ steps.bump.outputs.next_version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
@@ -76,7 +143,7 @@ jobs:
 
           crate_published() {
             local crate="$1"
-            curl -fsS "https://crates.io/api/v1/crates/${crate}/${NEXT_VERSION}" >/dev/null 2>&1
+            curl -fsS "https://crates.io/api/v1/crates/${crate}/${VERSION}" >/dev/null 2>&1
           }
 
           wait_for_crate() {
@@ -89,12 +156,12 @@ jobs:
                 return 0
               fi
 
-              echo "waiting for ${crate} ${NEXT_VERSION} to appear on crates.io (${attempt}/${attempts})"
+              echo "waiting for ${crate} ${VERSION} to appear on crates.io (${attempt}/${attempts})"
               attempt=$((attempt + 1))
               sleep 15
             done
 
-            echo "${crate} ${NEXT_VERSION} did not appear on crates.io in time" >&2
+            echo "${crate} ${VERSION} did not appear on crates.io in time" >&2
             return 1
           }
 
@@ -104,7 +171,7 @@ jobs:
             local attempt=1
 
             if crate_published "$crate"; then
-              echo "${crate} ${NEXT_VERSION} already exists on crates.io; skipping"
+              echo "${crate} ${VERSION} already exists on crates.io; skipping"
               wait_for_crate "$crate"
               return 0
             fi
@@ -118,7 +185,7 @@ jobs:
               fi
 
               if crate_published "$crate"; then
-                echo "${crate} ${NEXT_VERSION} became available after publish attempt ${attempt}"
+                echo "${crate} ${VERSION} became available after publish attempt ${attempt}"
                 wait_for_crate "$crate"
                 return 0
               fi
@@ -128,7 +195,7 @@ jobs:
               sleep 20
             done
 
-            echo "failed to publish ${crate} ${NEXT_VERSION}" >&2
+            echo "failed to publish ${crate} ${VERSION}" >&2
             return 1
           }
 
@@ -138,8 +205,20 @@ jobs:
           release_crate spongefish-circuit
           release_crate spongefish-pow
 
-      - name: Push release commit and tag
-        if: github.event_name == 'push' || inputs.publish
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          git push origin HEAD:main
-          git push origin "refs/tags/v${{ steps.bump.outputs.next_version }}"
+          target="$(git rev-parse HEAD)"
+
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "GitHub release v${VERSION} already exists; skipping"
+            exit 0
+          fi
+
+          gh release create \
+            "v${VERSION}" \
+            --target "${target}" \
+            --title "v${VERSION}" \
+            --notes "Automated crates.io release for spongefish ${VERSION}."

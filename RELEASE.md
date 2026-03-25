@@ -1,19 +1,20 @@
 # Release Flow Experiment
 
-This branch prototypes an automatic crates.io release every time a pull request lands on `main`.
+This branch prototypes an automated release PR flow that only needs the default `GITHUB_TOKEN` plus a crates.io token.
 
 ## What the workflow does
 
-The release workflow in `.github/workflows/release.yml` runs on pushes to `main`.
+The release workflow in `.github/workflows/release.yml` runs when pull requests targeting `main` are merged.
 
 It performs these steps in order:
 
-1. Checks out `main`.
-2. Runs the publish-critical gates again:
+1. When a normal pull request is merged into `main`, the workflow checks out `main`.
+2. It reruns the publish-critical gates:
    - `cargo test --workspace --all-features --locked`
    - `cargo doc --workspace --all-features --no-deps --locked` with `docsrs` warnings denied
-3. Bumps the workspace minor version by editing the root `Cargo.toml`.
-4. Commits `Cargo.toml`, tags the release, dry-runs each `cargo publish` stage in dependency order, publishes crates, and pushes the commit and tag back to `main`.
+3. It bumps the workspace minor version by editing the root `Cargo.toml`.
+4. It uses `GITHUB_TOKEN` to create or update a `release/next` pull request back into `main`.
+5. When that release PR is merged, the workflow reruns the same gates, publishes crates in dependency order, and creates the GitHub release and tag.
 
 ## Required GitHub configuration
 
@@ -35,21 +36,18 @@ To create the token:
 4. In GitHub, open `Settings -> Secrets and variables -> Actions`.
 5. Add the token as `CRATES_IO_TOKEN`.
 
-## Branch protection requirement
+## GitHub token behavior
 
-The workflow pushes a release commit and tag back to `main`.
+The release preparation step uses the default `GITHUB_TOKEN` to update the `release/next` branch and maintain the release PR.
 
-That means one of these must be true:
+No separate bot PAT is required for the workflow itself.
 
-- GitHub Actions is allowed to bypass branch protection for `main`.
-- A bot credential with push access is used instead of the default `GITHUB_TOKEN`.
-
-If neither is true, the publish step can succeed but the final push back to `main` will fail.
+Enable `Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests` so the release PR can be created with `GITHUB_TOKEN`.
 
 ## Operational caveats
 
-This design assumes release runs are serialized. The workflow uses a single concurrency group per branch, but if merges stack up quickly you should expect to test how you want to handle queued releases.
+This design assumes release runs are serialized. The workflow uses a single concurrency group per branch, and repeated merges update the same `release/next` PR instead of creating a stack of release PRs.
 
-The workflow also supports manual runs from the Actions tab. Leave `publish` unchecked to exercise the gate-and-bump path without pushing or publishing.
+The workflow also supports manual runs from the Actions tab. Choose `prepare` to create or refresh the release PR, or `publish` to run the publish path against the version currently on `main`.
 
 Because the crates depend on each other at the new version, a full pre-publish package validation is not possible for the entire workspace before the first crate is released. The workflow handles that by validating and publishing each crate in dependency order instead.
