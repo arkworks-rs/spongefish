@@ -1,0 +1,29 @@
+[workspace]
+changelog_update = false
+custom_minor_increment_regex = "^"
+git_release_enable = true
+pr_branch_prefix = "release-plz-"
+pr_labels = ["release"]
+release_always = false
+repo_url = "https://github.com/arkworks-rs/spongefish"
+semver_check = false
+
+[[package]]
+name = "spongefish"
+version_group = "workspace"
+
+[[package]]
+name = "spongefish-circuit"
+version_group = "workspace"
+
+[[package]]
+name = "spongefish-derive"
+version_group = "workspace"
+
+[[package]]
+name = "spongefish-poseidon2"
+version_group = "workspace"
+
+[[package]]
+name = "spongefish-pow"
+version_group = "workspace"

@@ -1,224 +1,55 @@
 name: Release
 
 on:
-  pull_request_target:
-    types: [closed]
+  push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      mode:
-        description: Choose whether to prepare or publish a release
-        type: choice
-        options:
-          - prepare
-          - publish
-        default: prepare
-
-concurrency:
-  group: release-${{ github.event.pull_request.base.ref || github.ref_name }}
-  cancel-in-progress: false
-
-permissions:
-  contents: write
-  pull-requests: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prepare-release-pr:
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.mode == 'prepare') ||
-      (github.event_name == 'pull_request_target' &&
-       github.event.pull_request.merged == true &&
-       github.event.pull_request.base.ref == 'main' &&
-       !startsWith(github.event.pull_request.title, 'release: v'))
+  release-plz-release:
+    name: Release-plz release
+    if: ${{ github.repository_owner == 'arkworks-rs' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
+      - &checkout
+        name: Checkout repository
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: main
-
-      - name: Install stable toolchain
+          persist-credentials: false
+      - &install-rust
+        name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Build and test release candidate
-        run: cargo test --workspace --all-features --locked --verbose
-
-      - name: Build docs with docs.rs flags
-        env:
-          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
-        run: cargo doc --workspace --all-features --no-deps --locked
-
-      - name: Bump workspace minor version
-        id: bump
-        run: |
-          chmod +x scripts/bump-workspace-minor.sh
-          next_version="$(./scripts/bump-workspace-minor.sh)"
-          echo "next_version=$next_version" >> "$GITHUB_OUTPUT"
-
-      - name: Create or update release PR
-        uses: peter-evans/create-pull-request@v7
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
         with:
-          token: ${{ github.token }}
-          base: main
-          branch: release/next
-          delete-branch: true
-          commit-message: release: v${{ steps.bump.outputs.next_version }}
-          title: release: v${{ steps.bump.outputs.next_version }}
-          body: |
-            This automated release PR was generated after a pull request merged into `main`.
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-            Merge this PR to publish `v${{ steps.bump.outputs.next_version }}` to crates.io.
-
-            Flow:
-            - this branch and PR are managed with the default `GITHUB_TOKEN`
-            - merging this PR reruns `cargo test` and docs.rs-style documentation checks
-            - crates publish in dependency order after those gates pass
-            - repository settings must allow GitHub Actions to create pull requests
-
-            Required secret:
-            - `CRATES_IO_TOKEN`
-          labels: release
-
-  publish-release:
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.mode == 'publish') ||
-      (github.event_name == 'pull_request_target' &&
-       github.event.pull_request.merged == true &&
-       github.event.pull_request.base.ref == 'main' &&
-       startsWith(github.event.pull_request.title, 'release: v'))
+  release-plz-pr:
+    name: Release-plz PR
+    if: ${{ github.repository_owner == 'arkworks-rs' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
+      - *checkout
+      - *install-rust
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
         with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Read workspace version
-        id: version
-        run: |
-          version="$(
-            awk '
-              $0 == "[workspace.package]" { in_workspace_package = 1; next }
-              /^\[/ && $0 != "[workspace.package]" { in_workspace_package = 0 }
-              in_workspace_package && $1 == "version" {
-                gsub(/"/, "", $3)
-                print $3
-                exit
-              }
-            ' Cargo.toml
-          )"
-          if [ -z "$version" ]; then
-            echo "failed to read workspace version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Build and test release candidate
-        run: cargo test --workspace --all-features --locked --verbose
-
-      - name: Build docs with docs.rs flags
+          command: release-pr
         env:
-          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
-        run: cargo doc --workspace --all-features --no-deps --locked
-
-      - name: Publish crates to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "CRATES_IO_TOKEN is not configured" >&2
-            exit 1
-          fi
-
-          crate_published() {
-            local crate="$1"
-            curl -fsS "https://crates.io/api/v1/crates/${crate}/${VERSION}" >/dev/null 2>&1
-          }
-
-          wait_for_crate() {
-            local crate="$1"
-            local attempts=20
-            local attempt=1
-
-            while [ "$attempt" -le "$attempts" ]; do
-              if crate_published "$crate"; then
-                return 0
-              fi
-
-              echo "waiting for ${crate} ${VERSION} to appear on crates.io (${attempt}/${attempts})"
-              attempt=$((attempt + 1))
-              sleep 15
-            done
-
-            echo "${crate} ${VERSION} did not appear on crates.io in time" >&2
-            return 1
-          }
-
-          release_crate() {
-            local crate="$1"
-            local attempts=10
-            local attempt=1
-
-            if crate_published "$crate"; then
-              echo "${crate} ${VERSION} already exists on crates.io; skipping"
-              wait_for_crate "$crate"
-              return 0
-            fi
-
-            cargo publish -p "$crate" --locked --dry-run
-
-            while [ "$attempt" -le "$attempts" ]; do
-              if cargo publish -p "$crate" --locked; then
-                wait_for_crate "$crate"
-                return 0
-              fi
-
-              if crate_published "$crate"; then
-                echo "${crate} ${VERSION} became available after publish attempt ${attempt}"
-                wait_for_crate "$crate"
-                return 0
-              fi
-
-              echo "publish attempt ${attempt}/${attempts} for ${crate} failed; waiting for index propagation"
-              attempt=$((attempt + 1))
-              sleep 20
-            done
-
-            echo "failed to publish ${crate} ${VERSION}" >&2
-            return 1
-          }
-
-          release_crate spongefish-derive
-          release_crate spongefish
-          release_crate spongefish-poseidon2
-          release_crate spongefish-circuit
-          release_crate spongefish-pow
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          target="$(git rev-parse HEAD)"
-
-          if gh release view "v${VERSION}" >/dev/null 2>&1; then
-            echo "GitHub release v${VERSION} already exists; skipping"
-            exit 0
-          fi
-
-          gh release create \
-            "v${VERSION}" \
-            --target "${target}" \
-            --title "v${VERSION}" \
-            --notes "Automated crates.io release for spongefish ${VERSION}."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
