@@ -1,11 +1,13 @@
 [package]
 name = "spongefish-pow"
 description = "Proof-of-work challenge grinding for spongefish Fiat-Shamir transcripts"
+documentation = "https://docs.rs/spongefish-pow"
 authors = [
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
     "Remco Bloemen <remco@wicked.ventures>",
 ]
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true

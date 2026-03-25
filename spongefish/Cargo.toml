@@ -2,7 +2,9 @@
 name = "spongefish"
 authors = ["Michele Orrù <m@orru.net>", "Giacomo Fenzi <giacomofenzi@outlook.com>"]
 description = "An implementation of the Fiat--Shamir transformation from Duplex Sponges."
+documentation = "https://docs.rs/spongefish"
 edition.workspace = true
+homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
