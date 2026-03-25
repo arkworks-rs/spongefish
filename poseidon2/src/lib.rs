@@ -42,9 +42,8 @@ macro_rules! impl_permutation {
 #[allow(unused)]
 mod p3_koala_bear_poseidon2 {
     use p3_koala_bear::{
-        KoalaBear, Poseidon2ExternalLayerKoalaBear, Poseidon2InternalLayerKoalaBear,
-        Poseidon2KoalaBear, KOALABEAR_RC16_EXTERNAL_FINAL, KOALABEAR_RC16_EXTERNAL_INITIAL,
-        KOALABEAR_RC16_INTERNAL,
+        default_koalabear_poseidon2_16, KoalaBear, Poseidon2ExternalLayerKoalaBear,
+        Poseidon2InternalLayerKoalaBear, Poseidon2KoalaBear,
     };
 
     type SpongefishPoseidon2KoalaBear<const WIDTH: usize> = p3_poseidon2::Poseidon2<
@@ -60,14 +59,7 @@ mod p3_koala_bear_poseidon2 {
 
     impl Default for crate::KoalaBearPoseidon2_16 {
         fn default() -> Self {
-            let p2 = p3_poseidon2::Poseidon2::new(
-                p3_poseidon2::ExternalLayerConstants::new(
-                    KOALABEAR_RC16_EXTERNAL_INITIAL.to_vec(),
-                    KOALABEAR_RC16_EXTERNAL_FINAL.to_vec(),
-                ),
-                KOALABEAR_RC16_INTERNAL.to_vec(),
-            );
-            Self(p2)
+            Self(default_koalabear_poseidon2_16())
         }
     }
 }
@@ -75,9 +67,8 @@ mod p3_koala_bear_poseidon2 {
 #[cfg(feature = "p3-baby-bear")]
 mod p3_baby_bear_poseidon2 {
     use p3_baby_bear::{
-        BabyBear, Poseidon2ExternalLayerBabyBear, Poseidon2InternalLayerBabyBear,
-        BABYBEAR_RC16_EXTERNAL_FINAL, BABYBEAR_RC16_EXTERNAL_INITIAL, BABYBEAR_RC16_INTERNAL,
-        BABYBEAR_RC24_EXTERNAL_FINAL, BABYBEAR_RC24_EXTERNAL_INITIAL, BABYBEAR_RC24_INTERNAL,
+        default_babybear_poseidon2_16, default_babybear_poseidon2_24, BabyBear,
+        Poseidon2ExternalLayerBabyBear, Poseidon2InternalLayerBabyBear,
     };
 
     type SpongefishPoseidon2BabyBear<const WIDTH: usize> = p3_poseidon2::Poseidon2<
@@ -93,27 +84,13 @@ mod p3_baby_bear_poseidon2 {
 
     impl Default for crate::BabyBearPoseidon2_24 {
         fn default() -> Self {
-            let p2 = p3_poseidon2::Poseidon2::new(
-                p3_poseidon2::ExternalLayerConstants::new(
-                    BABYBEAR_RC24_EXTERNAL_INITIAL.to_vec(),
-                    BABYBEAR_RC24_EXTERNAL_FINAL.to_vec(),
-                ),
-                BABYBEAR_RC24_INTERNAL.to_vec(),
-            );
-            Self(p2)
+            Self(default_babybear_poseidon2_24())
         }
     }
 
     impl Default for crate::BabyBearPoseidon2_16 {
         fn default() -> Self {
-            let p2 = p3_poseidon2::Poseidon2::new(
-                p3_poseidon2::ExternalLayerConstants::new(
-                    BABYBEAR_RC16_EXTERNAL_INITIAL.to_vec(),
-                    BABYBEAR_RC16_EXTERNAL_FINAL.to_vec(),
-                ),
-                BABYBEAR_RC16_INTERNAL.to_vec(),
-            );
-            Self(p2)
+            Self(default_babybear_poseidon2_16())
         }
     }
 }
