@@ -268,3 +268,25 @@ fn test_shosha() {
     sho.squeeze(&mut got[..63]);
     assert_eq!(&got[..63], expected);
 }
+
+#[cfg(all(test, feature = "sha2"))]
+#[test]
+fn empty_absorb_is_noop_while_squeezing() {
+    let mut control = Hash::<sha2::Sha256>::default();
+    control.absorb(b"abc");
+    let mut expected_prefix = [0u8; 5];
+    control.squeeze(&mut expected_prefix);
+    let mut expected_suffix = [0u8; 64];
+    control.squeeze(&mut expected_suffix);
+
+    let mut with_empty_absorb = Hash::<sha2::Sha256>::default();
+    with_empty_absorb.absorb(b"abc");
+    let mut actual_prefix = [0u8; 5];
+    with_empty_absorb.squeeze(&mut actual_prefix);
+    with_empty_absorb.absorb(&[]);
+    let mut actual_suffix = [0u8; 64];
+    with_empty_absorb.squeeze(&mut actual_suffix);
+
+    assert_eq!(actual_prefix, expected_prefix);
+    assert_eq!(actual_suffix, expected_suffix);
+}

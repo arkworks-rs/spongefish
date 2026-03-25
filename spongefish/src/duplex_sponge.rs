@@ -252,3 +252,163 @@ where
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::{rc::Rc, vec::Vec};
+    use core::cell::RefCell;
+
+    use super::{DuplexSponge, DuplexSpongeInterface, Permutation};
+
+    #[derive(Clone, Default)]
+    struct IdentityPermutation<const WIDTH: usize>;
+
+    impl<const WIDTH: usize> Permutation<WIDTH> for IdentityPermutation<WIDTH> {
+        type U = u8;
+
+        fn permute(&self, state: &[u8; WIDTH]) -> [u8; WIDTH] {
+            *state
+        }
+    }
+
+    #[derive(Clone)]
+    struct RecordingPermutation<const WIDTH: usize> {
+        seen_inputs: Rc<RefCell<Vec<[u8; WIDTH]>>>,
+    }
+
+    impl<const WIDTH: usize> Default for RecordingPermutation<WIDTH> {
+        fn default() -> Self {
+            Self {
+                seen_inputs: Rc::new(RefCell::new(Vec::new())),
+            }
+        }
+    }
+
+    impl<const WIDTH: usize> Permutation<WIDTH> for RecordingPermutation<WIDTH> {
+        type U = u8;
+
+        fn permute(&self, state: &[u8; WIDTH]) -> [u8; WIDTH] {
+            self.seen_inputs.borrow_mut().push(*state);
+            *state
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct ToyPermutation<const WIDTH: usize>;
+
+    impl<const WIDTH: usize> Permutation<WIDTH> for ToyPermutation<WIDTH> {
+        type U = u8;
+
+        fn permute(&self, state: &[u8; WIDTH]) -> [u8; WIDTH] {
+            core::array::from_fn(|i| {
+                let left = state[(i + WIDTH - 1) % WIDTH];
+                let right = state[(i + 1) % WIDTH];
+                left.wrapping_add(right.rotate_left(1))
+                    .wrapping_add(state[i])
+                    .wrapping_add(i as u8)
+            })
+        }
+    }
+
+    #[test]
+    fn absorb_only_writes_rate_segment_before_permutation() {
+        let mut sponge = DuplexSponge::<IdentityPermutation<5>, 5, 3>::default();
+        sponge.absorb(&[7, 8]);
+        assert_eq!(sponge.permutation_state, [7, 8, 0, 0, 0]);
+        assert_eq!(&sponge.permutation_state[3..], &[0, 0]);
+
+        sponge.absorb(&[9, 10, 11]);
+        assert_eq!(&sponge.permutation_state[3..], &[0, 0]);
+    }
+
+    #[test]
+    fn ratchet_zeroes_rate_before_permutation() {
+        let permutation = RecordingPermutation::<5>::default();
+        let seen_inputs = permutation.seen_inputs.clone();
+        let mut sponge = DuplexSponge::<RecordingPermutation<5>, 5, 3>::from(permutation);
+        sponge.permutation_state = [1, 2, 3, 4, 5];
+
+        sponge.ratchet();
+
+        let seen = seen_inputs.borrow();
+        assert_eq!(seen.as_slice(), &[[0, 0, 0, 4, 5]]);
+    }
+
+    #[test]
+    fn chunked_absorb_and_squeeze_match_monolithic_execution() {
+        let input = (0usize..4096)
+            .map(|i| u8::try_from(i % 251).expect("value fits in u8"))
+            .collect::<Vec<_>>();
+
+        let mut monolithic = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        monolithic.absorb(&input);
+        let mut monolithic_output = [0u8; 512];
+        monolithic.squeeze(&mut monolithic_output);
+
+        let mut chunked = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        let mut cursor = 0usize;
+        for chunk in [1usize, 3, 8, 64, 5, 2, 144, 233, 377] {
+            let end = (cursor + chunk).min(input.len());
+            if cursor == end {
+                break;
+            }
+            chunked.absorb(&input[cursor..end]);
+            cursor = end;
+        }
+        if cursor < input.len() {
+            chunked.absorb(&input[cursor..]);
+        }
+
+        let mut chunked_output = [0u8; 512];
+        for segment in chunked_output.chunks_mut(17) {
+            chunked.squeeze(segment);
+        }
+
+        assert_eq!(chunked_output, monolithic_output);
+    }
+
+    #[test]
+    fn empty_absorb_is_noop_while_squeezing() {
+        let mut control = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        control.absorb(b"abc");
+        let mut control_prefix = [0u8; 3];
+        control.squeeze(&mut control_prefix);
+        let mut control_suffix = [0u8; 19];
+        control.squeeze(&mut control_suffix);
+
+        let mut with_empty_absorb = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        with_empty_absorb.absorb(b"abc");
+        let mut actual_prefix = [0u8; 3];
+        with_empty_absorb.squeeze(&mut actual_prefix);
+        with_empty_absorb.absorb(&[]);
+        let mut actual_suffix = [0u8; 19];
+        with_empty_absorb.squeeze(&mut actual_suffix);
+
+        assert_eq!(actual_prefix, control_prefix);
+        assert_eq!(actual_suffix, control_suffix);
+    }
+
+    #[test]
+    #[ignore = "stress test"]
+    fn large_stream_smoke_test() {
+        let input = (0usize..10_000_000)
+            .map(|i| u8::try_from(i % 251).expect("value fits in u8"))
+            .collect::<Vec<_>>();
+
+        let mut monolithic = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        monolithic.absorb(&input);
+        let mut monolithic_output = [0u8; 128];
+        monolithic.squeeze(&mut monolithic_output);
+
+        let mut chunked = DuplexSponge::<ToyPermutation<7>, 7, 5>::default();
+        for chunk in input.chunks(8191) {
+            chunked.absorb(chunk);
+        }
+        let mut chunked_output = [0u8; 128];
+        for segment in chunked_output.chunks_mut(13) {
+            chunked.squeeze(segment);
+        }
+
+        assert_eq!(chunked_output, monolithic_output);
+    }
+}
