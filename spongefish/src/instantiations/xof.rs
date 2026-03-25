@@ -30,6 +30,10 @@ where
     type U = u8;
 
     fn absorb(&mut self, input: &[u8]) -> &mut Self {
+        if input.is_empty() {
+            return self;
+        }
+
         self.xof_reader = None;
         self.hasher.update(input);
         self

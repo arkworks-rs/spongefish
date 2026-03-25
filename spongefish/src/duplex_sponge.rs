@@ -195,6 +195,10 @@ where
     type U = P::U;
 
     fn absorb(&mut self, mut input: &[Self::U]) -> &mut Self {
+        if input.is_empty() {
+            return self;
+        }
+
         self.squeeze_pos = RATE;
 
         while !input.is_empty() {
@@ -215,25 +219,29 @@ where
         self
     }
 
-    fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self {
+    fn squeeze(&mut self, mut output: &mut [Self::U]) -> &mut Self {
         if output.is_empty() {
             return self;
         }
         self.absorb_pos = 0;
 
-        if self.squeeze_pos == RATE {
-            self.squeeze_pos = 0;
-            self.permutation.permute_mut(&mut self.permutation_state);
+        while !output.is_empty() {
+            if self.squeeze_pos == RATE {
+                self.squeeze_pos = 0;
+                self.permutation.permute_mut(&mut self.permutation_state);
+            }
+
+            debug_assert!(self.squeeze_pos < RATE);
+            let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
+            let (chunk, rest) = output.split_at_mut(chunk_len);
+            chunk.clone_from_slice(
+                &self.permutation_state[self.squeeze_pos..self.squeeze_pos + chunk_len],
+            );
+            self.squeeze_pos += chunk_len;
+            output = rest;
         }
 
-        debug_assert!(self.squeeze_pos < RATE);
-        let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
-        let (output, rest) = output.split_at_mut(chunk_len);
-        output.clone_from_slice(
-            &self.permutation_state[self.squeeze_pos..self.squeeze_pos + chunk_len],
-        );
-        self.squeeze_pos += chunk_len;
-        self.squeeze(rest)
+        self
     }
 
     fn ratchet(&mut self) -> &mut Self {
