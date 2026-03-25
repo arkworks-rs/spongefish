@@ -1,5 +1,5 @@
 [workspace]
-members = ["circuit", "derive", "poseidon2", "pow", "spongefish"]
+members = ["circuit", "derive", "pow", "spongefish"]
 resolver = "2"
 
 [workspace.package]
@@ -73,8 +73,7 @@ serde_json = "1.0"
 sha2 = "^0.10.7"
 sha3 = "^0.10.8"
 spin = { version = "0.9", default-features = false, features = ["rwlock"] }
-spongefish = { version = "=0.3.0", path = "spongefish" }
-spongefish-circuit = { version = "=0.3.0", path = "circuit" }
-spongefish-derive = { version = "=0.3.0", path = "derive" }
-spongefish-poseidon2 = { version = "=0.3.0", path = "poseidon2" }
+spongefish = { path = "spongefish" }
+spongefish-circuit = { path = "circuit" }
+spongefish-derive = { path = "derive" }
 zeroize = "^1.8.1"
