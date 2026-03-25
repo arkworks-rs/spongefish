@@ -215,7 +215,9 @@ pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
-pub use domain_separator::{protocol_id, session_id, session_id_from_str};
+pub use domain_separator::{
+    protocol_id, protocol_id_literal, session_id, session_id_from_str, session_id_spec,
+};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};

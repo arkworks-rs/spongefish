@@ -96,6 +96,34 @@ where
     }
 }
 
+impl<I> DomainSeparator<WithInstance<'_, I>, [u8; 64]>
+where
+    I: Encoding<[u8]>,
+{
+    #[cfg(feature = "sha3")]
+    #[must_use]
+    pub fn std_prover_spec(&self) -> ProverState {
+        let default_session = session_id_spec(b"");
+        let session = self.session.as_ref().unwrap_or(&default_session);
+        let mut prover_state = ProverState::from(StdHash::from_iv(self.protocol));
+        prover_state.public_message(session);
+        prover_state.public_message(self.instance.0);
+        prover_state
+    }
+
+    #[cfg(feature = "sha3")]
+    #[must_use]
+    pub fn std_verifier_spec<'ver>(&self, narg_string: &'ver [u8]) -> VerifierState<'ver, StdHash> {
+        let default_session = session_id_spec(b"");
+        let session = self.session.as_ref().unwrap_or(&default_session);
+        let mut verifier_state =
+            VerifierState::from_parts(StdHash::from_iv(self.protocol), narg_string);
+        verifier_state.public_message(session);
+        verifier_state.public_message(self.instance.0);
+        verifier_state
+    }
+}
+
 impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
     pub fn to_prover<H>(&self, h: H) -> ProverState<H, StdRng>
     where
@@ -147,6 +175,20 @@ pub fn protocol_id(args: Arguments) -> [u8; 64] {
 
 #[inline]
 #[must_use]
+pub fn protocol_id_literal(protocol: &str) -> [u8; 64] {
+    let bytes = protocol.as_bytes();
+    assert!(
+        bytes.len() <= 64,
+        "protocol identifier must fit in 64 bytes"
+    );
+
+    let mut protocol_id = [0u8; 64];
+    protocol_id[..bytes.len()].copy_from_slice(bytes);
+    protocol_id
+}
+
+#[inline]
+#[must_use]
 pub fn session_id(args: Arguments) -> [u8; 64] {
     let mut sponge = StdHash::default();
 
@@ -158,6 +200,17 @@ pub fn session_id(args: Arguments) -> [u8; 64] {
     }
 
     sponge.squeeze_array()
+}
+
+#[inline]
+#[must_use]
+pub fn session_id_spec(session: &[u8]) -> [u8; 64] {
+    let mut sponge = StdHash::from_iv(protocol_id_literal("fiat-shamir/session-id"));
+    sponge.absorb(session);
+
+    let mut session_id = [0u8; 64];
+    sponge.squeeze(&mut session_id[32..]);
+    session_id
 }
 
 #[inline]
