@@ -174,6 +174,11 @@ impl<'a> VerifierState<'a, StdHash> {
     /// Initializes a verifier with `StdHash` as duplex sponge.
     #[must_use]
     pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        Self::new(protocol_id, session_id, narg_string)
+        let mut verifier_state = VerifierState {
+            duplex_sponge_state: StdHash::from_protocol_id(*protocol_id),
+            narg_string,
+        };
+        verifier_state.public_message(session_id);
+        verifier_state
     }
 }
