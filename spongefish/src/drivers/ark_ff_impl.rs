@@ -34,7 +34,7 @@ pub struct DecodingFieldBuffer<F: Field> {
 
 /// The function determining the size of [`DecodingFieldBuffer`]:
 pub fn decoding_field_buffer_size<F: Field>() -> usize {
-    let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
+    let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
     // Get 32 bytes of extra randomness for every base field element in the extension
     let length = (base_field_modulus_bytes + 32) * F::extension_degree();
     length as usize
@@ -86,10 +86,13 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let mut bytes = base_element.into_bigint().to_bytes_be();
-                    // Drop leading bytes when BigInt is wider than the field.
-                    bytes.drain(..bytes.len() - base_field_size);
-                    buf.extend_from_slice(&bytes);
+                    let bytes = base_element.into_bigint().to_bytes_be();
+                    // Handle BigInt wider than the field (SmallFp: BigInt<2> for 8-byte field).
+                    let start = bytes.len().saturating_sub(base_field_size);
+                    // Handle BigInt narrower than the field (defensive).
+                    let padding = base_field_size.saturating_sub(bytes.len());
+                    buf.extend(core::iter::repeat_n(0, padding));
+                    buf.extend_from_slice(&bytes[start..]);
                 }
                 buf
             }
@@ -112,7 +115,7 @@ macro_rules! impl_decoding {
                 let base_field_size = decoding_field_buffer_size::<<Self as Field>::BasePrimeField>();
 
                 let result = repr.buf.chunks(base_field_size)
-                    .map(|chunk| <Self as Field>::BasePrimeField::from_le_bytes_mod_order(chunk))
+                    .map(|chunk| <Self as Field>::BasePrimeField::from_be_bytes_mod_order(chunk))
                     .collect::<Vec<_>>();
                 // Convert Vec to array - this unwrap is safe because we know the length
                 Self::from_base_prime_field_elems(result).unwrap()
@@ -213,6 +216,24 @@ fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
     0
 }
 
+impl<F: Field> Default for DecodingFieldBuffer<F> {
+    fn default() -> Self {
+        let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
+        // Get 32 bytes of extra randomness for every base field element in the extension
+        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
+        Self {
+            buf: vec![0u8; len as usize],
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.buf.as_mut()
+    }
+}
+
 #[cfg(test)]
 mod test_ark_ff {
     use crate::codecs::Encoding;
@@ -233,7 +254,7 @@ mod test_ark_ff {
         assert_eq!(
             Encoding::encode(&[first, second]).as_ref(),
             Encoding::encode(&[second, first]).as_ref()
-        )
+        );
     }
 
     #[test]
@@ -348,8 +369,7 @@ mod test_ark_ff {
         type Fp = Goldilocks;
 
         // 7 is a quadratic non-residue mod Goldilocks
-        const NONRESIDUE: Self::Fp =
-            ark_ff::SmallFp::from_raw(7);
+        const NONRESIDUE: Self::Fp = ark_ff::SmallFp::from_raw(7);
 
         const FROBENIUS_COEFF_FP2_C1: &'static [Self::Fp] = &[
             // 7^(((q^0) - 1) / 2) = 1
@@ -369,22 +389,15 @@ mod test_ark_ff {
     fn test_roundtrip_small_fp_goldilocks_fp2() {
         roundtrip_testsuite::<GoldilocksFp2>();
     }
-}
 
-impl<F: Field> Default for DecodingFieldBuffer<F> {
-    fn default() -> Self {
-        let base_field_modulus_bytes = F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8) as u64;
-        // Get 32 bytes of extra randomness for every base field element in the extension
-        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
-        Self {
-            buf: vec![0u8; len as usize],
-            _phantom: PhantomData,
-        }
-    }
-}
+    #[test]
+    fn test_prime_field_encoding_is_left_padded_big_endian() {
+        let value = ark_secp256k1::Fr::from(1u64);
+        let encoded = Encoding::<[u8]>::encode(&value);
+        let bytes = encoded.as_ref();
 
-impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.buf.as_mut()
+        assert_eq!(bytes.len(), 32);
+        assert!(bytes[..31].iter().all(|&byte| byte == 0));
+        assert_eq!(bytes[31], 1);
     }
 }

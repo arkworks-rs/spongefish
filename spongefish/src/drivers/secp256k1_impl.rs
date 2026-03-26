@@ -5,7 +5,7 @@ use k256::{
         ff::{Field, PrimeField},
         sec1::{FromEncodedPoint, ToEncodedPoint},
     },
-    AffinePoint, ProjectivePoint, Scalar,
+    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 
 // Make k256 Scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = <Scalar as Field>::ZERO;
+    const ZERO: Self = <Self as Field>::ZERO;
 }
 
 // Implement Decoding for k256 Scalar
@@ -26,7 +26,7 @@ impl Decoding<[u8]> for Scalar {
 
     fn decode(buf: Self::Repr) -> Self {
         use k256::elliptic_curve::ops::Reduce;
-        Scalar::reduce(U512::from_be_slice(&buf.0))
+        Self::reduce(U512::from_be_slice(&buf.0))
     }
 }
 
@@ -55,10 +55,9 @@ impl NargDeserialize for ProjectivePoint {
             return Err(VerificationError);
         }
 
-        use k256::EncodedPoint;
         let encoded = EncodedPoint::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
         *buf = &buf[33..];
-        Option::from(ProjectivePoint::from_encoded_point(&encoded)).ok_or(VerificationError)
+        Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)
     }
 }
 

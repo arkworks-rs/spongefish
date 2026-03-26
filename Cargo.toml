@@ -1,17 +1,13 @@
 [workspace]
-members = [
-    "spongefish",
-    "derive",
-    "pow",
-    "poseidon2",
-    "circuit",
-]
+members = ["circuit", "derive", "pow", "spongefish"]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
-license = "Apache-2.0"
-version = "1.0.0-rc1"
+license = "MIT OR Apache-2.0"
+version = "0.4.0"
+repository = "https://github.com/arkworks-rs/spongefish"
+homepage = "https://github.com/arkworks-rs/spongefish"
 
 [workspace.lints.clippy]
 # all lints that are on by default (correctness, suspicious, style, complexity, perf)
@@ -46,9 +42,9 @@ ark-curve25519 = "^0.5"
 ark-ec = "^0.5"
 ark-ff = "^0.5"
 ark-pallas = "^0.5"
-ark-serialize = "^0.5"
 ark-secp256k1 = "^0.5"
 ark-secp256r1 = "^0.5"
+ark-serialize = "^0.5"
 ark-std = "^0.5"
 ark-vesta = "^0.5"
 arrayvec = "0.7.6"
@@ -59,31 +55,32 @@ bytemuck = "^1.22"
 curve25519-dalek = "^4.1"
 digest = "^0.10.7"
 hex = "0.4.3"
-k256 = "^0.13"
 k12 = "^0.3.0"
+k256 = "^0.13"
 keccak = "^0.1.5"
-spongefish = { path = "spongefish" }
-spongefish-derive = { path = "derive" }
-spongefish-poseidon2 = { path = "poseidon2" }
-spongefish-circuit = { path = "circuit" }
+libtest-mimic = "0.8.1"
 p256 = "^0.13"
-p3-baby-bear = "^0.4.1"
-p3-field = "^0.4.1"
-p3-koala-bear = "^0.4.1"
-p3-mersenne-31 = "^0.4.1"
-p3-poseidon2 = "^0.4.1"
-p3-symmetric = "^0.4.1"
+p3-baby-bear = "^0.5.1"
+p3-field = "^0.5.1"
+p3-koala-bear = "^0.5.1"
+p3-mersenne-31 = "^0.5.1"
+p3-poseidon2 = "^0.5.1"
+p3-symmetric = "^0.5.1"
 pallas = "^0.32"
 rand = "^0.8.5"
 rayon = "^1.10.0"
-sha2 = "^0.10.7"
-sha3 = "^0.10.8"
-zeroize = "^1.8.1"
 risc0-zkp = "3.0.3"
-libtest-mimic = "0.8.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "^0.10.7"
+sha3 = "^0.10.8"
 spin = { version = "0.9", default-features = false, features = ["rwlock"] }
+# Intra-workspace dependencies
+spongefish = { version = "0.4.0", path = "spongefish" }
+spongefish-circuit = { version = "0.4.0", path = "circuit" }
+spongefish-derive = { version = "0.4.0", path = "derive" }
+zeroize = "^1.8.1"
+
 # SmallFp is not yet published in ark-ff 0.5.0, so we patch ark-ff and ark-serialize from git master.
 [patch.crates-io]
 ark-ff = { git = "https://github.com/arkworks-rs/algebra", package = "ark-ff" }

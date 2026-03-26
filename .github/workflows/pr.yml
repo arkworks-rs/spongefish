@@ -1,0 +1,111 @@
+name: PR
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  typos:
+    name: Spell check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@v1
+
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+      - run: cargo install cargo-sort
+      - run: cargo sort --check --workspace
+
+  clippy:
+    name: Clippy (${{ matrix.toolchain }}, ${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, nightly]
+        features: [default, no-default, all]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: clippy
+      - name: Run clippy
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo clippy --all-targets -- -D warnings ;;
+            no-default) cargo clippy --all-targets --no-default-features -- -D warnings ;;
+            all)        cargo clippy --all-targets --all-features -- -D warnings ;;
+          esac
+
+  test:
+    name: Test (${{ matrix.toolchain }}, ${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, nightly]
+        features: [default, no-default, all]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Build
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo build --verbose ;;
+            no-default) cargo build --no-default-features --verbose ;;
+            all)        cargo build --all-features --verbose ;;
+          esac
+      - name: Test
+        run: |
+          case "${{ matrix.features }}" in
+            default)    cargo test --verbose ;;
+            no-default) cargo test --no-default-features --verbose ;;
+            all)        cargo test --all-features --verbose ;;
+          esac
+
+  # Build docs with the same flags docs.rs uses. Reduces risk of broken public docs.
+  docs-rs:
+    name: docs.rs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo doc --all-features --no-deps
+
+  # Anchor job for branch protection. Point required status checks at this.
+  # see: https://github.com/orgs/community/discussions/26822
+  status-check:
+    if: always()
+    needs:
+      - typos
+      - format
+      - clippy
+      - test
+      - docs-rs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all job results
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

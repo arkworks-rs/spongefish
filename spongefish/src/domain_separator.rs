@@ -86,13 +86,26 @@ where
     S: Encoding,
 {
     #[cfg(feature = "sha3")]
+    #[must_use]
     pub fn std_prover(&self) -> ProverState {
-        self.to_prover(StdHash::default())
+        let mut prover_state = ProverState::from(StdHash::from_protocol_id(self.protocol));
+        if let Some(session_info) = &self.session {
+            prover_state.public_message(session_info);
+        }
+        prover_state.public_message(self.instance.0);
+        prover_state
     }
 
     #[cfg(feature = "sha3")]
+    #[must_use]
     pub fn std_verifier<'ver>(&self, narg_string: &'ver [u8]) -> VerifierState<'ver, StdHash> {
-        self.to_verifier(StdHash::default(), narg_string)
+        let mut verifier_state =
+            VerifierState::from_parts(StdHash::from_protocol_id(self.protocol), narg_string);
+        if let Some(session_info) = &self.session {
+            verifier_state.public_message(session_info);
+        }
+        verifier_state.public_message(self.instance.0);
+        verifier_state
     }
 }
 
@@ -133,31 +146,23 @@ impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
 #[inline]
 #[must_use]
 pub fn protocol_id(args: Arguments) -> [u8; 64] {
-    let mut sponge = StdHash::default();
-
     if let Some(message) = args.as_str() {
-        sponge.absorb(message.as_bytes());
-    } else {
-        let formatted = alloc::fmt::format(args);
-        sponge.absorb(formatted.as_bytes());
+        return pad_identifier(message.as_bytes());
     }
 
-    sponge.squeeze_array()
+    let formatted = alloc::fmt::format(args);
+    pad_identifier(formatted.as_bytes())
 }
 
 #[inline]
 #[must_use]
 pub fn session_id(args: Arguments) -> [u8; 64] {
-    let mut sponge = StdHash::default();
-
     if let Some(message) = args.as_str() {
-        sponge.absorb(message.as_bytes());
-    } else {
-        let formatted = alloc::fmt::format(args);
-        sponge.absorb(formatted.as_bytes());
+        return derive_session_id(message.as_bytes());
     }
 
-    sponge.squeeze_array()
+    let formatted = alloc::fmt::format(args);
+    derive_session_id(formatted.as_bytes())
 }
 
 #[inline]
@@ -167,7 +172,25 @@ pub fn session_id_from_str<S>(value: &S) -> [u8; 64]
 where
     S: AsRef<str> + ?Sized,
 {
-    let mut sponge = StdHash::default();
-    sponge.absorb(value.as_ref().as_bytes());
-    sponge.squeeze_array()
+    derive_session_id(value.as_ref().as_bytes())
+}
+
+fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
+    assert!(
+        identifier.len() <= 64,
+        "protocol identifier must fit in 64 bytes"
+    );
+
+    let mut protocol_id = [0u8; 64];
+    protocol_id[..identifier.len()].copy_from_slice(identifier);
+    protocol_id
+}
+
+fn derive_session_id(session: &[u8]) -> [u8; 64] {
+    let mut sponge = StdHash::from_protocol_id(pad_identifier(b"fiat-shamir/session-id"));
+    sponge.absorb(session);
+
+    let mut session_id = [0u8; 64];
+    sponge.squeeze(&mut session_id[32..]);
+    session_id
 }
