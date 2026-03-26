@@ -87,7 +87,8 @@ macro_rules! impl_encoding {
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
                     let mut bytes = base_element.into_bigint().to_bytes_be();
-                    bytes.resize(base_field_size, 0);
+                    // Drop leading bytes when BigInt is wider than the field.
+                    bytes.drain(..bytes.len() - base_field_size);
                     buf.extend_from_slice(&bytes);
                 }
                 buf
@@ -337,6 +338,36 @@ mod test_ark_ff {
     #[test]
     fn test_roundtrip_small_fp_f16() {
         roundtrip_testsuite::<F16>();
+    }
+
+    // ----- SmallFp extension field (Fp2) -----
+
+    /// Fp2 over Goldilocks, for testing extension field macros with SmallFp base.
+    pub struct GoldilocksFp2Config;
+    impl ark_ff::Fp2Config for GoldilocksFp2Config {
+        type Fp = Goldilocks;
+
+        // 7 is a quadratic non-residue mod Goldilocks
+        const NONRESIDUE: Self::Fp =
+            ark_ff::SmallFp::from_raw(7);
+
+        const FROBENIUS_COEFF_FP2_C1: &'static [Self::Fp] = &[
+            // 7^(((q^0) - 1) / 2) = 1
+            ark_ff::SmallFp::from_raw(1),
+            // 7^(((q^1) - 1) / 2) = p - 1
+            ark_ff::SmallFp::from_raw(18446744069414584320),
+        ];
+    }
+    pub type GoldilocksFp2 = ark_ff::Fp2<GoldilocksFp2Config>;
+
+    #[test]
+    fn test_encoding_small_fp_goldilocks_fp2() {
+        encoding_testsuite::<GoldilocksFp2>();
+    }
+
+    #[test]
+    fn test_roundtrip_small_fp_goldilocks_fp2() {
+        roundtrip_testsuite::<GoldilocksFp2>();
     }
 }
 
