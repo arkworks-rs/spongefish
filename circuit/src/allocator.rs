@@ -82,6 +82,28 @@ impl<T: Clone + Unit> VarAllocator<T> {
         vars
     }
 
+    /// Reuses an existing public wire when the same public value has already been declared.
+    ///
+    /// This is useful when a statement contains many repeated public constants and those
+    /// equal constants do not need distinct symbolic variables.
+    pub fn allocate_public_dedup<const N: usize>(&self, public_values: &[T; N]) -> [FieldVar; N]
+    where
+        T: PartialEq,
+    {
+        core::array::from_fn(|idx| self.intern_public_value(&public_values[idx]))
+    }
+
+    /// Vector variant of [`Self::allocate_public_dedup`].
+    pub fn allocate_public_vec_dedup(&self, public_values: &[T]) -> Vec<FieldVar>
+    where
+        T: PartialEq,
+    {
+        public_values
+            .iter()
+            .map(|value| self.intern_public_value(value))
+            .collect()
+    }
+
     #[must_use]
     pub fn vars_count(&self) -> usize {
         self.state.read().vars_count
@@ -109,5 +131,24 @@ impl<T: Clone + Unit> VarAllocator<T> {
     #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.state.read().public_values.clone()
+    }
+
+    fn intern_public_value(&self, public_value: &T) -> FieldVar
+    where
+        T: PartialEq,
+    {
+        let mut state = self.state.write();
+        if let Some((var, _)) = state
+            .public_values
+            .iter()
+            .find(|(_, existing_value)| existing_value == public_value)
+        {
+            return *var;
+        }
+
+        let var = FieldVar(state.vars_count);
+        state.vars_count += 1;
+        state.public_values.push((var, public_value.clone()));
+        var
     }
 }

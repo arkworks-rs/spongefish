@@ -99,6 +99,8 @@ impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationInstanceBuil
 
 impl<P: Permutation<WIDTH>, const WIDTH: usize> Permutation<WIDTH>
     for PermutationWitnessBuilder<P, WIDTH>
+where
+    P::U: Clone + PartialEq,
 {
     type U = P::U;
 
@@ -135,20 +137,42 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
 
     #[must_use]
     pub fn allocate_permutation(&self, &input: &[FieldVar; WIDTH]) -> [FieldVar; WIDTH] {
+        let mut constraints = self.permutation_constraints.write();
+        if let Some(existing) = constraints.state.iter().find(|pair| pair.input == input) {
+            return existing.output;
+        }
+
         let output = self.allocator.allocate_vars();
-        self.add_permutation(input, output);
+        constraints.state.push(QueryAnswerPair::new(input, output));
         output
     }
 
     pub fn add_permutation(&self, input: [FieldVar; WIDTH], output: [FieldVar; WIDTH]) {
-        self.permutation_constraints
-            .write()
+        let mut constraints = self.permutation_constraints.write();
+        if constraints
             .state
-            .push(QueryAnswerPair::new(input, output));
+            .iter()
+            .any(|pair| pair.input == input && pair.output == output)
+        {
+            return;
+        }
+
+        constraints.state.push(QueryAnswerPair::new(input, output));
     }
 
-    pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>) {
-        self.linear_constraints.write().equations.push(equation);
+    pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>)
+    where
+        T: PartialEq,
+    {
+        let mut linear_constraints = self.linear_constraints.write();
+        if linear_constraints
+            .equations
+            .iter()
+            .any(|existing| *existing == equation)
+        {
+            return;
+        }
+        linear_constraints.equations.push(equation);
     }
 
     #[must_use]
@@ -184,20 +208,48 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
     }
 
     #[must_use]
-    pub fn allocate_permutation(&self, input: &[P::U; WIDTH]) -> [P::U; WIDTH] {
+    pub fn allocate_permutation(&self, input: &[P::U; WIDTH]) -> [P::U; WIDTH]
+    where
+        P::U: Clone + PartialEq,
+    {
+        let mut trace = self.trace.write();
+        if let Some(existing) = trace.iter().find(|pair| pair.input.iter().eq(input.iter())) {
+            return existing.output.clone();
+        }
+
         let output = self.permutation.permute(input);
-        self.add_permutation(input, &output);
+        trace.push(QueryAnswerPair::new(input.clone(), output.clone()));
         output
     }
 
-    pub fn add_permutation(&self, input: &[P::U; WIDTH], output: &[P::U; WIDTH]) {
-        self.trace
-            .write()
-            .push(QueryAnswerPair::new(input.clone(), output.clone()));
+    pub fn add_permutation(&self, input: &[P::U; WIDTH], output: &[P::U; WIDTH])
+    where
+        P::U: Clone + PartialEq,
+    {
+        let mut trace = self.trace.write();
+        if trace
+            .iter()
+            .any(|pair| pair.input.iter().eq(input.iter()) && pair.output.iter().eq(output.iter()))
+        {
+            return;
+        }
+
+        trace.push(QueryAnswerPair::new(input.clone(), output.clone()));
     }
 
-    pub fn add_equation(&self, equation: LinearEquation<P::U, P::U>) {
-        self.linear_constraints.write().equations.push(equation);
+    pub fn add_equation(&self, equation: LinearEquation<P::U, P::U>)
+    where
+        P::U: PartialEq,
+    {
+        let mut linear_constraints = self.linear_constraints.write();
+        if linear_constraints
+            .equations
+            .iter()
+            .any(|existing| *existing == equation)
+        {
+            return;
+        }
+        linear_constraints.equations.push(equation);
     }
 
     #[must_use]
