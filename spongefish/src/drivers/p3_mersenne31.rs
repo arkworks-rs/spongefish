@@ -9,10 +9,10 @@ use crate::{
     VerificationError, VerificationResult,
 };
 
-const KOALABEAR_ZERO: Mersenne31 = unsafe { core::mem::transmute(0u32) };
+const MERSENNE31_ZERO: Mersenne31 = unsafe { core::mem::transmute(0u32) };
 
 impl crate::Unit for Mersenne31 {
-    const ZERO: Self = KOALABEAR_ZERO;
+    const ZERO: Self = MERSENNE31_ZERO;
 }
 
 impl Decoding<[u8]> for Mersenne31 {
@@ -38,6 +38,7 @@ impl NargDeserialize for Mersenne31 {
             return Err(VerificationError);
         }
 
+        *buf = &buf[4..];
         Ok(Self::from_u32(value))
     }
 }

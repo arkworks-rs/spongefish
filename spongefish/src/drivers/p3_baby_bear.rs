@@ -57,6 +57,7 @@ impl NargDeserialize for BabyBear {
             return Err(VerificationError);
         }
 
+        *buf = &buf[4..];
         Ok(Self::new(value))
     }
 }
