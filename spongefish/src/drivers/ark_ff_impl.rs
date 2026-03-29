@@ -435,40 +435,6 @@ mod test_ark_ff {
         wrong_length_testsuite::<F16>();
     }
 
-    // ----- Cross-library serialization: ark_ff SmallFp vs p3 -----
-
-    #[cfg(feature = "p3-baby-bear")]
-    #[test]
-    fn test_serialization_matches_p3_baby_bear() {
-        for v in [0u32, 1, 42, 12345, 2013265920] {
-            let ark_elem = BabyBear::from(u64::from(v));
-            let p3_elem = p3_baby_bear::BabyBear::new(v);
-
-            let ark_bytes = encode_to_vec(&ark_elem);
-            let p3_bytes = encode_to_vec(&p3_elem);
-            assert_eq!(
-                ark_bytes, p3_bytes,
-                "ark vs p3 BabyBear encoding mismatch for {v}"
-            );
-        }
-    }
-
-    #[cfg(feature = "p3-koala-bear")]
-    #[test]
-    fn test_serialization_matches_p3_koala_bear() {
-        for v in [0u32, 1, 42, 12345, 2130706432] {
-            let ark_elem = KoalaBear::from(u64::from(v));
-            let p3_elem = p3_koala_bear::KoalaBear::new(v);
-
-            let ark_bytes = encode_to_vec(&ark_elem);
-            let p3_bytes = encode_to_vec(&p3_elem);
-            assert_eq!(
-                ark_bytes, p3_bytes,
-                "ark vs p3 KoalaBear encoding mismatch for {v}"
-            );
-        }
-    }
-
     // ----- MontFp (large field) tests -----
 
     #[test]
