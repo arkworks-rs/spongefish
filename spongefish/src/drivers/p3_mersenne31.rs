@@ -38,6 +38,7 @@ impl NargDeserialize for Mersenne31 {
             return Err(VerificationError);
         }
 
+        *buf = &buf[4..];
         Ok(Self::from_u32(value))
     }
 }
