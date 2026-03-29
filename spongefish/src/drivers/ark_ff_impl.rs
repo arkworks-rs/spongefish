@@ -267,33 +267,33 @@ mod test_ark_ff {
 
     // ----- SmallFp test fields -----
 
-    /// Goldilocks field: p = 2^64 - 2^32 + 1
-    #[derive(ark_ff::SmallFpConfig)]
-    #[modulus = "18446744069414584321"]
-    #[generator = "7"]
-    pub struct GoldilocksConfig;
-    pub type Goldilocks = ark_ff::SmallFp<GoldilocksConfig>;
+    // Goldilocks field: p = 2^64 - 2^32 + 1
+    ark_ff::define_field!(
+        modulus = "18446744069414584321",
+        generator = "7",
+        name = Goldilocks,
+    );
 
-    /// Mersenne31 field: p = 2^31 - 1
-    #[derive(ark_ff::SmallFpConfig)]
-    #[modulus = "2147483647"]
-    #[generator = "7"]
-    pub struct M31Config;
-    pub type M31 = ark_ff::SmallFp<M31Config>;
+    // Mersenne31 field: p = 2^31 - 1
+    ark_ff::define_field!(
+        modulus = "2147483647",
+        generator = "7",
+        name = M31,
+    );
 
-    /// BabyBear field: p = 15 * 2^27 + 1
-    #[derive(ark_ff::SmallFpConfig)]
-    #[modulus = "2013265921"]
-    #[generator = "31"]
-    pub struct BabyBearConfig;
-    pub type BabyBear = ark_ff::SmallFp<BabyBearConfig>;
+    // BabyBear field: p = 15 * 2^27 + 1
+    ark_ff::define_field!(
+        modulus = "2013265921",
+        generator = "31",
+        name = BabyBear,
+    );
 
-    /// A 16-bit test field: p = 65521 (largest 16-bit prime)
-    #[derive(ark_ff::SmallFpConfig)]
-    #[modulus = "65521"]
-    #[generator = "6"]
-    pub struct F16Config;
-    pub type F16 = ark_ff::SmallFp<F16Config>;
+    // A 16-bit test field: p = 65521 (largest 16-bit prime)
+    ark_ff::define_field!(
+        modulus = "65521",
+        generator = "17",
+        name = F16,
+    );
 
     #[test]
     fn test_encoding_small_fp_goldilocks() {
