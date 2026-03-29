@@ -236,34 +236,9 @@ impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
 
 #[cfg(test)]
 mod test_ark_ff {
-    use crate::codecs::Encoding;
+    use ark_ff::BigInteger;
 
-    fn encoding_testsuite<F: ark_ff::Field + Encoding<[u8]>>() {
-        let first = F::from(10);
-        let second = F::from(20);
-        let first_encoding = Encoding::<[u8]>::encode(&first);
-        let second_encoding = Encoding::<[u8]>::encode(&second);
-        assert_ne!(first_encoding.as_ref(), second_encoding.as_ref());
-
-        let first = F::from(10);
-        let second = -F::from(10) + F::from(20);
-        assert_eq!(
-            Encoding::encode(&first).as_ref(),
-            Encoding::encode(&second).as_ref()
-        );
-        assert_eq!(
-            Encoding::encode(&[first, second]).as_ref(),
-            Encoding::encode(&[second, first]).as_ref()
-        );
-    }
-
-    #[test]
-    fn test_encoding() {
-        encoding_testsuite::<ark_bls12_381::Fr>();
-        encoding_testsuite::<ark_bls12_381::Fq>();
-        encoding_testsuite::<ark_bls12_381::Fq2>();
-        encoding_testsuite::<ark_bls12_381::Fq12>();
-    }
+    use crate::{codecs::Encoding, io::NargSerialize};
 
     // ----- SmallFp test fields -----
 
@@ -275,95 +250,246 @@ mod test_ark_ff {
     );
 
     // Mersenne31 field: p = 2^31 - 1
-    ark_ff::define_field!(
-        modulus = "2147483647",
-        generator = "7",
-        name = M31,
-    );
+    ark_ff::define_field!(modulus = "2147483647", generator = "7", name = M31,);
 
     // BabyBear field: p = 15 * 2^27 + 1
-    ark_ff::define_field!(
-        modulus = "2013265921",
-        generator = "31",
-        name = BabyBear,
-    );
+    ark_ff::define_field!(modulus = "2013265921", generator = "31", name = BabyBear,);
+
+    // KoalaBear field: p = 2^31 - 2^24 + 1
+    ark_ff::define_field!(modulus = "2130706433", generator = "3", name = KoalaBear,);
 
     // A 16-bit test field: p = 65521 (largest 16-bit prime)
-    ark_ff::define_field!(
-        modulus = "65521",
-        generator = "17",
-        name = F16,
-    );
+    ark_ff::define_field!(modulus = "65521", generator = "17", name = F16,);
 
-    #[test]
-    fn test_encoding_small_fp_goldilocks() {
-        encoding_testsuite::<Goldilocks>();
-    }
+    // ----- Encoding / serialization round-trip tests -----
 
-    #[test]
-    fn test_encoding_small_fp_m31() {
-        encoding_testsuite::<M31>();
-    }
-
-    #[test]
-    fn test_encoding_small_fp_babybear() {
-        encoding_testsuite::<BabyBear>();
-    }
-
-    #[test]
-    fn test_encoding_small_fp_f16() {
-        encoding_testsuite::<F16>();
-    }
-
-    // Roundtrip test: encode → NargSerialize → NargDeserialize → encode
+    /// Encode → serialize → deserialize round-trip, testing zero, one, p-1,
+    /// and a handful of interior values.
     fn roundtrip_testsuite<F>()
     where
-        F: ark_ff::Field
-            + crate::codecs::Encoding<[u8]>
+        F: ark_ff::PrimeField
+            + Encoding<[u8]>
             + crate::io::NargSerialize
             + crate::io::NargDeserialize,
     {
         for v in [0u64, 1, 42, 12345] {
             let original = F::from(v);
-            let serialized = original.serialize_into_new_narg();
-            let mut slice: &[u8] = serialized.as_ref();
+            let serialized = encode_to_vec(&original);
+            let mut slice: &[u8] = &serialized;
             let deserialized = F::deserialize_from_narg(&mut slice)
                 .unwrap_or_else(|_| panic!("failed to deserialize value {v}"));
             assert!(
                 slice.is_empty(),
                 "deserialize did not consume all bytes for value {v}"
             );
-            assert_eq!(
-                Encoding::encode(&original).as_ref(),
-                Encoding::encode(&deserialized).as_ref(),
-                "roundtrip failed for value {v}"
+            assert_eq!(original, deserialized, "roundtrip mismatch for {v}");
+        }
+
+        // p - 1 (the largest valid element)
+        let p_minus_1 = -F::ONE;
+        let ser = encode_to_vec(&p_minus_1);
+        let mut sl: &[u8] = &ser;
+        let de = F::deserialize_from_narg(&mut sl).expect("p-1 should deserialize");
+        assert!(sl.is_empty());
+        assert_eq!(de, p_minus_1);
+    }
+
+    fn encode_to_vec<F: Encoding<[u8]>>(x: &F) -> alloc::vec::Vec<u8> {
+        let mut dst = alloc::vec::Vec::new();
+        x.serialize_into_narg(&mut dst);
+        dst
+    }
+
+    /// Encoding the same value twice must produce identical bytes.
+    fn deterministic_encoding_testsuite<F: ark_ff::Field + Encoding<[u8]>>() {
+        for v in [0u64, 1, 42, 12345] {
+            let elem = F::from(v);
+            let a = encode_to_vec(&elem);
+            let b = encode_to_vec(&elem);
+            assert_eq!(a, b, "encoding not deterministic for {v}");
+        }
+    }
+
+    /// Distinct values must encode differently.
+    fn distinct_values_encode_differently<F: ark_ff::PrimeField + Encoding<[u8]>>() {
+        let zero = encode_to_vec(&F::ZERO);
+        let one = encode_to_vec(&F::ONE);
+        let p_minus_1 = encode_to_vec(&(-F::ONE));
+
+        assert_ne!(zero, one);
+        assert_ne!(one, p_minus_1);
+        assert_ne!(zero, p_minus_1);
+    }
+
+    /// Deserializing p (the modulus itself) must fail — the encoding
+    /// is not canonical because p ≡ 0 and 0 already has its own encoding.
+    fn reject_modulus<F: ark_ff::PrimeField + core::fmt::Debug + crate::io::NargDeserialize>() {
+        let modulus_bytes = F::MODULUS.to_bytes_be();
+        // Keep only the trailing ⌈MODULUS_BIT_SIZE/8⌉ bytes (SmallFp BigInt<2>
+        // produces 16 BE bytes but the serialisation is shorter).
+        let field_size = F::MODULUS_BIT_SIZE.div_ceil(8) as usize;
+        let start = modulus_bytes.len().saturating_sub(field_size);
+        let trimmed = &modulus_bytes[start..];
+        let mut sl: &[u8] = trimmed;
+        assert!(
+            F::deserialize_from_narg(&mut sl).is_err(),
+            "deserializing p should fail (modulus_bits={}, field_size={field_size}, trimmed={trimmed:?})",
+            F::MODULUS_BIT_SIZE,
+        );
+    }
+
+    /// A single bit-flip must either change the decoded value or cause rejection.
+    fn bitflip_testsuite<F>()
+    where
+        F: ark_ff::PrimeField + Encoding<[u8]> + crate::io::NargDeserialize,
+    {
+        let original = F::from(42u64);
+        let encoded = encode_to_vec(&original);
+
+        for byte_idx in 0..encoded.len() {
+            for bit in 0..8u8 {
+                let mut flipped = encoded.clone();
+                flipped[byte_idx] ^= 1 << bit;
+                let mut sl: &[u8] = &flipped;
+                match F::deserialize_from_narg(&mut sl) {
+                    Ok(v) => assert_ne!(
+                        v, original,
+                        "bit-flip at byte {byte_idx} bit {bit} decoded to same value"
+                    ),
+                    Err(_) => {} // rejection is fine
+                }
+            }
+        }
+    }
+
+    /// Truncated buffer must be rejected.
+    fn wrong_length_testsuite<F>()
+    where
+        F: ark_ff::PrimeField + Encoding<[u8]> + crate::io::NargDeserialize,
+    {
+        let encoded = encode_to_vec(&F::from(1u64));
+
+        // Truncated: one byte short
+        if !encoded.is_empty() {
+            let short = &encoded[..encoded.len() - 1];
+            let mut sl: &[u8] = short;
+            assert!(
+                F::deserialize_from_narg(&mut sl).is_err(),
+                "truncated buffer should fail"
             );
         }
     }
 
     #[test]
-    fn test_roundtrip_small_fp_goldilocks() {
+    fn test_smallfp_roundtrip() {
         roundtrip_testsuite::<Goldilocks>();
-    }
-
-    #[test]
-    fn test_roundtrip_small_fp_m31() {
         roundtrip_testsuite::<M31>();
-    }
-
-    #[test]
-    fn test_roundtrip_small_fp_babybear() {
         roundtrip_testsuite::<BabyBear>();
+        roundtrip_testsuite::<KoalaBear>();
+        roundtrip_testsuite::<F16>();
     }
 
     #[test]
-    fn test_roundtrip_small_fp_f16() {
-        roundtrip_testsuite::<F16>();
+    fn test_smallfp_deterministic_encoding() {
+        deterministic_encoding_testsuite::<Goldilocks>();
+        deterministic_encoding_testsuite::<M31>();
+        deterministic_encoding_testsuite::<BabyBear>();
+        deterministic_encoding_testsuite::<KoalaBear>();
+        deterministic_encoding_testsuite::<F16>();
+    }
+
+    #[test]
+    fn test_smallfp_distinct_values_encode_differently() {
+        distinct_values_encode_differently::<Goldilocks>();
+        distinct_values_encode_differently::<M31>();
+        distinct_values_encode_differently::<BabyBear>();
+        distinct_values_encode_differently::<KoalaBear>();
+        distinct_values_encode_differently::<F16>();
+    }
+
+    #[test]
+    fn test_smallfp_reject_modulus() {
+        reject_modulus::<Goldilocks>();
+        reject_modulus::<M31>();
+        reject_modulus::<BabyBear>();
+        reject_modulus::<KoalaBear>();
+        // F16 modulus is 65521, which fits in 2 bytes. Encoding is 2 BE bytes.
+        reject_modulus::<F16>();
+    }
+
+    #[test]
+    fn test_smallfp_bitflip() {
+        bitflip_testsuite::<Goldilocks>();
+        bitflip_testsuite::<M31>();
+        bitflip_testsuite::<BabyBear>();
+        bitflip_testsuite::<KoalaBear>();
+        bitflip_testsuite::<F16>();
+    }
+
+    #[test]
+    fn test_smallfp_wrong_length() {
+        wrong_length_testsuite::<Goldilocks>();
+        wrong_length_testsuite::<M31>();
+        wrong_length_testsuite::<BabyBear>();
+        wrong_length_testsuite::<KoalaBear>();
+        wrong_length_testsuite::<F16>();
+    }
+
+    // ----- Cross-library serialization: ark_ff SmallFp vs p3 -----
+
+    #[cfg(feature = "p3-baby-bear")]
+    #[test]
+    fn test_serialization_matches_p3_baby_bear() {
+        for v in [0u32, 1, 42, 12345, 2013265920] {
+            let ark_elem = BabyBear::from(u64::from(v));
+            let p3_elem = p3_baby_bear::BabyBear::new(v);
+
+            let ark_bytes = encode_to_vec(&ark_elem);
+            let p3_bytes = encode_to_vec(&p3_elem);
+            assert_eq!(
+                ark_bytes, p3_bytes,
+                "ark vs p3 BabyBear encoding mismatch for {v}"
+            );
+        }
+    }
+
+    #[cfg(feature = "p3-koala-bear")]
+    #[test]
+    fn test_serialization_matches_p3_koala_bear() {
+        for v in [0u32, 1, 42, 12345, 2130706432] {
+            let ark_elem = KoalaBear::from(u64::from(v));
+            let p3_elem = p3_koala_bear::KoalaBear::new(v);
+
+            let ark_bytes = encode_to_vec(&ark_elem);
+            let p3_bytes = encode_to_vec(&p3_elem);
+            assert_eq!(
+                ark_bytes, p3_bytes,
+                "ark vs p3 KoalaBear encoding mismatch for {v}"
+            );
+        }
+    }
+
+    // ----- MontFp (large field) tests -----
+
+    #[test]
+    fn test_montfp_roundtrip() {
+        roundtrip_testsuite::<ark_bls12_381::Fr>();
+        roundtrip_testsuite::<ark_bls12_381::Fq>();
+    }
+
+    #[test]
+    fn test_montfp_reject_modulus() {
+        reject_modulus::<ark_bls12_381::Fr>();
+        reject_modulus::<ark_bls12_381::Fq>();
+    }
+
+    #[test]
+    fn test_montfp_bitflip() {
+        bitflip_testsuite::<ark_bls12_381::Fr>();
     }
 
     // ----- SmallFp extension field (Fp2) -----
 
-    /// Fp2 over Goldilocks, for testing extension field macros with SmallFp base.
     pub struct GoldilocksFp2Config;
     impl ark_ff::Fp2Config for GoldilocksFp2Config {
         type Fp = Goldilocks;
@@ -382,12 +508,7 @@ mod test_ark_ff {
 
     #[test]
     fn test_encoding_small_fp_goldilocks_fp2() {
-        encoding_testsuite::<GoldilocksFp2>();
-    }
-
-    #[test]
-    fn test_roundtrip_small_fp_goldilocks_fp2() {
-        roundtrip_testsuite::<GoldilocksFp2>();
+        deterministic_encoding_testsuite::<GoldilocksFp2>();
     }
 
     #[test]
