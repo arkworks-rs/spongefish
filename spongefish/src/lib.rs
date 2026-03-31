@@ -225,6 +225,9 @@ pub use narg_verifier::VerifierState;
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
 /// The default hash function provided by the library.
+///
+/// This uses the XOF backend, so squeezing does not automatically feed output back into future
+/// absorbs. If a squeezed challenge must affect later transcript state, call `ratchet()`.
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
 

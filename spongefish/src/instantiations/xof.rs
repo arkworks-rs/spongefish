@@ -7,13 +7,18 @@ use digest::{ExtendableOutput, XofReader};
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::duplex_sponge::DuplexSpongeInterface;
+use crate::duplex_sponge::{domain_separated_byte_ratchet, DuplexSpongeInterface};
 
 /// Generic XOF-based duplex sponge implementation.
 ///
 /// This implementation uses any XOF (extendable output function) that implements
 /// [`ExtendableOutput`] to provide absorb and squeeze operations compatible with
 /// the duplex sponge interface. Examples include SHAKE128, SHAKE256, and TurboShake.
+///
+/// Note that `squeeze()` finalizes a clone of the current hasher state. If `absorb()` is called
+/// afterwards, the existing reader is discarded and absorption resumes from the pre-squeeze state.
+/// In particular, `absorb(m); squeeze(tmp); absorb(n)` is equivalent to `absorb(m); absorb(n)`.
+/// Call [`DuplexSpongeInterface::ratchet`] if the squeezed bytes must influence future absorbs.
 #[derive(Clone)]
 pub struct XOF<H: ExtendableOutput> {
     /// The current XOF hasher state
@@ -44,7 +49,7 @@ where
     }
 
     fn ratchet(&mut self) -> &mut Self {
-        todo!()
+        domain_separated_byte_ratchet(self)
     }
 }
 

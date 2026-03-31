@@ -19,6 +19,7 @@ use digest::{
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
+use crate::duplex_sponge::domain_separated_byte_ratchet;
 use crate::DuplexSpongeInterface;
 
 /// A Bridge to our sponge interface for legacy `Digest` implementations.
@@ -52,15 +53,15 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
     }
 
     fn ratchet(&mut self) -> &mut Self {
-        self.squeeze_end();
-        // Double hash
-        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
-        // Restart the rest of the data
-        #[cfg(feature = "zeroize")]
-        self.leftovers.zeroize();
-        self.leftovers.clear();
-        self.mode = Mode::Start;
-        self
+        if self.mode == Mode::Absorb {
+            self.commit_absorb_state();
+            #[cfg(feature = "zeroize")]
+            self.leftovers.zeroize();
+            self.leftovers.clear();
+            self
+        } else {
+            domain_separated_byte_ratchet(self)
+        }
     }
 
     fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
@@ -72,7 +73,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.squeeze(output)
         // If Absorbing, ratchet
         } else if self.mode == Mode::Absorb {
-            self.ratchet();
+            self.commit_absorb_state();
             self.squeeze(output)
         // If we have no more data to squeeze, return
         } else if output.is_empty() {
@@ -154,6 +155,15 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
             self.mode = Mode::Start;
             self.leftovers.clear();
         }
+    }
+
+    fn commit_absorb_state(&mut self)
+    where
+        D: FixedOutputReset,
+    {
+        debug_assert!(self.mode == Mode::Absorb);
+        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
+        self.mode = Mode::Start;
     }
 }
 

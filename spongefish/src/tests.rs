@@ -66,6 +66,43 @@ fn verifier_challenge_matches_prover() {
     assert_eq!(challenge, reproduced);
 }
 
+#[cfg(feature = "sha2")]
+#[test]
+fn digest_ratchet_keeps_squeezed_state() {
+    let mut first = crate::instantiations::SHA256::default();
+    first.absorb(b"first transcript");
+    let _ = first.squeeze_array::<17>();
+    first.ratchet();
+    let out1 = first.squeeze_array::<32>();
+
+    let mut second = crate::instantiations::SHA256::default();
+    second.absorb(b"second transcript");
+    let _ = second.squeeze_array::<17>();
+    second.ratchet();
+    let out2 = second.squeeze_array::<32>();
+
+    assert_ne!(out1, out2);
+}
+
+#[test]
+fn stdhash_ratchet_keeps_squeezed_state() {
+    let protocol = crate::protocol_id(core::format_args!("ratchet test"));
+
+    let mut first = crate::StdHash::from_protocol_id(protocol);
+    first.absorb(b"first transcript");
+    let _ = first.squeeze_array::<17>();
+    first.ratchet();
+    let out1 = first.squeeze_array::<32>();
+
+    let mut second = crate::StdHash::from_protocol_id(protocol);
+    second.absorb(b"second transcript");
+    let _ = second.squeeze_array::<17>();
+    second.ratchet();
+    let out2 = second.squeeze_array::<32>();
+
+    assert_ne!(out1, out2);
+}
+
 #[test]
 fn domain_separator_accepts_variable_sessions() {
     let instance = [0u8; 0];

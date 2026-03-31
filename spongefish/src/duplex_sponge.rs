@@ -76,7 +76,8 @@ pub trait DuplexSpongeInterface: Clone {
     /// Ratchet the sponge.
     ///
     /// This function performs a one-way ratchet of its internal state, so that it cannot be inverted.
-    /// By default, this function will re-initialize a sponge using 256 [`Unit`]s squeezed from the current instance.
+    /// The byte-oriented implementations in this crate rekey by squeezing 32 bytes, reinitializing,
+    /// and re-absorbing them under the domain separator `Spongefish, ratchet`.
     fn ratchet(&mut self) -> &mut Self;
 
     /// Squeeze a fixed-length array of size `LEN`.
@@ -92,6 +93,21 @@ pub trait DuplexSpongeInterface: Clone {
         self.squeeze(&mut output);
         output.into_boxed_slice()
     }
+}
+
+pub(crate) const BYTE_RATCHET_DOMAIN_SEPARATOR: &[u8] = b"Spongefish, ratchet";
+
+pub(crate) fn domain_separated_byte_ratchet<S>(sponge: &mut S) -> &mut S
+where
+    S: DuplexSpongeInterface<U = u8> + Default,
+{
+    let mut material = sponge.squeeze_array::<32>();
+    *sponge = S::default();
+    sponge.absorb(BYTE_RATCHET_DOMAIN_SEPARATOR);
+    sponge.absorb(&material);
+    #[cfg(feature = "zeroize")]
+    material.zeroize();
+    sponge
 }
 
 /// A permutation over operating over an array of `WIDTH` [`Unit`]s.
