@@ -48,16 +48,17 @@ impl NargDeserialize for BabyBear {
         if buf.len() < 4 {
             return Err(VerificationError);
         }
+        let (head, tail) = buf.split_at(4);
+        *buf = tail;
+
         let mut repr = [0u8; 4];
-        repr.copy_from_slice(&buf[..4]);
+        repr.copy_from_slice(head);
         let value = u32::from_le_bytes(repr);
 
         // Check that the value is in the valid range
         if value >= Self::ORDER_U32 {
             return Err(VerificationError);
         }
-
-        *buf = &buf[4..];
         Ok(Self::new(value))
     }
 }

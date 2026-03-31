@@ -79,6 +79,20 @@ where
     assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(&decoded_b));
 }
 
+#[cfg(all(feature = "p3-baby-bear", feature = "p3-mersenne-31"))]
+#[test]
+fn p3_field_deserialize_advances_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_mersenne_31::Mersenne31;
+
+    let mut baby = &[1, 0, 0, 0, 9][..];
+    assert!(BabyBear::deserialize_from_narg(&mut baby).is_ok());
+    assert_eq!(baby, &[9]);
+    let mut mersenne = &[1, 0, 0, 0, 9][..];
+    assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_ok());
+    assert_eq!(mersenne, &[9]);
+}
+
 #[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]
 #[test]
 fn curve25519_scalars_arkworks_and_dalek() {
