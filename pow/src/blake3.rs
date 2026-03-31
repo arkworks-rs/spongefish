@@ -173,10 +173,18 @@ impl Blake3PoW {
     /// or `None` if none do.
     fn check_many(&mut self, nonce: u64) -> Option<u64> {
         // Fill each SIMD input block with the challenge + nonce suffix.
-        for (i, input) in self.inputs.iter_mut().enumerate() {
-            // Write the nonce as little-endian into bytes 32..40.
-            let n = (nonce + i as u64).to_le_bytes();
-            input[32..40].copy_from_slice(&n);
+        // If the batch would overflow `u64`, stop at the last representable nonce
+        // and zero the remaining lanes so they never get reported as valid.
+        let mut valid_lanes = MAX_SIMD_DEGREE;
+        for i in 0..MAX_SIMD_DEGREE {
+            let Some(batch_nonce) = nonce.checked_add(i as u64) else {
+                valid_lanes = i;
+                break;
+            };
+            self.inputs[i][32..40].copy_from_slice(&batch_nonce.to_le_bytes());
+        }
+        for input in &mut self.inputs[valid_lanes..] {
+            input[32..40].fill(0);
         }
 
         // Create references required by `hash_many`.
@@ -196,10 +204,10 @@ impl Blake3PoW {
         );
 
         // Scan results and return the first nonce under the threshold.
-        for (i, chunk) in self.outputs.chunks_exact(OUT_LEN).enumerate() {
+        for (i, chunk) in self.outputs.chunks_exact(OUT_LEN).take(valid_lanes).enumerate() {
             let hash = u64::from_le_bytes(chunk[..8].try_into().unwrap());
             if hash < self.threshold {
-                return Some(nonce + i as u64);
+                return nonce.checked_add(i as u64);
             }
         }
 
@@ -271,6 +279,22 @@ mod tests {
             }
         }
         panic!("Expected at least one valid nonce under threshold using check_many");
+    }
+
+    #[test]
+    fn test_check_many_handles_u64_tail() {
+        let mut pow = Blake3PoW::new([0u8; 32], 50.0);
+        let _ = pow.check_many(u64::MAX - 1);
+        assert_eq!(
+            u64::from_le_bytes(pow.inputs[0][32..40].try_into().unwrap()),
+            u64::MAX - 1
+        );
+        if MAX_SIMD_DEGREE > 2 {
+            assert_eq!(
+                u64::from_le_bytes(pow.inputs[2][32..40].try_into().unwrap()),
+                0
+            );
+        }
     }
 
     #[cfg(not(feature = "parallel"))]
