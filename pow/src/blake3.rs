@@ -204,7 +204,12 @@ impl Blake3PoW {
         );
 
         // Scan results and return the first nonce under the threshold.
-        for (i, chunk) in self.outputs.chunks_exact(OUT_LEN).take(valid_lanes).enumerate() {
+        for (i, chunk) in self
+            .outputs
+            .chunks_exact(OUT_LEN)
+            .take(valid_lanes)
+            .enumerate()
+        {
             let hash = u64::from_le_bytes(chunk[..8].try_into().unwrap());
             if hash < self.threshold {
                 return nonce.checked_add(i as u64);
