@@ -33,7 +33,7 @@ pub type KangarooTwelve = xof::XOF<k12::KangarooTwelve<'static>>;
 
 /// Blake3's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
 #[cfg(feature = "blake3")]
-pub type Blake3 = xof::XOF<blake3::Hasher>;
+pub use xof::Blake3;
 
 /// SHA-256's [`Digest`][`digest::Digest`] used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`]
 #[cfg(feature = "sha2")]

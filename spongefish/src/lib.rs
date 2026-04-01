@@ -140,11 +140,11 @@
 //! in [[CO25], Section 3.3].
 //!
 //! The extensible output function [`instantiations::XOF`]
-//! wraps an object implementing [`instantiations::xof::XofBackend`]
-//! and implements the duplex sponge interface with little-to-no code.
-//! This includes `digest`-based XOFs such as SHAKE as well as BLAKE3's
-//! inherent XOF interface. Its implementation has little differences with
-//! [`DuplexSponge`].
+//! wraps an object implementing [`digest::ExtendableOutput`] and implements
+//! the duplex sponge interface with little-to-no code. This covers digest-based
+//! XOFs such as SHAKE and KangarooTwelve. BLAKE3 keeps a dedicated wrapper in
+//! [`instantiations::Blake3`] because its optional digest integration currently
+//! targets a different digest generation.
 //!
 //! The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
 //! the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`]
