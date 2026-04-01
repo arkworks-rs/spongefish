@@ -25,13 +25,17 @@ pub type Ascon12 = DuplexSponge<permutations::Ascon12, 40, 16>;
 /// SHAKE-128's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
 pub type Shake128 = xof::XOF<sha3::Shake128>;
 
-/// KangarooTwelve (K12) - fast reduced-round Keccak variant
+/// KangarooTwelve (K12) - fast reduced-round Keccak variant.
 ///
-/// Note: K12 uses a static lifetime for the customization string
+/// This alias fixes the customization-string lifetime to `'static` because the
+/// wrapper only exposes the default empty-customization constructor.
 #[cfg(feature = "k12")]
 pub type KangarooTwelve = xof::XOF<k12::Kt128<'static>>;
 
 /// Blake3's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
+///
+/// On the `digest 0.11` stack, BLAKE3's `traits-preview` feature implements the
+/// same XOF traits as SHAKE and K12, so no dedicated wrapper is needed.
 #[cfg(feature = "blake3")]
 pub type Blake3 = xof::XOF<blake3::Hasher>;
 

@@ -21,6 +21,9 @@ pub struct XOF<H: ExtendableOutput> {
     /// XOF reader for squeeze operations (None = absorbing, Some = squeezing)
     xof_reader: Option<H::Reader>,
     /// Number of bytes already squeezed from the current reader.
+    ///
+    /// This is needed to preserve `Clone` semantics for XOFs whose reader type
+    /// cannot itself be cloned.
     squeezed: usize,
 }
 
@@ -28,6 +31,7 @@ impl<H> XOF<H>
 where
     H: ExtendableOutput + Clone,
 {
+    /// Rebuild the reader at its current offset from the clonable hasher state.
     fn rebuild_reader(&self) -> H::Reader {
         let mut reader = ExtendableOutput::finalize_xof(self.hasher.clone());
         let mut skipped = self.squeezed;
@@ -129,5 +133,49 @@ impl XOF<sha3::Shake128> {
             xof_reader: None,
             squeezed: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::XOF;
+    use crate::duplex_sponge::DuplexSpongeInterface;
+
+    fn assert_clone_preserves_squeeze_position<H>()
+    where
+        H: digest::ExtendableOutput + Clone + Default,
+    {
+        let mut sponge = XOF::<H>::default();
+        sponge.absorb(b"spongefish clone test");
+
+        let mut prefix = [0u8; 13];
+        sponge.squeeze(&mut prefix);
+
+        let mut cloned = sponge.clone();
+        let mut original_tail = [0u8; 64];
+        let mut cloned_tail = [0u8; 64];
+
+        sponge.squeeze(&mut original_tail);
+        cloned.squeeze(&mut cloned_tail);
+
+        assert_eq!(original_tail, cloned_tail);
+    }
+
+    #[cfg(feature = "sha3")]
+    #[test]
+    fn shake128_clone_preserves_squeeze_position() {
+        assert_clone_preserves_squeeze_position::<sha3::Shake128>();
+    }
+
+    #[cfg(feature = "k12")]
+    #[test]
+    fn kangaroo_twelve_clone_preserves_squeeze_position() {
+        assert_clone_preserves_squeeze_position::<k12::Kt128<'static>>();
+    }
+
+    #[cfg(feature = "blake3")]
+    #[test]
+    fn blake3_clone_preserves_squeeze_position() {
+        assert_clone_preserves_squeeze_position::<blake3::Hasher>();
     }
 }
