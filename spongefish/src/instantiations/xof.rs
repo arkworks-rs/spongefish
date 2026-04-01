@@ -3,8 +3,6 @@
 //! This module provides a duplex sponge interface implementation for any
 //! XOF (extendable output function) that implements [`digest::ExtendableOutput`].
 
-#[cfg(feature = "blake3")]
-use blake3::OutputReader;
 use digest::{ExtendableOutput, Update, XofReader};
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -16,27 +14,59 @@ use crate::duplex_sponge::DuplexSpongeInterface;
 /// This implementation uses any XOF (extendable output function) that implements
 /// [`digest::ExtendableOutput`] to provide absorb and squeeze operations
 /// compatible with the duplex sponge interface. Examples include SHAKE128,
-/// SHAKE256, TurboSHAKE, and KangarooTwelve.
-#[derive(Clone)]
-pub struct XOF<H: ExtendableOutput>
-where
-    H::Reader: Clone,
-{
+/// SHAKE256, TurboSHAKE, KangarooTwelve, and BLAKE3.
+pub struct XOF<H: ExtendableOutput> {
     /// The current XOF hasher state
     hasher: H,
     /// XOF reader for squeeze operations (None = absorbing, Some = squeezing)
     xof_reader: Option<H::Reader>,
+    /// Number of bytes already squeezed from the current reader.
+    squeezed: usize,
+}
+
+impl<H> XOF<H>
+where
+    H: ExtendableOutput + Clone,
+{
+    fn rebuild_reader(&self) -> H::Reader {
+        let mut reader = ExtendableOutput::finalize_xof(self.hasher.clone());
+        let mut skipped = self.squeezed;
+        let mut scratch = [0u8; 256];
+
+        while skipped != 0 {
+            let chunk_len = usize::min(skipped, scratch.len());
+            XofReader::read(&mut reader, &mut scratch[..chunk_len]);
+            skipped -= chunk_len;
+        }
+
+        reader
+    }
+}
+
+impl<H> Clone for XOF<H>
+where
+    H: ExtendableOutput + Clone,
+{
+    fn clone(&self) -> Self {
+        let xof_reader = self.xof_reader.as_ref().map(|_| self.rebuild_reader());
+
+        Self {
+            hasher: self.hasher.clone(),
+            xof_reader,
+            squeezed: self.squeezed,
+        }
+    }
 }
 
 impl<H> DuplexSpongeInterface for XOF<H>
 where
     H: ExtendableOutput + Clone + Default,
-    H::Reader: Clone,
 {
     type U = u8;
 
     fn absorb(&mut self, input: &[u8]) -> &mut Self {
         self.xof_reader = None;
+        self.squeezed = 0;
         Update::update(&mut self.hasher, input);
         self
     }
@@ -46,6 +76,7 @@ where
             .xof_reader
             .get_or_insert_with(|| ExtendableOutput::finalize_xof(self.hasher.clone()));
         XofReader::read(reader, output);
+        self.squeezed += output.len();
 
         self
     }
@@ -59,80 +90,29 @@ where
 impl<H> Zeroize for XOF<H>
 where
     H: ExtendableOutput + Zeroize,
-    H::Reader: Clone,
 {
     fn zeroize(&mut self) {
         self.hasher.zeroize();
         self.xof_reader = None;
+        self.squeezed = 0;
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl<H> ZeroizeOnDrop for XOF<H>
-where
-    H: ExtendableOutput + Zeroize,
-    H::Reader: Clone,
-{
-}
+impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + Zeroize {}
 
 impl<H> Default for XOF<H>
 where
     H: ExtendableOutput + Default,
-    H::Reader: Clone,
 {
     fn default() -> Self {
         Self {
             hasher: H::default(),
             xof_reader: None,
+            squeezed: 0,
         }
     }
 }
-
-/// BLAKE3 XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
-///
-/// BLAKE3's digest trait integration currently targets a newer `digest`
-/// generation than the rest of this crate graph, so it keeps a concrete wrapper
-/// over BLAKE3's inherent XOF API.
-#[cfg(feature = "blake3")]
-#[derive(Clone, Default)]
-pub struct Blake3 {
-    hasher: blake3::Hasher,
-    xof_reader: Option<OutputReader>,
-}
-
-#[cfg(feature = "blake3")]
-impl DuplexSpongeInterface for Blake3 {
-    type U = u8;
-
-    fn absorb(&mut self, input: &[u8]) -> &mut Self {
-        self.xof_reader = None;
-        self.hasher.update(input);
-        self
-    }
-
-    fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
-        let reader = self
-            .xof_reader
-            .get_or_insert_with(|| self.hasher.finalize_xof());
-        reader.fill(output);
-        self
-    }
-
-    fn ratchet(&mut self) -> &mut Self {
-        todo!()
-    }
-}
-
-#[cfg(all(feature = "blake3", feature = "zeroize"))]
-impl Zeroize for Blake3 {
-    fn zeroize(&mut self) {
-        self.hasher.zeroize();
-        self.xof_reader = None;
-    }
-}
-
-#[cfg(all(feature = "blake3", feature = "zeroize"))]
-impl ZeroizeOnDrop for Blake3 {}
 
 #[cfg(feature = "sha3")]
 impl XOF<sha3::Shake128> {
@@ -147,6 +127,7 @@ impl XOF<sha3::Shake128> {
         Self {
             hasher,
             xof_reader: None,
+            squeezed: 0,
         }
     }
 }

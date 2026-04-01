@@ -12,7 +12,7 @@
 use alloc::vec::Vec;
 
 use digest::{
-    core_api::{Block, BlockSizeUser},
+    block_api::{Block, BlockSizeUser},
     typenum::Unsigned,
     Digest, FixedOutputReset, Output, Reset,
 };

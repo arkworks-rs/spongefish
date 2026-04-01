@@ -29,11 +29,11 @@ pub type Shake128 = xof::XOF<sha3::Shake128>;
 ///
 /// Note: K12 uses a static lifetime for the customization string
 #[cfg(feature = "k12")]
-pub type KangarooTwelve = xof::XOF<k12::KangarooTwelve<'static>>;
+pub type KangarooTwelve = xof::XOF<k12::Kt128<'static>>;
 
 /// Blake3's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
 #[cfg(feature = "blake3")]
-pub use xof::Blake3;
+pub type Blake3 = xof::XOF<blake3::Hasher>;
 
 /// SHA-256's [`Digest`][`digest::Digest`] used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`]
 #[cfg(feature = "sha2")]
