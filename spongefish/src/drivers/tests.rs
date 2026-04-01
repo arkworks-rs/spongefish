@@ -79,21 +79,72 @@ where
     assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(&decoded_b));
 }
 
-#[cfg(all(feature = "p3-baby-bear", feature = "p3-koala-bear", feature = "p3-mersenne-31"))]
+#[cfg(all(
+    feature = "p3-baby-bear",
+    feature = "p3-koala-bear",
+    feature = "p3-mersenne-31"
+))]
 #[test]
 fn p3_field_deserialize_advances_cursor() {
     use p3_baby_bear::BabyBear;
-    use p3_mersenne_31::Mersenne31;
     use p3_koala_bear::KoalaBear;
+    use p3_mersenne_31::Mersenne31;
 
     let mut baby = &[1, 0, 0, 0, 9][..];
     assert!(BabyBear::deserialize_from_narg(&mut baby).is_ok());
     assert_eq!(baby, &[9]);
     let mut koala = &[1, 0, 0, 0, 9][..];
     assert!(KoalaBear::deserialize_from_narg(&mut koala).is_ok());
+    assert_eq!(koala, &[9]);
     let mut mersenne = &[1, 0, 0, 0, 9][..];
     assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_ok());
     assert_eq!(mersenne, &[9]);
+}
+
+#[cfg(all(
+    feature = "p3-baby-bear",
+    feature = "p3-koala-bear",
+    feature = "p3-mersenne-31"
+))]
+#[test]
+fn p3_field_deserialize_rejects_without_advancing_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_field::PrimeField32;
+    use p3_koala_bear::KoalaBear;
+    use p3_mersenne_31::Mersenne31;
+
+    let baby_buf = [BabyBear::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
+    let mut baby = baby_buf.as_slice();
+    assert!(BabyBear::deserialize_from_narg(&mut baby).is_err());
+    assert_eq!(baby, baby_buf.as_slice());
+
+    let koala_buf = [KoalaBear::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
+    let mut koala = koala_buf.as_slice();
+    assert!(KoalaBear::deserialize_from_narg(&mut koala).is_err());
+    assert_eq!(koala, koala_buf.as_slice());
+
+    let mersenne_buf = [Mersenne31::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
+    let mut mersenne = mersenne_buf.as_slice();
+    assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_err());
+    assert_eq!(mersenne, mersenne_buf.as_slice());
+}
+
+#[cfg(feature = "p3-baby-bear")]
+#[test]
+fn array_deserialize_rejects_without_advancing_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_field::PrimeField32;
+
+    let input = [
+        1u32.to_le_bytes().as_slice(),
+        BabyBear::ORDER_U32.to_le_bytes().as_slice(),
+        &[9],
+    ]
+    .concat();
+    let mut slice = input.as_slice();
+
+    assert!(<[BabyBear; 2]>::deserialize_from_narg(&mut slice).is_err());
+    assert_eq!(slice, input.as_slice());
 }
 
 #[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]

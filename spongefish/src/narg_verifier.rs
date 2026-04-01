@@ -35,8 +35,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> VerificationResult<T> {
-        let message = T::deserialize_from_narg(&mut self.narg_string)?;
+        let mut narg_string = self.narg_string;
+        let message = T::deserialize_from_narg(&mut narg_string)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
+        self.narg_string = narg_string;
         Ok(message)
     }
 

@@ -52,16 +52,16 @@ macro_rules! impl_deserialize {
                 if buf.len() < total_bytes {
                     return Err(VerificationError);
                 }
-                let (head, tail) = buf.split_at(total_bytes);
-                *buf = tail;
 
                 let mut base_elems = Vec::with_capacity(extension_degree);
-                for chunk in head.chunks_exact(base_field_size) {
+                for chunk in buf[..total_bytes].chunks_exact(base_field_size) {
                     let elem = <<Self as Field>::BasePrimeField as PrimeField>::from_be_bytes_mod_order(chunk);
                     base_elems.push(elem);
                 }
                 debug_assert_eq!(base_elems.len(), extension_degree);
-                Self::from_base_prime_field_elems(base_elems).ok_or(VerificationError)
+                let value = Self::from_base_prime_field_elems(base_elems).ok_or(VerificationError)?;
+                *buf = &buf[total_bytes..];
+                Ok(value)
             }
         }
     };

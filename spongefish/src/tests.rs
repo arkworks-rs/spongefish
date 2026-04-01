@@ -3,7 +3,7 @@ use alloc::string::String;
 use rand::RngCore;
 use sha3::digest::{ExtendableOutput, Update, XofReader};
 
-use crate::{DuplexSpongeInterface, Encoding};
+use crate::{DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError};
 
 #[test]
 fn prover_rng_emits_entropy() {
@@ -140,4 +140,28 @@ fn std_transcript_initialization_matches_manual_shake128() {
     let expected = manual.squeeze_array::<32>();
 
     assert_eq!(challenge, expected);
+}
+
+#[test]
+fn verifier_prover_message_rolls_back_on_deserialize_error() {
+    struct BadMessage;
+
+    impl NargDeserialize for BadMessage {
+        fn deserialize_from_narg(buf: &mut &[u8]) -> crate::VerificationResult<Self> {
+            *buf = &buf[1..];
+            Err(VerificationError)
+        }
+    }
+
+    impl crate::Encoding<[u8]> for BadMessage {
+        fn encode(&self) -> impl AsRef<[u8]> {
+            []
+        }
+    }
+
+    let proof = [7u8, 8, 9];
+    let mut verifier = crate::VerifierState::default_std(&proof);
+    assert!(verifier.prover_message::<BadMessage>().is_err());
+    assert_eq!(verifier.narg_string, &proof);
+    assert!(verifier.check_eof().is_err());
 }
