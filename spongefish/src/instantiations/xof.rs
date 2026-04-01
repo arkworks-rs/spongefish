@@ -31,7 +31,7 @@ impl<H> XOF<H>
 where
     H: ExtendableOutput + Clone,
 {
-    /// Rebuild the reader at its current offset from the clonable hasher state.
+    /// Rebuild the reader at its current offset from the cloneable hasher state.
     fn rebuild_reader(&self) -> H::Reader {
         let mut reader = ExtendableOutput::finalize_xof(self.hasher.clone());
         let mut skipped = self.squeezed;
