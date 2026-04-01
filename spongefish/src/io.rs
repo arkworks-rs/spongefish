@@ -43,7 +43,7 @@ pub trait NargSerialize {
 /// Prime-order fields must follow the same convention (seen as $Z/pZ$ elements),
 /// and field extensions must serialize each of their base field elements.
 /// Implementations must advance `buf` past the consumed bytes on success.
-/// That is, after a successfull call, `*buf` must point to the first byte after the
+/// That is, after a successful call, `*buf` must point to the first byte after the
 /// deserialized value.
 ///
 /// [OS2IP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.2
