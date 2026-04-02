@@ -2703,7 +2703,6 @@ dependencies = [
  "blake3",
  "bytemuck",
  "keccak 0.1.6",
- "rand 0.8.5",
  "rayon",
  "spongefish",
 ]

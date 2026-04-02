@@ -22,7 +22,6 @@ keccak = ["dep:keccak", "dep:bytemuck", "spongefish/keccak"]
 blake3 = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
-rand = { workspace = true }
 rayon = { workspace = true, optional = true }
 spongefish = { workspace = true }
 
