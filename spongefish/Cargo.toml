@@ -11,7 +11,7 @@ version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--html-in-header", "../doc/katex-header.html", "--cfg", "docsrs"]
+rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
 default = ["sha3", "zeroize"]
