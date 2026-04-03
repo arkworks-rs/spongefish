@@ -165,11 +165,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         T: PartialEq,
     {
         let mut linear_constraints = self.linear_constraints.write();
-        if linear_constraints
-            .equations
-            .iter()
-            .any(|existing| *existing == equation)
-        {
+        if linear_constraints.equations.contains(&equation) {
             return;
         }
         linear_constraints.equations.push(equation);
@@ -242,11 +238,7 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
         P::U: PartialEq,
     {
         let mut linear_constraints = self.linear_constraints.write();
-        if linear_constraints
-            .equations
-            .iter()
-            .any(|existing| *existing == equation)
-        {
+        if linear_constraints.equations.contains(&equation) {
             return;
         }
         linear_constraints.equations.push(equation);
