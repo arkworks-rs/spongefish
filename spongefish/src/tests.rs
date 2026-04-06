@@ -5,7 +5,9 @@ use rand::RngCore;
 #[test]
 fn prover_rng_emits_entropy() {
     let instance = [42u32, 7u32];
-    let domain = crate::domain_separator!("rng test"; "rng session").instance(&instance);
+    let domain = crate::domain_separator!("rng test")
+        .session(crate::session!("rng session"))
+        .instance(&instance);
 
     let mut prover = domain.std_prover();
     let mut first = [0u8; 32];
@@ -20,7 +22,9 @@ fn prover_rng_emits_entropy() {
 #[test]
 fn prover_messages_round_trip() {
     let instance = [1u32, 2u32];
-    let domain = crate::domain_separator!("round trip").instance(&instance);
+    let domain = crate::domain_separator!("round trip")
+        .without_session()
+        .instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.public_message(&instance[0]);
@@ -36,7 +40,9 @@ fn prover_messages_round_trip() {
 #[test]
 fn check_eof_reports_remaining_bytes() {
     let instance = [5u32, 6u32];
-    let domain = crate::domain_separator!("check eof").instance(&instance);
+    let domain = crate::domain_separator!("check eof")
+        .without_session()
+        .instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.prover_message(&instance[0]);
@@ -51,8 +57,9 @@ fn check_eof_reports_remaining_bytes() {
 #[test]
 fn verifier_challenge_matches_prover() {
     let instance = [10u32, 11u32];
-    let domain =
-        crate::domain_separator!("challenge sync"; "challenge session").instance(&instance);
+    let domain = crate::domain_separator!("challenge sync")
+        .session(crate::session!("challenge session"))
+        .instance(&instance);
 
     let mut prover = domain.std_prover();
     let challenge: u32 = prover.verifier_message();
@@ -66,27 +73,73 @@ fn verifier_challenge_matches_prover() {
 #[test]
 fn domain_separator_accepts_variable_sessions() {
     let instance = [0u8; 0];
-    let literal_session = crate::domain_separator!("variable sessions"; "shared session")
+    let literal_session = *crate::domain_separator!("variable sessions")
+        .session(crate::session!("shared session"))
         .instance(&instance)
         .session
-        .expect("literal session missing");
+        .value();
+
     let session_str = "shared session";
-    let from_str = crate::domain_separator!("variable sessions"; session_str)
+    let from_str = *crate::domain_separator!("variable sessions")
+        .session(crate::session_id_from_str(session_str))
         .instance(&instance)
         .session
-        .expect("string session missing");
+        .value();
     assert_eq!(literal_session, from_str);
 
     let session_owned = String::from("shared session");
-    let from_owned = crate::domain_separator!("variable sessions"; session_owned)
+    let from_owned = *crate::domain_separator!("variable sessions")
+        .session(crate::session_id_from_str(&session_owned))
         .instance(&instance)
         .session
-        .expect("owned session missing");
+        .value();
     assert_eq!(literal_session, from_owned);
+}
 
-    let from_owned_ref = crate::domain_separator!("variable sessions"; &session_owned)
-        .instance(&instance)
-        .session
-        .expect("reference session missing");
-    assert_eq!(literal_session, from_owned_ref);
+#[test]
+fn without_session_distinct_from_real_session() {
+    let instance = [0u8; 0];
+
+    let no_sess = crate::domain_separator!("app")
+        .without_session()
+        .instance(&instance);
+    let with_sess = crate::domain_separator!("app")
+        .session(crate::session!("production"))
+        .instance(&instance);
+
+    let mut a = no_sess.std_prover();
+    let mut b = with_sess.std_prover();
+
+    let ca: u32 = a.verifier_message();
+    let cb: u32 = b.verifier_message();
+
+    assert_ne!(ca, cb);
+}
+
+#[test]
+fn different_session_values_diverge() {
+    use crate::{DomainSeparator, Encoding};
+
+    struct Ctx(u64);
+
+    impl Encoding for Ctx {
+        fn encode(&self) -> impl AsRef<[u8]> {
+            self.0.to_le_bytes()
+        }
+    }
+
+    let instance = [0u8; 0];
+    let a = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
+        .session(Ctx(1))
+        .instance(&instance);
+    let b = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
+        .session(Ctx(2))
+        .instance(&instance);
+
+    let mut pa = a.std_prover();
+    let mut pb = b.std_prover();
+
+    let ca: u32 = pa.verifier_message();
+    let cb: u32 = pb.verifier_message();
+    assert_ne!(ca, cb);
 }

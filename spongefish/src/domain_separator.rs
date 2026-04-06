@@ -1,10 +1,10 @@
-use core::{fmt::Arguments, marker::PhantomData};
+use core::{fmt, fmt::Arguments, marker::PhantomData};
 
 use rand::rngs::StdRng;
 
 #[cfg(feature = "sha3")]
 use crate::VerifierState;
-use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
+use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash, Unit};
 
 /// Marker structure for domain separators without an associated instance.
 ///
@@ -12,11 +12,15 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 /// This type is used to make sure that the developer does not forget to add it.
 ///
 /// ```compile_fail
-/// # // a BAD EXAMPLE of instantiating a domain separator.
-/// # // It will fail at compilation time.
 /// use spongefish::domain_separator;
 ///
 /// domain_separator!("this will not compile").std_prover();
+/// ```
+///
+/// ```compile_fail
+/// use spongefish::DomainSeparator;
+///
+/// DomainSeparator::new([0u8; 64]).instance(b"missing session");
 /// ```
 pub struct WithoutInstance<I: ?Sized>(PhantomData<I>);
 
@@ -26,52 +30,102 @@ impl<I: ?Sized> WithoutInstance<I> {
     }
 }
 
+impl<I: ?Sized> fmt::Debug for WithoutInstance<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("WithoutInstance")
+    }
+}
+
 /// Marker structure storing the instance once it has been provided.
 ///
 /// ```no_run
 /// use spongefish::domain_separator;
 ///
 /// let _prover = domain_separator!("this will compile")
+///     .session(spongefish::session!("example"))
 ///     .instance(b"yellowsubmarine")
 ///     .std_prover();
 /// ```
 pub struct WithInstance<'i, I: ?Sized>(&'i I);
 
+/// Session state marker: no session context has been resolved yet.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WithoutSession;
+
+/// Session state marker: a session context has been bound.
+pub struct WithSession<S>(pub(crate) S);
+
+impl<S> WithSession<S> {
+    /// The session value.
+    #[must_use]
+    pub const fn value(&self) -> &S {
+        &self.0
+    }
+}
+
+impl<S: fmt::Debug> fmt::Debug for WithSession<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WithSession").field(&self.0).finish()
+    }
+}
+
+/// Explicit opt-out session marker.
+///
+/// Used by [`DomainSeparator::without_session`]. Encodes to an empty slice,
+/// matching the original behaviour when no session was provided.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoSession;
+
+impl<T: Unit> Encoding<[T]> for NoSession {
+    fn encode(&self) -> impl AsRef<[T]> {
+        let empty: [T; 0] = [];
+        empty
+    }
+}
+
 /// Domain separator for a Fiat--Shamir transformation.
-pub struct DomainSeparator<I, S = [u8; 64]> {
+///
+/// The API enforces: `new → session | without_session → instance → prover/verifier`.
+pub struct DomainSeparator<I, S = WithoutSession> {
     /// **what** this interactive protocol is.
     pub protocol: [u8; 64],
-    // **where** this interactive protocol is being used.
-    pub session: Option<S>,
+    /// **where** this interactive protocol is being used.
+    pub session: S,
     /// **how** this interactive protocol is used.
     instance: I,
 }
 
-impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, S> {
+impl<I: ?Sized> DomainSeparator<WithoutInstance<I>, WithoutSession> {
     #[must_use]
     pub const fn new(protocol: [u8; 64]) -> Self {
         Self {
             protocol,
-            session: None,
+            session: WithoutSession,
             instance: WithoutInstance::new(),
         }
     }
 }
 
-impl<I, S> DomainSeparator<I, S> {
+impl<I> DomainSeparator<I, WithoutSession> {
+    /// Binds a session context to the transcript.
     #[must_use]
-    pub fn session(self, value: S) -> Self {
-        assert!(self.session.is_none());
-        Self {
-            instance: self.instance,
-            session: Some(value),
+    pub fn session<S>(self, value: S) -> DomainSeparator<I, WithSession<S>> {
+        DomainSeparator {
             protocol: self.protocol,
+            session: WithSession(value),
+            instance: self.instance,
         }
+    }
+
+    /// Explicit opt-out: the protocol deliberately binds no application context.
+    #[must_use]
+    pub fn without_session(self) -> DomainSeparator<I, WithSession<NoSession>> {
+        self.session(NoSession)
     }
 }
 
-impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, S> {
-    pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>, S> {
+impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, WithSession<S>> {
+    pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>, WithSession<S>> {
         DomainSeparator {
             protocol: self.protocol,
             session: self.session,
@@ -80,7 +134,7 @@ impl<I: ?Sized, S> DomainSeparator<WithoutInstance<I>, S> {
     }
 }
 
-impl<I, S> DomainSeparator<WithInstance<'_, I>, S>
+impl<I, S> DomainSeparator<WithInstance<'_, I>, WithSession<S>>
 where
     I: Encoding,
     S: Encoding,
@@ -96,7 +150,7 @@ where
     }
 }
 
-impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
+impl<I, S> DomainSeparator<WithInstance<'_, I>, WithSession<S>> {
     pub fn to_prover<H>(&self, h: H) -> ProverState<H, StdRng>
     where
         H: DuplexSpongeInterface,
@@ -106,9 +160,7 @@ impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
     {
         let mut prover_state = ProverState::from(h);
         prover_state.public_message(&self.protocol);
-        if let Some(session_info) = &self.session {
-            prover_state.public_message(session_info);
-        }
+        prover_state.public_message(&self.session.0);
         prover_state.public_message(self.instance.0);
         prover_state
     }
@@ -122,44 +174,42 @@ impl<I, S> DomainSeparator<WithInstance<'_, I>, S> {
     {
         let mut verifier_state = VerifierState::from_parts(h, narg_string);
         verifier_state.public_message(&self.protocol);
-        if let Some(session_info) = &self.session {
-            verifier_state.public_message(session_info);
-        }
+        verifier_state.public_message(&self.session.0);
         verifier_state.public_message(self.instance.0);
         verifier_state
     }
 }
 
 #[inline]
-#[must_use]
-pub fn protocol_id(args: Arguments) -> [u8; 64] {
+fn hash_bytes_to_array(bytes: &[u8]) -> [u8; 64] {
     let mut sponge = StdHash::default();
-
-    if let Some(message) = args.as_str() {
-        sponge.absorb(message.as_bytes());
-    } else {
-        let formatted = alloc::fmt::format(args);
-        sponge.absorb(formatted.as_bytes());
-    }
-
+    sponge.absorb(bytes);
     sponge.squeeze_array()
 }
 
 #[inline]
-#[must_use]
-pub fn session_id(args: Arguments) -> [u8; 64] {
-    let mut sponge = StdHash::default();
-
-    if let Some(message) = args.as_str() {
-        sponge.absorb(message.as_bytes());
-    } else {
-        let formatted = alloc::fmt::format(args);
-        sponge.absorb(formatted.as_bytes());
-    }
-
-    sponge.squeeze_array()
+fn hash_args_to_array(args: Arguments) -> [u8; 64] {
+    args.as_str().map_or_else(
+        || hash_bytes_to_array(alloc::fmt::format(args).as_bytes()),
+        |message| hash_bytes_to_array(message.as_bytes()),
+    )
 }
 
+/// Hashes a protocol identifier into a 64-byte array.
+#[inline]
+#[must_use]
+pub fn protocol_id(args: Arguments) -> [u8; 64] {
+    hash_args_to_array(args)
+}
+
+/// Hashes a session label into a 64-byte array.
+#[inline]
+#[must_use]
+pub fn session_id(args: Arguments) -> [u8; 64] {
+    hash_args_to_array(args)
+}
+
+/// Hashes a string into a 64-byte array.
 #[inline]
 #[doc(hidden)]
 #[must_use]
@@ -167,7 +217,5 @@ pub fn session_id_from_str<S>(value: &S) -> [u8; 64]
 where
     S: AsRef<str> + ?Sized,
 {
-    let mut sponge = StdHash::default();
-    sponge.absorb(value.as_ref().as_bytes());
-    sponge.squeeze_array()
+    hash_bytes_to_array(value.as_ref().as_bytes())
 }
