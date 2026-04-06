@@ -2,10 +2,10 @@
 use k256::{
     elliptic_curve::{
         bigint::U512,
-        ff::Field,
+        ff::{Field, PrimeField},
         sec1::{FromEncodedPoint, ToEncodedPoint},
     },
-    AffinePoint, ProjectivePoint, Scalar,
+    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
 
 // Make k256 Scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = <Scalar as Field>::ZERO;
+    const ZERO: Self = <Self as Field>::ZERO;
 }
 
 // Implement Decoding for k256 Scalar
@@ -25,24 +25,25 @@ impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        use k256::elliptic_curve::{bigint::Encoding, ops::Reduce};
-        Scalar::reduce(U512::from_le_bytes(buf.0))
+        use k256::elliptic_curve::ops::Reduce;
+        Self::reduce(U512::from_be_slice(&buf.0))
     }
 }
 
-// Implement Deserialize for k256 Scalar
+// Implement Deserialize for k256 Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < 32 {
+        let mut repr = <Self as PrimeField>::Repr::default();
+        let n = repr.len();
+        if buf.len() < n {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 32];
-        repr.copy_from_slice(&buf[..32]);
-        *buf = &buf[32..];
 
-        use k256::elliptic_curve::ff::PrimeField;
-        repr.reverse();
-        Option::from(Scalar::from_repr(repr.into())).ok_or(VerificationError)
+        repr.copy_from_slice(&buf[..n]);
+        Self::from_repr(repr)
+            .into_option()
+            .inspect(|_| *buf = &buf[n..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -54,19 +55,17 @@ impl NargDeserialize for ProjectivePoint {
             return Err(VerificationError);
         }
 
-        use k256::EncodedPoint;
         let encoded = EncodedPoint::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
+        let point = Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)?;
         *buf = &buf[33..];
-        Option::from(ProjectivePoint::from_encoded_point(&encoded)).ok_or(VerificationError)
+        Ok(point)
     }
 }
 
-// Implement Encoding for k256 Scalar
+// Implement Encoding for k256 Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut bytes = self.to_bytes();
-        bytes.reverse();
-        bytes
+        self.to_bytes()
     }
 }
 

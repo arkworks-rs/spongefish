@@ -35,8 +35,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> VerificationResult<T> {
-        let message = T::deserialize_from_narg(&mut self.narg_string)?;
+        let mut narg_string = self.narg_string;
+        let message = T::deserialize_from_narg(&mut narg_string)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
+        self.narg_string = narg_string;
         Ok(message)
     }
 
@@ -177,6 +179,11 @@ impl<'a> VerifierState<'a, StdHash> {
     /// Initializes a verifier with `StdHash` as duplex sponge.
     #[must_use]
     pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        Self::new(protocol_id, session_id, narg_string)
+        let mut verifier_state = VerifierState {
+            duplex_sponge_state: StdHash::from_protocol_id(*protocol_id),
+            narg_string,
+        };
+        verifier_state.public_message(session_id);
+        verifier_state
     }
 }

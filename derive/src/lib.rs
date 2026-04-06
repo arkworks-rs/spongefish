@@ -217,7 +217,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                #field_name: <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
+                                #field_name: <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
                             }
                         }
                     });
@@ -239,7 +239,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(buf)?,
+                                <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
                             }
                         }
                     });
@@ -261,7 +261,12 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
             quote! {
                 impl #impl_generics ::spongefish::NargDeserialize for #name #ty_generics #where_clause {
                     fn deserialize_from_narg(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
-                        #field_deserializations
+                        let mut rest = *buf;
+                        let value = (|| -> spongefish::VerificationResult<Self> {
+                            #field_deserializations
+                        })()?;
+                        *buf = rest;
+                        Ok(value)
                     }
                 }
             }

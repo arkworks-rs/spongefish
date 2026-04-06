@@ -1,6 +1,19 @@
 use p3_baby_bear::BabyBear;
-use spongefish::{DuplexSponge, DuplexSpongeInterface};
-use spongefish_circuit::permutation::PermutationInstanceBuilder;
+use spongefish::{DuplexSponge, DuplexSpongeInterface, Permutation};
+use spongefish_circuit::permutation::{
+    LinearEquation, PermutationInstanceBuilder, PermutationWitnessBuilder,
+};
+
+#[derive(Clone, Default)]
+struct DummyPermutation;
+
+impl Permutation<16> for DummyPermutation {
+    type U = BabyBear;
+
+    fn permute(&self, state: &[Self::U; 16]) -> [Self::U; 16] {
+        *state
+    }
+}
 
 #[test]
 pub fn test_xof() {
@@ -47,4 +60,57 @@ pub fn test_xof() {
         inst_builder.constraints().as_ref()
     );
     println!("public vars: {:?}", inst_builder.allocator().public_vars());
+}
+
+#[test]
+pub fn test_linear_equations() {
+    let inst_builder = PermutationInstanceBuilder::<BabyBear, 16>::new();
+    let [a, b, c] = inst_builder.allocator().allocate_vars();
+    inst_builder.add_equation(LinearEquation::new(
+        [
+            (BabyBear::new(1), a),
+            (BabyBear::new(1), b),
+            (BabyBear::new(1), c),
+        ],
+        BabyBear::new(0),
+    ));
+    inst_builder.add_equation(LinearEquation::new(
+        [(BabyBear::new(2), c), (BabyBear::new(3), a)],
+        BabyBear::new(7),
+    ));
+
+    let equations = inst_builder.linear_constraints();
+    assert_eq!(equations.as_ref().len(), 2);
+    assert_eq!(
+        equations.as_ref()[0].linear_combination,
+        vec![
+            (BabyBear::new(1), a),
+            (BabyBear::new(1), b),
+            (BabyBear::new(1), c),
+        ]
+    );
+    assert_eq!(equations.as_ref()[0].image, BabyBear::new(0));
+    assert_eq!(equations.as_ref()[1].image, BabyBear::new(7));
+}
+
+#[test]
+pub fn test_witness_linear_equations() {
+    let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
+    witness.add_equation(LinearEquation::new(
+        [
+            (BabyBear::new(2), BabyBear::new(3)),
+            (BabyBear::new(4), BabyBear::new(5)),
+            (BabyBear::new(6), BabyBear::new(8)),
+        ],
+        BabyBear::new(9),
+    ));
+
+    let equations = witness.linear_constraints();
+    assert_eq!(equations.as_ref().len(), 1);
+    assert_eq!(equations.as_ref()[0].linear_combination.len(), 3);
+    assert_eq!(
+        equations.as_ref()[0].linear_combination[2],
+        (BabyBear::new(6), BabyBear::new(8))
+    );
+    assert_eq!(equations.as_ref()[0].image, BabyBear::new(9));
 }

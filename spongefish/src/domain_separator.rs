@@ -140,13 +140,22 @@ where
     S: Encoding,
 {
     #[cfg(feature = "sha3")]
+    #[must_use]
     pub fn std_prover(&self) -> ProverState {
-        self.to_prover(StdHash::default())
+        let mut prover_state = ProverState::from(StdHash::from_protocol_id(self.protocol));
+        prover_state.public_message(&self.session.0);
+        prover_state.public_message(self.instance.0);
+        prover_state
     }
 
     #[cfg(feature = "sha3")]
+    #[must_use]
     pub fn std_verifier<'ver>(&self, narg_string: &'ver [u8]) -> VerifierState<'ver, StdHash> {
-        self.to_verifier(StdHash::default(), narg_string)
+        let mut verifier_state =
+            VerifierState::from_parts(StdHash::from_protocol_id(self.protocol), narg_string);
+        verifier_state.public_message(&self.session.0);
+        verifier_state.public_message(self.instance.0);
+        verifier_state
     }
 }
 
@@ -181,35 +190,27 @@ impl<I, S> DomainSeparator<WithInstance<'_, I>, WithSession<S>> {
 }
 
 #[inline]
-fn hash_bytes_to_array(bytes: &[u8]) -> [u8; 64] {
-    let mut sponge = StdHash::default();
-    sponge.absorb(bytes);
-    sponge.squeeze_array()
-}
-
-#[inline]
-fn hash_args_to_array(args: Arguments) -> [u8; 64] {
-    args.as_str().map_or_else(
-        || hash_bytes_to_array(alloc::fmt::format(args).as_bytes()),
-        |message| hash_bytes_to_array(message.as_bytes()),
-    )
-}
-
-/// Hashes a protocol identifier into a 64-byte array.
-#[inline]
 #[must_use]
 pub fn protocol_id(args: Arguments) -> [u8; 64] {
-    hash_args_to_array(args)
+    if let Some(message) = args.as_str() {
+        return pad_identifier(message.as_bytes());
+    }
+
+    let formatted = alloc::fmt::format(args);
+    pad_identifier(formatted.as_bytes())
 }
 
-/// Hashes a session label into a 64-byte array.
 #[inline]
 #[must_use]
 pub fn session_id(args: Arguments) -> [u8; 64] {
-    hash_args_to_array(args)
+    if let Some(message) = args.as_str() {
+        return derive_session_id(message.as_bytes());
+    }
+
+    let formatted = alloc::fmt::format(args);
+    derive_session_id(formatted.as_bytes())
 }
 
-/// Hashes a string into a 64-byte array.
 #[inline]
 #[doc(hidden)]
 #[must_use]
@@ -217,5 +218,25 @@ pub fn session_id_from_str<S>(value: &S) -> [u8; 64]
 where
     S: AsRef<str> + ?Sized,
 {
-    hash_bytes_to_array(value.as_ref().as_bytes())
+    derive_session_id(value.as_ref().as_bytes())
+}
+
+fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
+    assert!(
+        identifier.len() <= 64,
+        "protocol identifier must fit in 64 bytes"
+    );
+
+    let mut protocol_id = [0u8; 64];
+    protocol_id[..identifier.len()].copy_from_slice(identifier);
+    protocol_id
+}
+
+fn derive_session_id(session: &[u8]) -> [u8; 64] {
+    let mut sponge = StdHash::from_protocol_id(pad_identifier(b"fiat-shamir/session-id"));
+    sponge.absorb(session);
+
+    let mut session_id = [0u8; 64];
+    sponge.squeeze(&mut session_id[32..]);
+    session_id
 }

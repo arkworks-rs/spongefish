@@ -22,6 +22,8 @@ pub trait NargSerialize {
     /// # Safety
     ///
     /// This procedure must compute an injective map.
+    /// The bytes appended for one value must be exactly the bytes that the matching
+    /// [`NargDeserialize`] implementation consumes on success.
     fn serialize_into_narg(&self, dst: &mut Vec<u8>);
 
     /// Shorthand for [`NargSerialize::serialize_into_narg`] for an empty byte array.
@@ -42,11 +44,18 @@ pub trait NargSerialize {
 /// conversion procedure [OS2IP] from RFC8017.
 /// Prime-order fields must follow the same convention (seen as $Z/pZ$ elements),
 /// and field extensions must serialize each of their base field elements.
+/// Implementations must advance `buf` past the consumed bytes on success.
+/// That is, after a successful call, `*buf` must point to the first byte after the
+/// deserialized value.
 ///
 /// [OS2IP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.2
 pub trait NargDeserialize: Sized {
     /// This map must compute the inverse of [`NargSerialize::serialize_into_narg`],
     /// or return an error if a pre-image does not exist.
+    ///
+    /// On success, implementations must advance `buf` by exactly the bytes they consumed.
+    /// On failure, implementations must leave `buf` unchanged.
+    /// Composite parsers should stage cursor movement on a local copy and commit on success.
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self>;
 }
 
@@ -71,11 +80,13 @@ impl<const N: usize> NargDeserialize for [u8; N] {
 
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+        let mut rest = *buf;
         let vec: Vec<T> = (0..N)
-            .map(|_| T::deserialize_from_narg(buf))
+            .map(|_| T::deserialize_from_narg(&mut rest))
             .collect::<Result<Vec<_>, _>>()?;
 
         // This is safe because we know vec.len() == N from the iterator above
+        *buf = rest;
         Ok(vec.try_into().unwrap_or_else(|_| unreachable!()))
     }
 }

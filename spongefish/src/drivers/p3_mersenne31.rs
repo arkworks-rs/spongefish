@@ -9,10 +9,10 @@ use crate::{
     VerificationError, VerificationResult,
 };
 
-const KOALABEAR_ZERO: Mersenne31 = unsafe { core::mem::transmute(0u32) };
+const MERSENNE31_ZERO: Mersenne31 = unsafe { core::mem::transmute(0u32) };
 
 impl crate::Unit for Mersenne31 {
-    const ZERO: Self = KOALABEAR_ZERO;
+    const ZERO: Self = MERSENNE31_ZERO;
 }
 
 impl Decoding<[u8]> for Mersenne31 {
@@ -20,7 +20,7 @@ impl Decoding<[u8]> for Mersenne31 {
 
     fn decode(buf: Self::Repr) -> Self {
         let n = u64::from_le_bytes(buf);
-        return Mersenne31::from_u64(n % (Mersenne31::ORDER_U32 as u64));
+        Self::from_u64(n % u64::from(Self::ORDER_U32))
     }
 }
 
@@ -29,16 +29,17 @@ impl NargDeserialize for Mersenne31 {
         if buf.len() < 4 {
             return Err(VerificationError);
         }
+
         let mut repr = [0u8; 4];
         repr.copy_from_slice(&buf[..4]);
         let value = u32::from_le_bytes(repr);
 
         // Check that the value is in the valid range
-        if value >= Mersenne31::ORDER_U32 {
+        if value >= Self::ORDER_U32 {
             return Err(VerificationError);
         }
-
-        Ok(Mersenne31::from_u32(value))
+        *buf = &buf[4..];
+        Ok(Self::from_u32(value))
     }
 }
 

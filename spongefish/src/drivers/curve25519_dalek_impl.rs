@@ -14,7 +14,7 @@ use crate::{
 
 // Make curve25519-dalek Scalar a valid Unit type
 impl crate::Unit for Scalar {
-    const ZERO: Self = Scalar::ZERO;
+    const ZERO: Self = Self::ZERO;
 }
 
 // Implement Decoding for curve25519-dalek Scalar
@@ -22,7 +22,9 @@ impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        Scalar::from_bytes_mod_order_wide(&buf.0)
+        let mut le_bytes = buf.0;
+        le_bytes.reverse();
+        Self::from_bytes_mod_order_wide(&le_bytes)
     }
 }
 
@@ -30,27 +32,26 @@ impl Decoding<[u8]> for RistrettoPoint {
     type Repr = super::Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        RistrettoPoint::from_uniform_bytes(&buf.0)
+        Self::from_uniform_bytes(&buf.0)
     }
 }
 
-// Implement Deserialize for curve25519-dalek Scalar
+// Implement Deserialize for curve25519-dalek Scalar using OS2IP (big-endian)
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < 32 {
+        const N: usize = 32;
+        if buf.len() < N {
             return Err(VerificationError);
         }
-        let mut repr = [0u8; 32];
-        repr.copy_from_slice(&buf[..32]);
 
-        // from_canonical_bytes returns CtOption<Scalar>
-        let ct_option = Scalar::from_canonical_bytes(repr);
-        if bool::from(ct_option.is_some()) {
-            *buf = &buf[32..];
-            Ok(ct_option.unwrap())
-        } else {
-            Err(VerificationError)
-        }
+        let be_bytes = &buf[..N];
+        let mut le_bytes = [0u8; N];
+        le_bytes.copy_from_slice(be_bytes);
+        le_bytes.reverse();
+        Self::from_canonical_bytes(le_bytes)
+            .into_option()
+            .inspect(|_| *buf = &buf[N..])
+            .ok_or(VerificationError)
     }
 }
 
@@ -60,11 +61,11 @@ impl NargDeserialize for EdwardsPoint {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
-        let (head, tail) = buf.split_at(32);
-        *buf = tail;
-        CompressedEdwardsY(head.try_into().unwrap())
+        let point = CompressedEdwardsY(buf[..32].try_into().unwrap())
             .decompress()
-            .ok_or(VerificationError)
+            .ok_or(VerificationError)?;
+        *buf = &buf[32..];
+        Ok(point)
     }
 }
 
@@ -74,18 +75,21 @@ impl NargDeserialize for RistrettoPoint {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
-        let (head, tail) = buf.split_at(32);
-        *buf = tail;
-        CompressedRistretto(head.try_into().unwrap())
+        let point = CompressedRistretto(buf[..32].try_into().unwrap())
             .decompress()
-            .ok_or(VerificationError)
+            .ok_or(VerificationError)?;
+        *buf = &buf[32..];
+        Ok(point)
     }
 }
 
-// Implement Encoding for curve25519-dalek Scalar
+// Implement Encoding for curve25519-dalek Scalar using I2OSP (big-endian)
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_bytes()
+        let mut le_bytes = self.to_bytes();
+        le_bytes.reverse();
+
+        le_bytes
     }
 }
 
