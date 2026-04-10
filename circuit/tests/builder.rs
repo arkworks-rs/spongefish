@@ -129,8 +129,7 @@ pub fn test_instance_builder_reuses_identical_permutations() {
 
 #[test]
 pub fn test_witness_builder_reuses_identical_permutations() {
-    let witness =
-        PermutationWitnessBuilder::<SpongePoseidon2_16, 16>::new(SpongePoseidon2_16::default());
+    let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
     let input = [BabyBear::new(7); 16];
 
     let first_output = witness.allocate_permutation(&input);
