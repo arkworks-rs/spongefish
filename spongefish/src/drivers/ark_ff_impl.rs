@@ -108,7 +108,7 @@ macro_rules! impl_encoding {
 macro_rules! impl_decoding {
         (impl [$($generics:tt)*] for $type:ty) => {
         impl<$($generics)*> Decoding<[u8]> for $type {
-            type Repr = DecodingFieldBuffer<$type>;
+            type Repr = DecodingFieldBuffer<Self>;
 
             fn decode(repr: Self::Repr) -> Self {
                 debug_assert_eq!(repr.buf.len(), decoding_field_buffer_size::<Self>());
@@ -182,7 +182,7 @@ impl<P: SmallFpConfig> Encoding<[u8]> for SmallFp<P> {
 
 // SmallFp Decoding: uniform random sampling from squeezed bytes.
 impl<P: SmallFpConfig> Decoding<[u8]> for SmallFp<P> {
-    type Repr = DecodingFieldBuffer<SmallFp<P>>;
+    type Repr = DecodingFieldBuffer<Self>;
 
     fn decode(repr: Self::Repr) -> Self {
         debug_assert_eq!(repr.buf.len(), decoding_field_buffer_size::<Self>());

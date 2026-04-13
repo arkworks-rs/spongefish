@@ -214,11 +214,7 @@ fn secp256r1_scalars_arkworks_and_p256() {
 #[cfg(all(feature = "ark-ff", feature = "p3-baby-bear"))]
 #[test]
 fn babybear_scalars_arkworks_and_p3() {
-    ark_ff::define_field!(
-        modulus = "2013265921",
-        generator = "31",
-        name = ArkBabyBear,
-    );
+    ark_ff::define_field!(modulus = "2013265921", generator = "31", name = ArkBabyBear,);
 
     for value in [0u64, 1, 42, 123_456_789] {
         let ark_scalar = ArkBabyBear::from(value);
@@ -230,11 +226,7 @@ fn babybear_scalars_arkworks_and_p3() {
 #[cfg(all(feature = "ark-ff", feature = "p3-koala-bear"))]
 #[test]
 fn koalabear_scalars_arkworks_and_p3() {
-    ark_ff::define_field!(
-        modulus = "2130706433",
-        generator = "3",
-        name = ArkKoalaBear,
-    );
+    ark_ff::define_field!(modulus = "2130706433", generator = "3", name = ArkKoalaBear,);
 
     for value in [0u64, 1, 42, 123_456_789] {
         let ark_scalar = ArkKoalaBear::from(value);
