@@ -13,7 +13,7 @@ impl crate::Unit for Scalar {
     const ZERO: Self = Self::zero();
 }
 
-// Implement Decoding for curve25519-dalek Scalar
+// Implement Decoding for BLS12-381 Scalar
 impl Decoding<[u8]> for Scalar {
     type Repr = super::Array64;
 
