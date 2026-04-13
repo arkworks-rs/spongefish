@@ -2,9 +2,9 @@
 //!
 //! A "domain separator" in spongefish has three components:
 //!
-//! - a *protocol identifier*, to identify the **non-interactive** protocol being used, and it's the responsability of the proof system to provide this component.
-//! - a *session identifier*, to identify the **application** where this proof is being used, and it's the responsability of the users of the application to provide this component.
-//! - an *instance*, which identifies the **statement** being proven. It's the responsability of the witness generation procedure to provide this compoent.
+//! - a *protocol identifier*, to identify the **non-interactive** protocol being used, and it's the responsibility of the proof system to provide this component.
+//! - a *session identifier*, to identify the **application** where this proof is being used, and it's the responsibility of the users of the application to provide this component.
+//! - an *instance*, which identifies the **statement** being proven. It's the responsibility of the witness generation procedure to provide this component.
 //!
 //! A domain separator can be instantiated in several equivalent ways:
 //! ```
