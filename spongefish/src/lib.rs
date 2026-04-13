@@ -34,7 +34,6 @@
 //! // a proof is malleable if we don't check we read everything
 //! assert!(verifier_state.check_eof().is_ok())
 //! ```
-//!
 //! The above code will fail to compile if no instance is given.
 //! The implementor has full responsibility in providing the correct instance of the proof system.
 //!
@@ -246,6 +245,12 @@ pub type StdHash = instantiations::Shake128;
 /// ```
 #[macro_export]
 macro_rules! domain_separator {
+    ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
+        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!(
+            $protocol_fmt $(, $protocol_arg)*
+        )))
+        .session($crate::session!($session_fmt $(, $session_arg)*))
+    }};
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
         $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};

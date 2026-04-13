@@ -76,26 +76,26 @@ fn verifier_challenge_matches_prover() {
 #[test]
 fn domain_separator_accepts_variable_sessions() {
     let instance = [0u8; 0];
-    let literal_session = *crate::domain_separator!("variable sessions")
+    let literal_session = crate::domain_separator!("variable sessions")
         .session(crate::session!("shared session"))
         .instance(&instance)
         .session
-        .value();
+        .0;
 
     let session_str = "shared session";
-    let from_str = *crate::domain_separator!("variable sessions")
+    let from_str = crate::domain_separator!("variable sessions")
         .session(crate::session_id_from_str(session_str))
         .instance(&instance)
         .session
-        .value();
+        .0;
     assert_eq!(literal_session, from_str);
 
     let session_owned = String::from("shared session");
-    let from_owned = *crate::domain_separator!("variable sessions")
+    let from_owned = crate::domain_separator!("variable sessions")
         .session(crate::session_id_from_str(&session_owned))
         .instance(&instance)
         .session
-        .value();
+        .0;
     assert_eq!(literal_session, from_owned);
 }
 
@@ -132,11 +132,13 @@ fn different_session_values_diverge() {
     }
 
     let instance = [0u8; 0];
+    let session_1 = Ctx(1);
+    let session_2 = Ctx(2);
     let a = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(Ctx(1))
+        .session(session_1)
         .instance(&instance);
     let b = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(Ctx(2))
+        .session(session_2)
         .instance(&instance);
 
     let mut pa = a.std_prover();
@@ -145,6 +147,32 @@ fn different_session_values_diverge() {
     let ca: u32 = pa.verifier_message();
     let cb: u32 = pb.verifier_message();
     assert_ne!(ca, cb);
+}
+
+#[test]
+fn borrowed_session_matches_owned_session() {
+    use alloc::string::String;
+
+    struct Ctx(String);
+
+    impl Encoding for Ctx {
+        fn encode(&self) -> impl AsRef<[u8]> {
+            self.0.as_str().encode()
+        }
+    }
+
+    let instance = [0u8; 0];
+    let borrowed_ctx = Ctx(String::from("borrowed-session"));
+    let borrowed = crate::domain_separator!("borrowed session")
+        .session(&borrowed_ctx)
+        .instance(&instance);
+    let owned = crate::domain_separator!("borrowed session")
+        .session(Ctx(String::from("borrowed-session")))
+        .instance(&instance);
+
+    let borrowed_challenge: u64 = borrowed.std_prover().verifier_message();
+    let owned_challenge: u64 = owned.std_prover().verifier_message();
+    assert_eq!(borrowed_challenge, owned_challenge);
 }
 
 #[test]
@@ -217,4 +245,13 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
     assert!(verifier.prover_message::<BadMessage>().is_err());
     assert_eq!(verifier.narg_string, &proof);
     assert!(verifier.check_eof().is_err());
+}
+
+#[test]
+fn str_encoding_prefixes_utf8_with_le_u32_length() {
+    let encoded = "hello".encode();
+    assert_eq!(encoded.as_ref(), b"\x05\x00\x00\x00hello");
+
+    let encoded_utf8 = "hé".encode();
+    assert_eq!(encoded_utf8.as_ref(), b"\x03\x00\x00\x00h\xc3\xa9");
 }
