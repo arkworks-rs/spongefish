@@ -56,8 +56,9 @@ impl NargDeserialize for ProjectivePoint {
         }
 
         let encoded = EncodedPoint::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
+        let point = Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)?;
         *buf = &buf[33..];
-        Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)
+        Ok(point)
     }
 }
 

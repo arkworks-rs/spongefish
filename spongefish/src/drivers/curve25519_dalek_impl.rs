@@ -61,11 +61,11 @@ impl NargDeserialize for EdwardsPoint {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
-        let (head, tail) = buf.split_at(32);
-        *buf = tail;
-        CompressedEdwardsY(head.try_into().unwrap())
+        let point = CompressedEdwardsY(buf[..32].try_into().unwrap())
             .decompress()
-            .ok_or(VerificationError)
+            .ok_or(VerificationError)?;
+        *buf = &buf[32..];
+        Ok(point)
     }
 }
 
@@ -75,11 +75,11 @@ impl NargDeserialize for RistrettoPoint {
         if buf.len() < 32 {
             return Err(VerificationError);
         }
-        let (head, tail) = buf.split_at(32);
-        *buf = tail;
-        CompressedRistretto(head.try_into().unwrap())
+        let point = CompressedRistretto(buf[..32].try_into().unwrap())
             .decompress()
-            .ok_or(VerificationError)
+            .ok_or(VerificationError)?;
+        *buf = &buf[32..];
+        Ok(point)
     }
 }
 

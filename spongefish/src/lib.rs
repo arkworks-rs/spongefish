@@ -5,7 +5,7 @@
 //! # Examples
 //!
 //! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
-//! is composed of a protocol identifier, an optional session identifier, and the public instance.
+//! is composed of a protocol identifier, a mandatory session identifier, and the public instance.
 //! The snippets below illustrate three typical situations.
 //!
 //! ```
@@ -17,7 +17,8 @@
 //! let witness = 42;
 //! let instance = [2, language(witness)];
 //!
-//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
+//! let domsep = domain_separator!("simplest proof system mod {{P}}")
+//!              .session(spongefish::session!("{{module_path!()}}"))
 //!              .instance(&instance);
 //!
 //! // non-interactive prover
@@ -33,7 +34,6 @@
 //! // a proof is malleable if we don't check we read everything
 //! assert!(verifier_state.check_eof().is_ok())
 //! ```
-//!
 //! The above code will fail to compile if no instance is given.
 //! The implementor has full responsibility in providing the correct instance of the proof system.
 //!
@@ -53,7 +53,9 @@
 //!
 //! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
 //!
-//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
+//! let domain = spongefish::domain_separator!("sumcheck")
+//!     .session(spongefish::session!("{{module_path!()}}"))
+//!     .instance(&witness);
 //! let mut prover = domain.std_prover();
 //! let challenge = prover.verifier_message::<KoalaBear>();
 //! let response = witness[0] * challenge + witness[1];
@@ -91,7 +93,8 @@
 //! struct PublicKey(RistrettoPoint);
 //!
 //! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-//! let domain = spongefish::domain_separator!("challenge-response"; "example")
+//! let domain = spongefish::domain_separator!("challenge-response")
+//!              .session(spongefish::session!("example"))
 //!              .instance(&generator);
 //!
 //! let pk = PublicKey(generator * Scalar::from(42u64));
@@ -140,9 +143,9 @@
 //! in [[CO25], Section 3.3].
 //!
 //! The extensible output function [`instantiations::XOF`]
-//! wraps an object implementing [`digest::ExtendableOutput`]
-//! and implements the duplex sponge interface with little-to-no code.
-//! Its implementation has little differences with [`DuplexSponge`].
+//! wraps an object implementing [`digest::ExtendableOutput`] and implements
+//! the duplex sponge interface with little-to-no code. This covers digest-based
+//! XOFs such as SHAKE, KangarooTwelve, and BLAKE3.
 //!
 //! The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
 //! the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`]
@@ -213,9 +216,11 @@ mod domain_separator;
 #[doc(hidden)]
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
-pub use domain_separator::DomainSeparator;
 #[doc(hidden)]
 pub use domain_separator::{protocol_id, session_id, session_id_from_str};
+pub use domain_separator::{
+    DomainSeparator, NoSession, WithInstance, WithSession, WithoutInstance, WithoutSession,
+};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -228,25 +233,26 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
 
-/// Build a [`DomainSeparator`] from a formatted string.
+/// Build a [`DomainSeparator`] from a protocol identifier string.
+///
+/// Chain `.session(..)` or `.without_session()` before `.instance(..)`.
 ///
 /// ```
-/// let domsep = spongefish::domain_separator!("spongefish"; "DomainSeparator")
+/// let domsep = spongefish::domain_separator!("spongefish")
+///     .session(spongefish::session!("DomainSeparator"))
 ///     .instance(b"trivial");
 /// let _prover = domsep.std_prover();
 /// ```
 #[macro_export]
 macro_rules! domain_separator {
-    ($fmt:literal $(, $arg:expr)* $(,)? ; $sess_fmt:literal $(, $sess_arg:expr)* $(,)?) => {{
-        $crate::domain_separator!($fmt $(, $arg)*)
-            .session($crate::session_id(core::format_args!($sess_fmt $(, $sess_arg)*)))
-    }};
-    ($fmt:literal $(, $arg:expr)* $(,)? ; $session:expr $(,)?) => {{
-        $crate::domain_separator!($fmt $(, $arg)*)
-            .session($crate::session_id_from_str(&$session))
+    ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
+        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!(
+            $protocol_fmt $(, $protocol_arg)*
+        )))
+        .session($crate::session!($session_fmt $(, $session_arg)*))
     }};
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::<_, [u8; 64]>::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
+        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};
 }
 

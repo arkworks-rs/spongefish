@@ -20,6 +20,25 @@ where
     assert_eq!(encoded_bytes(value), encoded_bytes(&decoded));
 }
 
+fn assert_narg_advances_buffer<T>(value: &T)
+where
+    T: NargSerialize + NargDeserialize,
+{
+    const TRAILING: u8 = 0x42;
+    let mut buf = Vec::new();
+    value.serialize_into_narg(&mut buf);
+    buf.push(TRAILING);
+
+    let mut slice: &[u8] = &buf;
+    T::deserialize_from_narg(&mut slice).expect("failed to deserialize");
+    assert_eq!(
+        slice,
+        &[TRAILING],
+        "buffer not advanced correctly: expected 1 trailing byte, got {}",
+        slice.len()
+    );
+}
+
 #[allow(unused)]
 fn assert_codec_compatibility<A, B>(value_a: &A, value_b: &B)
 where
@@ -77,6 +96,74 @@ where
     let decoded_b = B::decode(repr_b);
 
     assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(&decoded_b));
+}
+
+#[cfg(all(
+    feature = "p3-baby-bear",
+    feature = "p3-koala-bear",
+    feature = "p3-mersenne-31"
+))]
+#[test]
+fn p3_field_deserialize_advances_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_koala_bear::KoalaBear;
+    use p3_mersenne_31::Mersenne31;
+
+    let mut baby = &[0, 0, 0, 1, 9][..];
+    assert!(BabyBear::deserialize_from_narg(&mut baby).is_ok());
+    assert_eq!(baby, &[9]);
+    let mut koala = &[0, 0, 0, 1, 9][..];
+    assert!(KoalaBear::deserialize_from_narg(&mut koala).is_ok());
+    assert_eq!(koala, &[9]);
+    let mut mersenne = &[0, 0, 0, 1, 9][..];
+    assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_ok());
+    assert_eq!(mersenne, &[9]);
+}
+
+#[cfg(all(
+    feature = "p3-baby-bear",
+    feature = "p3-koala-bear",
+    feature = "p3-mersenne-31"
+))]
+#[test]
+fn p3_field_deserialize_rejects_without_advancing_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_field::PrimeField32;
+    use p3_koala_bear::KoalaBear;
+    use p3_mersenne_31::Mersenne31;
+
+    let baby_buf = [BabyBear::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let mut baby = baby_buf.as_slice();
+    assert!(BabyBear::deserialize_from_narg(&mut baby).is_err());
+    assert_eq!(baby, baby_buf.as_slice());
+
+    let koala_buf = [KoalaBear::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let mut koala = koala_buf.as_slice();
+    assert!(KoalaBear::deserialize_from_narg(&mut koala).is_err());
+    assert_eq!(koala, koala_buf.as_slice());
+
+    let mersenne_buf = [Mersenne31::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let mut mersenne = mersenne_buf.as_slice();
+    assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_err());
+    assert_eq!(mersenne, mersenne_buf.as_slice());
+}
+
+#[cfg(feature = "p3-baby-bear")]
+#[test]
+fn array_deserialize_rejects_without_advancing_cursor() {
+    use p3_baby_bear::BabyBear;
+    use p3_field::PrimeField32;
+
+    let input = [
+        1u32.to_be_bytes().as_slice(),
+        BabyBear::ORDER_U32.to_be_bytes().as_slice(),
+        &[9],
+    ]
+    .concat();
+    let mut slice = input.as_slice();
+
+    assert!(<[BabyBear; 2]>::deserialize_from_narg(&mut slice).is_err());
+    assert_eq!(slice, input.as_slice());
 }
 
 #[cfg(all(feature = "ark-ec", feature = "curve25519-dalek"))]
@@ -153,5 +240,108 @@ fn koalabear_scalars_arkworks_and_p3() {
         let ark_scalar = ArkKoalaBear::from(value);
         let p3_scalar = p3_koala_bear::KoalaBear::new(value as u32);
         assert_codec_compatibility(&ark_scalar, &p3_scalar);
+    }
+}
+
+#[cfg(feature = "ark-ff")]
+#[test]
+fn narg_ark_ff_advances_buffer() {
+    use ark_ff::Field;
+
+    for v in [0u64, 1, 42] {
+        assert_narg_advances_buffer(&ark_bls12_381::Fr::from(v));
+        assert_narg_advances_buffer(&ark_bls12_381::Fq::from(v));
+        assert_narg_advances_buffer(&ark_secp256k1::Fr::from(v));
+    }
+
+    let fq2 = ark_bls12_381::Fq2::from_base_prime_field_elems([
+        ark_bls12_381::Fq::from(0u64),
+        ark_bls12_381::Fq::from(42u64),
+    ])
+    .unwrap();
+    assert_narg_advances_buffer(&fq2);
+}
+
+#[cfg(feature = "ark-ec")]
+#[test]
+fn narg_ark_ec_advances_buffer() {
+    use ark_ec::PrimeGroup;
+    assert_narg_advances_buffer(&ark_pallas::Projective::generator());
+    assert_narg_advances_buffer(&ark_vesta::Projective::generator());
+}
+
+#[cfg(feature = "curve25519-dalek")]
+#[test]
+fn narg_curve25519_dalek_advances_buffer() {
+    use curve25519_dalek::{constants, scalar::Scalar};
+
+    for v in [0u64, 1, 42] {
+        assert_narg_advances_buffer(&Scalar::from(v));
+    }
+    assert_narg_advances_buffer(&constants::ED25519_BASEPOINT_POINT);
+    assert_narg_advances_buffer(&constants::RISTRETTO_BASEPOINT_POINT);
+}
+
+#[cfg(feature = "bls12_381")]
+#[test]
+fn narg_bls12_381_advances_buffer() {
+    use bls12_381::{G1Projective, G2Projective, Scalar};
+
+    for v in [0u64, 1, 42] {
+        assert_narg_advances_buffer(&Scalar::from(v));
+    }
+    assert_narg_advances_buffer(&G1Projective::generator());
+    assert_narg_advances_buffer(&G2Projective::generator());
+}
+
+#[cfg(feature = "k256")]
+#[test]
+fn narg_k256_advances_buffer() {
+    use k256::{ProjectivePoint, Scalar};
+
+    for v in [0u64, 1, 42] {
+        assert_narg_advances_buffer(&Scalar::from(v));
+    }
+    assert_narg_advances_buffer(&ProjectivePoint::GENERATOR);
+}
+
+#[cfg(feature = "p256")]
+#[test]
+fn narg_p256_advances_buffer() {
+    use p256::{ProjectivePoint, Scalar};
+
+    for v in [0u64, 1, 42] {
+        assert_narg_advances_buffer(&Scalar::from(v));
+    }
+    assert_narg_advances_buffer(&ProjectivePoint::GENERATOR);
+}
+
+#[cfg(feature = "p3-baby-bear")]
+#[test]
+fn narg_p3_baby_bear_advances_buffer() {
+    use p3_baby_bear::BabyBear;
+
+    for v in [0u32, 1, 42] {
+        assert_narg_advances_buffer(&BabyBear::new(v));
+    }
+}
+
+#[cfg(feature = "p3-koala-bear")]
+#[test]
+fn narg_p3_koala_bear_advances_buffer() {
+    use p3_koala_bear::KoalaBear;
+
+    for v in [0u32, 1, 42] {
+        assert_narg_advances_buffer(&KoalaBear::new(v));
+    }
+}
+
+#[cfg(feature = "p3-mersenne-31")]
+#[test]
+fn narg_p3_mersenne31_advances_buffer() {
+    use p3_mersenne_31::Mersenne31;
+
+    for v in [0u32, 1, 42] {
+        assert_narg_advances_buffer(&Mersenne31::new(v));
     }
 }

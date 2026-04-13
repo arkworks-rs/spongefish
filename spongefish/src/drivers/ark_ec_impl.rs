@@ -14,9 +14,10 @@ macro_rules! impl_deserialize {
                 if buf.len() < bytes_len {
                     return Err(VerificationError);
                 }
-                let (head, tail) = buf.split_at(bytes_len);
-                *buf = tail;
-                Self::deserialize_compressed(head).map_err(|_| VerificationError)
+                let value =
+                    Self::deserialize_compressed(&buf[..bytes_len]).map_err(|_| VerificationError)?;
+                *buf = &buf[bytes_len..];
+                Ok(value)
             }
         }
     };
