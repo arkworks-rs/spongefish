@@ -48,8 +48,8 @@ fn codec_derive_handles_generic_types() {
 #[cfg(feature = "p3-baby-bear")]
 fn derive_deserialize_rejects_without_advancing_cursor() {
     let input = [
-        1u32.to_le_bytes().as_slice(),
-        BabyBear::ORDER_U32.to_le_bytes().as_slice(),
+        1u32.to_be_bytes().as_slice(),
+        BabyBear::ORDER_U32.to_be_bytes().as_slice(),
         &[9],
     ]
     .concat();
