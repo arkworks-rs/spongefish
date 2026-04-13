@@ -227,6 +227,30 @@ fn secp256r1_scalars_arkworks_and_p256() {
     assert_decoding_compatibility::<ArkP256Scalar, P256Scalar>();
 }
 
+#[cfg(all(feature = "ark-ff", feature = "p3-baby-bear"))]
+#[test]
+fn babybear_scalars_arkworks_and_p3() {
+    ark_ff::define_field!(modulus = "2013265921", generator = "31", name = ArkBabyBear,);
+
+    for value in [0u64, 1, 42, 123_456_789] {
+        let ark_scalar = ArkBabyBear::from(value);
+        let p3_scalar = p3_baby_bear::BabyBear::new(value as u32);
+        assert_codec_compatibility(&ark_scalar, &p3_scalar);
+    }
+}
+
+#[cfg(all(feature = "ark-ff", feature = "p3-koala-bear"))]
+#[test]
+fn koalabear_scalars_arkworks_and_p3() {
+    ark_ff::define_field!(modulus = "2130706433", generator = "3", name = ArkKoalaBear,);
+
+    for value in [0u64, 1, 42, 123_456_789] {
+        let ark_scalar = ArkKoalaBear::from(value);
+        let p3_scalar = p3_koala_bear::KoalaBear::new(value as u32);
+        assert_codec_compatibility(&ark_scalar, &p3_scalar);
+    }
+}
+
 #[cfg(feature = "ark-ff")]
 #[test]
 fn narg_ark_ff_advances_buffer() {

@@ -80,3 +80,8 @@ spongefish = { version = "0.6.0", path = "spongefish" }
 spongefish-circuit = { version = "0.6.0", path = "circuit" }
 spongefish-derive = { version = "0.6.0", path = "derive" }
 zeroize = "^1.8.1"
+
+# SmallFp is not yet published in ark-ff 0.5.0, so we patch ark-ff and ark-serialize from git master.
+[patch.crates-io]
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", package = "ark-ff" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", package = "ark-serialize" }
