@@ -179,8 +179,7 @@ fn main() {
     let witness = (&a[..], &b[..]);
 
     let domain_separator =
-        spongefish::domain_separator!("bulletproofs"; session = "spongefish examples")
-            .instance(&instance);
+        spongefish::domain_separator!("bulletproofs"; "spongefish examples").instance(&instance);
     let mut prover_state = domain_separator.std_prover();
     let narg_string = BulletProof::prove(&mut prover_state, &instance, witness);
     println!(

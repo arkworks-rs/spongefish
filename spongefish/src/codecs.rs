@@ -51,6 +51,7 @@ where
 /// # Encoding conventions
 ///
 /// For byte sequences, encoding must be the identity function.
+/// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
 /// Integers are encoded via []
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
@@ -85,6 +86,16 @@ where
     /// This map is not exactly a decoding function (e.g., it can be onto). What is demanded from this function is that
     /// it preserves the uniform distribution: if [`Decoding::Repr`] is distributed uniformly at random, the also the output of [`decode`][Decoding::decode] is so.
     fn decode(buf: Self::Repr) -> Self;
+}
+
+impl<U, T> Encoding<U> for &T
+where
+    U: ?Sized,
+    T: Encoding<U> + ?Sized,
+{
+    fn encode(&self) -> impl AsRef<U> {
+        (*self).encode()
+    }
 }
 
 impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
@@ -162,18 +173,31 @@ impl<const N: usize> Decoding<[u8]> for [u8; N] {
 ///
 /// # Safety
 ///
-/// Encoding functions must have size known upon choosing the protocol identifier.
-/// While slices don't have size known at compile time, the burden of making sure that the string
-/// is of the correct size is on the caller.
+/// This implementation is the identity map on `[u8]`.
+/// > **Warning:**
+/// > It is the responsibility of the caller to ensure that the byte string length is fixed by
+/// > the surrounding protocol and that any value encoded this way is prefix-free. Otherwise,
+/// > distinct prover messages may become ambiguous in the transcript.
 impl Encoding<[u8]> for [u8] {
     fn encode(&self) -> impl AsRef<[u8]> {
         self
     }
 }
 
-impl<const N: usize> Encoding<[u8]> for &[u8; N] {
+/// Handy for serializing UTF-8 strings.
+///
+/// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
+/// This makes the byte-oriented encoding prefix-free.
+impl Encoding<[u8]> for str {
     fn encode(&self) -> impl AsRef<[u8]> {
-        *self
+        let len: u32 = self
+            .len()
+            .try_into()
+            .expect("string encoding requires length to fit in u32");
+        let mut out = alloc::vec::Vec::new();
+        out.extend_from_slice(&len.to_le_bytes());
+        out.extend_from_slice(self.as_bytes());
+        out
     }
 }
 
@@ -212,17 +236,6 @@ where
         output.extend_from_slice(self.1.encode().as_ref());
         output.extend_from_slice(self.2.encode().as_ref());
         output
-    }
-}
-
-/// Handy for serializing byte strings.
-///
-/// Encoding functions must have size known upon choosing the protocol identifier.
-/// While slices don't have size known at compile time, the burden of making sure that the string
-/// is of the correct size is on the caller.
-impl Encoding<[u8]> for &[u8] {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        *self
     }
 }
 

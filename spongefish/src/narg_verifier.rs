@@ -46,7 +46,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// ```
     /// let proof = [0u8; 0];
-    /// let mut verifier = spongefish::domain_separator!("examples";"VerifierState::public_message")
+    /// let mut verifier = spongefish::domain_separator!("examples")
+    ///     .session(spongefish::session!("VerifierState::public_message"))
     ///     .instance(&0u32)
     ///     .std_verifier(&proof);
     /// verifier.public_message(&123u32);
@@ -66,7 +67,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a slice of public messages.
     ///
     /// ```
-    /// let mut verifier = spongefish::domain_separator!("examples"; "VerifierState::public_messages")
+    /// let mut verifier = spongefish::domain_separator!("examples")
+    ///     .session(spongefish::session!("VerifierState::public_messages"))
     ///     .instance(&0u32)
     ///     .std_verifier(&[]);
     /// verifier.public_messages(&[1u32, 2u32]);
@@ -81,7 +83,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs an iterator of public messages.
     ///
     /// ```
-    /// let mut verifier = spongefish::domain_separator!("examples"; "VerifierState::public_messages_iter")
+    /// let mut verifier = spongefish::domain_separator!("examples")
+    ///     .session(spongefish::session!("VerifierState::public_messages_iter"))
     ///     .instance(&0u32)
     ///     .std_verifier(&[]);
     /// verifier.public_messages_iter([1u32, 2u32]);
