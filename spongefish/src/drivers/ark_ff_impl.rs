@@ -11,6 +11,15 @@ use crate::{
     VerificationResult,
 };
 
+fn parse_canonical_prime_field<F: PrimeField>(bytes: &[u8]) -> Option<F> {
+    let bits = bytes
+        .iter()
+        .flat_map(|byte| (0..8).rev().map(move |shift| (byte >> shift) & 1 == 1))
+        .collect::<Vec<_>>();
+    let bigint = F::BigInt::from_bits_be(&bits);
+    F::from_bigint(bigint)
+}
+
 // Make arkworks field elements a valid Unit type
 impl<C: ark_ff::FpConfig<N>, const N: usize> crate::Unit for Fp<C, N> {
     const ZERO: Self = C::ZERO;
@@ -55,7 +64,9 @@ macro_rules! impl_deserialize {
 
                 let mut base_elems = Vec::with_capacity(extension_degree);
                 for chunk in buf[..total_bytes].chunks_exact(base_field_size) {
-                    let elem = <<Self as Field>::BasePrimeField as PrimeField>::from_be_bytes_mod_order(chunk);
+                    let elem =
+                        parse_canonical_prime_field::<<Self as Field>::BasePrimeField>(chunk)
+                            .ok_or(VerificationError)?;
                     base_elems.push(elem);
                 }
                 debug_assert_eq!(base_elems.len(), extension_degree);
@@ -184,7 +195,9 @@ impl<F: Field> AsMut<[u8]> for DecodingFieldBuffer<F> {
 
 #[cfg(test)]
 mod test_ark_ff {
-    use crate::codecs::Encoding;
+    use ark_ff::{BigInteger, PrimeField};
+
+    use crate::{codecs::Encoding, io::NargDeserialize};
 
     fn encoding_testsuite<F: ark_ff::Field + Encoding<[u8]>>() {
         let first = F::from(10);
@@ -222,5 +235,14 @@ mod test_ark_ff {
         assert_eq!(bytes.len(), 32);
         assert!(bytes[..31].iter().all(|&byte| byte == 0));
         assert_eq!(bytes[31], 1);
+    }
+
+    #[test]
+    fn test_prime_field_deserialize_rejects_modulus() {
+        let modulus = ark_secp256k1::Fr::MODULUS.to_bytes_be();
+        let mut slice = modulus.as_slice();
+
+        assert!(ark_secp256k1::Fr::deserialize_from_narg(&mut slice).is_err());
+        assert_eq!(slice, modulus.as_slice());
     }
 }

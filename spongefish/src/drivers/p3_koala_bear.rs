@@ -41,7 +41,7 @@ impl NargDeserialize for KoalaBear {
         }
         let mut repr = [0u8; 4];
         repr.copy_from_slice(&buf[..4]);
-        let value = u32::from_le_bytes(repr);
+        let value = u32::from_be_bytes(repr);
 
         // Check that the value is in the valid range
         if value >= Self::ORDER_U32 {
@@ -56,7 +56,7 @@ impl NargDeserialize for KoalaBear {
 // Implement Encoding for KoalaBear
 impl Encoding<[u8]> for KoalaBear {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_canonical_u32().to_le_bytes()
+        self.as_canonical_u32().to_be_bytes()
     }
 }
 
@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn test_koalabear_out_of_range() {
         // Try to deserialize a value larger than the modulus
-        let buf = KoalaBear::ORDER_U32.to_le_bytes();
+        let buf = KoalaBear::ORDER_U32.to_be_bytes();
         let result = KoalaBear::deserialize_from_narg(&mut &buf[..]);
         assert!(result.is_err());
     }
