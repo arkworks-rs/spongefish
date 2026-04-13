@@ -31,7 +31,7 @@ impl NargDeserialize for Mersenne31 {
         }
         let mut repr = [0u8; 4];
         repr.copy_from_slice(&buf[..4]);
-        let value = u32::from_le_bytes(repr);
+        let value = u32::from_be_bytes(repr);
 
         // Check that the value is in the valid range
         if value >= Self::ORDER_U32 {
@@ -44,6 +44,6 @@ impl NargDeserialize for Mersenne31 {
 
 impl Encoding<[u8]> for Mersenne31 {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.as_canonical_u32().to_le_bytes()
+        self.as_canonical_u32().to_be_bytes()
     }
 }

@@ -132,8 +132,9 @@ impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
 // SmallFp NargDeserialize: read exactly ⌈MODULUS_BIT_SIZE / 8⌉ BE bytes and
-// reconstruct via BigInt. We can't use the macro because `from_be_bytes_mod_order`
-// misinterprets short byte slices on SmallFp (whose BigInt<2> expects 16 bytes).
+// reconstruct via the field's canonical PrimeField::BigInt type. We can't use the
+// macro because `from_be_bytes_mod_order` reduces non-canonical encodings instead
+// of rejecting them.
 impl<P: SmallFpConfig> NargDeserialize for SmallFp<P> {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
@@ -142,13 +143,11 @@ impl<P: SmallFpConfig> NargDeserialize for SmallFp<P> {
         }
         let (head, tail) = buf.split_at(base_field_size);
         *buf = tail;
-        // Convert BE bytes to a u128, then construct BigInt<2> from its two u64 limbs.
-        let mut padded = [0u8; 16];
-        padded[16 - base_field_size..].copy_from_slice(head);
-        let value = u128::from_be_bytes(padded);
-        let lo = value as u64;
-        let hi = (value >> 64) as u64;
-        let bigint = ark_ff::BigInt::new([lo, hi]);
+        let bits = head
+            .iter()
+            .flat_map(|byte| (0..8).rev().map(move |shift| (byte >> shift) & 1 == 1))
+            .collect::<Vec<_>>();
+        let bigint = <Self as PrimeField>::BigInt::from_bits_be(&bits);
         Self::from_bigint(bigint).ok_or(VerificationError)
     }
 }
