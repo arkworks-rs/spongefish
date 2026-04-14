@@ -98,7 +98,7 @@ macro_rules! impl_encoding {
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
                     let bytes = base_element.into_bigint().to_bytes_be();
-                    // Handle BigInt wider than the field (SmallFp: BigInt<2> for 8-byte field).
+                    // Handle BigInt wider than the field (e.g. F16 inside SmallFp's BigInt<1>).
                     let start = bytes.len().saturating_sub(base_field_size);
                     // Handle BigInt narrower than the field (defensive).
                     let padding = base_field_size.saturating_sub(bytes.len());
@@ -142,26 +142,7 @@ impl_deserialize!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_deserialize!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_deserialize!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_deserialize!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-// SmallFp NargDeserialize: read exactly ⌈MODULUS_BIT_SIZE / 8⌉ BE bytes and
-// reconstruct via the field's canonical PrimeField::BigInt type. We can't use the
-// macro because `from_be_bytes_mod_order` reduces non-canonical encodings instead
-// of rejecting them.
-impl<P: SmallFpConfig> NargDeserialize for SmallFp<P> {
-    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
-        if buf.len() < base_field_size {
-            return Err(VerificationError);
-        }
-        let (head, tail) = buf.split_at(base_field_size);
-        *buf = tail;
-        let bits = head
-            .iter()
-            .flat_map(|byte| (0..8).rev().map(move |shift| (byte >> shift) & 1 == 1))
-            .collect::<Vec<_>>();
-        let bigint = <Self as PrimeField>::BigInt::from_bits_be(&bits);
-        Self::from_bigint(bigint).ok_or(VerificationError)
-    }
-}
+impl_deserialize!(impl [P: SmallFpConfig] for SmallFp<P>);
 // Implement Encoding for prime-order field and field extensions.
 // The NargSerialize implementation is inherited here.
 impl_encoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
@@ -170,6 +151,7 @@ impl_encoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_encoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_encoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_encoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
+impl_encoding!(impl [P: SmallFpConfig] for SmallFp<P>);
 // Implement Decoding for prime-order fields and field extensions.
 impl_decoding!(impl [C: FpConfig<N>, const N: usize] for Fp<C, N>);
 impl_decoding!(impl [C: ark_ff::Fp2Config] for ark_ff::Fp2<C>);
@@ -177,29 +159,7 @@ impl_decoding!(impl [C: ark_ff::Fp3Config] for ark_ff::Fp3<C>);
 impl_decoding!(impl [C: ark_ff::Fp4Config] for ark_ff::Fp4<C>);
 impl_decoding!(impl [C: ark_ff::Fp6Config] for ark_ff::Fp6<C>);
 impl_decoding!(impl [C: ark_ff::Fp12Config] for ark_ff::Fp12<C>);
-
-// SmallFp Encoding: serialize exactly ⌈MODULUS_BIT_SIZE / 8⌉ bytes per element,
-// computed from the modulus rather than the BigInt backing width.
-impl<P: SmallFpConfig> Encoding<[u8]> for SmallFp<P> {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        let base_field_size = (Self::MODULUS_BIT_SIZE.div_ceil(8)) as usize;
-        let mut bytes = self.into_bigint().to_bytes_be();
-        // BigInt<2> produces 16 BE bytes; drop the leading zeros to keep
-        // only the ⌈MODULUS_BIT_SIZE / 8⌉ significant bytes.
-        bytes.drain(..bytes.len() - base_field_size);
-        bytes
-    }
-}
-
-// SmallFp Decoding: uniform random sampling from squeezed bytes.
-impl<P: SmallFpConfig> Decoding<[u8]> for SmallFp<P> {
-    type Repr = DecodingFieldBuffer<Self>;
-
-    fn decode(repr: Self::Repr) -> Self {
-        debug_assert_eq!(repr.buf.len(), decoding_field_buffer_size::<Self>());
-        Self::from_le_bytes_mod_order(&repr.buf)
-    }
-}
+impl_decoding!(impl [P: SmallFpConfig] for SmallFp<P>);
 
 /// Number of uniformly random bits in a uniformly-distributed element in `[0, b)`
 ///
@@ -338,8 +298,8 @@ mod test_ark_ff {
     /// is not canonical because p ≡ 0 and 0 already has its own encoding.
     fn reject_modulus<F: ark_ff::PrimeField + core::fmt::Debug + crate::io::NargDeserialize>() {
         let modulus_bytes = F::MODULUS.to_bytes_be();
-        // Keep only the trailing ⌈MODULUS_BIT_SIZE/8⌉ bytes (SmallFp BigInt<2>
-        // produces 16 BE bytes but the serialisation is shorter).
+        // Keep only the trailing ⌈MODULUS_BIT_SIZE/8⌉ bytes; the backing BigInt
+        // can be wider than the field (e.g. F16 inside SmallFp's BigInt<1>).
         let field_size = F::MODULUS_BIT_SIZE.div_ceil(8) as usize;
         let start = modulus_bytes.len().saturating_sub(field_size);
         let trimmed = &modulus_bytes[start..];
