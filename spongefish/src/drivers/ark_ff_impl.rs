@@ -12,6 +12,11 @@ use crate::{
 };
 
 fn parse_canonical_prime_field<F: PrimeField>(bytes: &[u8]) -> Option<F> {
+    // A canonical encoding of an element of [0, p) fits in ⌈MODULUS_BIT_SIZE/8⌉ bytes.
+    // Reject any longer input up front, before allocating.
+    if bytes.len() > (F::MODULUS_BIT_SIZE as usize).div_ceil(8) {
+        return None;
+    }
     let bits = bytes
         .iter()
         .flat_map(|byte| (0..8).rev().map(move |shift| (byte >> shift) & 1 == 1))
