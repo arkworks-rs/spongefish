@@ -1793,9 +1793,9 @@ dependencies = [
 
 [[package]]
 name = "pallas"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cc85b0d73cc19b7c1e09d6f2c5c4abfad3923671654ba6ef8fd00c9d0ee4c58"
+checksum = "d1aff14589115b120b10140b26ad29fbf01b52d03e024844bc173004cbc190b0"
 dependencies = [
  "pallas-addresses",
  "pallas-codec",
@@ -1810,9 +1810,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-addresses"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a7e0425ec22afe8e80c9f9dfb086cbad569fd2ba3e51d6ab8caa20423b7488"
+checksum = "536fb6bc87f00b81bb4ecb1bd4412e6fc801f6197662ac8ce7ad915660edbf4d"
 dependencies = [
  "base58",
  "bech32",
@@ -1826,9 +1826,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-applying"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a861573364d48ff0952b12d3f139e05a843b8209f134a0c2b028449cb59ed68"
+checksum = "851b4265b37f5c4d397a2bf2fd602312a4d52de841e42c54711d7cd84194cae7"
 dependencies = [
  "chrono",
  "hex",
@@ -1842,9 +1842,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-codec"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e344b3e39ca3bd79bb7547b65b980869c3c377a00c48ece70430f4611c32a18b"
+checksum = "7bb2a83ec9e56b222250ba1cb3115c54e621852f114bb46b44a8d8e189ea9a8e"
 dependencies = [
  "hex",
  "minicbor",
@@ -1854,9 +1854,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-configs"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "539eb4f40f745e4e59912e4cb88345bb7e07f9fed26237b55f6a2b4220d9794a"
+checksum = "047a00897e6d7bce31d0ff1834a7f6c008552ece6f369a1abf1dc2a5f46107e5"
 dependencies = [
  "base64 0.22.1",
  "hex",
@@ -1872,9 +1872,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-crypto"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59c89ea16190a87a1d8bd36923093740a2b659ed6129f4636329319a70cc4db3"
+checksum = "f8d372b115df0faf85c281fe78766c462c876c224e56f8107046fcc90daff9d0"
 dependencies = [
  "cryptoxide",
  "hex",
@@ -1887,9 +1887,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-network"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45b032abff3e307e21d99100a62b51084cc070d9e445ef95ed543a5225d865f5"
+checksum = "442e1ba9331f9c8504ac768a5d1dab43652fc83ba24f446efa06939ccdf20573"
 dependencies = [
  "byteorder",
  "hex",
@@ -1897,6 +1897,7 @@ dependencies = [
  "pallas-codec",
  "pallas-crypto",
  "rand 0.8.5",
+ "serde",
  "socket2 0.5.10",
  "thiserror",
  "tokio",
@@ -1905,9 +1906,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-primitives"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1912f4f4a0719e36ac061f7f3557b687e8ef7285b573608fb5c71eba64c1b04c"
+checksum = "9317414712f4651305c4782e43d7cf8739df711f42ae188bcb18481f28e0cd91"
 dependencies = [
  "base58",
  "bech32",
@@ -1921,9 +1922,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-traverse"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be7fbb1db75a0b6b32d1808b2cc5c7ba6dd261f289491bb86998b987b4716883"
+checksum = "c92cd589b608114580a472d327bf2798ec480e823c705f14c21a9ae48393ba4f"
 dependencies = [
  "hex",
  "itertools 0.13.0",
@@ -1938,9 +1939,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-txbuilder"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fff83ae515a88b1ecf5354468d9fd3562d915e5eceb5c9467f6b1cdce60a3e9a"
+checksum = "fe0c716aca82ee4ae9b21eab3f4f0779abfcd661841c019dc2bff5845cc34fed"
 dependencies = [
  "hex",
  "pallas-addresses",
@@ -1956,9 +1957,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-utxorpc"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "810ccda35242fef9ea583a0819da7617b6761a86c6070f16aea27ac80ad4da75"
+checksum = "bd5cc7a553b5d9035a5a1e2d4b6d8dc48bb14f11a2d7e1b8cde23a1b1e9a8527"
 dependencies = [
  "pallas-applying",
  "pallas-codec",
@@ -1971,9 +1972,9 @@ dependencies = [
 
 [[package]]
 name = "pallas-wallet"
-version = "0.32.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "086f428e68ab513a0445c23a345cd462dc925e37626f72f1dbb7276919f68bfa"
+checksum = "388c72a39b7ef565a54405c490752ab5f972d7b35a3cc9039f09e7b28b61aef5"
 dependencies = [
  "bech32",
  "bip39",
