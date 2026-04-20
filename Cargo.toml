@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "MIT OR Apache-2.0"
+readme = "README.md"
 version = "0.6.0"
 repository = "https://github.com/arkworks-rs/spongefish"
 homepage = "https://github.com/arkworks-rs/spongefish"
