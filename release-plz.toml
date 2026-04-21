@@ -1,6 +1,5 @@
 [workspace]
 changelog_update = false
-custom_minor_increment_regex = "^"
 git_release_enable = false
 git_tag_enable = false
 pr_branch_prefix = "release-plz-"
