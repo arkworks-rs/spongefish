@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo doc --all-features --no-deps
+      - run: cargo +nightly doc --all-features --no-deps
 
   # Anchor job for branch protection. Point required status checks at this.
   # see: https://github.com/orgs/community/discussions/26822

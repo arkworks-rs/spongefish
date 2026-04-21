@@ -13,6 +13,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["parallel", "blake3", "keccak"]
 parallel = ["dep:rayon"]

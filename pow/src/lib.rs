@@ -1,3 +1,5 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 #[cfg(feature = "blake3")]
 pub mod blake3;
 #[cfg(feature = "keccak")]

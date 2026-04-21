@@ -9,6 +9,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["p3-baby-bear"]
 p3-baby-bear = ["dep:p3-baby-bear", "spongefish/p3-baby-bear"]
