@@ -9,6 +9,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [lib]
 proc-macro = true
 
