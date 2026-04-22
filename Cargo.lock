@@ -292,9 +292,9 @@ dependencies = [
 
 [[package]]
 name = "ascon"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e716048a18530cce4684daf98a7563a499d710e1ed8ef35567fcb43a7c5f1"
+checksum = "f5a0543d9a0a29ecb1d2046beb7547e97941de03228a3f31e15addfc78836049"
 
 [[package]]
 name = "async-trait"
