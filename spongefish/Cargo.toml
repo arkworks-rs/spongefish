@@ -38,9 +38,9 @@ curve25519-dalek = ["dep:curve25519-dalek", "ia-core/curve25519-dalek"]
 k256 = ["dep:k256", "ia-core/k256"]
 p256 = ["dep:p256", "ia-core/p256"]
 # plonky3
-p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
-p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
-p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
+p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field", "ia-core/p3-baby-bear"]
+p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field", "ia-core/p3-mersenne-31"]
+p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field", "ia-core/p3-koala-bear"]
 # Performance features
 asm = ["keccak?/asm", "ark-ff?/asm"]
 std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
