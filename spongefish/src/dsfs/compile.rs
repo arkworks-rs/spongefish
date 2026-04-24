@@ -29,7 +29,8 @@ pub struct Dsfs<IA, S, H = Keccak, const SALT_LEN: usize = 0> {
 }
 
 impl<IA, S, H, const SALT_LEN: usize> Dsfs<IA, S, H, SALT_LEN> {
-    pub fn new(ia: IA, sponge: H) -> Self {
+    #[must_use]
+    pub const fn new(ia: IA, sponge: H) -> Self {
         Self {
             ia,
             sponge,
@@ -94,7 +95,8 @@ pub struct DsfsReduction<IR, S, H = Keccak, const SALT_LEN: usize = 0> {
 }
 
 impl<IR, S, H, const SALT_LEN: usize> DsfsReduction<IR, S, H, SALT_LEN> {
-    pub fn new(ir: IR, sponge: H) -> Self {
+    #[must_use]
+    pub const fn new(ir: IR, sponge: H) -> Self {
         Self {
             ir,
             sponge,
@@ -103,8 +105,7 @@ impl<IR, S, H, const SALT_LEN: usize> DsfsReduction<IR, S, H, SALT_LEN> {
     }
 }
 
-impl<IR, S, H, const SALT_LEN: usize> NonInteractiveReduction
-    for DsfsReduction<IR, S, H, SALT_LEN>
+impl<IR, S, H, const SALT_LEN: usize> NonInteractiveReduction for DsfsReduction<IR, S, H, SALT_LEN>
 where
     H: SpongeInfo + Clone,
     IR: InteractiveReduction,
@@ -187,7 +188,7 @@ where
 }
 
 /// Non-interactive prover with default salt (`SALT_LEN = 0`).
-#[inline(always)]
+#[inline]
 pub fn prove_with_sponge<IA, H, S>(
     ia: &IA,
     sponge: H,
@@ -205,7 +206,7 @@ where
 }
 
 /// Non-interactive prover with explicit salt length (standard Keccak duplex).
-#[inline(always)]
+#[inline]
 pub fn prove_with_salt<IA, S, const SALT_LEN: usize>(
     ia: &IA,
     session: &S,
@@ -227,7 +228,7 @@ where
 }
 
 /// Non-interactive prover with default `SALT_LEN = 0`.
-#[inline(always)]
+#[inline]
 pub fn prove<IA, S>(
     ia: &IA,
     session: &S,
@@ -243,12 +244,12 @@ where
 }
 
 /// Non-interactive verifier with explicit salt length and duplex sponge `H`.
-pub fn verify_with_sponge_and_salt<'a, IA, H, S, const SALT_LEN: usize>(
+pub fn verify_with_sponge_and_salt<IA, H, S, const SALT_LEN: usize>(
     ia: &IA,
     sponge: H,
     session: &S,
     instance: &IA::Instance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<()>
 where
     H: SpongeInfo,
@@ -278,12 +279,12 @@ where
 }
 
 /// Non-interactive verifier with default salt (`SALT_LEN = 0`).
-pub fn verify_with_sponge<'a, IA, H, S>(
+pub fn verify_with_sponge<IA, H, S>(
     ia: &IA,
     sponge: H,
     session: &S,
     instance: &IA::Instance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<()>
 where
     H: SpongeInfo,
@@ -296,11 +297,11 @@ where
 }
 
 /// Non-interactive verifier with explicit salt length (standard Keccak duplex).
-pub fn verify_with_salt<'a, IA, S, const SALT_LEN: usize>(
+pub fn verify_with_salt<IA, S, const SALT_LEN: usize>(
     ia: &IA,
     session: &S,
     instance: &IA::Instance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<()>
 where
     IA: InteractiveArgument,
@@ -318,11 +319,11 @@ where
 }
 
 /// Non-interactive verifier with default `SALT_LEN = 0`.
-pub fn verify<'a, IA, S>(
+pub fn verify<IA, S>(
     ia: &IA,
     session: &S,
     instance: &IA::Instance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<()>
 where
     IA: InteractiveArgument,
@@ -358,8 +359,7 @@ where
     let mut salt = [0u8; SALT_LEN];
     spongefish_prover_ch.state.rng().fill_bytes(&mut salt);
     spongefish_prover_ch.state.prover_message(&salt);
-    let (target_instance, target_witness) =
-        ir.prove(&mut spongefish_prover_ch, instance, witness);
+    let (target_instance, target_witness) = ir.prove(&mut spongefish_prover_ch, instance, witness);
     (
         NargProof::from_bytes(spongefish_prover_ch.narg_string().to_vec()),
         target_instance,
@@ -442,12 +442,12 @@ where
 }
 
 /// Non-interactive verifier for an IOR with explicit salt length and sponge `H`.
-pub fn verify_reduction_with_sponge_and_salt<'a, IR, H, S, const SALT_LEN: usize>(
+pub fn verify_reduction_with_sponge_and_salt<IR, H, S, const SALT_LEN: usize>(
     ir: &IR,
     sponge: H,
     session: &S,
     instance: &IR::SourceInstance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<IR::TargetInstance>
 where
     H: SpongeInfo,
@@ -477,12 +477,12 @@ where
     Ok(target)
 }
 
-pub fn verify_reduction_with_sponge<'a, IR, H, S>(
+pub fn verify_reduction_with_sponge<IR, H, S>(
     ir: &IR,
     sponge: H,
     session: &S,
     instance: &IR::SourceInstance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<IR::TargetInstance>
 where
     H: SpongeInfo,
@@ -495,11 +495,11 @@ where
 }
 
 /// Non-interactive verifier for an IOR with explicit salt length.
-pub fn verify_reduction_with_salt<'a, IR, S, const SALT_LEN: usize>(
+pub fn verify_reduction_with_salt<IR, S, const SALT_LEN: usize>(
     ir: &IR,
     session: &S,
     instance: &IR::SourceInstance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<IR::TargetInstance>
 where
     IR: InteractiveReduction,
@@ -517,11 +517,11 @@ where
 }
 
 /// Non-interactive verifier for an IOR with default `SALT_LEN = 0`.
-pub fn verify_reduction<'a, IR, S>(
+pub fn verify_reduction<IR, S>(
     ir: &IR,
     session: &S,
     instance: &IR::SourceInstance,
-    proof: &'a [u8],
+    proof: &[u8],
 ) -> ia_core::VerificationResult<IR::TargetInstance>
 where
     IR: InteractiveReduction,

@@ -4,11 +4,11 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use ia_core::{Deserialize, ProverChannel, VerifierChannel};
 use crate::{
     Decoding, DomainSeparator, DuplexSpongeInterface, Encoding, NargDeserialize, NargSerialize,
     ProverState, StdHash, VerificationResult, VerifierState,
 };
+use ia_core::{Deserialize, ProverChannel, VerifierChannel};
 
 use super::params::{Keccak, SpongeInfo};
 
@@ -44,12 +44,9 @@ impl TranscriptSponge for Keccak {
         session: [u8; 64],
         instance: &I,
     ) -> ProverState<Self> {
-        let domsep = DomainSeparator::derive(
-            protocol_id.as_ref(),
-            Keccak::SPONGE_INFO,
-            session.as_ref(),
-        )
-        .instance(instance);
+        let domsep =
+            DomainSeparator::derive(protocol_id.as_ref(), Self::SPONGE_INFO, session.as_ref())
+                .instance(instance);
         domsep.to_prover(self)
     }
 
@@ -60,12 +57,9 @@ impl TranscriptSponge for Keccak {
         instance: &I,
         narg_string: &'a [u8],
     ) -> VerifierState<'a, Self> {
-        let domsep = DomainSeparator::derive(
-            protocol_id.as_ref(),
-            Keccak::SPONGE_INFO,
-            session.as_ref(),
-        )
-        .instance(instance);
+        let domsep =
+            DomainSeparator::derive(protocol_id.as_ref(), Self::SPONGE_INFO, session.as_ref())
+                .instance(instance);
         domsep.to_verifier(self, narg_string)
     }
 }
@@ -80,7 +74,7 @@ impl TranscriptSponge for StdHash {
         // IMPORTANT: ignore `self` and use spongefish `std_prover` initialization semantics.
         let domsep = DomainSeparator::derive(
             protocol_id.as_ref(),
-            <StdHash as SpongeInfo>::SPONGE_INFO,
+            <Self as SpongeInfo>::SPONGE_INFO,
             session.as_ref(),
         )
         .instance(instance);
@@ -97,7 +91,7 @@ impl TranscriptSponge for StdHash {
         // IMPORTANT: ignore `self` and use spongefish `std_verifier` initialization semantics.
         let domsep = DomainSeparator::derive(
             protocol_id.as_ref(),
-            <StdHash as SpongeInfo>::SPONGE_INFO,
+            <Self as SpongeInfo>::SPONGE_INFO,
             session.as_ref(),
         )
         .instance(instance);
@@ -115,10 +109,13 @@ pub struct SpongeProver<H: DuplexSpongeInterface = Keccak> {
 }
 
 impl<H: DuplexSpongeInterface> SpongeProver<H> {
-    pub fn new(state: ProverState<H>) -> Self {
+    #[must_use]
+    pub const fn new(state: ProverState<H>) -> Self {
         Self { state }
     }
 
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn narg_string(&self) -> &[u8] {
         self.state.narg_string()
     }
@@ -152,7 +149,8 @@ pub struct SpongeVerifier<'a, H: DuplexSpongeInterface = Keccak> {
 }
 
 impl<'a, H: DuplexSpongeInterface> SpongeVerifier<'a, H> {
-    pub fn new(state: VerifierState<'a, H>) -> Self {
+    #[must_use]
+    pub const fn new(state: VerifierState<'a, H>) -> Self {
         Self { state }
     }
 
@@ -179,7 +177,7 @@ impl<'a, H: DuplexSpongeInterface> SpongeVerifier<'a, H> {
     }
 }
 
-impl<'a, H: DuplexSpongeInterface> VerifierChannel<H::U> for SpongeVerifier<'a, H> {
+impl<H: DuplexSpongeInterface> VerifierChannel<H::U> for SpongeVerifier<'_, H> {
     fn read_prover_message<PM: Encoding<[H::U]> + Deserialize>(
         &mut self,
     ) -> ia_core::VerificationResult<PM> {

@@ -26,37 +26,57 @@ pub fn reduction_security<P: ProtocolSecurity>(p: &P) -> NargSecurity {
 impl NargSecurity {
     /// Security for a protocol under the standard sponge.
     pub fn for_protocol<P: ProtocolSecurity>(p: &P) -> Self {
-        Self { ia: p.security(), sponge: STD_SPONGE_PARAMS }
+        Self {
+            ia: p.security(),
+            sponge: STD_SPONGE_PARAMS,
+        }
     }
 
     /// Security for a protocol under a custom sponge configuration.
     pub fn for_protocol_with<P: ProtocolSecurity>(p: &P, sponge: SpongeParams) -> Self {
-        Self { ia: p.security(), sponge }
+        Self {
+            ia: p.security(),
+            sponge,
+        }
     }
 
     /// Security for an IA under the standard sponge.
     pub fn for_ia<IA: ProtocolSecurity>(ia: &IA) -> Self {
-        Self { ia: ia.security(), sponge: STD_SPONGE_PARAMS }
+        Self {
+            ia: ia.security(),
+            sponge: STD_SPONGE_PARAMS,
+        }
     }
 
     /// Security for an IR under the standard sponge.
     pub fn for_reduction<IR: ProtocolSecurity>(ir: &IR) -> Self {
-        Self { ia: ir.security(), sponge: STD_SPONGE_PARAMS }
+        Self {
+            ia: ir.security(),
+            sponge: STD_SPONGE_PARAMS,
+        }
     }
 
     /// Security for an IA under a custom sponge configuration.
     pub fn for_ia_with<IA: ProtocolSecurity>(ia: &IA, sponge: SpongeParams) -> Self {
-        Self { ia: ia.security(), sponge }
+        Self {
+            ia: ia.security(),
+            sponge,
+        }
     }
 
     /// Security for an IR under a custom sponge configuration.
     pub fn for_reduction_with<IR: ProtocolSecurity>(ir: &IR, sponge: SpongeParams) -> Self {
-        Self { ia: ir.security(), sponge }
+        Self {
+            ia: ir.security(),
+            sponge,
+        }
     }
 
     /// Theorem 6.1: `eps_narg(t) <= eps_sr_ip(t) + 25*t^2/|Sigma|^c`.
     ///
     /// SR soundness is derived from the per-round RBR errors.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn soundness_error(&self, t: u64) -> f64 {
         let t_f = t as f64;
         self.ia.sr_soundness_error(t)
@@ -64,6 +84,8 @@ impl NargSecurity {
     }
 
     /// Theorem 6.2: `kappa_narg(t) <= kappa_sr_ip(t) + 25*t^2/|Sigma|^c`.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn knowledge_soundness_error(&self, t: u64) -> f64 {
         let t_f = t as f64;
         self.ia.sr_knowledge_soundness_error(t)
@@ -71,6 +93,8 @@ impl NargSecurity {
     }
 
     /// Theorem 7.1: `z_narg(t) <= z_ip(t) + t/|Sigma|^min(delta,c) + t*sum_i ceil(lV(i)/r)/|Sigma|^(r+c)`.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
     pub fn zk_error(&self, t: u64) -> f64 {
         let t_f = t as f64;
         let min_delta_c = self.sponge.delta.min(self.sponge.capacity);
@@ -87,18 +111,22 @@ impl NargSecurity {
                 / self.sponge_sigma_to(self.sponge.rate + self.sponge.capacity)
     }
 
+    #[must_use]
     pub fn soundness_bits(&self, t: u64) -> f64 {
         -self.soundness_error(t).log2()
     }
 
+    #[must_use]
     pub fn knowledge_soundness_bits(&self, t: u64) -> f64 {
         -self.knowledge_soundness_error(t).log2()
     }
 
+    #[must_use]
     pub fn zk_bits(&self, t: u64) -> f64 {
         -self.zk_error(t).log2()
     }
 
+    #[allow(clippy::cast_precision_loss)]
     fn sponge_sigma_to(&self, exponent: u64) -> f64 {
         self.sponge.alphabet_size.powf(exponent as f64)
     }
@@ -106,8 +134,8 @@ impl NargSecurity {
 
 #[cfg(test)]
 mod tests {
-    use super::NargSecurity;
     use super::super::params::SpongeParams;
+    use super::NargSecurity;
     use ia_core::{SecurityErrorBound, SecurityProfile};
 
     /// Helper: build a profile with uniform per-round RBR error.
@@ -132,6 +160,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_precision_loss)]
     fn theorem1_bounds_are_applied() {
         let sec = NargSecurity {
             ia: profile_with_rbr(
@@ -159,6 +188,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_precision_loss)]
     fn theorem1_with_t_dependent_ia_error() {
         fn ia_rbr_soundness(t: u64) -> f64 {
             (t as f64) / 1_000_000.0
@@ -201,6 +231,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cast_precision_loss)]
     fn security_error_bound_composes_additively() {
         let a = SecurityErrorBound::new(|t| t as f64);
         let b = SecurityErrorBound::new(|t| 2.0 * t as f64);

@@ -98,6 +98,8 @@ mod tests {
 
     #[test]
     fn std_hash_bookkeeping_is_conservative() {
-        assert!(STD_HASH_SPONGE_PARAMS.capacity < STD_SPONGE_PARAMS.capacity);
+        let std_hash_capacity = STD_HASH_SPONGE_PARAMS.capacity;
+        let duplex_capacity = STD_SPONGE_PARAMS.capacity;
+        assert!(std_hash_capacity < duplex_capacity);
     }
 }

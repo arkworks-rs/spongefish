@@ -13,18 +13,17 @@ mod compile;
 mod narg_security;
 mod params;
 
-pub use channel::{SpongeProver, SpongeVerifier};
 pub use channel::TranscriptSponge;
+pub use channel::{SpongeProver, SpongeVerifier};
 pub use compile::{
-    ByteDuplexSponge, Dsfs, DsfsReduction, prove, prove_reduction, prove_reduction_with_salt,
-    prove_reduction_with_sponge, prove_reduction_with_sponge_and_salt, prove_with_salt,
-    prove_with_sponge, prove_with_sponge_and_salt, verify, verify_reduction,
-    verify_reduction_with_salt, verify_reduction_with_sponge,
-    verify_reduction_with_sponge_and_salt, verify_with_salt, verify_with_sponge,
-    verify_with_sponge_and_salt,
+    prove, prove_reduction, prove_reduction_with_salt, prove_reduction_with_sponge,
+    prove_reduction_with_sponge_and_salt, prove_with_salt, prove_with_sponge,
+    prove_with_sponge_and_salt, verify, verify_reduction, verify_reduction_with_salt,
+    verify_reduction_with_sponge, verify_reduction_with_sponge_and_salt, verify_with_salt,
+    verify_with_sponge, verify_with_sponge_and_salt, ByteDuplexSponge, Dsfs, DsfsReduction,
 };
-pub use narg_security::{NargSecurity, reduction_security, security};
+pub use narg_security::{reduction_security, security, NargSecurity};
 pub use params::{
-    DuplexSpongeParamsExt, Keccak, SpongeInfo, STD_HASH_SPONGE_PARAMS, STD_SPONGE_PARAMS,
-    SpongeParams, StdHash,
+    DuplexSpongeParamsExt, Keccak, SpongeInfo, SpongeParams, StdHash, STD_HASH_SPONGE_PARAMS,
+    STD_SPONGE_PARAMS,
 };

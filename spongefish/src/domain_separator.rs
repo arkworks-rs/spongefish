@@ -54,9 +54,11 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 /// DomainSeparator::derive(b"proto", b"sponge", b"session").std_prover();
 /// ```
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct WithoutInstance<I: ?Sized>(PhantomData<I>);
 
 impl<I: ?Sized> WithoutInstance<I> {
+    #[allow(dead_code)]
     const fn new() -> Self {
         Self(PhantomData)
     }
@@ -104,6 +106,7 @@ pub fn derive_domain_digest(protocol_id: &[u8], sponge_info: &[u8], session: &[u
     let mut domsep = [0u8; 64];
     sponge.squeeze(&mut domsep[..32]);
     domsep
+
 }
 
 /// Raw UTF-8 / formatted bytes for a protocol label (unpadded), for use with [`DomainSeparator::derive`].
@@ -127,7 +130,8 @@ impl<I: ?Sized> DomainSeparator<WithoutInstance<I>> {
         }
     }
 
-    pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>> {
+    #[must_use]
+    pub const fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>> {
         DomainSeparator {
             domsep: self.domsep,
             instance: WithInstance(value),
