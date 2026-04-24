@@ -1327,12 +1327,12 @@ dependencies = [
 
 [[package]]
 name = "k12"
-version = "0.4.0-rc.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa927b6b9fe8e3f343efda8787220d161a6ba87159739c7affe33a733af8fd07"
+checksum = "aa4b15f0fd1abbca1aa77ec18076d1b893c02979c27d84d1b3b422f3153c1763"
 dependencies = [
  "digest 0.11.2",
- "sha3",
+ "keccak 0.2.0",
 ]
 
 [[package]]
@@ -1366,6 +1366,7 @@ checksum = "9e24a010dd405bd7ed803e5253182815b41bf2e6a80cc3bfc066658e03a198aa"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
+ "hybrid-array",
 ]
 
 [[package]]
