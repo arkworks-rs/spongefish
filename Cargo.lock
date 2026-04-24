@@ -1251,6 +1251,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ia-core"
+version = "0.1.0"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
+ "bls12_381",
+ "curve25519-dalek",
+ "k256",
+ "p256",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2684,6 +2697,7 @@ dependencies = [
  "curve25519-dalek",
  "digest 0.11.3",
  "hex",
+ "ia-core",
  "k12",
  "k256",
  "keccak 0.1.6",

@@ -197,6 +197,10 @@ mod narg_verifier;
 /// Trait implementation for common ZKP libraries.
 mod drivers;
 
+/// DSFS compiler over the Argus IA/NARG abstractions.
+#[cfg(feature = "keccak")]
+pub mod dsfs;
+
 /// Utilities for serializing prover messages and de-serializing NARG strings.
 pub(crate) mod io;
 

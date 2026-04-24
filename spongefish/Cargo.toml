@@ -30,13 +30,13 @@ k12 = ["dep:k12"]
 keccak = ["dep:keccak"]
 ascon = ["dep:ascon"]
 # arkworks
-ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
-ark-ec = ["ark-ff", "dep:ark-ec"]
+ark-ff = ["dep:ark-ff", "dep:ark-serialize", "ia-core/ark-ff"]
+ark-ec = ["ark-ff", "dep:ark-ec", "ia-core/ark-ec"]
 # zkcrypto
-bls12_381 = ["dep:bls12_381"]
-curve25519-dalek = ["dep:curve25519-dalek"]
-k256 = ["dep:k256"]
-p256 = ["dep:p256"]
+bls12_381 = ["dep:bls12_381", "ia-core/bls12_381"]
+curve25519-dalek = ["dep:curve25519-dalek", "ia-core/curve25519-dalek"]
+k256 = ["dep:k256", "ia-core/k256"]
+p256 = ["dep:p256", "ia-core/p256"]
 # plonky3
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
@@ -48,6 +48,7 @@ std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
 risc0-zkp = ["dep:risc0-zkp"]
 
 [dependencies]
+ia-core.workspace = true
 ark-ec = { workspace = true, optional = true }
 
 # arkworks-rs
