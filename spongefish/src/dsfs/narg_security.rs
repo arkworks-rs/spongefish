@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use ia_core::{ProtocolSecurity, SecurityProfile};
+use ia_core::{ArgumentSecurity, ReductionSecurity, SecurityProfile};
 
 use super::params::{SpongeParams, STD_SPONGE_PARAMS};
 
@@ -13,61 +13,163 @@ pub struct NargSecurity {
     pub sponge: SpongeParams,
 }
 
-/// NARG security for a protocol under the standard sponge.
-pub fn security<P: ProtocolSecurity>(p: &P) -> NargSecurity {
-    NargSecurity::for_protocol(p)
+/// NARG security for an interactive argument and concrete instance under the standard sponge.
+pub fn security_for_concrete_instance<IA: ArgumentSecurity>(
+    ia: &IA,
+    instance: &IA::Instance,
+) -> NargSecurity {
+    NargSecurity::for_argument_concrete_instance(ia, instance)
 }
 
-/// NARG security for an interactive reduction under the standard sponge.
-pub fn reduction_security<P: ProtocolSecurity>(p: &P) -> NargSecurity {
-    NargSecurity::for_protocol(p)
+/// NARG security for an interactive argument bound under the standard sponge.
+pub fn security_for_instance_bound<IA: ArgumentSecurity>(
+    ia: &IA,
+    bound: &IA::InstanceBound,
+) -> NargSecurity {
+    NargSecurity::for_argument_instance_bound(ia, bound)
+}
+
+/// NARG security for an interactive argument and concrete instance under a custom sponge.
+pub fn security_for_concrete_instance_with<IA: ArgumentSecurity>(
+    ia: &IA,
+    instance: &IA::Instance,
+    sponge: SpongeParams,
+) -> NargSecurity {
+    NargSecurity::for_argument_concrete_instance_with(ia, instance, sponge)
+}
+
+/// NARG security for an interactive argument bound under a custom sponge.
+pub fn security_for_instance_bound_with<IA: ArgumentSecurity>(
+    ia: &IA,
+    bound: &IA::InstanceBound,
+    sponge: SpongeParams,
+) -> NargSecurity {
+    NargSecurity::for_argument_instance_bound_with(ia, bound, sponge)
+}
+
+/// NARG security for an interactive reduction and concrete source instance under the standard sponge.
+pub fn reduction_security_for_source_instance<IR: ReductionSecurity>(
+    ir: &IR,
+    instance: &IR::SourceInstance,
+) -> NargSecurity {
+    NargSecurity::for_reduction_source_instance(ir, instance)
+}
+
+/// NARG security for an interactive reduction source bound under the standard sponge.
+pub fn reduction_security_for_source_bound<IR: ReductionSecurity>(
+    ir: &IR,
+    bound: &IR::SourceBound,
+) -> NargSecurity {
+    NargSecurity::for_reduction_source_bound(ir, bound)
+}
+
+/// NARG security for an interactive reduction and concrete source instance under a custom sponge.
+pub fn reduction_security_for_source_instance_with<IR: ReductionSecurity>(
+    ir: &IR,
+    instance: &IR::SourceInstance,
+    sponge: SpongeParams,
+) -> NargSecurity {
+    NargSecurity::for_reduction_source_instance_with(ir, instance, sponge)
+}
+
+/// NARG security for an interactive reduction source bound under a custom sponge.
+pub fn reduction_security_for_source_bound_with<IR: ReductionSecurity>(
+    ir: &IR,
+    bound: &IR::SourceBound,
+    sponge: SpongeParams,
+) -> NargSecurity {
+    NargSecurity::for_reduction_source_bound_with(ir, bound, sponge)
 }
 
 impl NargSecurity {
-    /// Security for a protocol under the standard sponge.
-    pub fn for_protocol<P: ProtocolSecurity>(p: &P) -> Self {
+    /// Security for an IA and concrete instance under the standard sponge.
+    pub fn for_argument_concrete_instance<IA: ArgumentSecurity>(
+        ia: &IA,
+        instance: &IA::Instance,
+    ) -> Self {
         Self {
-            ia: p.security(),
+            ia: ia.profile_for_concrete_instance(instance),
             sponge: STD_SPONGE_PARAMS,
         }
     }
 
-    /// Security for a protocol under a custom sponge configuration.
-    pub fn for_protocol_with<P: ProtocolSecurity>(p: &P, sponge: SpongeParams) -> Self {
+    /// Security for an IA bound under the standard sponge.
+    pub fn for_argument_instance_bound<IA: ArgumentSecurity>(
+        ia: &IA,
+        bound: &IA::InstanceBound,
+    ) -> Self {
         Self {
-            ia: p.security(),
+            ia: ia.profile_for_instance_bound(bound),
+            sponge: STD_SPONGE_PARAMS,
+        }
+    }
+
+    /// Security for an IA and concrete instance under a custom sponge configuration.
+    pub fn for_argument_concrete_instance_with<IA: ArgumentSecurity>(
+        ia: &IA,
+        instance: &IA::Instance,
+        sponge: SpongeParams,
+    ) -> Self {
+        Self {
+            ia: ia.profile_for_concrete_instance(instance),
             sponge,
         }
     }
 
-    /// Security for an IA under the standard sponge.
-    pub fn for_ia<IA: ProtocolSecurity>(ia: &IA) -> Self {
+    /// Security for an IA bound under a custom sponge configuration.
+    pub fn for_argument_instance_bound_with<IA: ArgumentSecurity>(
+        ia: &IA,
+        bound: &IA::InstanceBound,
+        sponge: SpongeParams,
+    ) -> Self {
         Self {
-            ia: ia.security(),
-            sponge: STD_SPONGE_PARAMS,
-        }
-    }
-
-    /// Security for an IR under the standard sponge.
-    pub fn for_reduction<IR: ProtocolSecurity>(ir: &IR) -> Self {
-        Self {
-            ia: ir.security(),
-            sponge: STD_SPONGE_PARAMS,
-        }
-    }
-
-    /// Security for an IA under a custom sponge configuration.
-    pub fn for_ia_with<IA: ProtocolSecurity>(ia: &IA, sponge: SpongeParams) -> Self {
-        Self {
-            ia: ia.security(),
+            ia: ia.profile_for_instance_bound(bound),
             sponge,
         }
     }
 
-    /// Security for an IR under a custom sponge configuration.
-    pub fn for_reduction_with<IR: ProtocolSecurity>(ir: &IR, sponge: SpongeParams) -> Self {
+    /// Security for an IR and concrete source instance under the standard sponge.
+    pub fn for_reduction_source_instance<IR: ReductionSecurity>(
+        ir: &IR,
+        instance: &IR::SourceInstance,
+    ) -> Self {
         Self {
-            ia: ir.security(),
+            ia: ir.profile_for_source_instance(instance),
+            sponge: STD_SPONGE_PARAMS,
+        }
+    }
+
+    /// Security for an IR source bound under the standard sponge.
+    pub fn for_reduction_source_bound<IR: ReductionSecurity>(
+        ir: &IR,
+        bound: &IR::SourceBound,
+    ) -> Self {
+        Self {
+            ia: ir.profile_for_source_bound(bound),
+            sponge: STD_SPONGE_PARAMS,
+        }
+    }
+
+    /// Security for an IR and concrete source instance under a custom sponge configuration.
+    pub fn for_reduction_source_instance_with<IR: ReductionSecurity>(
+        ir: &IR,
+        instance: &IR::SourceInstance,
+        sponge: SpongeParams,
+    ) -> Self {
+        Self {
+            ia: ir.profile_for_source_instance(instance),
+            sponge,
+        }
+    }
+
+    /// Security for an IR source bound under a custom sponge configuration.
+    pub fn for_reduction_source_bound_with<IR: ReductionSecurity>(
+        ir: &IR,
+        bound: &IR::SourceBound,
+        sponge: SpongeParams,
+    ) -> Self {
+        Self {
+            ia: ir.profile_for_source_bound(bound),
             sponge,
         }
     }
