@@ -88,9 +88,17 @@ spongefish-circuit = { version = "0.6.1", path = "circuit" }
 spongefish-derive = { version = "0.6.1", path = "derive" }
 zeroize = "^1.8.1"
 
-# ark-curve25519, ark-secp256k1, ark-secp256r1 don't yet have 0.6 releases on crates.io.
-# Pull them — and the algebra crates they share — from the algebra release/0.6.0 branch
-# so the workspace resolves to a single set of ark-ff/ark-ec/ark-serialize crates.
+# ark-curve25519, ark-secp256k1, ark-secp256r1 don't yet have 0.6 releases on
+# crates.io, so we patch them from the algebra release/0.6.0 branch.
+#
+# ark-ec, ark-ff, ark-serialize 0.6.0 are on crates.io, but we have to patch
+# them too: the patched curves above declare those deps via `workspace = true`,
+# which the algebra workspace resolves to `path = "./{ff,ec,serialize}"` —
+# i.e. an in-repo source. Without these patches cargo ends up with two copies
+# of each (crates.io + git, both 0.6.0), and the `Fp`/`Projective` types
+# served by the curve crates don't match the trait impls in spongefish.
+#
+# Drop the bottom three lines once the curve crates ship 0.6 to crates.io.
 [patch.crates-io]
 ark-curve25519 = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
 ark-secp256k1 = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
