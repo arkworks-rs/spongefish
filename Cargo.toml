@@ -39,12 +39,12 @@ naive_bytecount = "allow"
 [workspace.dependencies]
 ark-bls12-381 = "^0.6"
 ark-bn254 = "^0.6"
-ark-curve25519 = "^0.5"
+ark-curve25519 = "^0.6"
 ark-ec = "^0.6"
 ark-ff = "^0.6"
 ark-pallas = "^0.6"
-ark-secp256k1 = "^0.5"
-ark-secp256r1 = "^0.5"
+ark-secp256k1 = "^0.6"
+ark-secp256r1 = "^0.6"
 ark-serialize = "^0.6"
 ark-std = "^0.6"
 ark-vesta = "^0.6"
@@ -56,7 +56,7 @@ bytemuck = "^1.22"
 curve25519-dalek = "^4.1"
 digest = "0.11.2"
 hex = "0.4.3"
-k12 = "0.4.0-rc.1"
+k12 = "0.4.0"
 k256 = "^0.13"
 keccak = "^0.1.5"
 libtest-mimic = "0.8.1"
@@ -81,3 +81,14 @@ spongefish = { version = "0.6.1", path = "spongefish" }
 spongefish-circuit = { version = "0.6.1", path = "circuit" }
 spongefish-derive = { version = "0.6.1", path = "derive" }
 zeroize = "^1.8.1"
+
+# ark-curve25519, ark-secp256k1, ark-secp256r1 don't yet have 0.6 releases on crates.io.
+# Pull them — and the algebra crates they share — from the algebra release/0.6.0 branch
+# so the workspace resolves to a single set of ark-ff/ark-ec/ark-serialize crates.
+[patch.crates-io]
+ark-curve25519 = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
+ark-secp256k1 = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
+ark-secp256r1 = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
+ark-ff = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra", branch = "release/0.6.0" }

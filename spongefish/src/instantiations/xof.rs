@@ -170,7 +170,7 @@ mod tests {
     #[cfg(feature = "k12")]
     #[test]
     fn kangaroo_twelve_clone_preserves_squeeze_position() {
-        assert_clone_preserves_squeeze_position::<k12::Kt128<'static>>();
+        assert_clone_preserves_squeeze_position::<k12::Kt128>();
     }
 
     #[cfg(feature = "blake3")]
