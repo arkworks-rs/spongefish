@@ -37,7 +37,7 @@ tuple_array_conversions = "allow"
 naive_bytecount = "allow"
 
 [workspace.dependencies]
-ark-bls12-381 = "^0.5"
+ark-bls12-381 = "^0.6.0"
 ark-bn254 = "^0.5"
 ark-curve25519 = "^0.5"
 ark-ec = "^0.5"
