@@ -11,7 +11,7 @@ use crate::allocator::{FieldVar, VarAllocator};
 #[derive(Clone)]
 pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     allocator: VarAllocator<T>,
-    permutation_constraints: Arc<RwLock<PermutationInstance<WIDTH>>>,
+    query_answers: Arc<RwLock<Vec<QueryAnswerPair<FieldVar, WIDTH>>>>,
     linear_constraints: Arc<RwLock<LinearConstraints<FieldVar, T>>>,
 }
 
@@ -82,11 +82,50 @@ pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> 
     linear_constraints: Arc<RwLock<LinearConstraints<P::U, P::U>>>,
 }
 
-/// The internal state of the instance,
-/// holding the input-output pairs of the wires to be proven.
-#[derive(Clone, Default)]
-struct PermutationInstance<const WIDTH: usize> {
-    state: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
+/// An immutable snapshot of a permutation relation instance.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PermutationInstance<T, const WIDTH: usize> {
+    pub vars_count: usize,
+    pub public_values: Vec<(FieldVar, T)>,
+    /// The input-output wires to be proven
+    pub query_answers: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
+    pub linear_constraints: LinearConstraints<FieldVar, T>,
+}
+
+impl<T, const WIDTH: usize> PermutationInstance<T, WIDTH> {
+    #[must_use]
+    pub fn constraints(&self) -> impl AsRef<[QueryAnswerPair<FieldVar, WIDTH>]> + '_ {
+        &self.query_answers
+    }
+
+    #[must_use]
+    pub const fn linear_constraints(&self) -> &LinearConstraints<FieldVar, T> {
+        &self.linear_constraints
+    }
+
+    #[must_use]
+    pub fn public_vars(&self) -> &[(FieldVar, T)] {
+        &self.public_values
+    }
+}
+
+/// An immutable snapshot of a permutation witness.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PermutationWitness<T, const WIDTH: usize> {
+    pub trace: Vec<QueryAnswerPair<T, WIDTH>>,
+    pub linear_constraints: LinearConstraints<T, T>,
+}
+
+impl<T, const WIDTH: usize> PermutationWitness<T, WIDTH> {
+    #[must_use]
+    pub fn trace(&self) -> impl AsRef<[QueryAnswerPair<T, WIDTH>]> + '_ {
+        &self.trace
+    }
+
+    #[must_use]
+    pub const fn linear_constraints(&self) -> &LinearConstraints<T, T> {
+        &self.linear_constraints
+    }
 }
 
 impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationInstanceBuilder<T, WIDTH> {
@@ -118,7 +157,7 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
             allocator,
-            permutation_constraints: Default::default(),
+            query_answers: Default::default(),
             linear_constraints: Default::default(),
         }
     }
@@ -141,19 +180,47 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     }
 
     pub fn add_permutation(&self, input: [FieldVar; WIDTH], output: [FieldVar; WIDTH]) {
-        self.permutation_constraints
+        debug_assert!(input
+            .iter()
+            .chain(output.iter())
+            .all(|var| self.allocator.is_allocated(*var)));
+        self.query_answers
             .write()
-            .state
             .push(QueryAnswerPair::new(input, output));
     }
 
-    pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>) {
+    pub fn add_equation(&self, equation: LinearEquation<FieldVar, T>)
+    where
+        T: PartialEq,
+    {
+        let constraints = self.query_answers.read();
+        for (_, var) in &equation.linear_combination {
+            assert!(
+                self.allocator.is_allocated(*var),
+                "unallocated variable {}",
+                var.index(),
+            );
+        }
+        for (term_idx, (coeff, var)) in equation.linear_combination.iter().enumerate() {
+            if *coeff == T::ZERO {
+                continue;
+            }
+            assert!(
+                constraints
+                    .iter()
+                    .flat_map(|pair| pair.input.iter().chain(pair.output.iter()))
+                    .any(|known_var| known_var == var),
+                "linear equation term {term_idx} references variable {}, \
+                 but nonzero linear terms must reference a permutation input or output variable",
+                var.index(),
+            );
+        }
         self.linear_constraints.write().equations.push(equation);
     }
 
     #[must_use]
     pub fn constraints(&self) -> impl AsRef<[QueryAnswerPair<FieldVar, WIDTH>]> {
-        self.permutation_constraints.read().state.clone()
+        self.query_answers.read().clone()
     }
 
     #[must_use]
@@ -164,6 +231,16 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
     #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
+    }
+
+    #[must_use]
+    pub fn snapshot(&self) -> PermutationInstance<T, WIDTH> {
+        PermutationInstance {
+            vars_count: self.allocator.vars_count(),
+            public_values: self.allocator.public_vars(),
+            query_answers: self.constraints().as_ref().to_vec(),
+            linear_constraints: self.linear_constraints(),
+        }
     }
 }
 
@@ -208,5 +285,13 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
     #[must_use]
     pub fn linear_constraints(&self) -> LinearConstraints<P::U, P::U> {
         self.linear_constraints.read().clone()
+    }
+
+    #[must_use]
+    pub fn snapshot(&self) -> PermutationWitness<P::U, WIDTH> {
+        PermutationWitness {
+            trace: self.trace().as_ref().to_vec(),
+            linear_constraints: self.linear_constraints(),
+        }
     }
 }

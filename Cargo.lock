@@ -2663,8 +2663,10 @@ dependencies = [
 
 [[package]]
 name = "spongefish-circuit"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
+ "hashbrown 0.15.5",
+ "itertools 0.14.0",
  "p3-baby-bear",
  "p3-field",
  "spin",
