@@ -3,10 +3,14 @@ name = "spongefish-circuit"
 description = "Circuits for proving relations over spongefish transcripts"
 documentation = "https://docs.rs/spongefish-circuit"
 edition.workspace = true
+readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = ["p3-baby-bear"]

@@ -2,6 +2,7 @@
 name = "spongefish-pow"
 description = "Proof-of-work challenge grinding for spongefish Fiat-Shamir transcripts"
 documentation = "https://docs.rs/spongefish-pow"
+readme = "README.md"
 authors = [
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
     "Remco Bloemen <remco@wicked.ventures>",
@@ -11,6 +12,9 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = ["parallel", "blake3", "keccak"]

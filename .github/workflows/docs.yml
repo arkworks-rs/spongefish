@@ -29,18 +29,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: git clone
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: install toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: cargo doc
         run: RUSTDOCFLAGS="-Z unstable-options --enable-index-page" cargo doc --all-features
       - name: page configuration
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v6
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           # Upload entire repository
           path: 'target/doc'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -176,6 +176,8 @@
 //! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 
 #![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 extern crate alloc;
 
 #[cfg(target_endian = "big")]
