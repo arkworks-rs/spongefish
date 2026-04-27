@@ -7,7 +7,7 @@ readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-version.workspace = true
+version = "0.6.2"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -18,6 +18,8 @@ p3-baby-bear = ["dep:p3-baby-bear", "spongefish/p3-baby-bear"]
 
 [dependencies]
 
+hashbrown = { workspace = true }
+itertools = { workspace = true }
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true }
