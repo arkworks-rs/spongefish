@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "ark-bls12-381",
  "ark-curve25519",
@@ -2712,7 +2712,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-derive"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2722,7 +2722,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-pow"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "blake3",
  "bytemuck",

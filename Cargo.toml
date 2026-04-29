@@ -6,7 +6,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.6.1"
+version = "0.6.2"
 repository = "https://github.com/arkworks-rs/spongefish"
 homepage = "https://github.com/arkworks-rs/spongefish"
 
@@ -83,7 +83,7 @@ sha2 = "0.11.0"
 sha3 = "=0.11.0-rc.9"
 spin = { version = "0.10", default-features = false, features = ["rwlock"] }
 # Intra-workspace dependencies
-spongefish = { version = "0.6.1", path = "spongefish" }
-spongefish-circuit = { version = "0.6.1", path = "circuit" }
-spongefish-derive = { version = "0.6.1", path = "derive" }
+spongefish = { version = "0.6.2", path = "spongefish" }
+spongefish-circuit = { version = "0.6.2", path = "circuit" }
+spongefish-derive = { version = "0.6.2", path = "derive" }
 zeroize = "^1.8.1"
