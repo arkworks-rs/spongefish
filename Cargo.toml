@@ -74,7 +74,7 @@ p3-mersenne-31 = "0.5"
 p3-poseidon2 = "0.5"
 p3-symmetric = "0.5"
 pallas = "^0.35.0"
-rand = "^0.8.5"
+rand = "^0.10.0"
 rayon = "^1.10.0"
 risc0-zkp = "3.0.3"
 serde = { version = "1.0", features = ["derive"] }
