@@ -1,63 +1,16 @@
-//! Utilities for domain separation.
-//!
-//! A "domain separator" in spongefish has three components:
-//!
-//! - a *protocol identifier*, to identify the **non-interactive** protocol being used, and it's the responsibility of the proof system to provide this component.
-//! - a *session identifier*, to identify the **application** where this proof is being used, and it's the responsibility of the users of the application to provide this component.
-//! - an *instance*, which identifies the **statement** being proven. It's the responsibility of the witness generation procedure to provide this component.
-//!
-//! A domain separator can be instantiated in several equivalent ways:
-//! ```
-//! use spongefish::{domain_separator, session};
-//!
-//! let x = [1u8, 2, 3];
-//!
-//! // all at once, via the helper macro.
-//! let _ds1 = domain_separator!("proto"; "sess").instance(&x);
-//! // with the session provided at a later time:
-//! let _ds2 = domain_separator!("proto").session(session!("sess")).instance(&x);
-//! // if not specified, the session identifier is set to zero.
-//! let _ds3 = domain_separator!("proto").without_session().instance(&x);
-//! ```
-//! Domain separators can then be turned into prover and verifier state via
-//! [`DomainSeparator::to_prover`] and [`DomainSeparator::to_verifier`].
-//! Shorthands for [`StdHash`] are available via [`DomainSeparator::std_prover`] and [`DomainSeparator::std_verifier`].
-//! ```
-//! use spongefish::{domain_separator, session};
-//!
-//! let x = [1u8, 2, 3];
-//! let ds1 = domain_separator!("proto"; "sess").instance(&x);
-//! let ds2 = domain_separator!("proto").session(session!("sess")).instance(&x);
-//!
-//! // Same protocol, session, and instance yield the same transcript
-//! assert_eq!(
-//!     ds1.std_prover().verifier_message::<u64>(),
-//!     ds2.std_prover().verifier_message::<u64>()
-//! );
-//! ```
-//!
-//! For testing purposes, it's possible to instantiate a protocol without a session:
-//!
-//! ```
-//! use spongefish::{domain_separator, session};
-//!
-//! let x = [1u8, 2, 3];
-//! let ds1 = domain_separator!("proto"; "sess").instance(&x);
-//! let ds3 = domain_separator!("proto").without_session().instance(&x);
-//! assert_ne!(
-//!     ds1.std_prover().verifier_message::<u64>(),
-//!     ds3.std_prover().verifier_message::<u64>()
-//! );
-//! ```
-//!
-
-use core::{fmt, fmt::Arguments};
+use core::{fmt::Arguments, marker::PhantomData};
 
 use rand::rngs::StdRng;
 
+#[cfg(feature = "sha2")]
+use sha2::{Digest, Sha512};
+
 #[cfg(feature = "sha3")]
 use crate::VerifierState;
-use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash, Unit};
+use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
+
+/// Sponge / compilation info for [`domain_separator!`] when no explicit `sponge_info` is supplied.
+pub const DOMAIN_SEPARATOR_MACRO_SPONGE_INFO: &[u8] = b"spongefish/domain_separator/macro/v1";
 
 /// Marker structure for domain separators without an associated instance.
 ///
@@ -65,18 +18,20 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash, Unit};
 /// This type is used to make sure that the developer does not forget to add it.
 ///
 /// ```compile_fail
+/// # // a BAD EXAMPLE of instantiating a domain separator.
+/// # // It will fail at compilation time.
 /// use spongefish::domain_separator;
 ///
 /// domain_separator!("this will not compile").std_prover();
 /// ```
-///
-/// ```compile_fail
-/// use spongefish::DomainSeparator;
-///
-/// DomainSeparator::new([0u8; 64]).instance(b"missing session");
-/// ```
-#[derive(Debug, Default, Copy, Clone)]
-pub struct WithoutInstance;
+#[derive(Debug, Clone, Copy)]
+pub struct WithoutInstance<I: ?Sized>(PhantomData<I>);
+
+impl<I: ?Sized> WithoutInstance<I> {
+    const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
 
 /// Marker structure storing the instance once it has been provided.
 ///
@@ -84,104 +39,110 @@ pub struct WithoutInstance;
 /// use spongefish::domain_separator;
 ///
 /// let _prover = domain_separator!("this will compile")
-///     .session(spongefish::session!("example"))
 ///     .instance(b"yellowsubmarine")
 ///     .std_prover();
 /// ```
-pub struct WithInstance<I>(I);
-
-/// Session state marker: no session context has been resolved yet.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct WithoutSession;
-
-/// Session state marker: a session context has been bound.
-pub struct WithSession<S>(pub(crate) S);
-
-impl<S: fmt::Debug> fmt::Debug for WithSession<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("WithSession").field(&self.0).finish()
-    }
-}
-
-/// Explicit opt-out session marker.
-///
-/// Used by [`DomainSeparator::without_session`]. Encodes to an empty slice,
-/// matching the original behaviour when no session was provided.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoSession;
-
-impl<T: Unit> Encoding<[T]> for NoSession {
-    fn encode(&self) -> impl AsRef<[T]> {
-        let empty: [T; 0] = [];
-        empty
-    }
-}
+#[derive(Debug, Clone, Copy)]
+pub struct WithInstance<'i, I: ?Sized>(&'i I);
 
 /// Domain separator for a Fiat--Shamir transformation.
 ///
-/// The API enforces: `new → session | without_session → instance → prover/verifier`.
-pub struct DomainSeparator<I, S = WithoutSession> {
-    /// **what** this interactive protocol is.
-    pub protocol: [u8; 64],
-    /// **where** this interactive protocol is being used.
-    pub session: S,
-    /// **how** this interactive protocol is used.
+/// Built only via [`DomainSeparator::derive`]: `domsep` is a 64-byte SHA-512 digest over
+/// length-prefixed `(protocol_id, sponge_info, session)`, then the instance is absorbed
+/// separately (duplex or `StdHash` bootstrap).
+#[derive(Debug, Clone, Copy)]
+pub struct DomainSeparator<I> {
+    /// 64-byte domain tag (SHA-512 over the triple); feeds `StdHash::from_protocol_id` / duplex init.
+    pub domsep: [u8; 64],
     instance: I,
 }
 
-impl DomainSeparator<WithoutInstance, WithoutSession> {
+/// Length-prefixed SHA-512 domain derivation: `LE32(|p|)||p||LE32(|i|)||i||LE32(|s|)||s`.
+#[cfg(feature = "sha2")]
+#[must_use]
+pub fn derive_domain_digest(
+    protocol_id: &[u8],
+    sponge_info: &[u8],
+    session: &[u8],
+) -> [u8; 64] {
+    let mut hasher = Sha512::new();
+    for field in [protocol_id, sponge_info, session] {
+        hasher.update((field.len() as u32).to_le_bytes());
+        hasher.update(field);
+    }
+    hasher.finalize().into()
+}
+
+/// Raw UTF-8 / formatted bytes for a protocol label (unpadded), for use with [`DomainSeparator::derive`].
+#[must_use]
+pub fn protocol_label(args: Arguments) -> alloc::vec::Vec<u8> {
+    if let Some(message) = args.as_str() {
+        return message.as_bytes().to_vec();
+    }
+    alloc::fmt::format(args).into_bytes()
+}
+
+#[cfg(feature = "sha2")]
+impl<I: ?Sized> DomainSeparator<WithoutInstance<I>> {
+    /// Domain separation from explicit protocol bytes, compilation/sponge info, and session bytes
+    /// (SHA-512 over a length-prefixed injective encoding).
     #[must_use]
-    pub const fn new(protocol: [u8; 64]) -> Self {
+    pub fn derive(protocol_id: &[u8], sponge_info: &[u8], session: &[u8]) -> Self {
         Self {
-            protocol,
-            session: WithoutSession,
-            instance: WithoutInstance,
-        }
-    }
-}
-
-impl<I> DomainSeparator<I, WithoutSession> {
-    /// Binds a session context to the transcript.
-    ///
-    /// The session value may be provided either by value or by reference.
-    /// Passing `&session` avoids copying large session objects.
-    #[must_use]
-    pub fn session<S>(self, value: S) -> DomainSeparator<I, WithSession<S>> {
-        DomainSeparator {
-            protocol: self.protocol,
-            session: WithSession(value),
-            instance: self.instance,
+            domsep: derive_domain_digest(protocol_id, sponge_info, session),
+            instance: WithoutInstance::new(),
         }
     }
 
-    /// Explicit opt-out: the protocol deliberately binds no application context.
-    #[must_use]
-    pub fn without_session(self) -> DomainSeparator<I, WithSession<NoSession>> {
-        self.session(NoSession)
-    }
-}
-
-impl<S> DomainSeparator<WithoutInstance, WithSession<S>> {
-    pub fn instance<I>(self, value: I) -> DomainSeparator<WithInstance<I>, WithSession<S>> {
+    pub fn instance(self, value: &I) -> DomainSeparator<WithInstance<'_, I>> {
         DomainSeparator {
-            protocol: self.protocol,
-            session: self.session,
+            domsep: self.domsep,
             instance: WithInstance(value),
         }
     }
 }
 
-impl<I, S> DomainSeparator<WithInstance<I>, WithSession<S>>
+#[cfg(feature = "sha2")]
+/// Precomputes the `(protocol_id, sponge_info)` prefix of [`derive_domain_digest`] so only the
+/// session block is hashed per proof.
+pub struct DomainSeparatorPrefix {
+    prefix: Sha512,
+}
+
+#[cfg(feature = "sha2")]
+impl DomainSeparatorPrefix {
+    #[must_use]
+    pub fn new(protocol_id: &[u8], sponge_info: &[u8]) -> Self {
+        let mut prefix = Sha512::new();
+        for field in [protocol_id, sponge_info] {
+            prefix.update((field.len() as u32).to_le_bytes());
+            prefix.update(field);
+        }
+        Self { prefix }
+    }
+
+    /// Finishes with the session field and returns a [`DomainSeparator`] ready for `.instance(...)`.
+    #[must_use]
+    pub fn with_session<I: ?Sized>(&self, session: &[u8]) -> DomainSeparator<WithoutInstance<I>> {
+        let mut hasher = self.prefix.clone();
+        hasher.update((session.len() as u32).to_le_bytes());
+        hasher.update(session);
+        DomainSeparator {
+            domsep: hasher.finalize().into(),
+            instance: WithoutInstance::new(),
+        }
+    }
+}
+
+impl<I> DomainSeparator<WithInstance<'_, I>>
 where
     I: Encoding,
-    S: Encoding,
 {
     #[cfg(feature = "sha3")]
     #[must_use]
     pub fn std_prover(&self) -> ProverState {
-        let mut prover_state = ProverState::from(StdHash::from_protocol_id(self.protocol));
-        prover_state.public_message(&self.session.0);
-        prover_state.public_message(&self.instance.0);
+        let mut prover_state = ProverState::from(StdHash::from_protocol_id(self.domsep));
+        prover_state.public_message(self.instance.0);
         prover_state
     }
 
@@ -189,25 +150,22 @@ where
     #[must_use]
     pub fn std_verifier<'ver>(&self, narg_string: &'ver [u8]) -> VerifierState<'ver, StdHash> {
         let mut verifier_state =
-            VerifierState::from_parts(StdHash::from_protocol_id(self.protocol), narg_string);
-        verifier_state.public_message(&self.session.0);
-        verifier_state.public_message(&self.instance.0);
+            VerifierState::from_parts(StdHash::from_protocol_id(self.domsep), narg_string);
+        verifier_state.public_message(self.instance.0);
         verifier_state
     }
 }
 
-impl<I, S> DomainSeparator<WithInstance<I>, WithSession<S>> {
+impl<I> DomainSeparator<WithInstance<'_, I>> {
     pub fn to_prover<H>(&self, h: H) -> ProverState<H, StdRng>
     where
         H: DuplexSpongeInterface,
         [u8; 64]: Encoding<[H::U]>,
-        S: Encoding<[H::U]>,
         I: Encoding<[H::U]>,
     {
         let mut prover_state = ProverState::from(h);
-        prover_state.public_message(&self.protocol);
-        prover_state.public_message(&self.session.0);
-        prover_state.public_message(&self.instance.0);
+        prover_state.public_message(&self.domsep);
+        prover_state.public_message(self.instance.0);
         prover_state
     }
 
@@ -215,13 +173,11 @@ impl<I, S> DomainSeparator<WithInstance<I>, WithSession<S>> {
     where
         H: DuplexSpongeInterface,
         [u8; 64]: Encoding<[H::U]>,
-        S: Encoding<[H::U]>,
         I: Encoding<[H::U]>,
     {
         let mut verifier_state = VerifierState::from_parts(h, narg_string);
-        verifier_state.public_message(&self.protocol);
-        verifier_state.public_message(&self.session.0);
-        verifier_state.public_message(&self.instance.0);
+        verifier_state.public_message(&self.domsep);
+        verifier_state.public_message(self.instance.0);
         verifier_state
     }
 }

@@ -5,7 +5,8 @@
 //! # Examples
 //!
 //! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
-//! is composed of a protocol identifier, a mandatory session identifier, and the public instance.
+//! binds a derived 64-byte domain tag (from protocol id, sponge/compilation info, and session bytes),
+//! then the public instance.
 //! The snippets below illustrate three typical situations.
 //!
 //! ```
@@ -17,8 +18,7 @@
 //! let witness = 42;
 //! let instance = [2, language(witness)];
 //!
-//! let domsep = domain_separator!("simplest proof system mod {{P}}")
-//!              .session(spongefish::session!("{{module_path!()}}"))
+//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
 //!              .instance(&instance);
 //!
 //! // non-interactive prover
@@ -34,6 +34,7 @@
 //! // a proof is malleable if we don't check we read everything
 //! assert!(verifier_state.check_eof().is_ok())
 //! ```
+//!
 //! The above code will fail to compile if no instance is given.
 //! The implementor has full responsibility in providing the correct instance of the proof system.
 //!
@@ -53,9 +54,7 @@
 //!
 //! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
 //!
-//! let domain = spongefish::domain_separator!("sumcheck")
-//!     .session(spongefish::session!("{{module_path!()}}"))
-//!     .instance(&witness);
+//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
 //! let mut prover = domain.std_prover();
 //! let challenge = prover.verifier_message::<KoalaBear>();
 //! let response = witness[0] * challenge + witness[1];
@@ -93,8 +92,7 @@
 //! struct PublicKey(RistrettoPoint);
 //!
 //! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-//! let domain = spongefish::domain_separator!("challenge-response")
-//!              .session(spongefish::session!("example"))
+//! let domain = spongefish::domain_separator!("challenge-response"; "example")
 //!              .instance(&generator);
 //!
 //! let pk = PublicKey(generator * Scalar::from(42u64));
@@ -157,13 +155,9 @@
 //!
 //! Previous version of this library were audited by [Radically Open Security].
 //!
-//! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way,
-//! but the library requiring three elements on initialization:
-//! - a mandatory 64-bytes protocol identifier,
-//!   uniquely identifying the non-interactive protocol being built.
-//! - a 64-bytes session identifier,
-//!   corresponding to session and sub-session identifiers in universal composability lingo.
-//! - a mandatory instance that will be used in the proof system.
+//! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way.
+//! [`DomainSeparator::derive`] takes protocol bytes, sponge/compilation info, and session bytes,
+//! hashes them into a 64-byte tag, then the instance is absorbed into the transcript.
 //!
 //! The developer is in charge of making sure they are chosen appropriately.
 //! In particular, the instance encoding function prefix-free.
@@ -218,11 +212,13 @@ mod domain_separator;
 #[doc(hidden)]
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
+pub use domain_separator::DomainSeparator;
+pub use domain_separator::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO;
+pub use domain_separator::protocol_label;
+#[cfg(feature = "sha2")]
+pub use domain_separator::{derive_domain_digest, DomainSeparatorPrefix};
 #[doc(hidden)]
 pub use domain_separator::{protocol_id, session_id, session_id_from_str};
-pub use domain_separator::{
-    DomainSeparator, NoSession, WithInstance, WithSession, WithoutInstance, WithoutSession,
-};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
@@ -235,36 +231,49 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
 
-/// Build a [`DomainSeparator`] from a protocol identifier string.
-///
-/// Chain `.session(..)` or `.without_session()` before `.instance(..)`.
+/// Build a [`DomainSeparator`] from a formatted string.
 ///
 /// ```
-/// let domsep = spongefish::domain_separator!("spongefish")
-///     .session(spongefish::session!("DomainSeparator"))
+/// let domsep = spongefish::domain_separator!("spongefish"; "DomainSeparator")
 ///     .instance(b"trivial");
 /// let _prover = domsep.std_prover();
 /// ```
 #[macro_export]
 macro_rules! domain_separator {
-    ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!(
-            $protocol_fmt $(, $protocol_arg)*
-        )))
-        .session($crate::session!($session_fmt $(, $session_arg)*))
+    ($fmt:literal $(, $arg:expr)* $(,)? ; $sess_fmt:literal $(, $sess_arg:expr)* $(,)?) => {{
+        let protocol = $crate::protocol_label(core::format_args!($fmt $(, $arg)*));
+        let sess = $crate::session_id(core::format_args!($sess_fmt $(, $sess_arg)*));
+        $crate::DomainSeparator::derive(
+            protocol.as_slice(),
+            $crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+            sess.as_slice(),
+        )
+    }};
+    ($fmt:literal $(, $arg:expr)* $(,)? ; $session:expr $(,)?) => {{
+        let protocol = $crate::protocol_label(core::format_args!($fmt $(, $arg)*));
+        let sess = $crate::session_id_from_str(&$session);
+        $crate::DomainSeparator::derive(
+            protocol.as_slice(),
+            $crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+            sess.as_slice(),
+        )
     }};
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
+        let protocol = $crate::protocol_label(core::format_args!($fmt $(, $arg)*));
+        $crate::DomainSeparator::derive(
+            protocol.as_slice(),
+            $crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+            &[],
+        )
     }};
 }
 
-/// Attaches a 64-byte session identifier to the domain separator.
+/// Builds session bytes (64-byte field, high half from SHAKE128) for use with [`DomainSeparator::derive`].
 ///
 /// ```
 /// # use spongefish::{DomainSeparator, session};
 ///
-/// DomainSeparator::new([0u8; 64])
-///     .session(session!("example at L{{line!()}}"))
+/// let _ = DomainSeparator::derive(b"proto", b"sponge-info", session!("example at L{{line!()}}").as_slice())
 ///     .instance(b"empty");
 /// ```
 #[macro_export]

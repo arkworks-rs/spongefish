@@ -15,7 +15,7 @@ all-features = true
 rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
-default = ["sha3", "zeroize"]
+default = ["sha3", "zeroize", "sha2"]
 # feature flag for hazardous features
 yolocrypto = []
 # Core features

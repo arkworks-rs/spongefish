@@ -8,9 +8,7 @@ use crate::{DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError}
 #[test]
 fn prover_rng_emits_entropy() {
     let instance = [42u32, 7u32];
-    let domain = crate::domain_separator!("rng test")
-        .session(crate::session!("rng session"))
-        .instance(&instance);
+    let domain = crate::domain_separator!("rng test"; "rng session").instance(&instance);
 
     let mut prover = domain.std_prover();
     let mut first = [0u8; 32];
@@ -25,9 +23,7 @@ fn prover_rng_emits_entropy() {
 #[test]
 fn prover_messages_round_trip() {
     let instance = [1u32, 2u32];
-    let domain = crate::domain_separator!("round trip")
-        .without_session()
-        .instance(&instance);
+    let domain = crate::domain_separator!("round trip").instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.public_message(&instance[0]);
@@ -43,9 +39,7 @@ fn prover_messages_round_trip() {
 #[test]
 fn check_eof_reports_remaining_bytes() {
     let instance = [5u32, 6u32];
-    let domain = crate::domain_separator!("check eof")
-        .without_session()
-        .instance(&instance);
+    let domain = crate::domain_separator!("check eof").instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.prover_message(&instance[0]);
@@ -60,9 +54,8 @@ fn check_eof_reports_remaining_bytes() {
 #[test]
 fn verifier_challenge_matches_prover() {
     let instance = [10u32, 11u32];
-    let domain = crate::domain_separator!("challenge sync")
-        .session(crate::session!("challenge session"))
-        .instance(&instance);
+    let domain =
+        crate::domain_separator!("challenge sync"; "challenge session").instance(&instance);
 
     let mut prover = domain.std_prover();
     let challenge: u32 = prover.verifier_message();
@@ -74,54 +67,43 @@ fn verifier_challenge_matches_prover() {
 }
 
 #[test]
-fn domain_separator_accepts_variable_sessions() {
+fn domain_separator_macro_session_arms_agree_on_domsep() {
     let instance = [0u8; 0];
-    let literal_session = crate::domain_separator!("variable sessions")
-        .session(crate::session!("shared session"))
-        .instance(&instance)
-        .session
-        .0;
-
+    let a = crate::domain_separator!("variable sessions"; "shared session").instance(&instance);
     let session_str = "shared session";
-    let from_str = crate::domain_separator!("variable sessions")
-        .session(crate::session_id_from_str(session_str))
-        .instance(&instance)
-        .session
-        .0;
-    assert_eq!(literal_session, from_str);
-
+    let b = crate::domain_separator!("variable sessions"; session_str).instance(&instance);
     let session_owned = String::from("shared session");
-    let from_owned = crate::domain_separator!("variable sessions")
-        .session(crate::session_id_from_str(&session_owned))
-        .instance(&instance)
-        .session
-        .0;
-    assert_eq!(literal_session, from_owned);
+    let c = crate::domain_separator!("variable sessions"; session_owned).instance(&instance);
+    let d = crate::domain_separator!("variable sessions"; &session_owned).instance(&instance);
+    assert_eq!(a.domsep, b.domsep);
+    assert_eq!(a.domsep, c.domsep);
+    assert_eq!(a.domsep, d.domsep);
 }
 
+/// Empty `session` in [`crate::DomainSeparator::derive`] must not coincide with a real session
+/// (upstream tested this via `without_session()` vs `.session(...)`).
 #[test]
-fn without_session_distinct_from_real_session() {
+fn empty_session_distinct_from_nonempty_session() {
     let instance = [0u8; 0];
+    let proto = crate::protocol_label(core::format_args!("app"));
+    let no_sess = crate::DomainSeparator::derive(
+        proto.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        &[],
+    )
+    .instance(&instance);
+    let with_sess = crate::domain_separator!("app"; "production").instance(&instance);
 
-    let no_sess = crate::domain_separator!("app")
-        .without_session()
-        .instance(&instance);
-    let with_sess = crate::domain_separator!("app")
-        .session(crate::session!("production"))
-        .instance(&instance);
+    assert_ne!(no_sess.domsep, with_sess.domsep);
 
     let mut a = no_sess.std_prover();
     let mut b = with_sess.std_prover();
-
-    let ca: u32 = a.verifier_message();
-    let cb: u32 = b.verifier_message();
-
-    assert_ne!(ca, cb);
+    assert_ne!(a.verifier_message::<u32>(), b.verifier_message::<u32>());
 }
 
 #[test]
-fn different_session_values_diverge() {
-    use crate::{DomainSeparator, Encoding};
+fn different_derive_session_bytes_diverge() {
+    use crate::DomainSeparator;
 
     struct Ctx(u64);
 
@@ -132,27 +114,30 @@ fn different_session_values_diverge() {
     }
 
     let instance = [0u8; 0];
-    let session_1 = Ctx(1);
-    let session_2 = Ctx(2);
-    let a = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(session_1)
-        .instance(&instance);
-    let b = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(session_2)
-        .instance(&instance);
+    let proto = crate::protocol_id(core::format_args!("p"));
+    let a = DomainSeparator::derive(
+        proto.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        Ctx(1).encode().as_ref(),
+    )
+    .instance(&instance);
+    let b = DomainSeparator::derive(
+        proto.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        Ctx(2).encode().as_ref(),
+    )
+    .instance(&instance);
 
     let mut pa = a.std_prover();
     let mut pb = b.std_prover();
-
-    let ca: u32 = pa.verifier_message();
-    let cb: u32 = pb.verifier_message();
-    assert_ne!(ca, cb);
+    assert_ne!(
+        pa.verifier_message::<u32>(),
+        pb.verifier_message::<u32>()
+    );
 }
 
 #[test]
-fn borrowed_session_matches_owned_session() {
-    use alloc::string::String;
-
+fn same_session_encoding_same_challenge() {
     struct Ctx(String);
 
     impl Encoding for Ctx {
@@ -162,17 +147,26 @@ fn borrowed_session_matches_owned_session() {
     }
 
     let instance = [0u8; 0];
-    let borrowed_ctx = Ctx(String::from("borrowed-session"));
-    let borrowed = crate::domain_separator!("borrowed session")
-        .session(&borrowed_ctx)
-        .instance(&instance);
-    let owned = crate::domain_separator!("borrowed session")
-        .session(Ctx(String::from("borrowed-session")))
-        .instance(&instance);
+    let proto = crate::protocol_label(core::format_args!("borrowed session"));
+    let b1 = Ctx(String::from("borrowed-session"));
+    let b2 = Ctx(String::from("borrowed-session"));
+    let dom1 = crate::DomainSeparator::derive(
+        proto.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        b1.encode().as_ref(),
+    )
+    .instance(&instance);
+    let dom2 = crate::DomainSeparator::derive(
+        proto.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        b2.encode().as_ref(),
+    )
+    .instance(&instance);
 
-    let borrowed_challenge: u64 = borrowed.std_prover().verifier_message();
-    let owned_challenge: u64 = owned.std_prover().verifier_message();
-    assert_eq!(borrowed_challenge, owned_challenge);
+    assert_eq!(dom1.domsep, dom2.domsep);
+    let c1: u64 = dom1.std_prover().verifier_message();
+    let c2: u64 = dom2.std_prover().verifier_message();
+    assert_eq!(c1, c2);
 }
 
 #[test]
@@ -207,20 +201,56 @@ fn std_transcript_initialization_matches_manual_shake128() {
     let session = crate::session_id(core::format_args!("discrete_logarithm"));
     let instance = [42u32, 7u32];
 
-    let domain = crate::DomainSeparator::new(protocol)
-        .session(session)
-        .instance(&instance);
+    let domain = crate::DomainSeparator::derive(
+        protocol.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        session.as_slice(),
+    )
+    .instance(&instance);
 
     let mut prover = domain.std_prover();
     let challenge: [u8; 32] = prover.verifier_message();
 
-    let mut manual = crate::StdHash::from_protocol_id(protocol);
-    manual.absorb(&session);
+    let domsep = crate::derive_domain_digest(
+        protocol.as_slice(),
+        crate::DOMAIN_SEPARATOR_MACRO_SPONGE_INFO,
+        session.as_slice(),
+    );
+    let mut manual = crate::StdHash::from_protocol_id(domsep);
     let encoded_instance = instance.encode();
     manual.absorb(encoded_instance.as_ref());
     let expected = manual.squeeze_array::<32>();
 
     assert_eq!(challenge, expected);
+}
+
+#[test]
+fn derive_matches_prefix_builder_and_differs_on_inputs() {
+    let p = b"p";
+    let i = b"i";
+    let s = b"s";
+    let d = crate::derive_domain_digest(p, i, s);
+    let from_builder = crate::DomainSeparatorPrefix::new(p, i).with_session::<[u32; 0]>(s);
+    assert_eq!(from_builder.domsep, d);
+
+    let d2 = crate::derive_domain_digest(p, i, b"t");
+    assert_ne!(d, d2);
+}
+
+#[cfg(feature = "keccak")]
+#[test]
+fn derived_duplex_keccak_challenge_matches() {
+    use crate::instantiations::Keccak;
+
+    let instance = [3u32, 14u32];
+    let dom = crate::DomainSeparator::derive(b"proto", b"sponge", b"sess").instance(&instance);
+
+    let mut p = dom.to_prover(Keccak::default());
+    let challenge: u32 = p.verifier_message();
+    let proof = p.narg_string().to_vec();
+
+    let mut v = dom.to_verifier(Keccak::default(), &proof);
+    assert_eq!(v.verifier_message::<u32>(), challenge);
 }
 
 #[test]
