@@ -6,7 +6,7 @@ pub use keccak::KeccakF1600;
 #[cfg(feature = "ascon")]
 mod ascon {
 
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, Default)]
     pub struct Ascon12;
     use crate::duplex_sponge::Permutation;
 
