@@ -3,17 +3,13 @@ use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use rand::rngs::OsRng;
 use spongefish::{
-    protocol_id, Codec, DomainSeparator, Encoding, NargDeserialize, NargSerialize, ProverState,
-    VerificationError, VerificationResult, VerifierState,
+    Codec, Encoding, NargDeserialize, NargSerialize, ProverState, VerificationError,
+    VerificationResult, VerifierState,
 };
 
 struct Schnorr;
 
 impl Schnorr {
-    pub fn protocol_id() -> [u8; 64] {
-        protocol_id(core::format_args!("schnorr proof"))
-    }
-
     /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
     ///
     /// The [`ProverState`] actually depends on a duplex sponge interface (over any field) and a random number generator.
@@ -78,9 +74,8 @@ fn main() {
     let pk = generator * sk;
     let instance = [generator, pk];
 
-    let domain_sep = DomainSeparator::new(Schnorr::protocol_id())
-        .session(spongefish::session!("spongefish examples"))
-        .instance(&instance);
+    let domain_sep =
+        spongefish::domain_separator!("schnorr proof"; "spongefish examples").instance(&instance);
 
     // Prove the relation sk * G::generator() = pk
     let mut prover_state = domain_sep.std_prover();
