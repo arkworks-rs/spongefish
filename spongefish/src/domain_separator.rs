@@ -45,7 +45,7 @@ use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash};
 /// ```compile_fail
 /// use spongefish::domain_separator;
 ///
-/// domain_separator!("this will not compile").std_prover();
+/// domain_separator!("this will not compile"; "example session").std_prover();
 /// ```
 ///
 /// ```compile_fail
@@ -67,7 +67,7 @@ impl<I: ?Sized> WithoutInstance<I> {
 /// ```no_run
 /// use spongefish::domain_separator;
 ///
-/// let _prover = domain_separator!("this will compile")
+/// let _prover = domain_separator!("this will compile"; "example session")
 ///     .instance(b"yellowsubmarine")
 ///     .std_prover();
 /// ```

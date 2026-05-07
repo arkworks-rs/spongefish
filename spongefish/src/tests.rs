@@ -23,7 +23,7 @@ fn prover_rng_emits_entropy() {
 #[test]
 fn prover_messages_round_trip() {
     let instance = [1u32, 2u32];
-    let domain = crate::domain_separator!("round trip").instance(&instance);
+    let domain = crate::domain_separator!("round trip"; "round trip session").instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.public_message(&instance[0]);
@@ -39,7 +39,7 @@ fn prover_messages_round_trip() {
 #[test]
 fn check_eof_reports_remaining_bytes() {
     let instance = [5u32, 6u32];
-    let domain = crate::domain_separator!("check eof").instance(&instance);
+    let domain = crate::domain_separator!("check eof"; "check eof session").instance(&instance);
 
     let mut prover = domain.std_prover();
     prover.prover_message(&instance[0]);

@@ -258,14 +258,6 @@ macro_rules! domain_separator {
             sess.as_slice(),
         )
     }};
-    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        let protocol = $crate::protocol_label(core::format_args!($fmt $(, $arg)*));
-        $crate::DomainSeparator::derive(
-            protocol.as_slice(),
-            b"spongefish/domain_separator/macro/v1",
-            &[],
-        )
-    }};
 }
 
 /// Builds session bytes (64-byte field, high half from SHAKE128) for use with [`DomainSeparator::derive`].
