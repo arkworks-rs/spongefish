@@ -1353,12 +1353,13 @@ dependencies = [
 
 [[package]]
 name = "k12"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa4b15f0fd1abbca1aa77ec18076d1b893c02979c27d84d1b3b422f3153c1763"
+checksum = "42df0a2c67ec6de21c7e1d21b6d91c8cb75c8c85ddb7e553dffe58e0d9554946"
 dependencies = [
  "digest 0.11.3",
  "keccak 0.2.0",
+ "sponge-cursor",
 ]
 
 [[package]]
@@ -2662,6 +2663,12 @@ dependencies = [
  "base64ct",
  "der",
 ]
+
+[[package]]
+name = "sponge-cursor"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620"
 
 [[package]]
 name = "spongefish"
