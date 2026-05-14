@@ -49,13 +49,7 @@ mod params;
 
 pub use channel::TranscriptSponge;
 pub use channel::{SpongeProver, SpongeVerifier};
-pub use compile::{
-    prove, prove_reduction, prove_reduction_with_salt, prove_reduction_with_sponge,
-    prove_reduction_with_sponge_and_salt, prove_with_salt, prove_with_sponge,
-    prove_with_sponge_and_salt, verify, verify_reduction, verify_reduction_with_salt,
-    verify_reduction_with_sponge, verify_reduction_with_sponge_and_salt, verify_with_salt,
-    verify_with_sponge, verify_with_sponge_and_salt, ByteDuplexSponge, Dsfs, DsfsReduction,
-};
+pub use compile::{ByteDuplexSponge, Dsfs, DsfsReduction};
 pub use narg_security::{
     reduction_security_for_source_bound, reduction_security_for_source_bound_with,
     reduction_security_for_source_instance, reduction_security_for_source_instance_with,
