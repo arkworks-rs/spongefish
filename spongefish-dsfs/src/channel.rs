@@ -4,13 +4,13 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use crate::{
+use spongefish::{
     Decoding, DomainSeparator, DuplexSpongeInterface, Encoding, NargDeserialize, NargSerialize,
     ProverState, StdHash, VerificationResult, VerifierState,
 };
 use ia_core::{Deserialize, ProverChannel, VerifierChannel};
 
-use super::params::{Keccak, SpongeInfo};
+use crate::params::{Keccak, SpongeInfo};
 
 /// Construct spongefish prover/verifier states from the same public inputs that define the
 /// Fiat–Shamir transcript (protocol id, session id, instance bytes).

@@ -1,5 +1,5 @@
 [workspace]
-members = ["circuit", "derive", "pow", "spongefish"]
+members = ["circuit", "derive", "pow", "spongefish", "spongefish-dsfs"]
 resolver = "2"
 
 [workspace.package]
@@ -87,4 +87,8 @@ ia-core = { path = "../Argus/crates/ia-core" }
 spongefish = { version = "0.7.0", path = "spongefish" }
 spongefish-circuit = { version = "0.7.0", path = "circuit" }
 spongefish-derive = { version = "0.7.0", path = "derive" }
+spongefish-dsfs = { version = "0.7.0", path = "spongefish-dsfs" }
 zeroize = "^1.8.1"
+
+[patch.crates-io]
+spongefish = { path = "spongefish" }

@@ -4,7 +4,7 @@ extern crate alloc;
 
 use ia_core::{ArgumentSecurity, ReductionSecurity, SecurityProfile};
 
-use super::params::{SpongeParams, STD_SPONGE_PARAMS};
+use crate::params::{SpongeParams, STD_SPONGE_PARAMS};
 
 /// Final NARG security profile after applying DSFS to an IA/IR.
 #[derive(Debug, Clone)]
@@ -236,7 +236,7 @@ impl NargSecurity {
 
 #[cfg(test)]
 mod tests {
-    use super::super::params::SpongeParams;
+    use crate::params::SpongeParams;
     use super::NargSecurity;
     use ia_core::{SecurityErrorBound, SecurityProfile};
 

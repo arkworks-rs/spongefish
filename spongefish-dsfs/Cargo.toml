@@ -1,0 +1,21 @@
+[package]
+name = "spongefish-dsfs"
+description = "DSFS (Duplex-Sponge Fiat-Shamir) compiler bridging spongefish transcripts with the Argus IA/IR interfaces"
+documentation = "https://docs.rs/spongefish-dsfs"
+edition.workspace = true
+readme.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version = "0.7.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+ia-core = { workspace = true }
+spongefish = { workspace = true, features = ["keccak", "sha3"] }
+rand = { workspace = true, features = ["getrandom"] }
+
+[lints]
+workspace = true

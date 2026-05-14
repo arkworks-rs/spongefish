@@ -11,10 +11,10 @@ use ia_core::{
     NonInteractiveArgument, NonInteractiveReduction,
 };
 
-use crate::{DomainSeparator, DuplexSpongeInterface};
+use spongefish::{DomainSeparator, DuplexSpongeInterface};
 
-use super::channel::{SpongeProver, SpongeVerifier};
-use super::params::{Keccak, SpongeInfo};
+use crate::channel::{SpongeProver, SpongeVerifier};
+use crate::params::{Keccak, SpongeInfo};
 
 /// Byte-oriented duplex sponge (`U = u8`), matching Keccak and spongefish `StdHash` / SHAKE128.
 pub trait ByteDuplexSponge: DuplexSpongeInterface<U = u8> {}

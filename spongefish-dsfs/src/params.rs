@@ -1,6 +1,6 @@
 //! Sponge shape and DSFS security-parameter bookkeeping for duplex sponges.
 
-use crate::{DuplexSponge, Permutation};
+use spongefish::{DuplexSponge, Permutation};
 
 /// Sponge parameters needed to evaluate DSFS security bounds.
 #[derive(Debug, Clone, Copy)]
@@ -25,20 +25,20 @@ pub const STD_SPONGE_PARAMS: SpongeParams = SpongeParams {
     delta: 1,
 };
 
-pub type Keccak = crate::instantiations::Keccak;
+pub type Keccak = spongefish::instantiations::Keccak;
 
 /// Spongefish’s default FS transcript hash: SHAKE128 in XOF duplex mode (`std_prover` / `std_verifier`).
 ///
 /// Use with [`crate::compile::prove_with_sponge`] when you need byte-compatibility with
 /// spongefish / σ-proofs `Nizk` transcript defaults.
-pub type StdHash = crate::StdHash;
+pub type StdHash = spongefish::StdHash;
 
 /// Compilation-layer identifier fed into [`spongefish::DomainSeparator::derive`] together with the
 /// IA `protocol_id` and encoded session (length-prefixed SHA-512 in spongefish).
 ///
 /// Must distinguish every configuration that affects the compiled NARG / DSFS bounds (sponge
 /// shape, transcript format, etc.).
-pub trait SpongeInfo: super::compile::ByteDuplexSponge {
+pub trait SpongeInfo: crate::compile::ByteDuplexSponge {
     const SPONGE_INFO: &'static [u8];
 }
 

@@ -1,6 +1,6 @@
 //! DSFS compiler: Duplex-Sponge Fiat-Shamir transformation.
 //!
-//! This module implements the DSFS transformation of Chiesa-Orru 2025,
+//! This crate implements the DSFS transformation of Chiesa-Orru 2025,
 //! Construction 4.3, for `ia-core` public-coin interactive protocols.
 //!
 //! The split of responsibilities is:
@@ -8,7 +8,7 @@
 //! - `ia-core` defines the abstract protocol vocabulary: channel traits,
 //!   interactive arguments/reductions, `NargProof`, and the
 //!   `NonInteractiveArgument` / `NonInteractiveReduction` traits.
-//! - `spongefish::dsfs` owns the concrete transformation from those interactive
+//! - `spongefish-dsfs` owns the concrete transformation from those interactive
 //!   protocols into non-interactive proofs using spongefish transcripts.
 //! - Protocol implementations should only call the channel API. They should not
 //!   instantiate sponges, derive Fiat-Shamir challenges directly, or inspect
@@ -37,6 +37,10 @@
 //! - every prover message is absorbed before the next verifier challenge;
 //! - verifier replay is deterministic;
 //! - verification consumes exactly the expected proof bytes.
+
+#![no_std]
+
+extern crate alloc;
 
 mod channel;
 mod compile;
