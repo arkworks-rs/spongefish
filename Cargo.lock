@@ -1326,9 +1326,9 @@ dependencies = [
 
 [[package]]
 name = "k12"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42df0a2c67ec6de21c7e1d21b6d91c8cb75c8c85ddb7e553dffe58e0d9554946"
+checksum = "38a8cc72399dffa4a445bc5f5a84d4af4d441c76604231bc52e9c529c1d47693"
 dependencies = [
  "digest 0.11.3",
  "keccak 0.2.0",
