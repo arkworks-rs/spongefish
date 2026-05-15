@@ -1622,7 +1622,7 @@ dependencies = [
  "p3-matrix",
  "p3-maybe-rayon",
  "p3-util",
- "spin",
+ "spin 0.10.0",
  "tracing",
 ]
 
@@ -1733,7 +1733,7 @@ dependencies = [
  "paste",
  "rand 0.10.1",
  "serde",
- "spin",
+ "spin 0.10.0",
  "tracing",
 ]
 
@@ -2601,6 +2601,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "783f3f6f6b01e295a669edfc402133a5f2553d1f0e81284b3ba4594e80bdd4a2"
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2665,7 +2671,7 @@ dependencies = [
  "itertools 0.14.0",
  "p3-baby-bear",
  "p3-field",
- "spin",
+ "spin 0.11.0",
  "spongefish",
 ]
 
