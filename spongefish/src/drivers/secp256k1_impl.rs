@@ -1,16 +1,21 @@
-//! secp256k1 (k256) bindings: sponge `Unit` impl plus codec implementations.
-
+//! secp256k1 (k256) codec implementations
 use k256::{
-    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
     elliptic_curve::{
         bigint::U512,
         ff::{Field, PrimeField},
         sec1::{FromEncodedPoint, ToEncodedPoint},
     },
+    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
 };
 
-use crate::{Decoding, Encoding, NargDeserialize, VerificationError, VerificationResult};
+use crate::{
+    codecs::{Decoding, Encoding},
+    error::VerificationError,
+    io::NargDeserialize,
+    VerificationResult,
+};
 
+// Make k256 Scalar a valid Unit type
 impl crate::Unit for Scalar {
     const ZERO: Self = <Self as Field>::ZERO;
 }
@@ -74,5 +79,58 @@ impl Encoding<[u8]> for ProjectivePoint {
 impl Encoding<[u8]> for AffinePoint {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.to_encoded_point(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::io::NargSerialize;
+
+    #[test]
+    fn test_scalar_serialize_deserialize() {
+        let scalar = Scalar::random(&mut rand::thread_rng());
+
+        let mut buf = Vec::new();
+        scalar.serialize_into_narg(&mut buf);
+
+        let mut buf_slice = &buf[..];
+        let deserialized = Scalar::deserialize_from_narg(&mut buf_slice).unwrap();
+        assert_eq!(scalar, deserialized);
+    }
+
+    #[test]
+    fn test_point_serialize_deserialize() {
+        use k256::elliptic_curve::Group;
+
+        let point = ProjectivePoint::random(&mut rand::thread_rng());
+
+        let mut buf = Vec::new();
+        point.serialize_into_narg(&mut buf);
+
+        let mut buf_slice = &buf[..];
+        let deserialized = ProjectivePoint::deserialize_from_narg(&mut buf_slice).unwrap();
+        assert_eq!(point, deserialized);
+    }
+
+    #[test]
+    fn test_scalar_encoding() {
+        let scalar = Scalar::random(&mut rand::thread_rng());
+
+        let encoded = scalar.encode();
+        let encoded_bytes = encoded.as_ref();
+
+        let mut buf_slice = encoded_bytes;
+        let deserialized = Scalar::deserialize_from_narg(&mut buf_slice).unwrap();
+        assert_eq!(scalar, deserialized);
+    }
+
+    #[test]
+    fn test_decoding() {
+        let buf = super::super::Array64::default();
+        let scalar = Scalar::decode(buf);
+        assert_eq!(scalar, Scalar::ZERO);
     }
 }

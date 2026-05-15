@@ -1,13 +1,18 @@
-//! curve25519-dalek bindings: sponge `Unit` impl plus codec implementations.
-
+//! curve25519-dalek codec implementations
 use curve25519_dalek::{
     edwards::{CompressedEdwardsY, EdwardsPoint},
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
 
-use crate::{Decoding, Encoding, NargDeserialize, VerificationError, VerificationResult};
+use crate::{
+    codecs::{Decoding, Encoding},
+    error::VerificationError,
+    io::NargDeserialize,
+    VerificationResult,
+};
 
+// Make curve25519-dalek Scalar a valid Unit type
 impl crate::Unit for Scalar {
     const ZERO: Self = Self::ZERO;
 }

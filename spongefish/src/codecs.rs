@@ -40,7 +40,7 @@ where
 ///
 /// # Safety
 ///
-/// Argus assumes that prover and verifier will know the length of all the prover messages.
+/// [`spongefish`][`crate`] assumes that prover and verifier will know the length of all the prover messages.
 /// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of any other
 /// instance of the same type.
 ///

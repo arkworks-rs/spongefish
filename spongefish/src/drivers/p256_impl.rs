@@ -1,15 +1,19 @@
-//! p256 bindings: sponge `Unit` impl plus codec implementations.
+//! p256 codec implementations
 
 use p256::{
+    elliptic_curve::{group::GroupEncoding, ops::Reduce, sec1::ToEncodedPoint, PrimeField},
     AffinePoint, ProjectivePoint, Scalar, U256,
-    elliptic_curve::{PrimeField, group::GroupEncoding, ops::Reduce, sec1::ToEncodedPoint},
 };
 
 use crate::{
-    Decoding, Encoding, NargDeserialize, VerificationError, VerificationResult,
+    codecs::{Decoding, Encoding},
     drivers::Array64,
+    error::VerificationError,
+    io::NargDeserialize,
+    VerificationResult,
 };
 
+// Make p256 Scalar a valid Unit type
 impl crate::Unit for Scalar {
     const ZERO: Self = Self::ZERO;
 }

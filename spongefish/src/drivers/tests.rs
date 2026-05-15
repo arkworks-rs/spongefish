@@ -20,7 +20,6 @@ where
     assert_eq!(encoded_bytes(value), encoded_bytes(&decoded));
 }
 
-#[allow(unused)]
 fn assert_narg_advances_buffer<T>(value: &T)
 where
     T: NargSerialize + NargDeserialize,

@@ -1,13 +1,13 @@
-//! Verification errors and result type.
+use core::fmt::Display;
 
-/// Verification failed.
-#[derive(Debug, Clone, Copy, Default)]
+/// An error signaling that verification failed.
+#[derive(Debug, Copy, Clone, Default)]
 pub struct VerificationError;
 
-/// Result type for verification operations.
+/// A [`Result`] wrapper that can either return `T` or a [`VerificationError`].
 pub type VerificationResult<T> = Result<T, VerificationError>;
 
-impl core::fmt::Display for VerificationError {
+impl Display for VerificationError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Invalid proof")
     }

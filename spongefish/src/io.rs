@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{VerificationError, VerificationResult, codecs::Encoding};
+use crate::{codecs::Encoding, VerificationError, VerificationResult};
 
 /// Trait for serialization of an object as a NARG string.
 ///

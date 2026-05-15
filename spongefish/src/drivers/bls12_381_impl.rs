@@ -1,9 +1,14 @@
-//! BLS12-381 bindings: sponge `Unit` impl plus codec implementations.
-
+//! BLS12-381 codec implementations
 use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar};
 
-use crate::{Decoding, Encoding, NargDeserialize, VerificationError, VerificationResult};
+use crate::{
+    codecs::{Decoding, Encoding},
+    error::VerificationError,
+    io::NargDeserialize,
+    VerificationResult,
+};
 
+// Make BLS12-381 scalar a valid Unit type
 impl crate::Unit for Scalar {
     const ZERO: Self = Self::zero();
 }

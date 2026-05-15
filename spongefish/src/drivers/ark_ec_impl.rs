@@ -1,10 +1,10 @@
-//! `ark_ec` codec implementations for short Weierstrass, twisted Edwards, and pairing groups.
+//! Helpers for bridging `ark_ec` curve types with `spongefish` codecs.
 
 use alloc::vec::Vec;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 
-use crate::{Encoding, NargDeserialize, VerificationError, VerificationResult};
+use crate::{codecs::Encoding, error::VerificationError, io::NargDeserialize, VerificationResult};
 
 macro_rules! impl_deserialize {
     (impl [$($generics:tt)*] for $type:ty) => {
