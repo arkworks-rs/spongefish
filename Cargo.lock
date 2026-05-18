@@ -1628,9 +1628,9 @@ dependencies = [
 
 [[package]]
 name = "p3-field"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85affca7fc983889f260655c4cf74163eebb94605f702e4b6809ead707cba54f"
+checksum = "6f3eb24d0591fd4d282d89cbe4e4efba5571c699375006f80b2cbf53ce83461c"
 dependencies = [
  "itertools 0.14.0",
  "num-bigint",
@@ -1675,9 +1675,9 @@ dependencies = [
 
 [[package]]
 name = "p3-maybe-rayon"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "082bf467011c06c768c579ec6eb9accb5e1e62108891634cc770396e917f978a"
+checksum = "eebc233a34b1ab0273f35b4052fa2eeb3114b22ba4575bd7da00716e878ffb77"
 
 [[package]]
 name = "p3-mds"
@@ -1775,9 +1775,9 @@ dependencies = [
 
 [[package]]
 name = "p3-util"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8b766b9e9254bf3fa98d76e42cf8a5b30628c182dfd5272d270076ee12f0fc0"
+checksum = "d08a58162a4c264269ef454f0b28dcda89939490eecacb2b2cf5b00f719b80f6"
 dependencies = [
  "serde",
  "transpose",
@@ -2140,7 +2140,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "once_cell",
@@ -2160,7 +2160,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn",
