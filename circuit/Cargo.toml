@@ -7,7 +7,7 @@ readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
-version = "0.7.0"
+version = "0.7.1"
 
 [package.metadata.docs.rs]
 all-features = true
