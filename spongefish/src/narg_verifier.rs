@@ -64,6 +64,16 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         T::decode(buf)
     }
 
+    /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
+        core::array::from_fn(|_| self.verifier_message())
+    }
+
+    /// Reads `len` verifier messages `T` into a vector, each implementing `Encoding<[H::U]>`.
+    pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
+        (0..len).map(|_| self.verifier_message()).collect()
+    }
+
     /// Absorbs a slice of public messages.
     ///
     /// ```

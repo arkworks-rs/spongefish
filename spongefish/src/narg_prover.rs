@@ -249,7 +249,7 @@ where
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Returns a vector of uniformly-distributed verifier messages `[T; N]`.
+    /// Reads `len` verifier messages `T` into a vector, each implementing `Encoding<[H::U]>`.
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
