@@ -132,7 +132,41 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    /// Returns `Ok(())` if the transcript has been fully consumed, otherwise a `VerificationError`.
+    /// Ensures that no trailing bytes remain in the transcript.
+    ///
+    /// # Why this check exists
+    /// In a typical sponge-based proof system, the transcript (NARG string) has a
+    /// **fixed, deterministic length**. Extra bytes at the end usually indicate:
+    /// - A corrupt or malformed proof,
+    /// - A mismatch between prover and verifier protocol logic,
+    /// - Or an attempt to create two different serialized proofs that deserialize
+    ///   to the same logical transcript.
+    ///
+    /// Without this check, an attacker could append garbage bytes to a valid proof,
+    /// and the verifier would still accept it. This breaks **canonicality** and
+    /// can lead to signature forgeries or hash collision attacks in protocols that
+    /// rely on unique serialization.
+    ///
+    /// # Warning
+    /// **DO NOT disable or ignore this check.** If you find yourself wanting to skip it,
+    /// you are very likely introducing a critical security vulnerability.
+    ///
+    /// - **Canonicalization attack:** Two different byte strings will produce the same
+    ///   deserialized state, breaking equality checks, hash mappings, and signature schemes.
+    /// - **Interoperability hazard:** Different verifier implementations must agree on what
+    ///   constitutes a valid proof. Allowing trailing bytes makes the format non-deterministic.
+    /// - **Debugging:** If `check_eof` fails, fix the real bug (e.g., read all expected
+    ///   messages correctly) — do not simply comment out the check.
+    ///
+    /// # Example
+    /// ```
+    /// # use spongefish::{StdHash, VerifierState};
+    /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
+    /// assert!(verifier.check_eof().is_err());   // Trailing bytes → rejection
+    ///
+    /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+    /// assert!(verifier.check_eof().is_ok());    // Fully consumed → accept
+    /// ```
     pub fn check_eof(self) -> VerificationResult<()> {
         if self.narg_string.is_empty() {
             Ok(())
