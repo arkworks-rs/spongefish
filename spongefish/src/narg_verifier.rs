@@ -141,6 +141,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
     /// leading to a proof that **lacks strong simulation extractability**.
+    /// A NARG string that fails this check should be rejected.
     ///
     /// # Security Warning
     ///
