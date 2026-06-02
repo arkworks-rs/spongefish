@@ -134,38 +134,26 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Ensures that no trailing bytes remain in the transcript.
     ///
-    /// # Why this check exists
-    /// In a typical sponge-based proof system, the transcript (NARG string) has a
-    /// **fixed, deterministic length**. Extra bytes at the end usually indicate:
-    /// - A corrupt or malformed proof,
-    /// - A mismatch between prover and verifier protocol logic,
-    /// - Or an attempt to create two different serialized proofs that deserialize
-    ///   to the same logical transcript.
+    /// # Reasoning
     ///
-    /// Without this check, an attacker could append garbage bytes to a valid proof,
-    /// and the verifier would still accept it. This breaks **canonicality** and
-    /// can lead to signature forgeries or hash collision attacks in protocols that
-    /// rely on unique serialization.
+    /// The Fiat--Shamir transformation produces a NARG string with
+    /// **fixed, deterministic length**.
     ///
-    /// # Warning
-    /// **DO NOT disable or ignore this check.** If you find yourself wanting to skip it,
-    /// you are very likely introducing a critical security vulnerability.
+    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// leading to a proof that **lacks strong simulation extractability**.
     ///
-    /// - **Canonicalization attack:** Two different byte strings will produce the same
-    ///   deserialized state, breaking equality checks, hash mappings, and signature schemes.
-    /// - **Interoperability hazard:** Different verifier implementations must agree on what
-    ///   constitutes a valid proof. Allowing trailing bytes makes the format non-deterministic.
-    /// - **Debugging:** If `check_eof` fails, fix the real bug (e.g., read all expected
-    ///   messages correctly) — do not simply comment out the check.
+    /// # Security Warning
+    ///
+    /// Skipping this check can introduce a security vulnerability.
     ///
     /// # Example
     /// ```
     /// # use spongefish::{StdHash, VerifierState};
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
-    /// assert!(verifier.check_eof().is_err());   // Trailing bytes → rejection
+    /// assert!(verifier.check_eof().is_err());
     ///
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
-    /// assert!(verifier.check_eof().is_ok());    // Fully consumed → accept
+    /// assert!(verifier.check_eof().is_ok());
     /// ```
     pub fn check_eof(self) -> VerificationResult<()> {
         if self.narg_string.is_empty() {
