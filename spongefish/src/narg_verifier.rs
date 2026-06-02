@@ -132,22 +132,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    /// Ensures that no trailing bytes remain in the transcript.
-    ///
-    /// # Reasoning
-    ///
     /// The Fiat--Shamir transformation produces a NARG string with
     /// **fixed, deterministic length**.
+    /// This check ensures that no trailing bytes remain in the transcript.
     ///
-    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
-    /// leading to a proof that **lacks strong simulation extractability**.
-    /// A NARG string that fails this check should be rejected.
-    ///
-    /// # Security Warning
-    ///
-    /// Skipping this check can introduce a security vulnerability.
-    ///
-    /// # Example
     /// ```
     /// # use spongefish::{StdHash, VerifierState};
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
@@ -156,6 +144,13 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
     /// assert!(verifier.check_eof().is_ok());
     /// ```
+    ///
+    /// # Safety
+    ///
+    /// Skipping this check can introduce a security vulnerability:
+    /// extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// leading to a proof that **lacks strong simulation extractability**.
+    /// A NARG string that fails this check should be rejected.
     pub fn check_eof(self) -> VerificationResult<()> {
         if self.narg_string.is_empty() {
             Ok(())
