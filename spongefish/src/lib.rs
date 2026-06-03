@@ -123,7 +123,7 @@
 //! All hash functions are available in [`instantiations`]:
 //!
 //! 1. [`Keccak`][instantiations::Keccak], the duplex sponge construction [[CO25], Section 3.3] for the
-//! [`keccak::f1600`] permutation [Keccak-f].
+//! [`keccak::Keccak::with_f1600`] permutation [Keccak-f].
 //! Available with the `keccak` feature flag;
 //! 2. [`Ascon12`][instantiations::Ascon12], the duplex sponge construction [[CO25], Section 3.3] for the
 //! [`ascon`] permutation [Ascon], used in overwrite mode.

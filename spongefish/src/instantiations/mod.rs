@@ -9,7 +9,7 @@ pub use xof::XOF;
 pub use super::duplex_sponge::DuplexSponge;
 
 #[cfg(feature = "keccak")]
-/// A [`DuplexSponge`] instantiated with [`keccak::f1600`].
+/// A [`DuplexSponge`] instantiated with [`keccak::Keccak::with_f1600`].
 ///
 /// **Warning**: This function is not SHA-3.
 /// Despite internally we use the same permutation function,

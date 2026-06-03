@@ -23,45 +23,52 @@ mod ascon {
 
 #[cfg(feature = "keccak")]
 mod keccak {
-    use core::{fmt::Debug, ptr};
+    use core::fmt::Debug;
 
     use crate::duplex_sponge::Permutation;
+    use ::keccak::{Keccak, State1600};
+
+    const STATE_BYTES: usize = 200;
+    const WORD_BYTES: usize = 8;
+    const _: () = assert!(STATE_BYTES == ::keccak::PLEN * WORD_BYTES);
 
     /// Keccak permutation internal state: 25 64-bit words,
     /// or equivalently 200 bytes in little-endian order.
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
     pub struct KeccakF1600;
 
-    /// Make sure that we're compiling in a platform where
-    /// the use of transmute for keccak evaluations is OK.
-    const _: () = assert!(core::mem::size_of::<u64>() == 8 * core::mem::size_of::<u8>());
-
-    impl Permutation<{ 136 + 64 }> for KeccakF1600 {
+    impl Permutation<STATE_BYTES> for KeccakF1600 {
         type U = u8;
 
-        fn permute(&self, state: &[u8; 200]) -> [u8; 200] {
+        fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
             let mut new_state = *state;
             self.permute_mut(&mut new_state);
             new_state
         }
 
-        fn permute_mut(&self, state: &mut [u8; 200]) {
-            let mut words = [0u64; 25];
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    state.as_ptr(),
-                    words.as_mut_ptr().cast::<u8>(),
-                    state.len(),
-                );
-            }
-            keccak::f1600(&mut words);
-            unsafe {
-                ptr::copy_nonoverlapping(
-                    words.as_ptr().cast::<u8>(),
-                    state.as_mut_ptr(),
-                    state.len(),
-                );
-            }
+        fn permute_mut(&self, state: &mut [u8; STATE_BYTES]) {
+            let mut words = bytes_to_words(state);
+            f1600(&mut words);
+            words_to_bytes(&words, state);
+        }
+    }
+
+    fn f1600(state: &mut State1600) {
+        Keccak::new().with_f1600(|f1600| f1600(state));
+    }
+
+    fn bytes_to_words(state: &[u8; STATE_BYTES]) -> State1600 {
+        core::array::from_fn(|i| {
+            let start = i * WORD_BYTES;
+            let mut word = [0; WORD_BYTES];
+            word.copy_from_slice(&state[start..start + WORD_BYTES]);
+            u64::from_le_bytes(word)
+        })
+    }
+
+    fn words_to_bytes(words: &State1600, state: &mut [u8; STATE_BYTES]) {
+        for (chunk, word) in state.chunks_exact_mut(WORD_BYTES).zip(words) {
+            chunk.copy_from_slice(&word.to_le_bytes());
         }
     }
 }
