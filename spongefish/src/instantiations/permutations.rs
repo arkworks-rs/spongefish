@@ -44,19 +44,24 @@ mod ascon {
 
 #[cfg(feature = "keccak")]
 mod keccak {
-    use core::{fmt::Debug, ptr};
+    use core::fmt::Debug;
 
     use crate::duplex_sponge::Permutation;
+    use ::keccak::{Keccak, State1600};
+
+    const STATE_BYTES: usize = 200;
+    const WORD_BYTES: usize = 8;
+    const _: () = assert!(STATE_BYTES == ::keccak::PLEN * WORD_BYTES);
 
     /// Keccak permutation internal state: 25 64-bit words,
     /// or equivalently 200 bytes in little-endian order.
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
     pub struct KeccakF1600;
 
-    impl Permutation<{ 136 + 64 }> for KeccakF1600 {
+    impl Permutation<STATE_BYTES> for KeccakF1600 {
         type U = u8;
 
-        fn permute(&self, state: &[u8; 200]) -> [u8; 200] {
+        fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
             let mut new_state = *state;
             self.permute_mut(&mut new_state);
             new_state
@@ -72,7 +77,7 @@ mod keccak {
                 );
             }
 
-            keccak::f1600(&mut words);
+            f1600(&mut words);
 
             unsafe {
                 ptr::copy_nonoverlapping(
@@ -81,6 +86,9 @@ mod keccak {
                     state.len(),
                 );
             }
-        }
+      }
+
+    fn f1600(state: &mut State1600) {
+        Keccak::new().with_f1600(|f1600| f1600(state));
     }
 }

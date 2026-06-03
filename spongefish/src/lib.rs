@@ -17,8 +17,7 @@
 //! let witness = 42;
 //! let instance = [2, language(witness)];
 //!
-//! let domsep = domain_separator!("simplest proof system mod {{P}}")
-//!              .session(spongefish::session!("{{module_path!()}}"))
+//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
 //!              .instance(&instance);
 //!
 //! // non-interactive prover
@@ -53,9 +52,7 @@
 //!
 //! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
 //!
-//! let domain = spongefish::domain_separator!("sumcheck")
-//!     .session(spongefish::session!("{{module_path!()}}"))
-//!     .instance(&witness);
+//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
 //! let mut prover = domain.std_prover();
 //! let challenge = prover.verifier_message::<KoalaBear>();
 //! let response = witness[0] * challenge + witness[1];
@@ -93,8 +90,7 @@
 //! struct PublicKey(RistrettoPoint);
 //!
 //! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-//! let domain = spongefish::domain_separator!("challenge-response")
-//!              .session(spongefish::session!("example"))
+//! let domain = spongefish::domain_separator!("challenge-response"; "example")
 //!              .instance(&generator);
 //!
 //! let pk = PublicKey(generator * Scalar::from(42u64));
@@ -123,7 +119,7 @@
 //! All hash functions are available in [`instantiations`]:
 //!
 //! 1. [`Keccak`][instantiations::Keccak], the duplex sponge construction [[CO25], Section 3.3] for the
-//! [`keccak::f1600`] permutation [Keccak-f].
+//! [`keccak::Keccak::with_f1600`] permutation [Keccak-f].
 //! Available with the `keccak` feature flag;
 //! 2. [`Ascon12`][instantiations::Ascon12], the duplex sponge construction [[CO25], Section 3.3] for the
 //! [`ascon`] permutation [Ascon], used in overwrite mode.

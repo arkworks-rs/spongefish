@@ -46,8 +46,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// ```
     /// let proof = [0u8; 0];
-    /// let mut verifier = spongefish::domain_separator!("examples")
-    ///     .session(spongefish::session!("VerifierState::public_message"))
+    /// let mut verifier = spongefish::domain_separator!(
+    ///     "examples";
+    ///     "VerifierState::public_message"
+    /// )
     ///     .instance(&0u32)
     ///     .std_verifier(&proof);
     /// verifier.public_message(&123u32);
@@ -64,11 +66,23 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         T::decode(buf)
     }
 
+    /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
+        core::array::from_fn(|_| self.verifier_message())
+    }
+
+    /// Returns a vector of uniformly-distributed verifier messages `[T; N]`.
+    pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
+        (0..len).map(|_| self.verifier_message()).collect()
+    }
+
     /// Absorbs a slice of public messages.
     ///
     /// ```
-    /// let mut verifier = spongefish::domain_separator!("examples")
-    ///     .session(spongefish::session!("VerifierState::public_messages"))
+    /// let mut verifier = spongefish::domain_separator!(
+    ///     "examples";
+    ///     "VerifierState::public_messages"
+    /// )
     ///     .instance(&0u32)
     ///     .std_verifier(&[]);
     /// verifier.public_messages(&[1u32, 2u32]);
@@ -83,8 +97,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs an iterator of public messages.
     ///
     /// ```
-    /// let mut verifier = spongefish::domain_separator!("examples")
-    ///     .session(spongefish::session!("VerifierState::public_messages_iter"))
+    /// let mut verifier = spongefish::domain_separator!(
+    ///     "examples";
+    ///     "VerifierState::public_messages_iter"
+    /// )
     ///     .instance(&0u32)
     ///     .std_verifier(&[]);
     /// verifier.public_messages_iter([1u32, 2u32]);
@@ -116,7 +132,25 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    /// Returns `Ok(())` if the transcript has been fully consumed, otherwise a `VerificationError`.
+    /// The Fiat--Shamir transformation produces a NARG string with
+    /// **fixed, deterministic length**.
+    /// This check ensures that no trailing bytes remain in the transcript.
+    ///
+    /// ```
+    /// # use spongefish::{StdHash, VerifierState};
+    /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
+    /// assert!(verifier.check_eof().is_err());
+    ///
+    /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+    /// assert!(verifier.check_eof().is_ok());
+    /// ```
+    ///
+    /// # Safety
+    ///
+    /// Skipping this check can introduce a security vulnerability:
+    /// extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// leading to a proof that **lacks strong simulation extractability**.
+    /// A NARG string that fails this check should be rejected.
     pub fn check_eof(self) -> VerificationResult<()> {
         if self.narg_string.is_empty() {
             Ok(())

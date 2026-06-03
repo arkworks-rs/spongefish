@@ -1,5 +1,6 @@
 use super::PowStrategy;
 use crate::PoWSolution;
+use ::keccak::{Keccak, State1600};
 
 #[derive(Clone, Copy)]
 pub struct KeccakPoW {
@@ -32,9 +33,13 @@ impl PowStrategy for KeccakPoW {
         for s in self.state.iter_mut().skip(5) {
             *s = 0;
         }
-        keccak::f1600(&mut self.state);
+        f1600(&mut self.state);
         self.state[0] < self.threshold
     }
+}
+
+fn f1600(state: &mut State1600) {
+    Keccak::new().with_f1600(|f1600| f1600(state));
 }
 
 #[test]
