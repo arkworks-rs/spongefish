@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   workflow_dispatch:
 
 env:
@@ -36,7 +36,7 @@ jobs:
 
   release-plz-pr:
     name: Release-plz PR
-    if: ${{ github.repository_owner == 'arkworks-rs' }}
+    if: ${{ github.repository_owner == 'arkworks-rs' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
