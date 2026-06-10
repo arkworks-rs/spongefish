@@ -1931,7 +1931,7 @@ checksum = "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620"
 
 [[package]]
 name = "spongefish"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "ark-bls12-381",
  "ark-curve25519",
@@ -1971,7 +1971,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-circuit"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "hashbrown 0.17.1",
  "itertools",
@@ -1983,7 +1983,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-derive"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1993,7 +1993,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-pow"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "blake3",
  "bytemuck",
