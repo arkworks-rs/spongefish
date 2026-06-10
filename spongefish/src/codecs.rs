@@ -249,3 +249,24 @@ where
     E: crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>,
 {
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Encoding;
+
+    /// Cross-architecture guard: the `str` length prefix must be a fixed-width,
+    /// little-endian `u32` on every target. If this ever regresses to a
+    /// pointer-width `usize`, the prefix would be 4 bytes on wasm32 and 8 bytes on
+    /// x86-64, so a 64-bit prover and a 32-bit verifier would derive different
+    /// transcripts. A 32-bit CI lane (see the `wasm` job) runs this for real.
+    #[test]
+    fn str_length_prefix_is_fixed_width_u32_le() {
+        let encoded = Encoding::<[u8]>::encode(&"abc");
+        // 4-byte LE length (== 3) followed by the UTF-8 bytes — never 8 bytes.
+        assert_eq!(encoded.as_ref(), &[3, 0, 0, 0, b'a', b'b', b'c']);
+
+        // Empty string is just the four length bytes.
+        let empty = Encoding::<[u8]>::encode(&"");
+        assert_eq!(empty.as_ref(), &[0, 0, 0, 0]);
+    }
+}

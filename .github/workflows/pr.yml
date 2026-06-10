@@ -83,6 +83,27 @@ jobs:
             all)        cargo test --all-features --verbose ;;
           esac
 
+  # See https://github.com/arkworks-rs/spongefish/issues/171.
+  wasm:
+    name: WASM
+    runs-on: ubuntu-latest
+    env:
+      # Run the wasm test binaries under wasmtime; without this cargo would try to
+      # exec the `.wasm` as a native binary.
+      CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
+      WASMTIME_BACKTRACE_DETAILS: "1"
+      DUDECT_DUMP_SAMPLES: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Build
+        run: cargo build --workspace --all-features --target wasm32-wasip1 --verbose
+      - name: Test
+        run: cargo test --workspace --all-features --target wasm32-wasip1 --verbose --no-fail-fast
+
   # Build docs with the same flags docs.rs uses. Reduces risk of broken public docs.
   docs-rs:
     name: docs.rs
@@ -103,6 +124,7 @@ jobs:
       - format
       - clippy
       - test
+      - wasm
       - docs-rs
     runs-on: ubuntu-latest
     steps:

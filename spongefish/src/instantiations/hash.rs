@@ -86,9 +86,12 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.squeeze(&mut output[len..])
         // Squeeze another digest
         } else if let Mode::Squeeze(i) = self.mode {
-            // Add the squeeze mask, current digest, and index
+            // Add the squeeze mask, current digest, and index.
+            // Encode the index as a fixed-width `u64` (not `usize`) so the absorbed
+            // bytes are identical on 32- and 64-bit targets; otherwise a 64-bit
+            // prover and a 32-bit verifier (e.g. wasm32) derive different outputs.
             let mut output_hasher_prefix = self.hasher.clone();
-            Digest::update(&mut output_hasher_prefix, i.to_be_bytes());
+            Digest::update(&mut output_hasher_prefix, (i as u64).to_be_bytes());
             let digest = output_hasher_prefix.finalize();
             // Copy the digest into the output, and store the rest for later
             let chunk_len = usize::min(output.len(), Self::DIGEST_SIZE);
@@ -147,7 +150,9 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
             let mut squeeze_hasher = D::new();
             Digest::update(&mut squeeze_hasher, Self::mask_squeeze_end());
             Digest::update(&mut squeeze_hasher, &self.cv);
-            Digest::update(&mut squeeze_hasher, byte_count.to_be_bytes());
+            // Fixed-width `u64` encoding for cross-architecture portability — see the
+            // matching note in `squeeze`.
+            Digest::update(&mut squeeze_hasher, (byte_count as u64).to_be_bytes());
             self.cv = Digest::finalize(squeeze_hasher);
 
             // set the sponge state in absorb mode
