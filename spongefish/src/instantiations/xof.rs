@@ -141,6 +141,7 @@ mod tests {
     use super::XOF;
     use crate::duplex_sponge::DuplexSpongeInterface;
 
+    #[allow(unused)]
     fn assert_clone_preserves_squeeze_position<H>()
     where
         H: digest::ExtendableOutput + Clone + Default,

@@ -9,6 +9,8 @@
 //! The snippets below illustrate three typical situations.
 //!
 //! ```
+//! # #[cfg(feature = "sha3")]
+//! # {
 //! use spongefish::domain_separator;
 //!
 //! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
@@ -32,6 +34,7 @@
 //! assert_eq!(language(claimed_witness), language(witness));
 //! // a proof is malleable if we don't check we read everything
 //! assert!(verifier_state.check_eof().is_ok())
+//! # }
 //! ```
 //! The above code will fail to compile if no instance is given.
 //! The implementor has full responsibility in providing the correct instance of the proof system.
@@ -40,12 +43,12 @@
 //!
 //! Spongefish only depends on [`digest`] and [`rand`].
 //! Support for common SNARK libraries is available optional feature flags.
-//! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
+//! For instance `p3-koala-bear` provides codecs for [`p3_koala_bear::KoalaBear`]
 //! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
-//! # #[cfg(feature = "p3-koala-bear")]
+//! # #[cfg(all(feature = "p3-koala-bear", feature = "sha3"))]
 //! # {
-//! // Requires the `p3-baby-bear` feature.
+//! // Requires the `p3-koala-bear` feature.
 //! use p3_koala_bear::KoalaBear;
 //! use p3_field::PrimeCharacteristicRing;
 //! use spongefish::{VerificationError, VerificationResult};
@@ -80,7 +83,7 @@
 //!
 //! The interface [`Codec`] is a shorthand for all of the above.
 //! ```
-//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek"))]
+//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek", feature = "sha3"))]
 //! # {
 //! // Requires the `derive` and `curve25519-dalek` features.
 //! use spongefish::{Codec, domain_separator};
@@ -127,7 +130,7 @@
 //! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [sha3::Shake128].
 //! Available with the `sha3` feature flag (enabled by default);
 //! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
-//! Available with the `sha3` feature flag (enabled by default);
+//! Available with the `blake3` feature flag;
 //! 5. [`SHA256`][instantiations::SHA256], based on [`sha2::Sha256`] used as a stateful hash object.
 //! Available with the `sha2` feature flag;
 //! 6. [`SHA512`][instantiations::SHA512], based on [`sha2::Sha512`] used as a stateful hash object.
@@ -215,7 +218,10 @@ mod domain_separator;
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 #[doc(hidden)]
-pub use domain_separator::{protocol_id, session_id, session_id_from_str};
+pub use domain_separator::protocol_id;
+#[cfg(feature = "sha3")]
+#[doc(hidden)]
+pub use domain_separator::{session_id, session_id_from_str};
 pub use domain_separator::{
     DomainSeparator, NoSession, WithInstance, WithSession, WithoutInstance, WithoutSession,
 };
@@ -230,16 +236,45 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
+#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
+pub type StdHash = instantiations::Blake3;
+#[cfg(not(any(feature = "sha3", feature = "blake3")))]
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct StdHash(());
+
+#[cfg(not(any(feature = "sha3", feature = "blake3")))]
+impl DuplexSpongeInterface for StdHash {
+    type U = u8;
+
+    fn absorb(&mut self, _input: &[Self::U]) -> &mut Self {
+        unreachable!("StdHash requires the `sha3` or `blake3` feature")
+    }
+
+    fn squeeze(&mut self, _output: &mut [Self::U]) -> &mut Self {
+        unreachable!("StdHash requires the `sha3` or `blake3` feature")
+    }
+
+    fn ratchet(&mut self) -> &mut Self {
+        unreachable!("StdHash requires the `sha3` or `blake3` feature")
+    }
+}
+
+#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
+pub type DefaultHash = StdHash;
 
 /// Build a [`DomainSeparator`] from a protocol identifier string.
 ///
 /// Chain `.session(..)` or `.without_session()` before `.instance(..)`.
 ///
 /// ```
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// let domsep = spongefish::domain_separator!("spongefish")
 ///     .session(spongefish::session!("DomainSeparator"))
 ///     .instance(b"trivial");
 /// let _prover = domsep.std_prover();
+/// # }
 /// ```
 #[macro_export]
 macro_rules! domain_separator {
@@ -257,11 +292,14 @@ macro_rules! domain_separator {
 /// Attaches a 64-byte session identifier to the domain separator.
 ///
 /// ```
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// # use spongefish::{DomainSeparator, session};
 ///
 /// DomainSeparator::new([0u8; 64])
 ///     .session(session!("example at L{{line!()}}"))
 ///     .instance(b"empty");
+/// # }
 /// ```
 #[macro_export]
 macro_rules! session {
@@ -270,9 +308,6 @@ macro_rules! session {
     }};
 }
 
-#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
-pub type DefaultHash = instantiations::Shake128;
-
 /// Unit-tests.
-#[cfg(test)]
+#[cfg(all(test, feature = "sha3"))]
 mod tests;

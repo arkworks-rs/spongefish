@@ -9,6 +9,8 @@ use crate::{
 /// [`VerifierState`] is the verifier state.
 ///
 /// ```
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// use spongefish::{StdHash, VerifierState};
 ///
 /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra bytes");
@@ -16,6 +18,7 @@ use crate::{
 ///
 /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
 /// assert!(verifier.check_eof().is_ok());
+/// # }
 /// ```
 pub struct VerifierState<'a, H = StdHash>
 where
@@ -45,6 +48,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a public message without consuming the transcript.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// let proof = [0u8; 0];
     /// let mut verifier = spongefish::domain_separator!(
     ///     "examples";
@@ -54,6 +59,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///     .std_verifier(&proof);
     /// verifier.public_message(&123u32);
     /// assert!(verifier.check_eof().is_ok());
+    /// # }
     /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
@@ -79,6 +85,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a slice of public messages.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// let mut verifier = spongefish::domain_separator!(
     ///     "examples";
     ///     "VerifierState::public_messages"
@@ -87,6 +95,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///     .std_verifier(&[]);
     /// verifier.public_messages(&[1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
+    /// # }
     /// ```
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
@@ -97,6 +106,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs an iterator of public messages.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// let mut verifier = spongefish::domain_separator!(
     ///     "examples";
     ///     "VerifierState::public_messages_iter"
@@ -105,6 +116,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///     .std_verifier(&[]);
     /// verifier.public_messages_iter([1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
+    /// # }
     /// ```
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
@@ -137,12 +149,15 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// This check ensures that no trailing bytes remain in the transcript.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// # use spongefish::{StdHash, VerifierState};
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
     /// assert!(verifier.check_eof().is_err());
     ///
     /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
     /// assert!(verifier.check_eof().is_ok());
+    /// # }
     /// ```
     ///
     /// # Safety
@@ -169,8 +184,8 @@ where
     }
 }
 
+#[cfg(any(feature = "sha3", feature = "blake3"))]
 impl<'a> VerifierState<'a, StdHash> {
-    #[cfg(feature = "sha3")]
     /// Builds a verifier using the default sponge implementation.
     #[must_use]
     pub fn default_std(narg_string: &'a [u8]) -> Self {
@@ -208,8 +223,8 @@ where
     }
 }
 
+#[cfg(feature = "sha3")]
 impl<'a> VerifierState<'a, StdHash> {
-    #[cfg(feature = "sha3")]
     /// Initializes a verifier with `StdHash` as duplex sponge.
     #[must_use]
     pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {

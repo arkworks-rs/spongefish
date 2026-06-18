@@ -52,8 +52,8 @@ pub type Blake2s256 = hash::Hash<blake2::Blake2s256>;
 // Make sure that all instantiations satisfy the DuplexSpongeInterface trait.
 #[cfg(test)]
 #[allow(unused)]
-fn _assert_duplex_sponge_impls() {
-    fn assert_impl<T: crate::duplex_sponge::DuplexSpongeInterface>() {}
+const fn _assert_duplex_sponge_impls() {
+    const fn assert_impl<T: crate::duplex_sponge::DuplexSpongeInterface>() {}
 
     #[cfg(feature = "sha3")]
     {

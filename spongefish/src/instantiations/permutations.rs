@@ -25,8 +25,9 @@ mod ascon {
 mod keccak {
     use core::fmt::Debug;
 
-    use crate::duplex_sponge::Permutation;
     use ::keccak::{Keccak, State1600};
+
+    use crate::duplex_sponge::Permutation;
 
     const STATE_BYTES: usize = 200;
     const WORD_BYTES: usize = 8;
