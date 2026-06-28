@@ -43,12 +43,12 @@
 //!
 //! Spongefish only depends on [`digest`] and [`rand`].
 //! Support for common SNARK libraries is available optional feature flags.
-//! For instance `p3-koala-bear` provides codecs for [`p3_koala_bear::KoalaBear`]
+//! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
 //! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
 //! # #[cfg(all(feature = "p3-koala-bear", feature = "sha3"))]
 //! # {
-//! // Requires the `p3-koala-bear` feature.
+//! // Requires the `p3-baby-bear` feature.
 //! use p3_koala_bear::KoalaBear;
 //! use p3_field::PrimeCharacteristicRing;
 //! use spongefish::{VerificationError, VerificationResult};
@@ -130,7 +130,7 @@
 //! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [sha3::Shake128].
 //! Available with the `sha3` feature flag (enabled by default);
 //! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
-//! Available with the `blake3` feature flag;
+//! Available with the `sha3` feature flag (enabled by default);
 //! 5. [`SHA256`][instantiations::SHA256], based on [`sha2::Sha256`] used as a stateful hash object.
 //! Available with the `sha2` feature flag;
 //! 6. [`SHA512`][instantiations::SHA512], based on [`sha2::Sha512`] used as a stateful hash object.
@@ -236,32 +236,6 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 /// The default hash function provided by the library.
 #[cfg(feature = "sha3")]
 pub type StdHash = instantiations::Shake128;
-#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
-pub type StdHash = instantiations::Blake3;
-#[cfg(not(any(feature = "sha3", feature = "blake3")))]
-#[doc(hidden)]
-#[derive(Clone)]
-pub struct StdHash(());
-
-#[cfg(not(any(feature = "sha3", feature = "blake3")))]
-impl DuplexSpongeInterface for StdHash {
-    type U = u8;
-
-    fn absorb(&mut self, _input: &[Self::U]) -> &mut Self {
-        unreachable!("StdHash requires the `sha3` or `blake3` feature")
-    }
-
-    fn squeeze(&mut self, _output: &mut [Self::U]) -> &mut Self {
-        unreachable!("StdHash requires the `sha3` or `blake3` feature")
-    }
-
-    fn ratchet(&mut self) -> &mut Self {
-        unreachable!("StdHash requires the `sha3` or `blake3` feature")
-    }
-}
-
-#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
-pub type DefaultHash = StdHash;
 
 /// Build a [`DomainSeparator`] from a protocol identifier string.
 ///

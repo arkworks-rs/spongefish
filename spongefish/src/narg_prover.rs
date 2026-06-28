@@ -1,18 +1,20 @@
 use alloc::vec::Vec;
 use core::fmt;
-#[cfg(not(any(feature = "sha3", feature = "blake3")))]
+#[cfg(not(feature = "sha3"))]
 use core::marker::PhantomData;
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 use rand::Rng;
 use rand::{CryptoRng, RngCore, SeedableRng};
 
-use crate::{Decoding, DuplexSpongeInterface, Encoding, NargSerialize, StdHash};
+#[cfg(feature = "sha3")]
+use crate::StdHash;
+use crate::{Decoding, DuplexSpongeInterface, Encoding, NargSerialize};
 
 type StdRng = rand::rngs::StdRng;
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 type PrivateRng<R> = ReseedableRng<R>;
-#[cfg(not(any(feature = "sha3", feature = "blake3")))]
+#[cfg(not(feature = "sha3"))]
 type PrivateRng<R> = PhantomData<R>;
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
@@ -20,15 +22,18 @@ type PrivateRng<R> = PhantomData<R>;
 /// It provides the **secret coins** of the prover for zero-knowledge, and
 /// the hash function state for the verifier's **public coins**.
 ///
-/// The internal random number generator is instantiated with [`StdHash`][`crate::StdHash`],
+/// The internal random number generator is instantiated with [`sha3::Shake128`],
 /// seeded via [`rand::rngs::StdRng`].
 ///
 /// # Safety
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
 /// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
-pub struct ProverState<H = StdHash, R = StdRng>
-where
+pub struct ProverState<
+    #[cfg(feature = "sha3")] H = StdHash,
+    #[cfg(not(feature = "sha3"))] H,
+    R = StdRng,
+> where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
@@ -55,7 +60,7 @@ where
 ///
 /// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
 #[derive(Default)]
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 pub struct ReseedableRng<R: RngCore + CryptoRng> {
     /// The duplex sponge that is used to generate the prover's private random coins.
     pub(crate) duplex_sponge: StdHash,
@@ -63,7 +68,7 @@ pub struct ReseedableRng<R: RngCore + CryptoRng> {
     pub(crate) csrng: R,
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
     fn from(mut csrng: R) -> Self {
         let mut duplex_sponge = StdHash::default();
@@ -76,7 +81,7 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
     }
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl ReseedableRng<StdRng> {
     /// Creates a reseedable RNG backed by `StdRng`.
     pub fn new() -> Self {
@@ -85,7 +90,7 @@ impl ReseedableRng<StdRng> {
     }
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
     fn next_u32(&mut self) -> u32 {
         let mut buf = [0u8; 4];
@@ -114,7 +119,7 @@ impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
     }
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> ReseedableRng<R> {
     /// Reseeds the internal sponge with the provided bytes.
     pub fn reseed_with(&mut self, value: &[u8]) {
@@ -130,7 +135,7 @@ impl<R: RngCore + CryptoRng> ReseedableRng<R> {
     }
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> CryptoRng for ReseedableRng<R> {}
 
 impl<H, R> fmt::Debug for ProverState<H, R>
@@ -148,7 +153,7 @@ where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
-    #[cfg(any(feature = "sha3", feature = "blake3"))]
+    #[cfg(feature = "sha3")]
     /// Returns the reseedable RNG bound to this transcript.
     pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
         &mut self.private_rng
@@ -293,9 +298,9 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
     fn default() -> Self {
         Self {
             duplex_sponge_state: H::default(),
-            #[cfg(any(feature = "sha3", feature = "blake3"))]
+            #[cfg(feature = "sha3")]
             private_rng: R::from_entropy().into(),
-            #[cfg(not(any(feature = "sha3", feature = "blake3")))]
+            #[cfg(not(feature = "sha3"))]
             private_rng: PhantomData,
             narg_string: Vec::new(),
         }
@@ -307,9 +312,9 @@ impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for
     fn from(value: H) -> Self {
         Self {
             duplex_sponge_state: value,
-            #[cfg(any(feature = "sha3", feature = "blake3"))]
+            #[cfg(feature = "sha3")]
             private_rng: R::from_entropy().into(),
-            #[cfg(not(any(feature = "sha3", feature = "blake3")))]
+            #[cfg(not(feature = "sha3"))]
             private_rng: PhantomData,
             narg_string: Vec::new(),
         }

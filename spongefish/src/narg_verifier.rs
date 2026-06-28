@@ -1,8 +1,10 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+#[cfg(feature = "sha3")]
+use crate::StdHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, StdHash, VerificationError,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError,
     VerificationResult,
 };
 
@@ -20,7 +22,7 @@ use crate::{
 /// assert!(verifier.check_eof().is_ok());
 /// # }
 /// ```
-pub struct VerifierState<'a, H = StdHash>
+pub struct VerifierState<'a, #[cfg(feature = "sha3")] H = StdHash, #[cfg(not(feature = "sha3"))] H>
 where
     H: DuplexSpongeInterface,
 {
@@ -184,7 +186,7 @@ where
     }
 }
 
-#[cfg(any(feature = "sha3", feature = "blake3"))]
+#[cfg(feature = "sha3")]
 impl<'a> VerifierState<'a, StdHash> {
     /// Builds a verifier using the default sponge implementation.
     #[must_use]
