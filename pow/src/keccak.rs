@@ -1,6 +1,7 @@
+use ::keccak::{Keccak, State1600};
+
 use super::PowStrategy;
 use crate::PoWSolution;
-use ::keccak::{Keccak, State1600};
 
 #[derive(Clone, Copy)]
 pub struct KeccakPoW {

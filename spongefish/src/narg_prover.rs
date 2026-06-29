@@ -1,11 +1,21 @@
 use alloc::vec::Vec;
 use core::fmt;
+#[cfg(not(feature = "sha3"))]
+use core::marker::PhantomData;
 
-use rand::{CryptoRng, Rng, RngCore, SeedableRng};
+#[cfg(feature = "sha3")]
+use rand::Rng;
+use rand::{CryptoRng, RngCore, SeedableRng};
 
-use crate::{Decoding, DuplexSpongeInterface, Encoding, NargSerialize, StdHash};
+#[cfg(feature = "sha3")]
+use crate::StdHash;
+use crate::{Decoding, DuplexSpongeInterface, Encoding, NargSerialize};
 
 type StdRng = rand::rngs::StdRng;
+#[cfg(feature = "sha3")]
+type PrivateRng<R> = ReseedableRng<R>;
+#[cfg(not(feature = "sha3"))]
+type PrivateRng<R> = PhantomData<R>;
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
 ///
@@ -19,13 +29,16 @@ type StdRng = rand::rngs::StdRng;
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
 /// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
-pub struct ProverState<H = StdHash, R = StdRng>
-where
+pub struct ProverState<
+    #[cfg(feature = "sha3")] H = StdHash,
+    #[cfg(not(feature = "sha3"))] H,
+    R = StdRng,
+> where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
     /// The randomness state of the prover.
-    pub(crate) private_rng: ReseedableRng<R>,
+    pub(crate) private_rng: PrivateRng<R>,
     /// The public coins for the protocol.
     ///
     /// # Safety
@@ -47,6 +60,7 @@ where
 ///
 /// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
 #[derive(Default)]
+#[cfg(feature = "sha3")]
 pub struct ReseedableRng<R: RngCore + CryptoRng> {
     /// The duplex sponge that is used to generate the prover's private random coins.
     pub(crate) duplex_sponge: StdHash,
@@ -54,6 +68,7 @@ pub struct ReseedableRng<R: RngCore + CryptoRng> {
     pub(crate) csrng: R,
 }
 
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
     fn from(mut csrng: R) -> Self {
         let mut duplex_sponge = StdHash::default();
@@ -66,6 +81,7 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
     }
 }
 
+#[cfg(feature = "sha3")]
 impl ReseedableRng<StdRng> {
     /// Creates a reseedable RNG backed by `StdRng`.
     pub fn new() -> Self {
@@ -74,6 +90,7 @@ impl ReseedableRng<StdRng> {
     }
 }
 
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
     fn next_u32(&mut self) -> u32 {
         let mut buf = [0u8; 4];
@@ -102,6 +119,7 @@ impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
     }
 }
 
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> ReseedableRng<R> {
     /// Reseeds the internal sponge with the provided bytes.
     pub fn reseed_with(&mut self, value: &[u8]) {
@@ -117,6 +135,7 @@ impl<R: RngCore + CryptoRng> ReseedableRng<R> {
     }
 }
 
+#[cfg(feature = "sha3")]
 impl<R: RngCore + CryptoRng> CryptoRng for ReseedableRng<R> {}
 
 impl<H, R> fmt::Debug for ProverState<H, R>
@@ -134,6 +153,7 @@ where
     H: DuplexSpongeInterface,
     R: RngCore + CryptoRng,
 {
+    #[cfg(feature = "sha3")]
     /// Returns the reseedable RNG bound to this transcript.
     pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
         &mut self.private_rng
@@ -152,6 +172,8 @@ where
     /// the final NARG string.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// use spongefish::ProverState;
     ///
     /// let mut prover_state = spongefish::domain_separator!(
@@ -162,6 +184,7 @@ where
     ///     .std_prover();
     /// prover_state.public_message(&123u32);
     /// assert_eq!(prover_state.narg_string(), b"");
+    /// # }
     /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
@@ -173,6 +196,8 @@ where
     /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
     ///
     /// ```
+    /// # #[cfg(feature = "sha3")]
+    /// # {
     /// use spongefish::ProverState;
     ///
     /// let mut prover_state = spongefish::domain_separator!(
@@ -184,6 +209,7 @@ where
     /// prover_state.prover_message(&42u32);
     /// let expected = 42u32.to_le_bytes();
     /// assert_eq!(prover_state.narg_string(), expected.as_slice());
+    /// # }
     /// ```
     pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
@@ -272,7 +298,10 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
     fn default() -> Self {
         Self {
             duplex_sponge_state: H::default(),
+            #[cfg(feature = "sha3")]
             private_rng: R::from_entropy().into(),
+            #[cfg(not(feature = "sha3"))]
+            private_rng: PhantomData,
             narg_string: Vec::new(),
         }
     }
@@ -283,7 +312,10 @@ impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for
     fn from(value: H) -> Self {
         Self {
             duplex_sponge_state: value,
+            #[cfg(feature = "sha3")]
             private_rng: R::from_entropy().into(),
+            #[cfg(not(feature = "sha3"))]
+            private_rng: PhantomData,
             narg_string: Vec::new(),
         }
     }

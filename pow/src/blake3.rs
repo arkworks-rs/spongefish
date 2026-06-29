@@ -206,7 +206,9 @@ impl Blake3PoW {
         // Scan results and return the first nonce under the threshold.
         for (i, chunk) in self
             .outputs
-            .chunks_exact(OUT_LEN)
+            .as_chunks::<OUT_LEN>()
+            .0
+            .iter()
             .take(valid_lanes)
             .enumerate()
         {

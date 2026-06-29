@@ -25,8 +25,9 @@ mod ascon {
 mod keccak {
     use core::fmt::Debug;
 
-    use crate::duplex_sponge::Permutation;
     use ::keccak::{Keccak, State1600};
+
+    use crate::duplex_sponge::Permutation;
 
     const STATE_BYTES: usize = 200;
     const WORD_BYTES: usize = 8;
@@ -67,7 +68,7 @@ mod keccak {
     }
 
     fn words_to_bytes(words: &State1600, state: &mut [u8; STATE_BYTES]) {
-        for (chunk, word) in state.chunks_exact_mut(WORD_BYTES).zip(words) {
+        for (chunk, word) in state.as_chunks_mut::<WORD_BYTES>().0.iter_mut().zip(words) {
             chunk.copy_from_slice(&word.to_le_bytes());
         }
     }

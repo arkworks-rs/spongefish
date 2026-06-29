@@ -8,6 +8,8 @@
 //!
 //! A domain separator can be instantiated in several equivalent ways:
 //! ```
+//! # #[cfg(feature = "sha3")]
+//! # {
 //! use spongefish::{domain_separator, session};
 //!
 //! let x = [1u8, 2, 3];
@@ -18,11 +20,14 @@
 //! let _ds2 = domain_separator!("proto").session(session!("sess")).instance(&x);
 //! // if not specified, the session identifier is set to zero.
 //! let _ds3 = domain_separator!("proto").without_session().instance(&x);
+//! # }
 //! ```
 //! Domain separators can then be turned into prover and verifier state via
 //! [`DomainSeparator::to_prover`] and [`DomainSeparator::to_verifier`].
 //! Shorthands for [`StdHash`] are available via [`DomainSeparator::std_prover`] and [`DomainSeparator::std_verifier`].
 //! ```
+//! # #[cfg(feature = "sha3")]
+//! # {
 //! use spongefish::{domain_separator, session};
 //!
 //! let x = [1u8, 2, 3];
@@ -34,11 +39,14 @@
 //!     ds1.std_prover().verifier_message::<u64>(),
 //!     ds2.std_prover().verifier_message::<u64>()
 //! );
+//! # }
 //! ```
 //!
 //! For testing purposes, it's possible to instantiate a protocol without a session:
 //!
 //! ```
+//! # #[cfg(feature = "sha3")]
+//! # {
 //! use spongefish::{domain_separator, session};
 //!
 //! let x = [1u8, 2, 3];
@@ -48,6 +56,7 @@
 //!     ds1.std_prover().verifier_message::<u64>(),
 //!     ds3.std_prover().verifier_message::<u64>()
 //! );
+//! # }
 //! ```
 //!
 
@@ -56,8 +65,8 @@ use core::{fmt, fmt::Arguments};
 use rand::rngs::StdRng;
 
 #[cfg(feature = "sha3")]
-use crate::VerifierState;
-use crate::{DuplexSpongeInterface, Encoding, ProverState, StdHash, Unit};
+use crate::StdHash;
+use crate::{DuplexSpongeInterface, Encoding, ProverState, Unit, VerifierState};
 
 /// Marker structure for domain separators without an associated instance.
 ///
@@ -81,12 +90,15 @@ pub struct WithoutInstance;
 /// Marker structure storing the instance once it has been provided.
 ///
 /// ```no_run
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// use spongefish::domain_separator;
 ///
 /// let _prover = domain_separator!("this will compile")
 ///     .session(spongefish::session!("example"))
 ///     .instance(b"yellowsubmarine")
 ///     .std_prover();
+/// # }
 /// ```
 pub struct WithInstance<I>(I);
 
@@ -238,6 +250,7 @@ pub fn protocol_id(args: Arguments) -> [u8; 64] {
 }
 
 #[inline]
+#[cfg(feature = "sha3")]
 #[must_use]
 pub fn session_id(args: Arguments) -> [u8; 64] {
     if let Some(message) = args.as_str() {
@@ -250,6 +263,7 @@ pub fn session_id(args: Arguments) -> [u8; 64] {
 
 #[inline]
 #[doc(hidden)]
+#[cfg(feature = "sha3")]
 #[must_use]
 pub fn session_id_from_str<S>(value: &S) -> [u8; 64]
 where
@@ -269,6 +283,7 @@ fn pad_identifier(identifier: &[u8]) -> [u8; 64] {
     protocol_id
 }
 
+#[cfg(feature = "sha3")]
 fn derive_session_id(session: &[u8]) -> [u8; 64] {
     let mut sponge = StdHash::from_protocol_id(pad_identifier(b"fiat-shamir/session-id"));
     sponge.absorb(session);

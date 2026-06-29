@@ -9,6 +9,8 @@
 //! The snippets below illustrate three typical situations.
 //!
 //! ```
+//! # #[cfg(feature = "sha3")]
+//! # {
 //! use spongefish::domain_separator;
 //!
 //! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
@@ -32,6 +34,7 @@
 //! assert_eq!(language(claimed_witness), language(witness));
 //! // a proof is malleable if we don't check we read everything
 //! assert!(verifier_state.check_eof().is_ok())
+//! # }
 //! ```
 //! The above code will fail to compile if no instance is given.
 //! The implementor has full responsibility in providing the correct instance of the proof system.
@@ -43,7 +46,7 @@
 //! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
 //! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
 //! ```
-//! # #[cfg(feature = "p3-koala-bear")]
+//! # #[cfg(all(feature = "p3-koala-bear", feature = "sha3"))]
 //! # {
 //! // Requires the `p3-baby-bear` feature.
 //! use p3_koala_bear::KoalaBear;
@@ -80,7 +83,7 @@
 //!
 //! The interface [`Codec`] is a shorthand for all of the above.
 //! ```
-//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek"))]
+//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek", feature = "sha3"))]
 //! # {
 //! // Requires the `derive` and `curve25519-dalek` features.
 //! use spongefish::{Codec, domain_separator};
@@ -215,7 +218,10 @@ mod domain_separator;
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 #[doc(hidden)]
-pub use domain_separator::{protocol_id, session_id, session_id_from_str};
+pub use domain_separator::protocol_id;
+#[cfg(feature = "sha3")]
+#[doc(hidden)]
+pub use domain_separator::{session_id, session_id_from_str};
 pub use domain_separator::{
     DomainSeparator, NoSession, WithInstance, WithSession, WithoutInstance, WithoutSession,
 };
@@ -236,11 +242,15 @@ pub type StdHash = instantiations::Shake128;
 /// Chain `.session(..)` or `.without_session()` before `.instance(..)`.
 ///
 /// ```
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// let domsep = spongefish::domain_separator!("spongefish")
 ///     .session(spongefish::session!("DomainSeparator"))
 ///     .instance(b"trivial");
 /// let _prover = domsep.std_prover();
+/// # }
 /// ```
+#[cfg(feature = "sha3")]
 #[macro_export]
 macro_rules! domain_separator {
     ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
@@ -254,15 +264,27 @@ macro_rules! domain_separator {
     }};
 }
 
+#[cfg(not(feature = "sha3"))]
+#[macro_export]
+macro_rules! domain_separator {
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
+    }};
+}
+
 /// Attaches a 64-byte session identifier to the domain separator.
 ///
 /// ```
+/// # #[cfg(feature = "sha3")]
+/// # {
 /// # use spongefish::{DomainSeparator, session};
 ///
 /// DomainSeparator::new([0u8; 64])
 ///     .session(session!("example at L{{line!()}}"))
 ///     .instance(b"empty");
+/// # }
 /// ```
+#[cfg(feature = "sha3")]
 #[macro_export]
 macro_rules! session {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
@@ -270,9 +292,6 @@ macro_rules! session {
     }};
 }
 
-#[cfg(all(not(feature = "sha3"), feature = "blake3"))]
-pub type DefaultHash = instantiations::Shake128;
-
 /// Unit-tests.
-#[cfg(test)]
+#[cfg(all(test, feature = "sha3"))]
 mod tests;
