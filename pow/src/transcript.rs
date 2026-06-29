@@ -47,10 +47,9 @@
 //! assert_eq!(challenge, replay);
 //! ```
 
-use rand::{CryptoRng, RngCore};
 use spongefish::{
-    Decoding, DuplexSpongeInterface, ProverState, VerificationError, VerificationResult,
-    VerifierState,
+    CryptoRng, Decoding, DuplexSpongeInterface, ProverState, RngCore, VerificationError,
+    VerificationResult, VerifierState,
 };
 
 use crate::{PoWGrinder, PowStrategy};
@@ -102,7 +101,7 @@ where
             .expect("proof-of-work grinding exhausted the nonce space (difficulty too high)");
         // 3. Commit the nonce to the transcript: absorbed into the sponge and
         //    written to the NARG string so the verifier can replay it.
-        self.prover_message(&solution.nonce.to_le_bytes());
+        self.prover_message(&solution.nonce);
         // 4. Squeeze the verifier message that the grind protects.
         self.verifier_message()
     }
@@ -122,7 +121,7 @@ where
         // 1. Re-derive the same grinding challenge.
         let challenge: [u8; POW_CHALLENGE_BYTES] = self.verifier_message();
         // 2. Read the prover's nonce (also absorbs it, matching the prover).
-        let nonce = u64::from_le_bytes(self.prover_message::<[u8; 8]>()?);
+        let nonce: u64 = self.prover_message()?;
         // 3. Reject unless the nonce satisfies the proof-of-work predicate.
         if !PoWGrinder::<S>::new(challenge, bits).verify(nonce) {
             return Err(VerificationError);
@@ -139,20 +138,31 @@ mod tests {
     use super::DecodingPow;
     use crate::blake3::Blake3PoW;
 
+    /// Cheap difficulty for the (grinding) positive path.
     const BITS: f64 = 8.0;
+    /// Higher difficulty for probabilistic negative tests: a non-conforming
+    /// nonce is then accepted only with probability `2^-NEG_BITS` (~10^-6),
+    /// rather than the ~1/256 of an 8-bit predicate.
+    const NEG_BITS: f64 = 20.0;
 
-    fn prove() -> (u64, Vec<u8>) {
-        let domain = spongefish::domain_separator!("pow tests"; "round trip").instance(&0u32);
-        let mut prover: ProverState = domain.std_prover();
-        let challenge: u64 = prover.verifier_message_pow::<u64, Blake3PoW>(BITS);
+    fn prove(bits: f64) -> (u64, Vec<u8>) {
+        let mut prover: ProverState = spongefish::domain_separator!("pow tests"; "round trip")
+            .instance(&0u32)
+            .std_prover();
+        let challenge: u64 = prover.verifier_message_pow::<u64, Blake3PoW>(bits);
         (challenge, prover.narg_string().to_vec())
+    }
+
+    fn verifier(proof: &[u8]) -> VerifierState<'_> {
+        spongefish::domain_separator!("pow tests"; "round trip")
+            .instance(&0u32)
+            .std_verifier(proof)
     }
 
     #[test]
     fn verifier_message_pow_round_trip() {
-        let (challenge, proof) = prove();
-        let domain = spongefish::domain_separator!("pow tests"; "round trip").instance(&0u32);
-        let mut verifier: VerifierState = domain.std_verifier(&proof);
+        let (challenge, proof) = prove(BITS);
+        let mut verifier = verifier(&proof);
         let replay: u64 = verifier
             .verifier_message_pow::<u64, Blake3PoW>(BITS)
             .expect("valid proof-of-work");
@@ -162,26 +172,34 @@ mod tests {
 
     #[test]
     fn tampered_nonce_is_rejected() {
-        let (_challenge, mut proof) = prove();
-        // The nonce is the only thing in the NARG string (8 LE bytes); corrupt it.
+        // Ground at `NEG_BITS`, then flip every nonce byte: the corrupted nonce
+        // satisfies the predicate only with probability `2^-NEG_BITS`.
+        let (_challenge, mut proof) = prove(NEG_BITS);
         for byte in &mut proof {
             *byte ^= 0xff;
         }
-        let domain = spongefish::domain_separator!("pow tests"; "round trip").instance(&0u32);
-        let mut verifier: VerifierState = domain.std_verifier(&proof);
-        assert!(verifier
+        assert!(verifier(&proof)
+            .verifier_message_pow::<u64, Blake3PoW>(NEG_BITS)
+            .is_err());
+    }
+
+    #[test]
+    fn truncated_proof_is_rejected() {
+        // Deterministic negative: dropping a byte makes the nonce unreadable, so
+        // rejection does not depend on the proof-of-work probability.
+        let (_challenge, proof) = prove(BITS);
+        let truncated = &proof[..proof.len() - 1];
+        assert!(verifier(truncated)
             .verifier_message_pow::<u64, Blake3PoW>(BITS)
             .is_err());
     }
 
     #[test]
     fn higher_difficulty_at_verification_is_rejected() {
-        let (_challenge, proof) = prove();
-        let domain = spongefish::domain_separator!("pow tests"; "round trip").instance(&0u32);
-        let mut verifier: VerifierState = domain.std_verifier(&proof);
-        // A nonce ground for `BITS` will (almost surely) not satisfy a strictly
-        // harder predicate.
-        assert!(verifier
+        // A nonce ground for `BITS` satisfies a predicate 16 bits harder only
+        // with probability `2^-16`.
+        let (_challenge, proof) = prove(BITS);
+        assert!(verifier(&proof)
             .verifier_message_pow::<u64, Blake3PoW>(BITS + 16.0)
             .is_err());
     }

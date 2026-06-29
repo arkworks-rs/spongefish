@@ -96,3 +96,9 @@ impl NargDeserialize for u32 {
         NargDeserialize::deserialize_from_narg(buf).map(Self::from_le_bytes)
     }
 }
+
+impl NargDeserialize for u64 {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+        NargDeserialize::deserialize_from_narg(buf).map(Self::from_le_bytes)
+    }
+}

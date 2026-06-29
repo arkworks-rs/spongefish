@@ -1998,7 +1998,6 @@ dependencies = [
  "blake3",
  "bytemuck",
  "keccak",
- "rand",
  "rayon",
  "spongefish",
 ]
