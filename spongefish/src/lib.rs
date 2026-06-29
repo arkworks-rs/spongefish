@@ -250,6 +250,7 @@ pub type StdHash = instantiations::Shake128;
 /// let _prover = domsep.std_prover();
 /// # }
 /// ```
+#[cfg(feature = "sha3")]
 #[macro_export]
 macro_rules! domain_separator {
     ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
@@ -258,6 +259,14 @@ macro_rules! domain_separator {
         )))
         .session($crate::session!($session_fmt $(, $session_arg)*))
     }};
+    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
+        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
+    }};
+}
+
+#[cfg(not(feature = "sha3"))]
+#[macro_export]
+macro_rules! domain_separator {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{
         $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
     }};
@@ -275,6 +284,7 @@ macro_rules! domain_separator {
 ///     .instance(b"empty");
 /// # }
 /// ```
+#[cfg(feature = "sha3")]
 #[macro_export]
 macro_rules! session {
     ($fmt:literal $(, $arg:expr)* $(,)?) => {{

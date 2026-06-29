@@ -107,7 +107,7 @@ workspace = true
 
 [[example]]
 name = "schnorr"
-required-features = ["ark-ec"]
+required-features = ["ark-ec", "sha3"]
 
 [[example]]
 name = "bulletproof"

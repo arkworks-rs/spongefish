@@ -68,7 +68,7 @@ mod keccak {
     }
 
     fn words_to_bytes(words: &State1600, state: &mut [u8; STATE_BYTES]) {
-        for (chunk, word) in state.chunks_exact_mut(WORD_BYTES).zip(words) {
+        for (chunk, word) in state.as_chunks_mut::<WORD_BYTES>().0.iter_mut().zip(words) {
             chunk.copy_from_slice(&word.to_le_bytes());
         }
     }
