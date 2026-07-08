@@ -17,10 +17,10 @@ version.workspace = true
 all-features = true
 
 [features]
-default = ["parallel", "blake3", "keccak"]
+default = ["parallel", "keccak"]
 parallel = ["dep:rayon"]
 blake3 = ["dep:blake3", "spongefish/blake3"]
-keccak = ["dep:keccak", "dep:bytemuck", "spongefish/keccak"]
+keccak = ["dep:keccak", "dep:bytemuck"]
 
 [dependencies]
 blake3 = { workspace = true, optional = true }
