@@ -26,7 +26,8 @@ pub mod p3_mersenne31;
 #[cfg(feature = "risc0-zkp")]
 pub mod risc0_zkp_impl;
 
-// Buffer of 512-bytes, useful for decoding 256-bit scalars.
+// Buffer of 64 bytes, used for decodings that require a uniform 64-byte input
+// (e.g. Ristretto's from_uniform_bytes).
 #[allow(dead_code)]
 #[repr(C)]
 pub struct Array64([u8; 64]);
@@ -38,6 +39,24 @@ impl Default for Array64 {
 }
 
 impl AsMut<[u8]> for Array64 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
+
+// Buffer of Ns + 16 = 48 bytes: the `DecodeField` input size of
+// draft-irtf-cfrg-fiat-shamir for 32-byte prime-field scalars.
+#[allow(dead_code)]
+#[repr(C)]
+pub struct Array48([u8; 48]);
+
+impl Default for Array48 {
+    fn default() -> Self {
+        Self([0u8; 48])
+    }
+}
+
+impl AsMut<[u8]> for Array48 {
     fn as_mut(&mut self) -> &mut [u8] {
         self.0.as_mut()
     }

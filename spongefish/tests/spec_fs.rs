@@ -27,6 +27,12 @@ struct Vector {
     operations: Vec<Operation>,
     #[serde(rename = "Output")]
     output: Option<String>,
+    /// P-256 challenge scalar, hex of its little-endian integer encoding
+    /// (`decode_uint` vectors only).
+    #[serde(rename = "Challenge", default)]
+    challenge: Option<String>,
+    #[serde(rename = "Group", default)]
+    group: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -65,6 +71,28 @@ fn run_vectors<const ROUNDS: usize>(json: &str) {
                 }
                 let expected = unhex(vector.output.as_ref().expect("output"));
                 assert_eq!(squeezed, expected, "vector {}", vector.name);
+
+                // DecodeUint vectors additionally pin the decoded P-256
+                // challenge scalar: LE2IP over the 48 squeezed bytes, mod p.
+                #[cfg(feature = "p256")]
+                if let (Some(challenge_hex), Some("P-256")) =
+                    (&vector.challenge, vector.group.as_deref())
+                {
+                    use spongefish::Decoding;
+                    let mut repr = <p256::Scalar as Decoding<[u8]>>::Repr::default();
+                    repr.as_mut().copy_from_slice(&squeezed);
+                    let challenge = <p256::Scalar as Decoding<[u8]>>::decode(repr);
+                    // The vector encodes the challenge little-endian; the
+                    // P-256 scalar serialization is big-endian (SEC1).
+                    let mut expected_be = unhex(challenge_hex);
+                    expected_be.reverse();
+                    assert_eq!(
+                        challenge.to_bytes().to_vec(),
+                        expected_be,
+                        "challenge of vector {}",
+                        vector.name
+                    );
+                }
                 executed += 1;
             }
             "DeriveSessionID" => {

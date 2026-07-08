@@ -20,13 +20,17 @@ impl crate::Unit for Scalar {
     const ZERO: Self = <Self as Field>::ZERO;
 }
 
-// Implement Decoding for k256 Scalar
+// Implement Decoding for k256 Scalar: the `DecodeField` of
+// draft-irtf-cfrg-fiat-shamir. The 48-byte squeeze output is interpreted as a
+// little-endian integer (LE2IP) and reduced mod p.
 impl Decoding<[u8]> for Scalar {
-    type Repr = super::Array64;
+    type Repr = super::Array48;
 
     fn decode(buf: Self::Repr) -> Self {
         use k256::elliptic_curve::ops::Reduce;
-        Self::reduce(U512::from_be_slice(&buf.0))
+        let mut wide = [0u8; 64];
+        wide[..48].copy_from_slice(&buf.0);
+        Self::reduce(U512::from_le_slice(&wide))
     }
 }
 
@@ -129,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_decoding() {
-        let buf = super::super::Array64::default();
+        let buf = super::super::Array48::default();
         let scalar = Scalar::decode(buf);
         assert_eq!(scalar, Scalar::ZERO);
     }

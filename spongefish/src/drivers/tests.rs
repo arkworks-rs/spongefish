@@ -99,20 +99,44 @@ where
     assert_eq!(encoded_bytes(&decoded_a), encoded_bytes(&decoded_b));
 }
 
+/// Both decodings must map the same squeeze output to the same field element;
+/// the two encodings are big- and little-endian of the same integer.
+#[allow(unused)]
+fn assert_decoding_agrees_up_to_byte_order<A, B>()
+where
+    A: Encoding<[u8]> + Decoding<[u8]>,
+    B: Encoding<[u8]> + Decoding<[u8]>,
+{
+    let mut repr_a = A::Repr::default();
+    let mut repr_b = B::Repr::default();
+    assert_eq!(repr_a.as_mut().len(), repr_b.as_mut().len());
+    let len = repr_a.as_mut().len();
+
+    let pattern: Vec<u8> = (0..len)
+        .map(|i| (i.wrapping_mul(17).wrapping_add(3)) as u8)
+        .collect();
+    repr_a.as_mut().copy_from_slice(&pattern);
+    repr_b.as_mut().copy_from_slice(&pattern);
+
+    let mut reversed = encoded_bytes(&B::decode(repr_b));
+    reversed.reverse();
+    assert_eq!(encoded_bytes(&A::decode(repr_a)), reversed);
+}
+
 #[cfg(all(
     feature = "p3-baby-bear",
     feature = "p3-koala-bear",
     feature = "p3-mersenne-31"
 ))]
 #[test]
-fn p3_field_encoding_is_big_endian() {
+fn p3_field_encoding_is_little_endian() {
     use p3_baby_bear::BabyBear;
     use p3_koala_bear::KoalaBear;
     use p3_mersenne_31::Mersenne31;
 
-    assert_eq!(encoded_bytes(&BabyBear::new(1)), 1u32.to_be_bytes());
-    assert_eq!(encoded_bytes(&KoalaBear::new(1)), 1u32.to_be_bytes());
-    assert_eq!(encoded_bytes(&Mersenne31::new(1)), 1u32.to_be_bytes());
+    assert_eq!(encoded_bytes(&BabyBear::new(1)), 1u32.to_le_bytes());
+    assert_eq!(encoded_bytes(&KoalaBear::new(1)), 1u32.to_le_bytes());
+    assert_eq!(encoded_bytes(&Mersenne31::new(1)), 1u32.to_le_bytes());
 }
 
 #[cfg(all(
@@ -126,13 +150,13 @@ fn p3_field_deserialize_advances_cursor() {
     use p3_koala_bear::KoalaBear;
     use p3_mersenne_31::Mersenne31;
 
-    let mut baby = &[0, 0, 0, 1, 9][..];
+    let mut baby = &[1, 0, 0, 0, 9][..];
     assert!(BabyBear::deserialize_from_narg(&mut baby).is_ok());
     assert_eq!(baby, &[9]);
-    let mut koala = &[0, 0, 0, 1, 9][..];
+    let mut koala = &[1, 0, 0, 0, 9][..];
     assert!(KoalaBear::deserialize_from_narg(&mut koala).is_ok());
     assert_eq!(koala, &[9]);
-    let mut mersenne = &[0, 0, 0, 1, 9][..];
+    let mut mersenne = &[1, 0, 0, 0, 9][..];
     assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_ok());
     assert_eq!(mersenne, &[9]);
 }
@@ -149,17 +173,17 @@ fn p3_field_deserialize_rejects_without_advancing_cursor() {
     use p3_koala_bear::KoalaBear;
     use p3_mersenne_31::Mersenne31;
 
-    let baby_buf = [BabyBear::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let baby_buf = [BabyBear::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
     let mut baby = baby_buf.as_slice();
     assert!(BabyBear::deserialize_from_narg(&mut baby).is_err());
     assert_eq!(baby, baby_buf.as_slice());
 
-    let koala_buf = [KoalaBear::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let koala_buf = [KoalaBear::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
     let mut koala = koala_buf.as_slice();
     assert!(KoalaBear::deserialize_from_narg(&mut koala).is_err());
     assert_eq!(koala, koala_buf.as_slice());
 
-    let mersenne_buf = [Mersenne31::ORDER_U32.to_be_bytes().as_slice(), &[9]].concat();
+    let mersenne_buf = [Mersenne31::ORDER_U32.to_le_bytes().as_slice(), &[9]].concat();
     let mut mersenne = mersenne_buf.as_slice();
     assert!(Mersenne31::deserialize_from_narg(&mut mersenne).is_err());
     assert_eq!(mersenne, mersenne_buf.as_slice());
@@ -172,8 +196,8 @@ fn array_deserialize_rejects_without_advancing_cursor() {
     use p3_field::PrimeField32;
 
     let input = [
-        1u32.to_be_bytes().as_slice(),
-        BabyBear::ORDER_U32.to_be_bytes().as_slice(),
+        1u32.to_le_bytes().as_slice(),
+        BabyBear::ORDER_U32.to_le_bytes().as_slice(),
         &[9],
     ]
     .concat();
@@ -198,6 +222,11 @@ fn curve25519_scalars_arkworks_and_dalek() {
     assert_decoding_compatibility::<ArkScalar, DalekScalar>();
 }
 
+/// The SEC1 standard pins a big-endian scalar serialization, so the k256
+/// driver encodes big-endian (the draft's carve-out), while the generic
+/// arkworks driver uses the draft's little-endian default: same integers,
+/// reversed bytes. Challenge decoding (LE2IP mod p) agrees on the field
+/// element itself.
 #[cfg(all(feature = "ark-ec", feature = "k256"))]
 #[test]
 fn secp256k1_scalars_arkworks_and_k256() {
@@ -207,12 +236,18 @@ fn secp256k1_scalars_arkworks_and_k256() {
     for value in [0u64, 1, 42, 123_456_789] {
         let ark_scalar = ArkScalar::from(value);
         let k256_scalar = K256Scalar::from(value);
-        assert_codec_compatibility(&ark_scalar, &k256_scalar);
+        let mut reversed = encoded_bytes(&k256_scalar);
+        reversed.reverse();
+        assert_eq!(encoded_bytes(&ark_scalar), reversed);
+        assert_roundtrip(&ark_scalar);
+        assert_roundtrip(&k256_scalar);
     }
 
-    assert_decoding_compatibility::<ArkScalar, K256Scalar>();
+    assert_decoding_agrees_up_to_byte_order::<ArkScalar, K256Scalar>();
 }
 
+/// See `secp256k1_scalars_arkworks_and_k256`: SEC1 big-endian carve-out vs the
+/// generic little-endian default.
 #[cfg(all(feature = "ark-ec", feature = "p256"))]
 #[test]
 fn secp256r1_scalars_arkworks_and_p256() {
@@ -222,10 +257,14 @@ fn secp256r1_scalars_arkworks_and_p256() {
     for value in [0u64, 1, 42, 123_456_789] {
         let ark_scalar = ArkP256Scalar::from(value);
         let p256_scalar = P256Scalar::from(value);
-        assert_codec_compatibility(&ark_scalar, &p256_scalar);
+        let mut reversed = encoded_bytes(&p256_scalar);
+        reversed.reverse();
+        assert_eq!(encoded_bytes(&ark_scalar), reversed);
+        assert_roundtrip(&ark_scalar);
+        assert_roundtrip(&p256_scalar);
     }
 
-    assert_decoding_compatibility::<ArkP256Scalar, P256Scalar>();
+    assert_decoding_agrees_up_to_byte_order::<ArkP256Scalar, P256Scalar>();
 }
 
 #[cfg(all(feature = "ark-ff", feature = "p3-baby-bear"))]

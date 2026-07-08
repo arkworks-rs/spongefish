@@ -17,14 +17,16 @@ impl crate::Unit for Scalar {
     const ZERO: Self = Self::ZERO;
 }
 
-// Implement Decoding for curve25519-dalek Scalar
+// Implement Decoding for curve25519-dalek Scalar: the `DecodeField` of
+// draft-irtf-cfrg-fiat-shamir. The 48-byte squeeze output is interpreted as a
+// little-endian integer (LE2IP) and reduced mod p.
 impl Decoding<[u8]> for Scalar {
-    type Repr = super::Array64;
+    type Repr = super::Array48;
 
     fn decode(buf: Self::Repr) -> Self {
-        let mut le_bytes = buf.0;
-        le_bytes.reverse();
-        Self::from_bytes_mod_order_wide(&le_bytes)
+        let mut wide = [0u8; 64];
+        wide[..48].copy_from_slice(&buf.0);
+        Self::from_bytes_mod_order_wide(&wide)
     }
 }
 
@@ -36,7 +38,10 @@ impl Decoding<[u8]> for RistrettoPoint {
     }
 }
 
-// Implement Deserialize for curve25519-dalek Scalar using OS2IP (big-endian)
+// Implement Deserialize for curve25519-dalek Scalar using the curve25519
+// family's canonical little-endian serialization (RFC 7748 / RFC 8032
+// convention, as required by draft-irtf-cfrg-fiat-shamir for fields with a
+// standard serialization).
 impl NargDeserialize for Scalar {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         const N: usize = 32;
@@ -44,10 +49,8 @@ impl NargDeserialize for Scalar {
             return Err(VerificationError);
         }
 
-        let be_bytes = &buf[..N];
         let mut le_bytes = [0u8; N];
-        le_bytes.copy_from_slice(be_bytes);
-        le_bytes.reverse();
+        le_bytes.copy_from_slice(&buf[..N]);
         Self::from_canonical_bytes(le_bytes)
             .into_option()
             .inspect(|_| *buf = &buf[N..])
@@ -83,13 +86,11 @@ impl NargDeserialize for RistrettoPoint {
     }
 }
 
-// Implement Encoding for curve25519-dalek Scalar using I2OSP (big-endian)
+// Implement Encoding for curve25519-dalek Scalar using the canonical
+// little-endian serialization of the curve25519 family.
 impl Encoding<[u8]> for Scalar {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut le_bytes = self.to_bytes();
-        le_bytes.reverse();
-
-        le_bytes
+        self.to_bytes()
     }
 }
 

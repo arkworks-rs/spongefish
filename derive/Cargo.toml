@@ -21,4 +21,4 @@ quote = "1.0"
 syn = { version = "2.0", features = ["derive"] }
 
 [dev-dependencies]
-spongefish = { path = "../spongefish", default-features = false, features = ["sha3"] }
+spongefish = { path = "../spongefish", default-features = false }

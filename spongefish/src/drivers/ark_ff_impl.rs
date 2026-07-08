@@ -19,9 +19,9 @@ fn parse_canonical_prime_field<F: PrimeField>(bytes: &[u8]) -> Option<F> {
     }
     let bits = bytes
         .iter()
-        .flat_map(|byte| (0..8).rev().map(move |shift| (byte >> shift) & 1 == 1))
+        .flat_map(|byte| (0..8).map(move |shift| (byte >> shift) & 1 == 1))
         .collect::<Vec<_>>();
-    let bigint = F::BigInt::from_bits_be(&bits);
+    let bigint = F::BigInt::from_bits_le(&bits);
     F::from_bigint(bigint)
 }
 
@@ -49,8 +49,9 @@ pub struct DecodingFieldBuffer<F: Field> {
 /// The function determining the size of [`DecodingFieldBuffer`]:
 pub fn decoding_field_buffer_size<F: Field>() -> usize {
     let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
-    // Get 32 bytes of extra randomness for every base field element in the extension
-    let length = (base_field_modulus_bytes + 32) * F::extension_degree();
+    // 16 bytes of extra randomness per base field element bound the bias by
+    // 2^-128 (the DecodeField of draft-irtf-cfrg-fiat-shamir)
+    let length = (base_field_modulus_bytes + 16) * F::extension_degree();
     length as usize
 }
 
@@ -102,13 +103,13 @@ macro_rules! impl_encoding {
                     .div_ceil(8)) as usize;
                 let mut buf = Vec::with_capacity(base_field_size * <Self as Field>::extension_degree() as usize);
                 for base_element in self.to_base_prime_field_elements() {
-                    let bytes = base_element.into_bigint().to_bytes_be();
-                    // Handle BigInt wider than the field (e.g. F16 inside SmallFp's BigInt<1>).
-                    let start = bytes.len().saturating_sub(base_field_size);
+                    let bytes = base_element.into_bigint().to_bytes_le();
+                    // Handle BigInt wider than the field (e.g. F16 inside SmallFp's BigInt<1>):
+                    // in little-endian the excess bytes are trailing zeros.
+                    let take = usize::min(bytes.len(), base_field_size);
+                    buf.extend_from_slice(&bytes[..take]);
                     // Handle BigInt narrower than the field (defensive).
-                    let padding = base_field_size.saturating_sub(bytes.len());
-                    buf.extend(core::iter::repeat_n(0, padding));
-                    buf.extend_from_slice(&bytes[start..]);
+                    buf.extend(core::iter::repeat_n(0, base_field_size.saturating_sub(bytes.len())));
                 }
                 buf
             }
@@ -131,7 +132,7 @@ macro_rules! impl_decoding {
                 let base_field_size = decoding_field_buffer_size::<<Self as Field>::BasePrimeField>();
 
                 let result = repr.buf.chunks(base_field_size)
-                    .map(|chunk| <Self as Field>::BasePrimeField::from_be_bytes_mod_order(chunk))
+                    .map(|chunk| <Self as Field>::BasePrimeField::from_le_bytes_mod_order(chunk))
                     .collect::<Vec<_>>();
                 // Convert Vec to array - this unwrap is safe because we know the length
                 Self::from_base_prime_field_elems(result).unwrap()
@@ -194,8 +195,9 @@ fn random_bits_in_random_modp<const N: usize>(b: ark_ff::BigInt<N>) -> usize {
 impl<F: Field> Default for DecodingFieldBuffer<F> {
     fn default() -> Self {
         let base_field_modulus_bytes = u64::from(F::BasePrimeField::MODULUS_BIT_SIZE.div_ceil(8));
-        // Get 32 bytes of extra randomness for every base field element in the extension
-        let len = (base_field_modulus_bytes + 32) * F::extension_degree();
+        // 16 bytes of extra randomness per base field element (see
+        // decoding_field_buffer_size)
+        let len = (base_field_modulus_bytes + 16) * F::extension_degree();
         Self {
             buf: vec![0u8; len as usize],
             _phantom: PhantomData,
@@ -302,12 +304,11 @@ mod test_ark_ff {
     /// Deserializing p (the modulus itself) must fail — the encoding
     /// is not canonical because p ≡ 0 and 0 already has its own encoding.
     fn reject_modulus<F: ark_ff::PrimeField + core::fmt::Debug + crate::io::NargDeserialize>() {
-        let modulus_bytes = F::MODULUS.to_bytes_be();
-        // Keep only the trailing ⌈MODULUS_BIT_SIZE/8⌉ bytes; the backing BigInt
+        let modulus_bytes = F::MODULUS.to_bytes_le();
+        // Keep only the leading ⌈MODULUS_BIT_SIZE/8⌉ bytes; the backing BigInt
         // can be wider than the field (e.g. F16 inside SmallFp's BigInt<1>).
         let field_size = F::MODULUS_BIT_SIZE.div_ceil(8) as usize;
-        let start = modulus_bytes.len().saturating_sub(field_size);
-        let trimmed = &modulus_bytes[start..];
+        let trimmed = &modulus_bytes[..usize::min(field_size, modulus_bytes.len())];
         let mut sl: &[u8] = trimmed;
         assert!(
             F::deserialize_from_narg(&mut sl).is_err(),
@@ -455,19 +456,19 @@ mod test_ark_ff {
     }
 
     #[test]
-    fn test_prime_field_encoding_is_left_padded_big_endian() {
+    fn test_prime_field_encoding_is_fixed_width_little_endian() {
         let value = ark_secp256k1::Fr::from(1u64);
         let encoded = Encoding::<[u8]>::encode(&value);
         let bytes = encoded.as_ref();
 
         assert_eq!(bytes.len(), 32);
-        assert!(bytes[..31].iter().all(|&byte| byte == 0));
-        assert_eq!(bytes[31], 1);
+        assert_eq!(bytes[0], 1);
+        assert!(bytes[1..].iter().all(|&byte| byte == 0));
     }
 
     #[test]
     fn test_prime_field_deserialize_rejects_modulus() {
-        let modulus = ark_secp256k1::Fr::MODULUS.to_bytes_be();
+        let modulus = ark_secp256k1::Fr::MODULUS.to_bytes_le();
         let mut slice = modulus.as_slice();
 
         assert!(ark_secp256k1::Fr::deserialize_from_narg(&mut slice).is_err());

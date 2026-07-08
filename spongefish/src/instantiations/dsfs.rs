@@ -167,6 +167,34 @@ impl<const ROUNDS: usize> KeccakDuplexSponge<ROUNDS> {
         self
     }
 
+    /// Absorb a byte string and zero-fill the remainder of the current rate
+    /// block, so that `input` occupies its own permuted compartment and the
+    /// next operation starts on a fresh block boundary.
+    ///
+    /// This is the seed-compartmentalization primitive used by the prover's
+    /// private randomness sponge: after the block is permuted, no subsequent
+    /// operation touches the raw input bytes.
+    ///
+    /// # Warning
+    ///
+    /// This **MUST NOT** be used on transcript sponges: the draft's transcript
+    /// absorption is separator-free (`Absorb(x); Absorb(y)` equals
+    /// `Absorb(x || y)`), and the zero padding inserted here would change the
+    /// transcript bytes. It is intended only for `Init`-style seeding and for
+    /// mixing entropy into a private RNG.
+    pub fn absorb_block(&mut self, input: &[u8]) -> &mut Self {
+        if input.is_empty() {
+            return self;
+        }
+        self.absorb(input);
+        if self.absorb_pos != 0 {
+            const ZEROS: [u8; RATE] = [0u8; RATE];
+            let fill = RATE - self.absorb_pos;
+            self.absorb(&ZEROS[..fill]);
+        }
+        self
+    }
+
     /// Squeeze the next `output.len()` bytes of the XOF output stream computed
     /// over the absorbed input. Consecutive squeezes continue one stream.
     pub fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
@@ -210,9 +238,12 @@ impl<const ROUNDS: usize> crate::duplex_sponge::DuplexSpongeInterface
     fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
         Self::squeeze(self, output)
     }
+}
 
-    fn ratchet(&mut self) -> &mut Self {
-        unimplemented!("ratchet is not part of draft-irtf-cfrg-fiat-shamir")
+impl<const ROUNDS: usize> crate::duplex_sponge::DuplexSpongeInit for KeccakDuplexSponge<ROUNDS> {
+    /// The draft's `Init(session_id)` (see [`KeccakDuplexSponge::new`]).
+    fn init(session_id: &[u8; 32]) -> Self {
+        Self::new(session_id)
     }
 }
 
@@ -432,7 +463,6 @@ mod tests {
     /// The sponge must produce the same bytes as evaluating the SHAKE128 XOF over
     /// `session_id || zeros(RATE - 32) || absorbed input` — the draft's defining
     /// equation — for inputs crossing zero, one, and several block boundaries.
-    #[cfg(feature = "sha3")]
     #[test]
     fn matches_shake128_xof() {
         use sha3::digest::{ExtendableOutput, Update, XofReader};
