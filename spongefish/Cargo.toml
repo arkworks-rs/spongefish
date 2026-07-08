@@ -27,7 +27,9 @@ sha3 = ["dep:sha3"]
 blake2 = ["dep:blake2"]
 blake3 = ["dep:blake3"]
 k12 = ["dep:k12"]
-keccak = ["dep:keccak"]
+# Gates the overwrite-mode CO25 byte duplex (`instantiations::Keccak`);
+# the `keccak` crate itself is a non-optional dependency (draft duplex sponges).
+keccak = []
 ascon = ["dep:ascon"]
 # arkworks
 ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
@@ -65,7 +67,7 @@ digest = { workspace = true }
 # Optional hash functions
 k12 = { workspace = true, optional = true }
 k256 = { workspace = true, optional = true, features = ["arithmetic"] }
-keccak = { workspace = true, optional = true }
+keccak = { workspace = true }
 p256 = { workspace = true, optional = true, features = ["arithmetic"] }
 p3-baby-bear = { workspace = true, optional = true }
 

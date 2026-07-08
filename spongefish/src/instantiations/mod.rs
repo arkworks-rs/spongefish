@@ -1,3 +1,5 @@
+/// The duplex sponges of draft-irtf-cfrg-fiat-shamir (SHAKE128, TurboSHAKE128).
+pub mod dsfs;
 pub mod hash;
 
 pub mod permutations;

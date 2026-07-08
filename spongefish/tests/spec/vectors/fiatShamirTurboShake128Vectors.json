@@ -1,0 +1,197 @@
+[
+  {
+    "Name": "init_squeeze",
+    "Title": "Squeeze 32 bytes immediately after initialization",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "7ad8a3af35a3083c055e4a953ff001cdd9eeb1198f4be7a3a9ec5a209434619b"
+  },
+  {
+    "Name": "absorb_squeeze",
+    "Title": "Absorb a message, then squeeze 64 bytes",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "68656c6c6f20776f726c64"
+      },
+      {
+        "type": "squeeze",
+        "length": 64
+      }
+    ],
+    "Output": "8b804d7a8c524c242a94e86f7ddfec329d90e29c1f584a98812e63029a0bdb075b12c545bf9e2aa17c88673b6d9df4b08e728dc47f7d7094cee59a0d7d989634"
+  },
+  {
+    "Name": "absorb_split",
+    "Title": "Absorbing in parts equals absorbing all at once",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "6162"
+      },
+      {
+        "type": "absorb",
+        "data": "63"
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e"
+  },
+  {
+    "Name": "stream",
+    "Title": "Consecutive squeezes continue a single output stream",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "616263"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e"
+  },
+  {
+    "Name": "empty_absorb",
+    "Title": "Empty absorb",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "616263"
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      },
+      {
+        "type": "absorb",
+        "data": ""
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e599e1dfb1bf60638046f82f5bfa28bcfcabf1404b200647d184ead03e51fbf01"
+  },
+  {
+    "Name": "interleave",
+    "Title": "Squeeze, absorb more input, then squeeze again",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "00010203040506070809"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      },
+      {
+        "type": "absorb",
+        "data": "6d6f72652064617461"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      }
+    ],
+    "Output": "f2745534347564bed146c95655122f14636bcc58f768296be8494208db29b6be"
+  },
+  {
+    "Name": "multiblock",
+    "Title": "Absorb and squeeze multiple blocks",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+      },
+      {
+        "type": "squeeze",
+        "length": 600
+      }
+    ],
+    "Output": "0ef6787d725638e19364c25a2ba879af55a4e1c97bff52919e64cd37a218db44a475f9d7ef0e88d87b443fe6590f12fc90c41c546c92cbeb3480e679d6e1ea37fc1e10e3e41b15e80aea4745ad9ad31c22857ae360fb66848daab7df8f6135efcc940c4cc6431617cca6c05aa9b8bdf041538206ef912c0861dc07e21987550924c848cb788532637cf6e7fb1a3ea233fc335077e4910e8d7da15fe89250f28458ec17ecf448e05cf660ca4ffd1fdcb4379570d3a871aa759bb4d763d60d3e1b36ab8efcd8cd6fcca8fa67a5071ab21a1d31e4610f7ca8825b5e81f22433c495862b642c009823c312fd60fcdcd888af9c6c554da3a370946fa7bfa66ac54480b9a36d73fa6ee73ccb78b425de22814667742864608a06fa7534b053a68905ff532089b6fc0d597671ae4da685b96b1ac5d2513c0fc944d11155ed43461559a12b984fb0cb45b105d9f2391a137d104f7da6c82fcfe375143bf512824685913f2bf61613b1a2a8f55f86d1282aa36c02384381335927259361c9e5875dbe1314af82aa65264ff009f525d4f0aedcf80cb908e308132113311d0e9a6783f27a1393ae28c10914018e263020dc97f219ebdae4118a79c318bef2d3766452075e3579f4b1cddbb80a5bca83a2f1fbec44e9d487925ba23cbfce111ba865e0fdb164589c66cbb757865d1bfb4540c01dece5b4180eef4262efc24c4ae3f76c4497a53fb7f38a0de18a7053ab59b59b180ad53e3d2318661783682298d54b9f9ee6e33b2be660295ccdd7d6cc976e21827c66880a0fbcc202743cd1ea0b7351755ee4b8a0b140bbc4f6a45eb6b05798721094cebe00e08f4f7bde"
+  },
+  {
+    "Name": "derive_sid",
+    "Title": "Derive a session identifier from an application tag",
+    "Function": "DeriveSessionID",
+    "Hash": "TurboSHAKE128",
+    "Tag": "696e7465726f702d746573742d763030",
+    "Output": "4326208c9e56ae847be9356ca7c4447c752a9d7326a44a6cbee0c0dfc69505ac"
+  },
+  {
+    "Name": "decode_uint",
+    "Title": "Squeeze and reduce a P-256 scalar challenge (DecodeUint)",
+    "Function": "DecodeUint",
+    "Hash": "TurboSHAKE128",
+    "Group": "P-256",
+    "Modulus": "512563fcc2cab9f3849e17a7adfae6bcffffffffffffffff00000000ffffffff",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "08000000696e7374616e6365"
+      },
+      {
+        "type": "squeeze",
+        "length": 48
+      }
+    ],
+    "Output": "82a031e31b103ac01253ba3aae215f650a06a4bb24963a05ee1f8c0b82eae90d7bd36ea8cb560a91604ae8a97eb0d564",
+    "Challenge": "8b55e9fe9b451d8719e01ddb7983fde76695a73563d7cd6f12d01650458b08c2"
+  },
+  {
+    "Name": "sumcheck",
+    "Title": "One round of the sumcheck protocol: round polynomial, challenge, reduced claim",
+    "Function": "Sumcheck",
+    "Hash": "TurboSHAKE128",
+    "Group": "P-256",
+    "Modulus": "512563fcc2cab9f3849e17a7adfae6bcffffffffffffffff00000000ffffffff",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "ContextTag": "73756d636865636b",
+    "Degree": 2,
+    "ClaimedSum": "c89a770ae1659e5686b9e30e37364467668d961a17e8c1fb341f3a68bfe12989",
+    "Coefficients": [
+      "d287b6370f8ba83760146f4a616bbd9ffb87d7908ef64f60d31fb97f616822d0",
+      "6111f36ce1504e03e2c1e408cc9be02dc74963e9decb4333eb6ca819afa588b4",
+      "65c4dd26679472cbed0b50bf03b9b673a733840f1b2fde07a5721f4f4b6b5c34"
+    ],
+    "Challenge": "79ab1d570f1ff8cbd5ed2cb5097cf837539ad305655bb3d605be1bbdb4732a95",
+    "ReducedClaim": "187ca9febccde5880ffa3b6c3df560a4ca42114f135a7e8db94746faf2cd79bb",
+    "Narg": "d287b6370f8ba83760146f4a616bbd9ffb87d7908ef64f60d31fb97f616822d06111f36ce1504e03e2c1e408cc9be02dc74963e9decb4333eb6ca819afa588b465c4dd26679472cbed0b50bf03b9b673a733840f1b2fde07a5721f4f4b6b5c34"
+  }
+]
