@@ -148,7 +148,6 @@ fn dot_prod(a: &[Scalar], b: &[Scalar]) -> Scalar {
 }
 
 fn main() {
-    let mut rng = rand::thread_rng();
     // the vector size
     let size = 8;
     // the testing vectors
@@ -161,12 +160,12 @@ fn main() {
     let ab = dot_prod(&a, &b);
     // the generators to be used for respectively a, b, ip
     let g = (0..a.len())
-        .map(|_| RistrettoPoint::random(&mut rng))
+        .map(|_| RistrettoPoint::from_uniform_bytes(&rand::random()))
         .collect::<Vec<_>>();
     let h = (0..b.len())
-        .map(|_| RistrettoPoint::random(&mut rng))
+        .map(|_| RistrettoPoint::from_uniform_bytes(&rand::random()))
         .collect::<Vec<_>>();
-    let u = RistrettoPoint::random(&mut rng);
+    let u = RistrettoPoint::from_uniform_bytes(&rand::random());
 
     let instance = Instance {
         ip_commitment: RistrettoPoint::multiscalar_mul(&a, &g)

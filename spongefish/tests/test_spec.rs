@@ -30,15 +30,15 @@ struct Operation {
 
 #[derive(Clone)]
 struct Shake128Spec {
-    hasher: sha3::Shake128,
+    hasher: shake::Shake128,
 }
 
 impl Shake128Spec {
     fn new(iv: [u8; 64]) -> Self {
-        use sha3::digest::Update;
+        use shake::digest::Update;
 
         const RATE: usize = 168;
-        let mut hasher = sha3::Shake128::default();
+        let mut hasher = shake::Shake128::default();
         let mut initial_block = [0u8; RATE];
         initial_block[..64].copy_from_slice(&iv);
         hasher.update(&initial_block);
@@ -50,13 +50,13 @@ impl DuplexSpongeInterface for Shake128Spec {
     type U = u8;
 
     fn absorb(&mut self, input: &[Self::U]) -> &mut Self {
-        use sha3::digest::Update;
+        use shake::digest::Update;
         self.hasher.update(input);
         self
     }
 
     fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self {
-        use sha3::digest::{ExtendableOutput, XofReader};
+        use shake::digest::{ExtendableOutput, XofReader};
         let mut reader = self.hasher.clone().finalize_xof();
         reader.read(output);
         self

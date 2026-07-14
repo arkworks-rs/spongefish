@@ -127,7 +127,7 @@
 //! 2. [`Ascon12`][instantiations::Ascon12], the duplex sponge construction [[CO25], Section 3.3] for the
 //! [`ascon`] permutation [Ascon], used in overwrite mode.
 //! Available with the `ascon` feature flag;
-//! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [sha3::Shake128].
+//! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [shake::Shake128].
 //! Available with the `sha3` feature flag (enabled by default);
 //! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
 //! Available with the `sha3` feature flag (enabled by default);

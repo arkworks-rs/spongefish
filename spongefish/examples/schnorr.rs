@@ -1,13 +1,34 @@
 /// Example: simple Schnorr proofs in <100 LOC
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
-use rand::rngs::OsRng;
 use spongefish::{
     Codec, Encoding, NargDeserialize, NargSerialize, ProverState, VerificationError,
     VerificationResult, VerifierState,
 };
 
 struct Schnorr;
+
+/// Adapts rand 0.10's infallible RNG trait to arkworks' rand 0.8 trait.
+struct ArkRng<'a, R: ?Sized>(&'a mut R);
+
+impl<R: rand::Rng + ?Sized> ark_std::rand::RngCore for ArkRng<'_, R> {
+    fn next_u32(&mut self) -> u32 {
+        self.0.next_u32()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0.next_u64()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill_bytes(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), ark_std::rand::Error> {
+        self.0.fill_bytes(dest);
+        Ok(())
+    }
+}
 
 impl Schnorr {
     /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
@@ -29,7 +50,7 @@ impl Schnorr {
         G::ScalarField: Codec,
     {
         // `ProverState` types implement a cryptographically-secure random number generator.
-        let k = G::ScalarField::rand(prover_state.rng());
+        let k = G::ScalarField::rand(&mut ArkRng(prover_state.rng()));
         let K = instance[0] * k;
 
         prover_state.prover_message(&K);
@@ -70,7 +91,8 @@ fn main() {
 
     // Set up the elements to prove
     let generator = G::generator();
-    let sk = F::rand(&mut OsRng);
+    let mut rng: rand::rngs::StdRng = rand::make_rng();
+    let sk = F::rand(&mut ArkRng(&mut rng));
     let pk = generator * sk;
     let instance = [generator, pk];
 
