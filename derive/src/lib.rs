@@ -65,71 +65,83 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
     encoding_impl
 }
 
+/// The compile-time width reserved for a field inside the derived `Repr`.
+///
+/// `Decoding` exposes no associated constant for the length of its `Repr`, and
+/// `AsMut::as_mut(..).len()` — the width the sponge actually fills — is not a
+/// const expression, so the buffer size must be spelled with `size_of`. The
+/// generated `decode` checks at run time that the two agree (see
+/// [`decode_field_expr`]).
+fn field_repr_size(field_type: &Type) -> TokenStream2 {
+    quote! {
+        ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
+    }
+}
+
+/// Decodes one field out of `bytes`, advancing the shared `offset` cursor.
+///
+/// The width comes from `AsMut::<[u8]>::as_mut(..).len()`, the single source of
+/// truth for how many bytes the sponge fills. The bounds check turns a `Repr`
+/// whose slice length disagrees with its `size_of` into a loud panic instead of
+/// a silent mis-slice.
+fn decode_field_expr(field_type: &Type) -> TokenStream2 {
+    quote! {
+        {
+            let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
+            let field_size = ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf).len();
+            let start = offset;
+            let end = start + field_size;
+            assert!(
+                end <= bytes.len(),
+                "`Decoding` derive: field representation is wider than the derived buffer; \
+                 `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
+            );
+            ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf)
+                .copy_from_slice(&bytes[start..end]);
+            offset = end;
+            <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
+        }
+    }
+}
+
 fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
     let name = &input.ident;
 
     let decoding_impl = match &input.data {
         Data::Struct(data) => {
             let mut decoding_bounds = Vec::new();
-            let (size_calc, field_decodings) = match &data.fields {
+            let mut size_components = vec![];
+            let constructor = match &data.fields {
                 Fields::Named(fields) => {
-                    let mut offset = quote!(0usize);
                     let mut field_decodings = vec![];
-                    let mut size_components = vec![];
 
                     for field in fields.named.iter() {
+                        let field_name = &field.ident;
                         if has_skip_attribute(&field.attrs) {
-                            let field_name = &field.ident;
                             field_decodings.push(quote! {
                                 #field_name: Default::default(),
                             });
                             continue;
                         }
 
-                        let field_name = &field.ident;
                         let field_type = &field.ty;
                         decoding_bounds.push(field_type.clone());
+                        size_components.push(field_repr_size(field_type));
 
-                        size_components.push(quote! {
-                            ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
-                        });
-
-                        let current_offset = offset.clone();
+                        let decode_field = decode_field_expr(field_type);
                         field_decodings.push(quote! {
-                            #field_name: {
-                                let field_size = ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>();
-                                let start = #current_offset;
-                                let end = start + field_size;
-                                let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
-                                field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
-                                <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
-                            },
+                            #field_name: #decode_field,
                         });
-
-                        offset = quote! {
-                            #offset + <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
-                        };
                     }
 
-                    let size_calc = if size_components.is_empty() {
-                        quote!(0usize)
-                    } else {
-                        quote!(#(#size_components)+*)
-                    };
-
-                    (
-                        size_calc,
-                        quote! {
-                            Self {
-                                #(#field_decodings)*
-                            }
-                        },
-                    )
+                    quote! {
+                        Self {
+                            #(#field_decodings)*
+                        }
+                    }
                 }
                 Fields::Unnamed(fields) => {
-                    let mut offset = quote!(0usize);
                     let mut field_decodings = vec![];
-                    let mut size_components = vec![];
 
                     for field in fields.unnamed.iter() {
                         if has_skip_attribute(&field.attrs) {
@@ -141,42 +153,48 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
 
                         let field_type = &field.ty;
                         decoding_bounds.push(field_type.clone());
+                        size_components.push(field_repr_size(field_type));
 
-                        size_components.push(quote! {
-                            ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
-                        });
-
-                        let current_offset = offset.clone();
+                        let decode_field = decode_field_expr(field_type);
                         field_decodings.push(quote! {
-                            {
-                                let field_size = ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>();
-                                let start = #current_offset;
-                                let end = start + field_size;
-                                let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
-                                field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
-                                <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
-                            },
+                            #decode_field,
                         });
-
-                        offset = quote! {
-                            #offset + <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
-                        };
                     }
 
-                    let size_calc = if size_components.is_empty() {
-                        quote!(0usize)
-                    } else {
-                        quote!(#(#size_components)+*)
-                    };
-
-                    (
-                        size_calc,
-                        quote! {
-                            Self(#(#field_decodings)*)
-                        },
-                    )
+                    quote! {
+                        Self(#(#field_decodings)*)
+                    }
                 }
-                Fields::Unit => (quote!(0usize), quote!(Self)),
+                Fields::Unit => quote!(Self),
+            };
+
+            let size_calc = if size_components.is_empty() {
+                quote!(0usize)
+            } else {
+                quote!(#(#size_components)+*)
+            };
+
+            // Fields are decoded in declaration order from a single `offset`
+            // cursor, so the offsets and the buffer size can never drift apart
+            // silently: the final check pins the total to the buffer length.
+            let decode_body = if size_components.is_empty() {
+                quote! {
+                    let _ = buf;
+                    #constructor
+                }
+            } else {
+                quote! {
+                    let bytes = *buf.as_ref();
+                    let mut offset = 0usize;
+                    let value = #constructor;
+                    assert_eq!(
+                        offset,
+                        bytes.len(),
+                        "`Decoding` derive: field representations do not cover the derived buffer; \
+                         every `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
+                    );
+                    value
+                }
             };
 
             let bound = quote!(::spongefish::Decoding<[u8]>);
@@ -189,7 +207,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                     type Repr = ::spongefish::ByteArray<{ #size_calc }>;
 
                     fn decode(buf: Self::Repr) -> Self {
-                        #field_decodings
+                        #decode_body
                     }
                 }
             }
