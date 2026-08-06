@@ -69,19 +69,7 @@
 //! [`ProverState::prover_message_with`] and
 //! [`VerifierState::prover_message_with`] take the encoding and
 //! (de)serialization maps as separate closures, mirroring the trait pair.
-//!
-//! # Supported types
-//!
 //! Unsigned integers and byte arrays have codecs attached to them.
-//! Popular algebraic types are also implemented:
-//!
-//! 1. arkworks field elements (including `Fp` and extension `Fp2`, `Fp3`, `Fp4`, `Fp6`, `Fp12`)
-//!    are available via the `ark-ff` feature flag;
-//! 2. arkworks elliptic curve elements are available via the `ark-ec` feature flag;
-//! 3. Ristretto points of curve25519_dalek are available via the `curve25519-dalek` feature flag;
-//! 4. Plonky3's `BabyBear`, `KoalaBear`, and `Mersenne31` field elements
-//!    are available via (respectively) `p3-baby-bear`, `p3-koala-bear`, `p3-mersenne-31` feature flags.
-//! 5. p256 field and elliptic curve elements are available via the `p256` feature flag.
 //!
 //! # Supported hash functions
 //!
@@ -91,16 +79,11 @@
 //!    [draft-irtf-cfrg-fiat-shamir], available with the default
 //!    `turboshake128` feature flag (the default is [`StdHash`] =
 //!    TurboSHAKE128);
-//! 2. [`Keccak`][instantiations::Keccak], the overwrite-mode duplex sponge
-//!    construction [[CO25], Section 3.3] over the Keccak-f[1600] permutation
+//! 2. `Keccak`, the overwrite-mode duplex sponge
+//!    construction [[CO25], Section 3.3] over the Keccak-f\[1600\] permutation
 //!    (**not** the draft's SHAKE128 suite). Available with the `keccak` feature flag;
-//! 3. [`Ascon12`][instantiations::Ascon12], the overwrite-mode duplex sponge over the
-//!    [`ascon`] permutation. Available with the `ascon` feature flag;
-//! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
-//!    Available with the `blake3` feature flag;
-//! 5. [`SHA256`][instantiations::SHA256] / [`SHA512`][instantiations::SHA512], based on [`sha2`]
-//!    used as stateful hash objects. Available with the `sha2` feature flag;
-//! 6. Blake2 variants, available with the `blake2` feature flag.
+//! 3. `Ascon12`, the overwrite-mode duplex sponge over the
+//!    Ascon permutation. Available with the `ascon` feature flag.
 //!
 //! # Implementing your own hash functions
 //!
@@ -160,9 +143,6 @@ mod private_rng;
 
 /// The NARG verifier state.
 mod narg_verifier;
-
-/// Trait implementation for common ZKP libraries.
-mod drivers;
 
 /// Utilities for serializing prover messages and de-serializing NARG strings.
 pub(crate) mod narg_string;

@@ -27,81 +27,22 @@ turboshake128 = ["dep:shake", "dep:turboshake"]
 # rand_core adapter so the RNG can be passed to ecosystem samplers.
 getrandom = ["dep:getrandom"]
 rand = ["dep:rand_core"]
-# Cryptographic hash function features
-sha2 = ["dep:sha2"]
-sha3 = ["dep:shake"]
-blake2 = ["dep:blake2"]
-blake3 = ["dep:blake3"]
-k12 = ["dep:k12"]
+# Additional permutation functions
 keccak = ["dep:keccak"]
 ascon = ["dep:ascon"]
-# arkworks
-ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
-ark-ec = ["ark-ff", "dep:ark-ec"]
-# zkcrypto
-bls12_381 = ["dep:bls12_381"]
-curve25519-dalek = ["dep:curve25519-dalek"]
-k256 = ["dep:k256"]
-p256 = ["dep:p256"]
-# plonky3
-p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
-p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
-p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
-# Performance features
-asm = ["ark-ff?/asm"]
-std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
-# risc0-zkp
-risc0-zkp = ["dep:risc0-zkp"]
 
 [dependencies]
-ark-ec = { workspace = true, optional = true }
-
-# arkworks-rs
-ark-ff = { workspace = true, optional = true }
-ark-serialize = { workspace = true, optional = true }
 ascon = { version = "^0.5.0", optional = true }
-blake2 = { workspace = true, optional = true }
-blake3 = { workspace = true, optional = true }
-
-# zkcrypto/group
-bls12_381 = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, optional = true }
 digest = { workspace = true }
 getrandom = { workspace = true, optional = true }
-
-# Optional hash functions
-k12 = { workspace = true, optional = true }
-k256 = { workspace = true, optional = true, features = ["arithmetic"] }
 keccak = { workspace = true, optional = true }
-p256 = { workspace = true, optional = true, features = ["arithmetic"] }
-p3-baby-bear = { workspace = true, optional = true }
-
-# plonky3
-p3-field = { workspace = true, optional = true }
-p3-koala-bear = { workspace = true, optional = true }
-p3-mersenne-31 = { workspace = true, optional = true }
 rand_core = { workspace = true, optional = true }
-risc0-zkp = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
 turboshake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
-[target.'cfg(doc)'.dependencies]
-p3-koala-bear = { workspace = true }
-sha2 = { workspace = true }
-
 [dev-dependencies]
-ark-bls12-381 = { workspace = true }
-ark-curve25519 = { workspace = true }
-ark-pallas = { workspace = true }
-ark-secp256k1 = { workspace = true }
-ark-secp256r1 = { workspace = true }
-ark-std = { workspace = true }
-ark-vesta = { workspace = true }
-blake2 = { workspace = true }
-bls12_381 = { workspace = true }
 curve25519-dalek = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
@@ -113,4 +54,4 @@ workspace = true
 
 [[example]]
 name = "schnorr"
-required-features = ["ark-ec", "getrandom", "turboshake128"]
+required-features = ["getrandom", "turboshake128"]

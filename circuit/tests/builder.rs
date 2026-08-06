@@ -1,17 +1,24 @@
+#![cfg(feature = "p3-baby-bear")]
+
 use p3_baby_bear::BabyBear;
 use spongefish::{DuplexSponge, DuplexSpongeInterface, Permutation};
 use spongefish_circuit::{
     allocator::FieldVar,
+    baby_bear::BabyBearUnit,
     permutation::{LinearEquation, PermutationInstanceBuilder, PermutationWitnessBuilder},
 };
 
-type TestInstanceBuilder = PermutationInstanceBuilder<BabyBear, 16>;
+const fn bb(value: u32) -> BabyBearUnit {
+    BabyBearUnit(BabyBear::new(value))
+}
+
+type TestInstanceBuilder = PermutationInstanceBuilder<BabyBearUnit, 16>;
 
 #[derive(Clone, Default)]
 struct DummyPermutation;
 
 impl Permutation<16> for DummyPermutation {
-    type U = BabyBear;
+    type U = BabyBearUnit;
 
     fn permute(&self, state: &[Self::U; 16]) -> [Self::U; 16] {
         *state
@@ -49,11 +56,9 @@ pub fn test_xof() {
     // .. and allocate new variables (in this case 13) that are private ..
     let secret = inst_builder.allocator().allocate_vars::<13>();
     // .. or public variables for which the value is known.
-    let public = inst_builder.allocator().allocate_public(&[
-        BabyBear::new(1),
-        BabyBear::new(2),
-        BabyBear::new(3),
-    ]);
+    let public = inst_builder
+        .allocator()
+        .allocate_public(&[bb(1), bb(2), bb(3)]);
 
     // Build the duplex sponge construction over this "permutation" with parameters:
     // WIDTH = 16
@@ -70,7 +75,7 @@ pub fn test_xof() {
     // Let's assume the output is public (that's the case in Fiat-Shamir or in encryption)
     inst_builder
         .allocator()
-        .set_public_vars(&xof_output, [BabyBear::new(42); 4]);
+        .set_public_vars(&xof_output, [bb(42); 4]);
 
     // Since rate = 8 and |public + secret| = 16
     // we have invoked the permutation function twice.
@@ -92,52 +97,34 @@ pub fn test_linear_equations() {
     let [a, b, c] = [vars[0], vars[1], vars[2]];
     inst_builder.add_permutation(vars, vars);
     inst_builder.add_equation(LinearEquation::new(
-        [
-            (BabyBear::new(1), a),
-            (BabyBear::new(1), b),
-            (BabyBear::new(1), c),
-        ],
-        BabyBear::new(0),
+        [(bb(1), a), (bb(1), b), (bb(1), c)],
+        bb(0),
     ));
-    inst_builder.add_equation(LinearEquation::new(
-        [(BabyBear::new(2), c), (BabyBear::new(3), a)],
-        BabyBear::new(7),
-    ));
+    inst_builder.add_equation(LinearEquation::new([(bb(2), c), (bb(3), a)], bb(7)));
 
     let equations = inst_builder.linear_constraints();
     assert_eq!(equations.as_ref().len(), 2);
     assert_eq!(
         equations.as_ref()[0].linear_combination,
-        vec![
-            (BabyBear::new(1), a),
-            (BabyBear::new(1), b),
-            (BabyBear::new(1), c),
-        ]
+        vec![(bb(1), a), (bb(1), b), (bb(1), c),]
     );
-    assert_eq!(equations.as_ref()[0].image, BabyBear::new(0));
-    assert_eq!(equations.as_ref()[1].image, BabyBear::new(7));
+    assert_eq!(equations.as_ref()[0].image, bb(0));
+    assert_eq!(equations.as_ref()[1].image, bb(7));
 }
 
 #[test]
 pub fn test_witness_linear_equations() {
     let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
     witness.add_equation(LinearEquation::new(
-        [
-            (BabyBear::new(2), BabyBear::new(3)),
-            (BabyBear::new(4), BabyBear::new(5)),
-            (BabyBear::new(6), BabyBear::new(8)),
-        ],
-        BabyBear::new(9),
+        [(bb(2), bb(3)), (bb(4), bb(5)), (bb(6), bb(8))],
+        bb(9),
     ));
 
     let equations = witness.linear_constraints();
     assert_eq!(equations.as_ref().len(), 1);
     assert_eq!(equations.as_ref()[0].linear_combination.len(), 3);
-    assert_eq!(
-        equations.as_ref()[0].linear_combination[2],
-        (BabyBear::new(6), BabyBear::new(8))
-    );
-    assert_eq!(equations.as_ref()[0].image, BabyBear::new(9));
+    assert_eq!(equations.as_ref()[0].linear_combination[2], (bb(6), bb(8)));
+    assert_eq!(equations.as_ref()[0].image, bb(9));
 }
 
 #[test]
@@ -156,20 +143,12 @@ pub fn public_vars_are_returned_by_variable_index() {
     let inst_builder = instance_builder();
     let [first, second] = inst_builder.allocator().allocate_vars();
 
-    inst_builder
-        .allocator()
-        .set_public_var(second, BabyBear::new(2));
-    inst_builder
-        .allocator()
-        .set_public_var(first, BabyBear::new(1));
+    inst_builder.allocator().set_public_var(second, bb(2));
+    inst_builder.allocator().set_public_var(first, bb(1));
 
     assert_eq!(
         inst_builder.allocator().public_vars(),
-        vec![
-            (FieldVar::ZERO, BabyBear::new(0)),
-            (first, BabyBear::new(1)),
-            (second, BabyBear::new(2)),
-        ]
+        vec![(FieldVar::ZERO, bb(0)), (first, bb(1)), (second, bb(2)),]
     );
 }
 
@@ -184,17 +163,11 @@ pub fn linear_equation_terms_must_be_bound_unless_zero() {
     assert_panics_with(
         "nonzero linear terms must reference a permutation input or output variable",
         || {
-            inst_builder.add_equation(LinearEquation::new(
-                [(BabyBear::new(1), unbound_var)],
-                BabyBear::new(0),
-            ));
+            inst_builder.add_equation(LinearEquation::new([(bb(1), unbound_var)], bb(0)));
         },
     );
 
-    inst_builder.add_equation(LinearEquation::new(
-        [(BabyBear::new(0), unbound_var)],
-        BabyBear::new(0),
-    ));
+    inst_builder.add_equation(LinearEquation::new([(bb(0), unbound_var)], bb(0)));
 
     assert_eq!(inst_builder.linear_constraints().as_ref().len(), 1);
 }
@@ -227,7 +200,7 @@ pub fn snapshots_are_immutable_after_builder_mutation() {
     assert_eq!(inst_builder.constraints().as_ref().len(), 2);
 
     let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
-    let input = [BabyBear::new(1); 16];
+    let input = [bb(1); 16];
     let _ = witness.allocate_permutation(&input);
     let witness_snapshot = witness.snapshot();
     let _ = witness.allocate_permutation(&input);

@@ -14,7 +14,7 @@ all-features = true
 
 [features]
 default = ["p3-baby-bear"]
-p3-baby-bear = ["dep:p3-baby-bear", "spongefish/p3-baby-bear"]
+p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 
 [dependencies]
 
@@ -22,12 +22,12 @@ hashbrown = { workspace = true }
 itertools = { workspace = true }
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
+p3-field = { workspace = true, optional = true }
 spin = { workspace = true }
 spongefish = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
-spongefish = { workspace = true, features = ["p3-baby-bear"] }
 
 [lints]
 workspace = true

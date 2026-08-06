@@ -266,16 +266,4 @@ mod tests {
     fn turboshake128_clone_preserves_squeeze_position() {
         assert_clone_preserves_squeeze_position::<::turboshake::TurboShake128>();
     }
-
-    #[cfg(feature = "k12")]
-    #[test]
-    fn kangaroo_twelve_clone_preserves_squeeze_position() {
-        assert_clone_preserves_squeeze_position::<k12::Kt128>();
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn blake3_clone_preserves_squeeze_position() {
-        assert_clone_preserves_squeeze_position::<blake3::Hasher>();
-    }
 }

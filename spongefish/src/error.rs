@@ -21,8 +21,4 @@ impl core::ops::Deref for VerificationError {
     }
 }
 
-#[cfg(feature = "std")]
-extern crate std;
-
-#[cfg(feature = "std")]
-impl std::error::Error for VerificationError {}
+impl core::error::Error for VerificationError {}

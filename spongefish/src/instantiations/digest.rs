@@ -1,4 +1,4 @@
-//! XXX. we do two things: define hash, and instantiate the duplexspongeinterface
+//! A [`DuplexSpongeInterface`] bridge for fixed-output [`digest::Digest`] hash functions.
 //!
 //! This code is inspired from libsignal's poksho:
 //! <https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs>.
@@ -205,7 +205,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
     }
 }
 
-#[cfg(all(test, feature = "sha2"))]
+#[cfg(test)]
 #[test]
 fn test_shosha() {
     let expected = b"\xEB\xE4\xEF\x29\xE1\x8A\xA5\x41\x37\xED\xD8\x9C\x23\xF8\

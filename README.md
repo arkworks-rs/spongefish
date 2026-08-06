@@ -5,7 +5,7 @@ It facilitates the writing of multi-round public coin protocols.
 It provides a generic API for generating the verifier's random coins and the prover randomness.
 The project is split into several crates:
 
-- `spongefish`: the core library and trait implementations for arkworks/zkcrypto types together with the duplex sponge API.
+- `spongefish`: the core library implementing draft-irtf-cfrg-fiat-shamir, together with the duplex sponge API.
 - `spongefish-circuit`: constraint builders for permutation-based relations.
 - `spongefish-derive`: derive macros for codecs and related traits.
 - `spongefish-pow`: proof‑of‑work helpers for deriving Fiat–Shamir challenges via grinding.

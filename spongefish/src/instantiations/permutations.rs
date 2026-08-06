@@ -1,5 +1,5 @@
 #[cfg(feature = "ascon")]
-pub use ascon::Ascon12;
+pub use ascon::AsconP12;
 #[cfg(feature = "keccak")]
 pub use keccak::KeccakF1600;
 
@@ -11,12 +11,12 @@ mod ascon {
     const WORD_BYTES: usize = 8;
     const _: () = assert!(STATE_BYTES == core::mem::size_of::<ascon::State>());
 
-    /// Ascon permutation internal state: 5 64-bit words,
+    /// The `Ascon-p[12]` permutation. Internal state: 5 64-bit words,
     /// or equivalently 40 bytes in little-endian order.
     #[derive(Clone, Debug, Default)]
-    pub struct Ascon12;
+    pub struct AsconP12;
 
-    impl Permutation<STATE_BYTES> for Ascon12 {
+    impl Permutation<STATE_BYTES> for AsconP12 {
         type U = u8;
 
         fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
@@ -66,7 +66,7 @@ mod ascon {
         /// an explicit byte order pins the state layout to little-endian
         /// independently of the target's native endianness.
         #[test]
-        fn ascon12_little_endian_known_answer() {
+        fn ascon_p12_little_endian_known_answer() {
             let input_words: ascon::State = [
                 0x0123_4567_89ab_cdef,
                 0xef01_2345_6789_abcd,
@@ -85,7 +85,7 @@ mod ascon {
             let input = serialize_le(&input_words);
             let expected = serialize_le(&output_words);
 
-            assert_eq!(Ascon12.permute(&input), expected);
+            assert_eq!(AsconP12.permute(&input), expected);
         }
     }
 }
