@@ -1,8 +1,8 @@
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Encoding, NargDeserialize, NargSerialize, ProverState, StdHash,
-    VerificationError, VerificationResult, VerifierState,
+    derive_session_id, Encoding, LengthPrefixed, NargDeserialize, NargSerialize, ProverState,
+    StdHash, VerificationError, VerificationResult, VerifierState,
 };
 
 fn test_session_id(tag: &[u8]) -> [u8; 32] {
@@ -292,4 +292,36 @@ fn closure_batch_helpers_round_trip() {
     let verifier_challenge: [u8; 16] = verifier.verifier_message();
     assert_eq!(prover_challenge, verifier_challenge);
     assert!(verifier.check_eof().is_ok());
+}
+
+#[test]
+fn length_prefixed_round_trip() {
+    let instance = [9u32];
+    let session_id = test_session_id(b"length prefixed");
+    let values = alloc::vec![10u32, 20, 30];
+
+    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
+    prover.prover_message(&LengthPrefixed(&values[..]));
+    let proof = prover.narg_string().to_vec();
+    let prover_challenge: [u8; 16] = prover.verifier_message();
+
+    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
+    let LengthPrefixed(read_back): LengthPrefixed<alloc::vec::Vec<u32>> =
+        verifier.prover_message().unwrap();
+    assert_eq!(read_back, values);
+    let verifier_challenge: [u8; 16] = verifier.verifier_message();
+    assert_eq!(prover_challenge, verifier_challenge);
+    assert!(verifier.check_eof().is_ok());
+
+    // A tampered NARG string either fails to parse or produces a different verifier message.
+    let mut tampered = proof;
+    tampered[0] ^= 1;
+    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &tampered);
+    if verifier
+        .prover_message::<LengthPrefixed<alloc::vec::Vec<u32>>>()
+        .is_ok()
+    {
+        let tampered_challenge: [u8; 16] = verifier.verifier_message();
+        assert_ne!(prover_challenge, tampered_challenge);
+    }
 }

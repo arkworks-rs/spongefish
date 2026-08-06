@@ -87,6 +87,13 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Absorbs a slice of public messages.
     ///
+    /// # Safety
+    ///
+    /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. See
+    /// [`ProverState::public_messages`][crate::ProverState::public_messages]).
+    ///
     /// ```
     /// # #[cfg(feature = "turboshake128")]
     /// # {
@@ -105,6 +112,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Absorbs an iterator of public messages.
+    ///
+    /// # Safety
+    ///
+    /// The number of messages must be fixed by the protocol; see
+    /// [`VerifierState::public_messages`].
     ///
     /// ```
     /// # #[cfg(feature = "turboshake128")]

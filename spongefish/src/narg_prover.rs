@@ -214,7 +214,14 @@ where
         T::decode(buf)
     }
 
-    /// Input to the Fiat--Shamir transformation an array of public messages.
+    /// Input to the Fiat-Shamir transformation a slice of public messages.
+    ///
+    /// # Safety
+    ///
+    /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
+    /// sequence instead.
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
@@ -222,6 +229,11 @@ where
     }
 
     /// Input to the Fiat--Shamir transformation an iterator of public messages.
+    ///
+    /// # Safety
+    ///
+    /// The number of messages must be fixed by the protocol; see
+    /// [`ProverState::public_messages`].
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
@@ -232,14 +244,26 @@ where
             .for_each(|message| self.public_message(&message));
     }
 
-    /// Absorbs a list of prover messages at once.
+    /// Input a slice of prover messages: each is absorbed into the duplex
+    /// sponge and serialized into the NARG string, in order.
+    ///
+    /// # Safety
+    ///
+    /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
     pub fn prover_messages<T: Encoding<[H::U]> + NargSerialize>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
         }
     }
 
-    /// Absorbs an iterator of prover messages.
+    /// Input an iterator of prover messages: each is absorbed into the duplex
+    /// sponge and serialized into the NARG string, in order.
+    ///
+    /// # Safety
+    ///
+    /// The number of messages must be fixed by the protocol; see [`ProverState::prover_messages`].
     pub fn prover_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,

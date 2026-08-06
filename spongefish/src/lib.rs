@@ -70,6 +70,8 @@
 //! [`VerifierState::prover_message_with`] take the encoding and
 //! (de)serialization maps as separate closures, mirroring the trait pair.
 //! Unsigned integers and byte arrays have codecs attached to them.
+//! Variable-length sequences use the [`LengthPrefixed`] combinator, which
+//! prepends a `u32` element count to keep the encoding prefix-free.
 //!
 //! # Supported hash functions
 //!
@@ -156,7 +158,7 @@ pub(crate) mod error;
 // Re-export the core interfaces for building the FS transformation.
 #[doc(hidden)]
 pub use codecs::ByteArray;
-pub use codecs::{Codec, Decoding, Encoding};
+pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
 #[cfg(feature = "turboshake128")]

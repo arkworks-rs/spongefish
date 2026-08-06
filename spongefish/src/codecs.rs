@@ -199,16 +199,6 @@ impl Encoding<[u8]> for str {
     }
 }
 
-impl<U: Clone, T: Encoding<[U]>> Encoding<[U]> for alloc::vec::Vec<T> {
-    fn encode(&self) -> impl AsRef<[U]> {
-        let mut out = alloc::vec::Vec::new();
-        for x in self {
-            out.extend_from_slice(x.encode().as_ref());
-        }
-        out
-    }
-}
-
 impl<A, B> Encoding<[u8]> for (A, B)
 where
     A: Encoding<[u8]>,
@@ -237,6 +227,102 @@ where
     }
 }
 
+/// A variable-length sequence, encoded with a `u32` element-count prefix.
+///
+/// [`Encoding`] for bare sequences must be prefix-free, which rules out
+/// concatenating a variable number of element encodings: `[a]` would encode to
+/// a strict prefix of `[a, b]`. This combinator restores prefix-freeness by
+/// prepending the element count as a little-endian `u32` (the same convention
+/// as the [`str`] codec), followed by each element's encoding in order.
+///
+/// The prover encodes a borrowed slice; the verifier reads back an owned
+/// vector:
+///
+/// ```
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+/// # {
+/// use spongefish::{LengthPrefixed, ProverState, StdHash, VerifierState};
+///
+/// let session_id = spongefish::derive_session_id::<StdHash>(b"examples/LengthPrefixed");
+/// let values = vec![7u32, 8, 9];
+///
+/// let mut prover_state = ProverState::<StdHash>::new(&session_id, &0u32);
+/// prover_state.prover_message(&LengthPrefixed(&values[..]));
+///
+/// let mut verifier_state =
+///     VerifierState::<StdHash>::new(&session_id, &0u32, prover_state.narg_string());
+/// let LengthPrefixed(read_back): LengthPrefixed<Vec<u32>> =
+///     verifier_state.prover_message().unwrap();
+/// assert_eq!(read_back, values);
+/// assert!(verifier_state.check_eof().is_ok());
+/// # }
+/// ```
+///
+/// The owned form also composes with `#[derive(Codec)]`, so a round message
+/// may hold a `LengthPrefixed<Vec<T>>` field.
+///
+/// # Safety
+///
+/// The count prefix makes the encoding prefix-free even when the sequence
+/// length is not fixed by the protocol, but the length still becomes part of
+/// the transcript: prover and verifier absorb whatever count is sent.
+/// Deserialization treats the count as untrusted and rejects any prefix
+/// exceeding the remaining NARG bytes; this guard assumes every element
+/// serializes to at least one byte, which injectivity guarantees for any
+/// element type with more than one value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LengthPrefixed<T>(pub T);
+
+impl<T> LengthPrefixed<T> {
+    /// Consumes the wrapper, returning the inner sequence.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+fn encode_length_prefixed<T: Encoding<[u8]>>(elements: &[T]) -> alloc::vec::Vec<u8> {
+    let len: u32 = elements
+        .len()
+        .try_into()
+        .expect("length-prefixed encoding requires the element count to fit in u32");
+    let mut out = alloc::vec::Vec::new();
+    out.extend_from_slice(&len.to_le_bytes());
+    for element in elements {
+        out.extend_from_slice(element.encode().as_ref());
+    }
+    out
+}
+
+impl<T: Encoding<[u8]>> Encoding<[u8]> for LengthPrefixed<&[T]> {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        encode_length_prefixed(self.0)
+    }
+}
+
+impl<T: Encoding<[u8]>> Encoding<[u8]> for LengthPrefixed<alloc::vec::Vec<T>> {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        encode_length_prefixed(&self.0)
+    }
+}
+
+impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc::vec::Vec<T>> {
+    fn deserialize_from_narg(buf: &mut &[u8]) -> crate::VerificationResult<Self> {
+        let mut rest = *buf;
+        let len = u32::deserialize_from_narg(&mut rest)? as usize;
+        // Untrusted length: each element consumes at least one byte, so a
+        // count exceeding the remaining bytes cannot parse — reject it before
+        // looping.
+        if len > rest.len() {
+            return Err(crate::VerificationError);
+        }
+        let elements = (0..len)
+            .map(|_| T::deserialize_from_narg(&mut rest))
+            .collect::<Result<alloc::vec::Vec<T>, _>>()?;
+        *buf = rest;
+        Ok(Self(elements))
+    }
+}
+
 /// Blanket implementation of [`Codec`] for all traits implementing
 /// [`NargSerialize`][`crate::NargSerialize`],
 /// [`NargDeserialize`][`crate::NargSerialize`],
@@ -250,7 +336,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Encoding;
+    use super::{Encoding, LengthPrefixed};
+    use crate::NargDeserialize;
 
     /// Cross-architecture guard: the `str` length prefix must be a fixed-width,
     /// little-endian `u32` on every target. If this ever regresses to a
@@ -266,5 +353,61 @@ mod tests {
         // Empty string is just the four length bytes.
         let empty = Encoding::<[u8]>::encode(&"");
         assert_eq!(empty.as_ref(), &[0, 0, 0, 0]);
+    }
+
+    /// The count prefix is a fixed-width little-endian `u32` element count,
+    /// followed by each element's encoding; the borrowed and owned forms
+    /// encode identically.
+    #[test]
+    fn length_prefixed_encoding_layout() {
+        let values = alloc::vec![0x0102_0304u32, 0x0506_0708];
+        let borrowed_form = LengthPrefixed(&values[..]);
+        let owned_form = LengthPrefixed(values.clone());
+        let borrowed = borrowed_form.encode();
+        let owned = owned_form.encode();
+        assert_eq!(borrowed.as_ref(), owned.as_ref());
+        assert_eq!(
+            borrowed.as_ref(),
+            &[2, 0, 0, 0, 4, 3, 2, 1, 8, 7, 6, 5],
+            "u32 LE count, then each element's LE encoding"
+        );
+
+        // The empty sequence is just the four count bytes — not empty, so the
+        // encoding stays prefix-free across lengths.
+        let empty_form = LengthPrefixed::<&[u32]>(&[]);
+        let empty = empty_form.encode();
+        assert_eq!(empty.as_ref(), &[0, 0, 0, 0]);
+    }
+
+    /// Deserialization round-trips, rejects truncated element data, and
+    /// rejects a count prefix exceeding the remaining bytes without looping.
+    #[test]
+    fn length_prefixed_deserialization_guards() {
+        let values = alloc::vec![7u32, 8, 9];
+        let wrapper = LengthPrefixed(&values[..]);
+        let bytes = wrapper.encode();
+
+        let mut cursor = bytes.as_ref();
+        let LengthPrefixed(read_back) =
+            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut cursor).unwrap();
+        assert_eq!(read_back, values);
+        assert!(cursor.is_empty());
+
+        // Truncated element data: the cursor must be left unchanged.
+        let truncated = &bytes.as_ref()[..bytes.as_ref().len() - 1];
+        let mut cursor = truncated;
+        assert!(
+            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut cursor).is_err()
+        );
+        assert_eq!(cursor, truncated);
+
+        // A huge count with no data behind it is rejected by the length
+        // guard, before any element parsing.
+        let bogus = [0xFF, 0xFF, 0xFF, 0xFF];
+        let mut cursor = &bogus[..];
+        assert!(
+            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut cursor).is_err()
+        );
+        assert_eq!(cursor, &bogus[..]);
     }
 }
