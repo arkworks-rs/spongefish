@@ -324,6 +324,147 @@ where
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
+
+    /// Input a prover message using encoding and serialization closures.
+    ///
+    /// ```
+    /// # #[cfg(feature = "getrandom")]
+    /// # {
+    /// use spongefish::{Encoding, NargSerialize, ProverState, StdHash};
+    ///
+    /// let session_id =
+    ///     spongefish::derive_session_id::<StdHash>(b"examples/ProverState::prover_message_with");
+    /// let mut trait_path = ProverState::<StdHash>::new(&session_id, &0u32);
+    /// let mut closure_path = ProverState::<StdHash>::new(&session_id, &0u32);
+    ///
+    /// trait_path.prover_message(&42u32);
+    /// closure_path.prover_message_with(&42u32, |x| x.encode(), |x, out| x.serialize_into_narg(out));
+    ///
+    /// assert_eq!(trait_path.narg_string(), closure_path.narg_string());
+    /// # }
+    /// ```
+    ///
+    /// On byte-oriented sponges (`H::U = u8`), prefer [`ProverState::prover_message_as`].
+    ///
+    /// # Codec requirements
+    ///
+    /// `encode` **MUST** output a prefix-free string, with an efficiently
+    /// computable left inverse ([draft-irtf-cfrg-fiat-shamir][FS], § "Codecs").
+    /// Any change to either map **MUST** be reflected in the session tag
+    /// ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+        serialize(message, &mut self.narg_string);
+    }
+
+    /// Absorb a public message using an encoding closure.
+    ///
+    /// Like [`ProverState::prover_message_with`] without the serialization
+    /// half: a public message is shared between prover and verifier outside of
+    /// the NARG string, so its encoding is only absorbed. The closure must
+    /// satisfy the codec requirements documented on
+    /// [`ProverState::prover_message_as`], and the verifier must absorb the
+    /// same message with the same map.
+    pub fn public_message_as<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+    }
+
+    /// Derive a verifier message by squeezing `n` units of the sponge
+    /// alphabet and mapping them through a one-off decoding closure.
+    ///
+    /// The closure is one round's decoding map `decode[i]` of
+    /// [draft-irtf-cfrg-fiat-shamir][FS] (§ "Decoding from byte strings"):
+    ///
+    /// - It **MUST** be distribution-preserving: for a uniformly random
+    ///   input, the output must be (statistically close to) uniform over the
+    ///   verifier message type.
+    /// - It is infallible
+    /// - Its input must be uniform
+    /// - Any change to the decoding (e.g. sampling verifier messages differently)
+    ///   **MUST** be reflected in the session tag ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
+        let buf = self.duplex_sponge_state.squeeze_boxed(n);
+        decode(&buf)
+    }
+}
+
+impl<H, R> ProverState<H, R>
+where
+    H: DuplexSpongeInterface<U = u8>,
+    R: Rng + CryptoRng,
+{
+    /// Input a prover message using an encoding closure.
+    ///
+    /// The bytes returned by `encode` are absorbed into the duplex sponge
+    /// **and** appended to the NARG string in the same call.
+    /// Hashing a prover message and serializing it is done within one function call,
+    /// so that messages cannot be skipped, reordered, or absorbed without being serialized.
+    ///
+    /// For sponges over a non-byte alphabet, where absorbed units
+    /// and NARG bytes are necessarily distinct maps, use
+    /// [`ProverState::prover_message_with`].
+    ///
+    /// # Security
+    ///
+    /// Following [FS], the security requirements of `encode` are:
+    ///
+    /// - It **MUST** be prefix-free on the message's domain ([FS], § "Codecs").
+    ///   The identity encoding (`SerializeBytes`) is admissible **only** on
+    ///   fixed-length domains, where prover and verifier agree on the byte
+    ///   length before parsing ([FS], § "Byte strings" under "Serialization").
+    /// - The security analysis additionally requires an efficiently
+    ///   computable left inverse: the knowledge-soundness extractor inverts
+    ///   the encoding to recover prover messages from the absorbed bytes
+    ///   ([FS], § "Codecs" under "Security considerations"). In practice, make
+    ///   the encoding injective and decodable.
+    /// - Any change to the codec **MUST** be reflected in the session tag
+    ///   ([FS], § "Session identifiers", requirement 2): two implementations
+    ///   encoding messages differently must not share a session identifier.
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        let bytes = encode(message);
+        self.duplex_sponge_state.absorb(bytes.as_ref());
+        self.narg_string.extend_from_slice(bytes.as_ref());
+    }
+
+    /// Input a slice of prover messages through a closure.
+    ///
+    /// Calls [`ProverState::prover_message_as`] on each element in order; the
+    /// closure is subject to the codec requirements documented there. The
+    /// verifier reads the batch back with
+    /// [`VerifierState::prover_messages_vec_as`][crate::VerifierState::prover_messages_vec_as].
+    ///
+    /// # Safety
+    ///
+    /// The number of messages must be fixed by the protocol or derived from the instance.
+    /// See [`ProverState::prover_messages`].
+    pub fn prover_messages_as<'a, T, B: AsRef<[u8]>>(
+        &mut self,
+        messages: &'a [T],
+        mut encode: impl FnMut(&'a T) -> B,
+    ) {
+        for message in messages {
+            self.prover_message_as(message, &mut encode);
+        }
+    }
 }
 
 /// Creates a new [`ProverState`] with an OS-seeded RNG and an **unseeded**

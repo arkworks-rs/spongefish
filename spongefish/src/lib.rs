@@ -55,6 +55,14 @@
 //! serialization always targets bytes — this is why the two traits stay
 //! separate. The interface [`Codec`] is a shorthand for all of the above.
 //!
+//! Prover and verifier states accept also codec closures. On byte-oriented sponges,
+//! [`ProverState::prover_message_as`] and [`VerifierState::prover_message_as`]
+//! take a single closure: the absorbed bytes and the NARG bytes coincide by
+//! construction. On sponges over any alphabet,
+//! [`ProverState::prover_message_with`] and
+//! [`VerifierState::prover_message_with`] take the encoding and
+//! (de)serialization maps as separate closures, mirroring the trait pair.
+//!
 //! # Supported types
 //!
 //! Unsigned integers and byte arrays have codecs attached to them.

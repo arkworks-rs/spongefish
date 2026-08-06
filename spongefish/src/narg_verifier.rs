@@ -143,6 +143,65 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
+    /// Reads a prover message with deserialization and encoding closures.
+    ///
+    /// On failure, the NARG string is left unchanged and nothing is absorbed.
+    ///
+    /// On byte-oriented sponges (`H::U = u8`), prefer
+    /// [`VerifierState::prover_message_as`]: it absorbs exactly the bytes the
+    /// closure consumed, needing no encoding closure and leaving no room for
+    /// the two maps to disagree.
+    ///
+    /// # Codec requirements
+    ///
+    /// `deserialize` must invert the prover's serialization map, and `encode`
+    /// must be the very map the prover absorbed with. Both are subject to the
+    /// security requirements documented on
+    /// [`ProverState::prover_message_with`][crate::ProverState::prover_message_with],
+    /// and any codec change **MUST** be reflected in the session tag
+    /// ([draft-irtf-cfrg-fiat-shamir][FS], § "Session identifiers",
+    /// requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_with<T, B: AsRef<[H::U]>>(
+        &mut self,
+        deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+        encode: impl FnOnce(&T) -> B,
+    ) -> VerificationResult<T> {
+        let (message, consumed) = deserialize_staged(self.narg_string, deserialize)?;
+        self.duplex_sponge_state.absorb(encode(&message).as_ref());
+        self.narg_string = &self.narg_string[consumed..];
+        Ok(message)
+    }
+
+    /// Absorb a public message using an encoding closure
+    /// (see [`ProverState::public_message_as`][crate::ProverState::public_message_as]).
+    ///
+    /// The closure must be the same encoding map the prover used, subject to
+    /// the codec requirements documented on
+    /// [`ProverState::prover_message_as`][crate::ProverState::prover_message_as].
+    pub fn public_message_as<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+    }
+
+    /// Derive a verifier message by squeezing `n` units of the sponge
+    /// alphabet and mapping them through a one-off decoding closure.
+    ///
+    /// The closure must be distribution-preserving and infallible, and must
+    /// only ever be applied to the uniform `Squeeze` output provided here;
+    /// see [`ProverState::verifier_message_as`][crate::ProverState::verifier_message_as]
+    /// for the full requirements. Prover and verifier must use identical
+    /// decoding maps, and any change **MUST** be reflected in the session tag
+    /// (FS § "Session identifiers", requirement 2).
+    pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
+        let buf = self.duplex_sponge_state.squeeze_boxed(n);
+        decode(&buf)
+    }
+
     /// The Fiat--Shamir transformation produces a NARG string with
     /// **fixed, deterministic length**.
     /// This check ensures that no trailing bytes remain in the transcript.
@@ -239,5 +298,102 @@ where
         narg_string: &'a [u8],
     ) -> Self {
         Self::new(&crate::derive_session_id::<H>(tag), instance, narg_string)
+    }
+}
+
+/// Runs `deserialize` on a staged copy of `narg_string`, returning the
+/// message and the number of bytes consumed.
+///
+/// The cursor left behind by the closure must be a true suffix of the
+/// original slice: callers advance the transcript (and absorb, either the
+/// consumed prefix or the re-encoded message) based on this arithmetic, so a
+/// closure that repoints its cursor anywhere else is rejected. On error the
+/// staged copy is discarded, leaving the caller's cursor unchanged with
+/// nothing absorbed.
+fn deserialize_staged<T>(
+    narg_string: &[u8],
+    deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+) -> VerificationResult<(T, usize)> {
+    let mut remaining = narg_string;
+    let message = deserialize(&mut remaining)?;
+    let consumed = narg_string
+        .len()
+        .checked_sub(remaining.len())
+        .ok_or(VerificationError)?;
+    if !core::ptr::eq(narg_string[consumed..].as_ptr(), remaining.as_ptr()) {
+        return Err(VerificationError);
+    }
+    Ok((message, consumed))
+}
+
+impl<H> VerifierState<'_, H>
+where
+    H: DuplexSpongeInterface<U = u8>,
+{
+    /// Reads a prover message with a one-off deserialization closure,
+    /// absorbing exactly the bytes it consumed.
+    ///
+    /// The dual of
+    /// [`ProverState::prover_message_as`][crate::ProverState::prover_message_as]:
+    /// `deserialize` reads a value from the front of the unread NARG string
+    /// and advances the cursor; the consumed bytes are then absorbed
+    /// verbatim, in the same call — reading and hashing a prover message
+    /// within one function call is the implementation guidance of
+    /// [draft-irtf-cfrg-fiat-shamir][FS] (§ "Implementation guidance").
+    ///
+    /// On failure the cursor is left unchanged (the closure operates on a
+    /// staged copy), and nothing is absorbed. A closure that leaves its
+    /// cursor pointing anywhere but a suffix of the unread NARG string is
+    /// rejected with a [`VerificationError`].
+    ///
+    /// For sponges over a non-byte alphabet, where the absorbed units cannot
+    /// be the consumed bytes, use [`VerifierState::prover_message_with`].
+    ///
+    /// # Codec requirements
+    ///
+    /// `deserialize` must be the inverse of the prover-side encoding closure:
+    /// it **MUST** reject non-canonical serializations
+    /// ([FS], § "Deserialization"), and the NARG string must be treated as
+    /// untrusted input — validate length indicators and integer ranges before
+    /// use. The encoding it inverts must be prefix-free, with the identity
+    /// admissible only on fixed-length domains ([FS], § "Codecs"; § "Byte
+    /// strings" under "Serialization"). Any codec change **MUST** be reflected
+    /// in the session tag ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_as<T>(
+        &mut self,
+        deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+    ) -> VerificationResult<T> {
+        let (message, consumed) = deserialize_staged(self.narg_string, deserialize)?;
+        self.duplex_sponge_state
+            .absorb(&self.narg_string[..consumed]);
+        self.narg_string = &self.narg_string[consumed..];
+        Ok(message)
+    }
+
+    /// Reads `len` prover messages into a vector through one deserialization
+    /// closure.
+    ///
+    /// Calls [`VerifierState::prover_message_as`] `len` times in order; the
+    /// closure is subject to the codec requirements documented there. This is
+    /// the reader for a batch sent with
+    /// [`ProverState::prover_messages_as`][crate::ProverState::prover_messages_as].
+    ///
+    /// On failure the cursor is left at the last successfully read message,
+    /// with nothing further absorbed.
+    ///
+    /// # Safety
+    ///
+    /// `len` must be fixed by the protocol or derived from the instance —
+    /// never from the NARG string itself.
+    pub fn prover_messages_vec_as<T>(
+        &mut self,
+        len: usize,
+        mut deserialize: impl FnMut(&mut &[u8]) -> VerificationResult<T>,
+    ) -> VerificationResult<Vec<T>> {
+        (0..len)
+            .map(|_| self.prover_message_as(&mut deserialize))
+            .collect()
     }
 }
