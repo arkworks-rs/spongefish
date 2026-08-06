@@ -1,8 +1,8 @@
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Encoding, LengthPrefixed, NargDeserialize, NargSerialize, ProverState,
-    StdHash, VerificationError, VerificationResult, VerifierState,
+    derive_session_id, DuplexSpongeInterface, Encoding, LengthPrefixed, NargDeserialize,
+    NargSerialize, ProverState, StdHash, VerificationError, VerificationResult, VerifierState,
 };
 
 fn test_session_id(tag: &[u8]) -> [u8; 32] {
@@ -210,6 +210,63 @@ fn str_encoding_prefixes_utf8_with_le_u32_length() {
 
     let encoded_utf8 = "hé".encode();
     assert_eq!(encoded_utf8.as_ref(), b"\x03\x00\x00\x00h\xc3\xa9");
+}
+
+mod word_sponge {
+    use crate::duplex_sponge::{DuplexSponge, Permutation};
+
+    /// Toy ARX permutation over four `u64` words. Deterministic mixing with no
+    /// security claim; it exists to exercise the generic-alphabet
+    /// (`H::U != u8`) API surface.
+    #[derive(Clone, Default)]
+    pub struct ToyPermutation;
+
+    impl Permutation<4> for ToyPermutation {
+        type U = u64;
+
+        fn permute(&self, state: &[u64; 4]) -> [u64; 4] {
+            let mut s = *state;
+            for _ in 0..8 {
+                s[0] = s[0].wrapping_add(s[1]).rotate_left(13) ^ s[2];
+                s[1] = s[1].wrapping_add(s[2]).rotate_left(29) ^ s[3];
+                s[2] = s[2].wrapping_add(s[3]).rotate_left(43) ^ s[0];
+                s[3] = s[3].wrapping_add(s[0]).rotate_left(7) ^ s[1];
+            }
+            s
+        }
+    }
+
+    pub type WordSponge = DuplexSponge<ToyPermutation, 4, 2>;
+}
+
+#[test]
+fn closure_codecs_generic_alphabet_round_trip() {
+    struct Foreign(u64);
+
+    let encode = |v: &Foreign| [v.0];
+    let value = Foreign(0xdead_beef);
+
+    let mut session = word_sponge::WordSponge::default();
+    session.absorb(&[42, 7]);
+
+    let mut prover = ProverState::from(session.clone());
+    prover.prover_message_with(&value, encode, |v, out| {
+        out.extend_from_slice(&v.0.to_le_bytes());
+    });
+    prover.public_message_as(&3u64, |v| [*v]);
+    let prover_challenge: [u64; 2] = prover.verifier_message_as(2, |units| [units[0], units[1]]);
+    let proof = prover.narg_string().to_vec();
+
+    let mut verifier = VerifierState::from_parts(session, &proof);
+    let read = verifier
+        .prover_message_with(|buf| u64::deserialize_from_narg(buf).map(Foreign), encode)
+        .unwrap();
+    assert_eq!(read.0, value.0);
+    verifier.public_message_as(&3u64, |v| [*v]);
+    let verifier_challenge: [u64; 2] =
+        verifier.verifier_message_as(2, |units| [units[0], units[1]]);
+    assert_eq!(prover_challenge, verifier_challenge);
+    assert!(verifier.check_eof().is_ok());
 }
 
 /// `prover_message_with` applied to a type's own trait maps must agree with
