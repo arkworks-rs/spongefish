@@ -90,9 +90,15 @@ mod tests {
     use super::*;
     use crate::narg_string::NargSerialize;
 
+    #[cfg(all(feature = "turboshake128", feature = "rand"))]
+    fn test_rng() -> crate::PrivateRng {
+        crate::PrivateRng::from_seed([0xAB; 32])
+    }
+
+    #[cfg(all(feature = "turboshake128", feature = "rand"))]
     #[test]
     fn test_scalar_serialize_deserialize() {
-        let scalar = Scalar::random(&mut rand::rng());
+        let scalar = Scalar::random(&mut test_rng());
 
         let mut buf = Vec::new();
         scalar.serialize_into_narg(&mut buf);
@@ -102,11 +108,12 @@ mod tests {
         assert_eq!(scalar, deserialized);
     }
 
+    #[cfg(all(feature = "turboshake128", feature = "rand"))]
     #[test]
     fn test_point_serialize_deserialize() {
         use k256::elliptic_curve::Group;
 
-        let point = ProjectivePoint::random(&mut rand::rng());
+        let point = ProjectivePoint::random(&mut test_rng());
 
         let mut buf = Vec::new();
         point.serialize_into_narg(&mut buf);
@@ -116,9 +123,10 @@ mod tests {
         assert_eq!(point, deserialized);
     }
 
+    #[cfg(all(feature = "turboshake128", feature = "rand"))]
     #[test]
     fn test_scalar_encoding() {
-        let scalar = Scalar::random(&mut rand::rng());
+        let scalar = Scalar::random(&mut test_rng());
 
         let encoded = scalar.encode();
         let encoded_bytes = encoded.as_ref();

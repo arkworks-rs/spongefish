@@ -1,4 +1,3 @@
-use rand::Rng;
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
@@ -23,6 +22,26 @@ fn prover_rng_emits_entropy() {
 
     assert_ne!(first, [0u8; 32]);
     assert_ne!(first, second);
+}
+
+#[test]
+fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
+    let instance = [1u32];
+    let session_id = test_session_id(b"seeded rng");
+    let seed = [7u8; 32];
+
+    let mut a = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
+    let mut b = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
+    let (mut ra, mut rb) = ([0u8; 32], [0u8; 32]);
+    a.rng().fill_bytes(&mut ra);
+    b.rng().fill_bytes(&mut rb);
+    assert_eq!(ra, rb);
+
+    let mut c = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
+    c.mix_entropy(b"extra");
+    let mut rc = [0u8; 32];
+    c.rng().fill_bytes(&mut rc);
+    assert_ne!(ra, rc);
 }
 
 #[test]

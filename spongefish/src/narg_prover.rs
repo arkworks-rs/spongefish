@@ -1,28 +1,16 @@
 use alloc::vec::Vec;
 use core::fmt;
-#[cfg(not(feature = "turboshake128"))]
-use core::marker::PhantomData;
 
-use rand::{CryptoRng, Rng, SeedableRng};
-#[cfg(feature = "turboshake128")]
-use rand::{RngExt, TryCryptoRng, TryRng};
-
-#[cfg(feature = "turboshake128")]
-use crate::StdHash;
 use crate::{
     duplex_sponge::DuplexSpongeInit, Decoding, DuplexSpongeInterface, Encoding, NargSerialize,
+    PrivateRng, StdHash,
 };
-
-type StdRng = rand::rngs::StdRng;
-#[cfg(feature = "turboshake128")]
-type PrivateRng<R> = ReseedableRng<R>;
-#[cfg(not(feature = "turboshake128"))]
-type PrivateRng<R> = PhantomData<R>;
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
 ///
-/// It provides the **secret coins** of the prover for zero-knowledge, and
-/// the hash function state for the verifier's **public coins**.
+/// It provides the **secret coins** of the prover for zero-knowledge
+/// ([`ProverState::rng`]), and the hash function state for the verifier's
+/// **public coins**.
 ///
 /// Build one with [`ProverState::new`] from a 32-byte session identifier
 /// (see [`derive_session_id`][crate::derive_session_id]) and the encoded
@@ -30,7 +18,7 @@ type PrivateRng<R> = PhantomData<R>;
 /// application tag:
 ///
 /// ```
-/// # #[cfg(feature = "turboshake128")]
+/// # #[cfg(feature = "getrandom")]
 /// # {
 /// use spongefish::ProverState;
 ///
@@ -41,20 +29,22 @@ type PrivateRng<R> = PhantomData<R>;
 /// # }
 /// ```
 ///
+/// The private RNG is always a [`PrivateRng`] over [`StdHash`], independently
+/// of the sponge `H` carrying the public coins; this is why the type is gated
+/// on the `turboshake128` feature.
+///
 /// # Safety
 ///
-/// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
-/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
-pub struct ProverState<
-    #[cfg(feature = "turboshake128")] H = StdHash,
-    #[cfg(not(feature = "turboshake128"))] H,
-    R = StdRng,
-> where
+/// Leaking [`ProverState`] is equivalent to leaking the prover's private
+/// coins, and therefore to losing zero-knowledge. [`ProverState`] does not
+/// implement [`Clone`] or [`Copy`] to prevent accidental state-restoration
+/// attacks.
+pub struct ProverState<H = StdHash>
+where
     H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
 {
     /// The randomness state of the prover.
-    pub(crate) private_rng: PrivateRng<R>,
+    pub(crate) private_rng: PrivateRng,
     /// The public coins for the protocol.
     ///
     /// # Safety
@@ -68,120 +58,72 @@ pub struct ProverState<
     pub(crate) narg_string: Vec<u8>,
 }
 
-/// A cryptographically-secure random number generator bound to a duplex
-/// sponge, seeded by a cryptographic random number generator.
-///
-/// The seed occupies its own rate block (the `Init` pattern of
-/// draft-irtf-cfrg-fiat-shamir) and is permuted before any output is drawn;
-/// entropy mixed in later is likewise zero-padded to a rate-block boundary.
-#[cfg(feature = "turboshake128")]
-pub struct ReseedableRng<R: Rng + CryptoRng> {
-    pub(crate) duplex_sponge: StdHash,
-    pub(crate) csrng: R,
-}
-
-#[cfg(feature = "turboshake128")]
-impl<R: Rng + CryptoRng> From<R> for ReseedableRng<R> {
-    fn from(mut csrng: R) -> Self {
-        let seed: [u8; 32] = csrng.random();
-        Self {
-            duplex_sponge: StdHash::init(&seed),
-            csrng,
-        }
-    }
-}
-
-#[cfg(feature = "turboshake128")]
-impl Default for ReseedableRng<StdRng> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "turboshake128")]
-impl ReseedableRng<StdRng> {
-    /// Creates a reseedable RNG backed by `StdRng`.
-    pub fn new() -> Self {
-        let csrng: StdRng = rand::make_rng();
-        csrng.into()
-    }
-}
-
-#[cfg(feature = "turboshake128")]
-impl<R: Rng + CryptoRng> TryRng for ReseedableRng<R> {
-    type Error = core::convert::Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        let mut buf = [0u8; 4];
-        self.duplex_sponge.squeeze(buf.as_mut());
-        Ok(u32::from_le_bytes(buf))
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        let mut buf = [0u8; 8];
-        self.duplex_sponge.squeeze(buf.as_mut());
-        Ok(u64::from_le_bytes(buf))
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        self.duplex_sponge.squeeze(dest);
-        Ok(())
-    }
-}
-
-#[cfg(feature = "turboshake128")]
-impl<R: Rng + CryptoRng> ReseedableRng<R> {
-    /// Reseeds the internal sponge with the provided bytes, zero-padded into
-    /// their own permuted rate block(s).
-    pub fn reseed_with(&mut self, value: &[u8]) {
-        const RATE: usize = 168;
-        const ZEROS: [u8; RATE] = [0u8; RATE];
-        if value.is_empty() {
-            return;
-        }
-        self.duplex_sponge.absorb(value);
-        let rem = value.len() % RATE;
-        if rem != 0 {
-            self.duplex_sponge.absorb(&ZEROS[..RATE - rem]);
-        }
-    }
-
-    /// Reseeds the internal sponge with fresh entropy from the CSRNG.
-    pub fn reseed(&mut self) {
-        let seed = self.csrng.random::<[u8; 32]>();
-        self.reseed_with(&seed);
-    }
-}
-
-#[cfg(feature = "turboshake128")]
-impl<R: Rng + CryptoRng> TryCryptoRng for ReseedableRng<R> {}
-
-impl<H, R> fmt::Debug for ProverState<H, R>
+impl<H> fmt::Debug for ProverState<H>
 where
     H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ProverState<{}>", core::any::type_name::<H>())
     }
 }
 
-impl<H, R> ProverState<H, R>
+impl<H> ProverState<H>
 where
     H: DuplexSpongeInit,
-    R: Rng + CryptoRng + SeedableRng,
 {
-    /// The non-interactive prover for `(session_id, instance)`.
+    /// The non-interactive prover for `(session_id, instance)`, seeded from
+    /// the operating system's entropy source.
     ///
-    /// Per draft-irtf-cfrg-fiat-shamir, the duplex sponge is initialized with
-    /// the 32-byte session identifier and the encoded instance is the first
-    /// value absorbed.
+    /// Per [draft-irtf-cfrg-fiat-shamir][FS], the duplex sponge is initialized
+    /// with the 32-byte session identifier and the encoded instance is the
+    /// first value absorbed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty (forbidden by the draft), or if
+    /// the entropy source fails.
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[cfg(feature = "getrandom")]
+    #[must_use]
+    pub fn new<T: Encoding<[u8]> + ?Sized>(session_id: &[u8; 32], instance: &T) -> Self {
+        Self::from_parts(session_id, instance, PrivateRng::from_os_entropy())
+    }
+
+    /// The non-interactive prover for `(tag, instance)`: derives the 32-byte
+    /// session identifier from the application tag (the draft's
+    /// `DeriveSessionID`) and calls [`ProverState::new`].
+    #[cfg(feature = "getrandom")]
+    #[must_use]
+    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(tag: &[u8], instance: &T) -> Self {
+        Self::new(&crate::derive_session_id::<H>(tag), instance)
+    }
+
+    /// The non-interactive prover with a **deterministic** private RNG.
+    ///
+    /// # Safety
+    ///
+    /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
+    #[must_use]
+    pub fn new_with_seed<T: Encoding<[u8]> + ?Sized>(
+        session_id: &[u8; 32],
+        instance: &T,
+        seed: [u8; PrivateRng::SEED_LEN],
+    ) -> Self {
+        Self::from_parts(session_id, instance, PrivateRng::from_seed(seed))
+    }
+
+    /// The non-interactive prover from an explicitly-constructed [`PrivateRng`].
     ///
     /// # Panics
     ///
     /// Panics if the encoded instance is empty (forbidden by the draft).
     #[must_use]
-    pub fn new<T: Encoding<[u8]> + ?Sized>(session_id: &[u8; 32], instance: &T) -> Self {
+    pub fn from_parts<T: Encoding<[u8]> + ?Sized>(
+        session_id: &[u8; 32],
+        instance: &T,
+        private_rng: PrivateRng,
+    ) -> Self {
         let mut duplex_sponge_state = H::init(session_id);
         let encoded = instance.encode();
         assert!(
@@ -190,33 +132,26 @@ where
         );
         duplex_sponge_state.absorb(encoded.as_ref());
         Self {
-            #[cfg(feature = "turboshake128")]
-            private_rng: rand::make_rng::<R>().into(),
-            #[cfg(not(feature = "turboshake128"))]
-            private_rng: PhantomData,
+            private_rng,
             duplex_sponge_state,
             narg_string: Vec::new(),
         }
     }
-
-    /// The non-interactive prover for `(tag, instance)`: derives the 32-byte
-    /// session identifier from the application tag (the draft's
-    /// `DeriveSessionID`) and calls [`ProverState::new`].
-    #[must_use]
-    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(tag: &[u8], instance: &T) -> Self {
-        Self::new(&crate::derive_session_id::<H>(tag), instance)
-    }
 }
 
-impl<H, R> ProverState<H, R>
+impl<H> ProverState<H>
 where
     H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
 {
-    /// Returns the reseedable RNG bound to this transcript.
-    #[cfg(feature = "turboshake128")]
-    pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
+    /// Returns the private RNG bound to this prover.
+    pub const fn rng(&mut self) -> &mut PrivateRng {
         &mut self.private_rng
+    }
+
+    /// Mixes external entropy into the private RNG
+    /// (see [`PrivateRng::mix_entropy`]).
+    pub fn mix_entropy(&mut self, data: &[u8]) {
+        self.private_rng.mix_entropy(data);
     }
 
     /// Returns the current serialized NARG string.
@@ -232,7 +167,7 @@ where
     /// the final NARG string.
     ///
     /// ```
-    /// # #[cfg(feature = "turboshake128")]
+    /// # #[cfg(feature = "getrandom")]
     /// # {
     /// use spongefish::{ProverState, StdHash};
     ///
@@ -253,7 +188,7 @@ where
     /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
     ///
     /// ```
-    /// # #[cfg(feature = "turboshake128")]
+    /// # #[cfg(feature = "getrandom")]
     /// # {
     /// use spongefish::{ProverState, StdHash};
     ///
@@ -401,10 +336,9 @@ where
     }
 }
 
-impl<H, R> ProverState<H, R>
+impl<H> ProverState<H>
 where
     H: DuplexSpongeInterface<U = u8>,
-    R: Rng + CryptoRng,
 {
     /// Input a prover message using an encoding closure.
     ///
@@ -467,36 +401,29 @@ where
     }
 }
 
-/// Creates a new [`ProverState`] with an OS-seeded RNG and an **unseeded**
-/// sponge state.
+/// Creates a new [`ProverState`] with an OS-entropy-seeded RNG and an
+/// **unseeded** sponge state.
 ///
 /// [`ProverState::default`] is only available with the `yolocrypto` feature and
 /// its support in future releases is not guaranteed.
-#[cfg(feature = "yolocrypto")]
-impl<H: DuplexSpongeInterface + Default, R: Rng + CryptoRng + SeedableRng> Default
-    for ProverState<H, R>
-{
+#[cfg(all(feature = "yolocrypto", feature = "getrandom"))]
+impl<H: DuplexSpongeInterface + Default> Default for ProverState<H> {
     fn default() -> Self {
         Self {
             duplex_sponge_state: H::default(),
-            #[cfg(feature = "turboshake128")]
-            private_rng: rand::make_rng::<R>().into(),
-            #[cfg(not(feature = "turboshake128"))]
-            private_rng: PhantomData,
+            private_rng: PrivateRng::from_os_entropy(),
             narg_string: Vec::new(),
         }
     }
 }
 
 /// Creates a new [`ProverState`] using the given duplex sponge interface.
-impl<H: DuplexSpongeInterface, R: Rng + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
+#[cfg(feature = "getrandom")]
+impl<H: DuplexSpongeInterface> From<H> for ProverState<H> {
     fn from(value: H) -> Self {
         Self {
             duplex_sponge_state: value,
-            #[cfg(feature = "turboshake128")]
-            private_rng: rand::make_rng::<R>().into(),
-            #[cfg(not(feature = "turboshake128"))]
-            private_rng: PhantomData,
+            private_rng: PrivateRng::from_os_entropy(),
             narg_string: Vec::new(),
         }
     }

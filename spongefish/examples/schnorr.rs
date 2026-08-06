@@ -2,22 +2,26 @@
 use ark_ec::{CurveGroup, PrimeGroup};
 use ark_std::UniformRand;
 use spongefish::{
-    Codec, Encoding, NargDeserialize, NargSerialize, ProverState, VerificationError,
+    Codec, Encoding, NargDeserialize, NargSerialize, PrivateRng, ProverState, VerificationError,
     VerificationResult, VerifierState,
 };
 
 struct Schnorr;
 
-/// Adapts rand 0.10's infallible RNG trait to arkworks' rand 0.8 trait.
-struct ArkRng<'a, R: ?Sized>(&'a mut R);
+/// Adapts [`PrivateRng`] to arkworks' rand 0.8 trait.
+struct ArkRng<'a>(&'a mut PrivateRng);
 
-impl<R: rand::Rng + ?Sized> ark_std::rand::RngCore for ArkRng<'_, R> {
+impl ark_std::rand::RngCore for ArkRng<'_> {
     fn next_u32(&mut self) -> u32 {
-        self.0.next_u32()
+        let mut buf = [0u8; 4];
+        self.0.fill_bytes(&mut buf);
+        u32::from_le_bytes(buf)
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.0.next_u64()
+        let mut buf = [0u8; 8];
+        self.0.fill_bytes(&mut buf);
+        u64::from_le_bytes(buf)
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
@@ -33,12 +37,10 @@ impl<R: rand::Rng + ?Sized> ark_std::rand::RngCore for ArkRng<'_, R> {
 impl Schnorr {
     /// Here the proving algorithm takes as input a [`ProverState`], and an instance-witness pair.
     ///
-    /// The [`ProverState`] actually depends on a duplex sponge interface (over any field) and a random number generator.
-    /// By default, it relies on [`spongefish::DefaultHash`] (which is over [`u8`] and [`rand::rngs::StdRng`]).
-    ///
-    /// The prover messages are group element (denoted [G][`ark_ec::CurveGroup`]) and elements in the scalar field ([G::ScalarField][ark_ff::Field]).
+    /// The prover messages are group elements (denoted [G][`ark_ec::CurveGroup`]) and elements in
+    /// the scalar field ([G::ScalarField][ark_ff::Field]).
     /// Both are required to implement [`Encoding`], which for bytes also tells us how to serialize them.
-    /// The verifier messages are scalars, and thus required to implement [`Decoding`].
+    /// The verifier messages are scalars, and thus required to implement [`Decoding`][spongefish::Decoding].
     #[allow(non_snake_case)]
     fn prove<'a, G>(
         prover_state: &'a mut ProverState,
@@ -49,8 +51,9 @@ impl Schnorr {
         G: CurveGroup + NargSerialize + Encoding + Clone,
         G::ScalarField: Codec,
     {
-        // `ProverState` types implement a cryptographically-secure random number generator.
-        let k = G::ScalarField::rand(&mut ArkRng(prover_state.rng()));
+        // `ProverState` carries a cryptographically-secure private RNG; `sample`
+        // draws a uniformly-distributed scalar through its `Decoding` codec.
+        let k = prover_state.rng().sample::<G::ScalarField>();
         let K = instance[0] * k;
 
         prover_state.prover_message(&K);
@@ -95,7 +98,7 @@ fn main() {
 
     // Set up the elements to prove
     let generator = G::generator();
-    let mut rng: rand::rngs::StdRng = rand::make_rng();
+    let mut rng = PrivateRng::from_os_entropy();
     let sk = F::rand(&mut ArkRng(&mut rng));
     let pk = generator * sk;
     let instance = [generator, pk];

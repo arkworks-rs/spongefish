@@ -426,17 +426,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chacha20"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d524456ba66e72eb8b115ff89e01e497f8e6d11d78b70b1aa13c0fbd97540a81"
-dependencies = [
- "cfg-if",
- "cpufeatures 0.3.0",
- "rand_core 0.10.1",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1551,8 +1540,6 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7f5fa3a058cd35567ef9bfa5e75732bee0f9e4c55fa90477bef2dfcdbc4be80"
 dependencies = [
- "chacha20",
- "getrandom",
  "rand_core 0.10.1",
 ]
 
@@ -1920,6 +1907,7 @@ dependencies = [
  "bls12_381",
  "curve25519-dalek",
  "digest 0.11.3",
+ "getrandom",
  "hex",
  "k12",
  "k256",
@@ -1929,7 +1917,7 @@ dependencies = [
  "p3-field",
  "p3-koala-bear",
  "p3-mersenne-31",
- "rand 0.10.2",
+ "rand_core 0.10.1",
  "risc0-zkp",
  "serde",
  "serde_json",

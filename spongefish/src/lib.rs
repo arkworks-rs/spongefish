@@ -11,7 +11,7 @@
 //! non-empty.
 //!
 //! ```
-//! # #[cfg(feature = "turboshake128")]
+//! # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 //! # {
 //! use spongefish::{ProverState, StdHash, VerifierState};
 //!
@@ -40,20 +40,27 @@
 //! # }
 //! ```
 //!
+//! ## Prover randomness
+//!
+//! The prover carries a private RNG ([`ProverState::rng`]), seeded from the
+//! operating system's entropy source (`getrandom`, enabled by default).
+//! External randomness can be mixed in with [`ProverState::mix_entropy`].
+//! Deterministic provers for test vectors can use
+//! [`ProverState::new_with_seed`].
+//!
 //! ## Deriving your own encoding and decoding
 //!
 //! A prover message must implement:
 //! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
-//! - [`NargSerialize`], to serialize the message in a NARG string.
+//! - [`NargSerialize`], to serialize the message in a NARG string;
 //! - [`NargDeserialize`], to read from a NARG string.
 //!
 //! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
 //!
 //! For byte-oriented sponges, a prover message's encoded bytes and serialized
-//! bytes coincide (draft-irtf-cfrg-fiat-shamir); for algebraic sponges the
-//! encoding targets the sponge alphabet (e.g. field elements) while
-//! serialization always targets bytes — this is why the two traits stay
-//! separate. The interface [`Codec`] is a shorthand for all of the above.
+//! bytes coincide. For algebraic sponges, encoding maps to the oracle's alphabet (e.g. field elements),
+//! while serialization always targets bytes.
+//! The interface [`Codec`] is a shorthand for all of the above.
 //!
 //! Prover and verifier states accept also codec closures. On byte-oriented sponges,
 //! [`ProverState::prover_message_as`] and [`VerifierState::prover_message_as`]
@@ -144,7 +151,12 @@ mod duplex_sponge;
 pub mod instantiations;
 
 /// The NARG prover state.
+#[cfg(feature = "turboshake128")]
 mod narg_prover;
+
+/// The prover's private randomness source.
+#[cfg(feature = "turboshake128")]
+mod private_rng;
 
 /// The NARG verifier state.
 mod narg_verifier;
@@ -167,9 +179,12 @@ pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding};
 pub use duplex_sponge::{DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit};
 pub use error::{VerificationError, VerificationResult};
+#[cfg(feature = "turboshake128")]
 pub use narg_prover::ProverState;
 pub use narg_string::{NargDeserialize, NargSerialize};
 pub use narg_verifier::VerifierState;
+#[cfg(feature = "turboshake128")]
+pub use private_rng::PrivateRng;
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
@@ -202,5 +217,5 @@ pub fn derive_session_id<H: DuplexSpongeInit>(tag: &[u8]) -> [u8; 32] {
 }
 
 /// Unit-tests.
-#[cfg(all(test, feature = "turboshake128"))]
+#[cfg(all(test, feature = "turboshake128", feature = "getrandom"))]
 mod tests;
