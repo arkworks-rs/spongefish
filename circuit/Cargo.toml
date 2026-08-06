@@ -22,7 +22,6 @@ hashbrown = { workspace = true }
 itertools = { workspace = true }
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
-p3-field = { workspace = true }
 spin = { workspace = true }
 spongefish = { workspace = true, features = ["derive"] }
 
