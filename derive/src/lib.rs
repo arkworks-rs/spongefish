@@ -52,7 +52,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
             quote! {
                 impl #impl_generics ::spongefish::Encoding<[u8]> for #name #ty_generics #where_clause {
                     fn encode(&self) -> impl AsRef<[u8]> {
-                        let mut output = ::std::vec::Vec::new();
+                        let mut output = ::spongefish::__private::Vec::new();
                         #(#field_encodings)*
                         output
                     }
@@ -91,23 +91,23 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         decoding_bounds.push(field_type.clone());
 
                         size_components.push(quote! {
-                            ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
+                            ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             #field_name: {
-                                let field_size = ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>();
+                                let field_size = ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>();
                                 let start = #current_offset;
                                 let end = start + field_size;
-                                let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
+                                let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
                                 field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
-                                <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
+                                <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
 
                         offset = quote! {
-                            #offset + <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            #offset + <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         };
                     }
 
@@ -143,23 +143,23 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
                         decoding_bounds.push(field_type.clone());
 
                         size_components.push(quote! {
-                            ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>()
+                            ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
                         });
 
                         let current_offset = offset.clone();
                         field_decodings.push(quote! {
                             {
-                                let field_size = ::core::mem::size_of::<<#field_type as spongefish::Decoding<[u8]>>::Repr>();
+                                let field_size = ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>();
                                 let start = #current_offset;
                                 let end = start + field_size;
-                                let mut field_buf = <#field_type as spongefish::Decoding<[u8]>>::Repr::default();
+                                let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
                                 field_buf.as_mut().copy_from_slice(&buf.as_ref()[start..end]);
-                                <#field_type as spongefish::Decoding<[u8]>>::decode(field_buf)
+                                <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
                             },
                         });
 
                         offset = quote! {
-                            #offset + <#field_type as spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
+                            #offset + <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default().as_mut().len()
                         };
                     }
 
@@ -186,7 +186,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> TokenStream2 {
 
             quote! {
                 impl #impl_generics ::spongefish::Decoding<[u8]> for #name #ty_generics #where_clause {
-                    type Repr = spongefish::ByteArray<{ #size_calc }>;
+                    type Repr = ::spongefish::ByteArray<{ #size_calc }>;
 
                     fn decode(buf: Self::Repr) -> Self {
                         #field_decodings
@@ -219,7 +219,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                #field_name: <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
+                                #field_name: <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
                             }
                         }
                     });
@@ -241,7 +241,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                <#field_type as spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
+                                <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
                             }
                         }
                     });
@@ -262,9 +262,9 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 
             quote! {
                 impl #impl_generics ::spongefish::NargDeserialize for #name #ty_generics #where_clause {
-                    fn deserialize_from_narg(buf: &mut &[u8]) -> spongefish::VerificationResult<Self> {
+                    fn deserialize_from_narg(buf: &mut &[u8]) -> ::spongefish::VerificationResult<Self> {
                         let mut rest = *buf;
-                        let value = (|| -> spongefish::VerificationResult<Self> {
+                        let value = (|| -> ::spongefish::VerificationResult<Self> {
                             #field_deserializations
                         })()?;
                         *buf = rest;

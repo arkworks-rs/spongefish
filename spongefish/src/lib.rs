@@ -196,6 +196,12 @@ pub fn derive_session_id<H: DuplexSpongeInit>(tag: &[u8]) -> [u8; 32] {
     out
 }
 
+/// Implementation details used by the derive macros. Not public API.
+#[doc(hidden)]
+pub mod __private {
+    pub use alloc::vec::Vec;
+}
+
 /// Unit-tests.
 #[cfg(all(test, feature = "turboshake128", feature = "getrandom"))]
 mod tests;
