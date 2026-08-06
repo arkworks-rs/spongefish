@@ -1343,9 +1343,9 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "675a4529a10df3f0ba8545918497e51588ca2357e1ffb6a680b2f355d37a059b"
+checksum = "2c0d78714fbe304b93b1717b07a619c48806d22049773070398787b4b0aa7022"
 dependencies = [
  "p3-challenger",
  "p3-field",
