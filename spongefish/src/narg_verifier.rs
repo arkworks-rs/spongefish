@@ -1,28 +1,24 @@
 use alloc::vec::Vec;
 use core::fmt;
 
-#[cfg(feature = "sha3")]
-use crate::StdHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, StdHash, VerificationError,
     VerificationResult,
 };
 
 /// [`VerifierState`] is the verifier state.
 ///
 /// ```
-/// # #[cfg(feature = "sha3")]
-/// # {
 /// use spongefish::{StdHash, VerifierState};
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"extra bytes");
+/// let session_id = StdHash::derive_session_id(b"example-v00");
+/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra bytes");
 /// assert!(verifier.check_eof().is_err());
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
 /// assert!(verifier.check_eof().is_ok());
-/// # }
 /// ```
-pub struct VerifierState<'a, #[cfg(feature = "sha3")] H = StdHash, #[cfg(not(feature = "sha3"))] H>
+pub struct VerifierState<'a, H = StdHash>
 where
     H: DuplexSpongeInterface,
 {
@@ -50,18 +46,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a public message without consuming the transcript.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let proof = [0u8; 0];
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_message"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&proof);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id = StdHash::derive_session_id(b"examples/VerifierState::public_message");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_message(&123u32);
     /// assert!(verifier.check_eof().is_ok());
-    /// # }
     /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
@@ -87,17 +76,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a slice of public messages.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id = StdHash::derive_session_id(b"examples/VerifierState::public_messages");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_messages(&[1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
-    /// # }
     /// ```
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
@@ -108,17 +91,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs an iterator of public messages.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages_iter"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id = StdHash::derive_session_id(b"examples/VerifierState::public_messages_iter");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_messages_iter([1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
-    /// # }
     /// ```
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
@@ -151,15 +128,13 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// This check ensures that no trailing bytes remain in the transcript.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
     /// # use spongefish::{StdHash, VerifierState};
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
+    /// let session_id = StdHash::derive_session_id(b"examples/check_eof");
+    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra");
     /// assert!(verifier.check_eof().is_err());
     ///
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
     /// assert!(verifier.check_eof().is_ok());
-    /// # }
     /// ```
     ///
     /// # Safety
@@ -186,18 +161,6 @@ where
     }
 }
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Builds a verifier using the default sponge implementation.
-    #[must_use]
-    pub fn default_std(narg_string: &'a [u8]) -> Self {
-        VerifierState {
-            duplex_sponge_state: StdHash::default(),
-            narg_string,
-        }
-    }
-}
-
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     /// Creates a verifier state from a duplex sponge and transcript slice.
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
@@ -210,31 +173,76 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
 
 impl<'a, H> VerifierState<'a, H>
 where
-    H: DuplexSpongeInterface<U = u8> + Default,
+    H: crate::duplex_sponge::DuplexSpongeInit,
 {
-    /// Initializes a verifier state from protocol and session identifiers plus a transcript.
+    /// The non-interactive verifier for `(session_id, instance, narg_string)`.
+    ///
+    /// Per draft-irtf-cfrg-fiat-shamir, the duplex sponge is initialized with
+    /// the 32-byte session identifier and the encoded instance is the first
+    /// value absorbed — exactly as the prover does ([`ProverState::new`][crate::ProverState::new]).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty (forbidden by the draft).
     #[must_use]
-    pub fn new(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: H::default(),
+    pub fn new<T: Encoding<[u8]> + ?Sized>(
+        session_id: &[u8; 32],
+        instance: &T,
+        narg_string: &'a [u8],
+    ) -> Self {
+        let mut duplex_sponge_state = H::init(session_id);
+        let encoded = instance.encode();
+        assert!(
+            !encoded.as_ref().is_empty(),
+            "the encoded instance must be non-empty"
+        );
+        duplex_sponge_state.absorb(encoded.as_ref());
+        VerifierState {
+            duplex_sponge_state,
             narg_string,
-        };
-        verifier_state.public_message(protocol_id);
-        verifier_state.public_message(session_id);
-        verifier_state
+        }
     }
 }
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Initializes a verifier with `StdHash` as duplex sponge.
-    #[must_use]
-    pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: StdHash::from_protocol_id(*protocol_id),
-            narg_string,
-        };
-        verifier_state.public_message(session_id);
-        verifier_state
+impl<H> VerifierState<'_, H>
+where
+    H: DuplexSpongeInterface<U = u8>,
+{
+    /// Reads a prover message with a one-off deserialization closure, absorbing
+    /// exactly the bytes it consumed.
+    ///
+    /// The dual of [`ProverState::prover_message_with`][crate::ProverState::prover_message_with]:
+    /// `deserialize` reads a value from the front of the unread NARG string and
+    /// advances it; the consumed bytes are absorbed verbatim.
+    pub fn prover_message_with<T>(
+        &mut self,
+        deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+    ) -> VerificationResult<T> {
+        let mut remaining = self.narg_string;
+        let message = deserialize(&mut remaining)?;
+        let consumed = self.narg_string.len() - remaining.len();
+        self.duplex_sponge_state
+            .absorb(&self.narg_string[..consumed]);
+        self.narg_string = remaining;
+        Ok(message)
+    }
+
+    /// Absorb a public message using a one-off encoding closure
+    /// (see [`ProverState::public_message_with`][crate::ProverState::public_message_with]).
+    pub fn public_message_with<T: ?Sized, B: AsRef<[u8]>>(
+        &mut self,
+        message: &T,
+        encode: impl FnOnce(&T) -> B,
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+    }
+
+    /// Derive a verifier message by squeezing `n` bytes and mapping them
+    /// through a one-off decoding closure, which must preserve the uniform
+    /// distribution of its input (see [`Decoding`]).
+    pub fn verifier_message_with<T>(&mut self, n: usize, decode: impl FnOnce(&[u8]) -> T) -> T {
+        let mut buf = alloc::vec![0u8; n];
+        self.duplex_sponge_state.squeeze(&mut buf);
+        decode(&buf)
     }
 }

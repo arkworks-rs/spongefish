@@ -6,7 +6,7 @@ resolver = "2"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.7.4"
+version = "0.8.0"
 repository = "https://github.com/arkworks-rs/spongefish"
 homepage = "https://github.com/arkworks-rs/spongefish"
 
@@ -62,7 +62,6 @@ hashbrown = { version = "0.17.0", default-features = false, features = [
 ] }
 hex = "0.4.3"
 itertools = { version = "0.15.0", features = ["use_alloc"], default-features = false }
-k12 = "0.5.0"
 k256 = "^0.13"
 keccak = "^0.2.0"
 libtest-mimic = "0.8.1"
@@ -74,6 +73,7 @@ p3-mersenne-31 = "0.6"
 p3-poseidon2 = "0.6"
 p3-symmetric = "0.6"
 rand = "^0.8.5"
+rand_core = { version = "^0.6", default-features = false }
 rayon = "^1.10.0"
 risc0-zkp = "3.0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -82,7 +82,7 @@ sha2 = "0.11.0"
 sha3 = "=0.11.0"
 spin = { version = "0.12", default-features = false, features = ["rwlock"] }
 # Intra-workspace dependencies
-spongefish = { version = "0.7.4", path = "spongefish" }
-spongefish-circuit = { version = "0.7.4", path = "circuit" }
-spongefish-derive = { version = "0.7.4", path = "derive" }
+spongefish = { version = "0.8.0", path = "spongefish" }
+spongefish-circuit = { version = "0.8.0", path = "circuit" }
+spongefish-derive = { version = "0.8.0", path = "derive" }
 zeroize = "^1.8.1"

@@ -13,13 +13,15 @@ impl crate::Unit for Scalar {
     const ZERO: Self = Self::zero();
 }
 
-// Implement Decoding for BLS12-381 Scalar
+// Implement Decoding for BLS12-381 Scalar: the `DecodeField` of
+// draft-irtf-cfrg-fiat-shamir. The 48-byte squeeze output is interpreted as a
+// little-endian integer (LE2IP) and reduced mod p.
 impl Decoding<[u8]> for Scalar {
-    type Repr = super::Array64;
+    type Repr = super::Array48;
 
     fn decode(buf: Self::Repr) -> Self {
-        let mut wide = buf.0;
-        wide.reverse();
+        let mut wide = [0u8; 64];
+        wide[..48].copy_from_slice(&buf.0);
         Self::from_bytes_wide(&wide)
     }
 }

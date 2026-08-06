@@ -84,9 +84,18 @@ where
 
         self
     }
+}
 
-    fn ratchet(&mut self) -> &mut Self {
-        todo!()
+impl<H> crate::duplex_sponge::DuplexSpongeInit for XOF<H>
+where
+    H: ExtendableOutput + Clone + Default,
+{
+    /// Absorbs the session identifier as ordinary XOF input
+    /// (not the draft's rate-padded `Init`).
+    fn init(session_id: &[u8; 32]) -> Self {
+        let mut sponge = Self::default();
+        sponge.absorb(session_id);
+        sponge
     }
 }
 
@@ -112,24 +121,6 @@ where
     fn default() -> Self {
         Self {
             hasher: H::default(),
-            xof_reader: None,
-            squeezed: 0,
-        }
-    }
-}
-
-#[cfg(feature = "sha3")]
-impl XOF<sha3::Shake128> {
-    pub(crate) fn from_protocol_id(protocol_id: [u8; 64]) -> Self {
-        const RATE: usize = 168;
-
-        let mut hasher = sha3::Shake128::default();
-        let mut initial_block = [0u8; RATE];
-        initial_block[..protocol_id.len()].copy_from_slice(&protocol_id);
-        digest::Update::update(&mut hasher, &initial_block);
-
-        Self {
-            hasher,
             xof_reader: None,
             squeezed: 0,
         }
@@ -162,16 +153,9 @@ mod tests {
         assert_eq!(original_tail, cloned_tail);
     }
 
-    #[cfg(feature = "sha3")]
     #[test]
     fn shake128_clone_preserves_squeeze_position() {
         assert_clone_preserves_squeeze_position::<sha3::Shake128>();
-    }
-
-    #[cfg(feature = "k12")]
-    #[test]
-    fn kangaroo_twelve_clone_preserves_squeeze_position() {
-        assert_clone_preserves_squeeze_position::<k12::Kt128>();
     }
 
     #[cfg(feature = "blake3")]

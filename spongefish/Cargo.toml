@@ -15,19 +15,25 @@ all-features = true
 rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
-default = ["sha3", "zeroize"]
+default = ["getrandom", "zeroize"]
 # feature flag for hazardous features
 yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
 zeroize = ["dep:zeroize"]
+# Prover randomness: OS entropy for the private RNG (default), and an optional
+# rand_core adapter so the RNG can be passed to ecosystem samplers.
+getrandom = ["dep:getrandom"]
+rand = ["dep:rand_core"]
+# Bridges for hashes implementing the digest traits.
+digest = ["dep:digest"]
 # Cryptographic hash function features
-sha2 = ["dep:sha2"]
-sha3 = ["dep:sha3"]
-blake2 = ["dep:blake2"]
-blake3 = ["dep:blake3"]
-k12 = ["dep:k12"]
-keccak = ["dep:keccak"]
+sha2 = ["dep:sha2", "digest"]
+blake2 = ["dep:blake2", "digest"]
+blake3 = ["dep:blake3", "digest"]
+# Gates the overwrite-mode CO25 byte duplex (`instantiations::Keccak`);
+# the `keccak` crate itself is a non-optional dependency (draft duplex sponges).
+keccak = []
 ascon = ["dep:ascon"]
 # arkworks
 ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
@@ -60,12 +66,12 @@ blake3 = { workspace = true, optional = true }
 # zkcrypto/group
 bls12_381 = { workspace = true, optional = true }
 curve25519-dalek = { workspace = true, optional = true }
-digest = { workspace = true }
+digest = { workspace = true, optional = true }
+getrandom = { version = "0.2", optional = true, default-features = false }
 
 # Optional hash functions
-k12 = { workspace = true, optional = true }
 k256 = { workspace = true, optional = true, features = ["arithmetic"] }
-keccak = { workspace = true, optional = true }
+keccak = { workspace = true }
 p256 = { workspace = true, optional = true, features = ["arithmetic"] }
 p3-baby-bear = { workspace = true, optional = true }
 
@@ -73,10 +79,9 @@ p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
 p3-koala-bear = { workspace = true, optional = true }
 p3-mersenne-31 = { workspace = true, optional = true }
-rand = { workspace = true, features = ["getrandom"] }
+rand_core = { workspace = true, optional = true }
 risc0-zkp = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
-sha3 = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
@@ -85,6 +90,7 @@ p3-koala-bear = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+rand = { workspace = true, features = ["getrandom"] }
 ark-bls12-381 = { workspace = true }
 ark-curve25519 = { workspace = true }
 ark-pallas = { workspace = true }
@@ -107,8 +113,8 @@ workspace = true
 
 [[example]]
 name = "schnorr"
-required-features = ["ark-ec", "sha3"]
+required-features = ["ark-ec", "getrandom"]
 
 [[example]]
 name = "bulletproof"
-required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]
+required-features = ["curve25519-dalek", "curve25519-dalek/rand_core", "getrandom"]

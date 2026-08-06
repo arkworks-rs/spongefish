@@ -1094,17 +1094,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "k12"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38a8cc72399dffa4a445bc5f5a84d4af4d441c76604231bc52e9c529c1d47693"
-dependencies = [
- "digest 0.11.3",
- "keccak",
- "sponge-cursor",
-]
-
-[[package]]
 name = "k256"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1126,7 +1115,6 @@ checksum = "9e24a010dd405bd7ed803e5253182815b41bf2e6a80cc3bfc066658e03a198aa"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
- "hybrid-array",
 ]
 
 [[package]]
@@ -1929,14 +1917,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sponge-cursor"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a0219bd7d979d58245a4f41f695e1ac9f8befdffadd7f61f1bae9e39abc6620"
-
-[[package]]
 name = "spongefish"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "ark-bls12-381",
  "ark-curve25519",
@@ -1954,8 +1936,8 @@ dependencies = [
  "bls12_381",
  "curve25519-dalek",
  "digest 0.11.3",
+ "getrandom",
  "hex",
- "k12",
  "k256",
  "keccak",
  "libtest-mimic",
@@ -1965,6 +1947,7 @@ dependencies = [
  "p3-koala-bear",
  "p3-mersenne-31",
  "rand 0.8.6",
+ "rand_core 0.6.4",
  "risc0-zkp",
  "serde",
  "serde_json",
@@ -1987,7 +1970,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-derive"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1997,7 +1980,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-pow"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "blake3",
  "bytemuck",

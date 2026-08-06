@@ -28,8 +28,9 @@ impl Schnorr {
         G: CurveGroup + NargSerialize + Encoding + Clone,
         G::ScalarField: Codec,
     {
-        // `ProverState` types implement a cryptographically-secure random number generator.
-        let k = G::ScalarField::rand(prover_state.rng());
+        // `ProverState` carries a cryptographically-secure private RNG; `sample`
+        // draws a uniformly-distributed scalar through its `Decoding` codec.
+        let k = prover_state.rng().sample::<G::ScalarField>();
         let K = instance[0] * k;
 
         prover_state.prover_message(&K);
@@ -65,6 +66,10 @@ impl Schnorr {
 }
 
 fn main() {
+    // The session identifier binds the proof to the protocol and application
+    // context (const-evaluable for static tags).
+    const SESSION_ID: [u8; 32] =
+        spongefish::derive_session_id(b"spongefish examples/schnorr proof");
     type G = ark_curve25519::EdwardsProjective;
     type F = ark_curve25519::Fr;
 
@@ -74,17 +79,14 @@ fn main() {
     let pk = generator * sk;
     let instance = [generator, pk];
 
-    let domain_sep =
-        spongefish::domain_separator!("schnorr proof"; "spongefish examples").instance(&instance);
-
     // Prove the relation sk * G::generator() = pk
-    let mut prover_state = domain_sep.std_prover();
+    let mut prover_state = ProverState::new(&SESSION_ID, &instance);
     let narg_string = Schnorr::prove(&mut prover_state, &instance, sk);
 
     // Print out the hex-encoded schnorr proof.
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
-    let verifier_state = domain_sep.std_verifier(narg_string);
+    let verifier_state = VerifierState::new(&SESSION_ID, &instance, narg_string);
     Schnorr::verify(verifier_state, instance[0], instance[1]).expect("Verification failed");
 }

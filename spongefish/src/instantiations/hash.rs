@@ -51,18 +51,6 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn ratchet(&mut self) -> &mut Self {
-        self.squeeze_end();
-        // Double hash
-        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
-        // Restart the rest of the data
-        #[cfg(feature = "zeroize")]
-        self.leftovers.zeroize();
-        self.leftovers.clear();
-        self.mode = Mode::Start;
-        self
-    }
-
     fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
         if self.mode == Mode::Start {
             self.mode = Mode::Squeeze(0);
@@ -111,6 +99,35 @@ enum Mode {
     Start,
     Absorb,
     Squeeze(usize),
+}
+
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Hash<D> {
+    /// One-way state commitment (poksho-style double hash), used internally to
+    /// transition from absorbing to squeezing. This is a design detail of this
+    /// digest bridge, not part of the duplex sponge interface.
+    pub fn ratchet(&mut self) -> &mut Self {
+        self.squeeze_end();
+        // Double hash
+        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
+        // Restart the rest of the data
+        #[cfg(feature = "zeroize")]
+        self.leftovers.zeroize();
+        self.leftovers.clear();
+        self.mode = Mode::Start;
+        self
+    }
+}
+
+impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> crate::duplex_sponge::DuplexSpongeInit
+    for Hash<D>
+{
+    /// Absorbs the session identifier as ordinary input
+    /// (not the draft's rate-padded `Init`).
+    fn init(session_id: &[u8; 32]) -> Self {
+        let mut sponge = Self::default();
+        sponge.absorb(session_id);
+        sponge
+    }
 }
 
 impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
