@@ -1454,12 +1454,12 @@ dependencies = [
 
 [[package]]
 name = "p3-mersenne-31"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84dd482a1c88e78b7a91e1df4db9a49a9e63e23c8d119d5dd936c63988466e05"
+checksum = "37f609c5191e44e89bdda9e8414c82869104cb81bfc67d9ddc5e91a4234d880a"
 dependencies = [
- "itertools 0.14.0",
- "num-bigint 0.4.6",
+ "itertools 0.15.0",
+ "num-bigint 0.5.1",
  "p3-challenger",
  "p3-dft",
  "p3-field",
