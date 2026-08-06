@@ -8,7 +8,7 @@ use curve25519_dalek::{
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationResult,
 };
 

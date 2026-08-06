@@ -4,7 +4,7 @@ use p3_koala_bear::KoalaBear;
 
 use crate::{
     codecs::{Decoding, Encoding},
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationError, VerificationResult,
 };
 
@@ -65,7 +65,7 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::*;
-    use crate::io::NargSerialize;
+    use crate::narg_string::NargSerialize;
 
     #[test]
     fn test_koalabear_serialize_deserialize() {

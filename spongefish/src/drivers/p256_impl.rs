@@ -9,7 +9,7 @@ use crate::{
     codecs::{Decoding, Encoding},
     drivers::Array64,
     error::VerificationError,
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationResult,
 };
 

@@ -89,6 +89,10 @@ fn main() {
     type G = ark_curve25519::EdwardsProjective;
     type F = ark_curve25519::Fr;
 
+    // The session identifier binds the proof to the protocol and application context.
+    let session_id =
+        spongefish::derive_session_id::<spongefish::StdHash>(b"spongefish examples/schnorr proof");
+
     // Set up the elements to prove
     let generator = G::generator();
     let mut rng: rand::rngs::StdRng = rand::make_rng();
@@ -96,17 +100,14 @@ fn main() {
     let pk = generator * sk;
     let instance = [generator, pk];
 
-    let domain_sep =
-        spongefish::domain_separator!("schnorr proof"; "spongefish examples").instance(&instance);
-
     // Prove the relation sk * G::generator() = pk
-    let mut prover_state = domain_sep.std_prover();
+    let mut prover_state = ProverState::new(&session_id, &instance);
     let narg_string = Schnorr::prove(&mut prover_state, &instance, sk);
 
     // Print out the hex-encoded schnorr proof.
     println!("Here's a Schnorr signature:\n{}", hex::encode(narg_string));
 
     // Verify the proof: create the verifier transcript, add the statement to it, and invoke the verifier.
-    let verifier_state = domain_sep.std_verifier(narg_string);
+    let verifier_state = VerifierState::new(&session_id, &instance, narg_string);
     Schnorr::verify(verifier_state, instance[0], instance[1]).expect("Verification failed");
 }

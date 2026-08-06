@@ -15,12 +15,14 @@ all-features = true
 rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
-default = ["sha3", "zeroize"]
+default = ["turboshake128", "zeroize"]
 # feature flag for hazardous features
 yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
-zeroize = ["dep:zeroize"]
+zeroize = ["dep:zeroize", "shake?/zeroize", "turboshake?/zeroize"]
+# The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and StdHash.
+turboshake128 = ["dep:shake", "dep:turboshake"]
 # Cryptographic hash function features
 sha2 = ["dep:sha2"]
 sha3 = ["dep:shake"]
@@ -77,6 +79,7 @@ rand = { workspace = true, features = ["sys_rng"] }
 risc0-zkp = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
+turboshake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
@@ -96,7 +99,6 @@ blake2 = { workspace = true }
 bls12_381 = { workspace = true }
 curve25519-dalek = { workspace = true }
 hex = { workspace = true }
-libtest-mimic = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -106,8 +108,4 @@ workspace = true
 
 [[example]]
 name = "schnorr"
-required-features = ["ark-ec", "sha3"]
-
-[[example]]
-name = "bulletproof"
-required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]
+required-features = ["ark-ec"]

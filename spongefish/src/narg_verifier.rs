@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 use core::fmt;
 
-#[cfg(feature = "sha3")]
+#[cfg(feature = "turboshake128")]
 use crate::StdHash;
 use crate::{
     Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError,
@@ -11,19 +11,23 @@ use crate::{
 /// [`VerifierState`] is the verifier state.
 ///
 /// ```
-/// # #[cfg(feature = "sha3")]
+/// # #[cfg(feature = "turboshake128")]
 /// # {
 /// use spongefish::{StdHash, VerifierState};
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"extra bytes");
+/// let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00");
+/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra bytes");
 /// assert!(verifier.check_eof().is_err());
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
 /// assert!(verifier.check_eof().is_ok());
 /// # }
 /// ```
-pub struct VerifierState<'a, #[cfg(feature = "sha3")] H = StdHash, #[cfg(not(feature = "sha3"))] H>
-where
+pub struct VerifierState<
+    'a,
+    #[cfg(feature = "turboshake128")] H = StdHash,
+    #[cfg(not(feature = "turboshake128"))] H,
+> where
     H: DuplexSpongeInterface,
 {
     /// The public coins for the protocol.
@@ -50,15 +54,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a public message without consuming the transcript.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
+    /// # #[cfg(feature = "turboshake128")]
     /// # {
-    /// let proof = [0u8; 0];
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_message"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&proof);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id =
+    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_message");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_message(&123u32);
     /// assert!(verifier.check_eof().is_ok());
     /// # }
@@ -87,14 +88,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs a slice of public messages.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
+    /// # #[cfg(feature = "turboshake128")]
     /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id =
+    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_messages");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_messages(&[1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
     /// # }
@@ -108,14 +107,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Absorbs an iterator of public messages.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
+    /// # #[cfg(feature = "turboshake128")]
     /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages_iter"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
+    /// use spongefish::{StdHash, VerifierState};
+    /// let session_id =
+    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_messages_iter");
+    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
     /// verifier.public_messages_iter([1u32, 2u32]);
     /// assert!(verifier.check_eof().is_ok());
     /// # }
@@ -151,13 +148,14 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// This check ensures that no trailing bytes remain in the transcript.
     ///
     /// ```
-    /// # #[cfg(feature = "sha3")]
+    /// # #[cfg(feature = "turboshake128")]
     /// # {
     /// # use spongefish::{StdHash, VerifierState};
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
+    /// let session_id = spongefish::derive_session_id::<StdHash>(b"examples/check_eof");
+    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra");
     /// assert!(verifier.check_eof().is_err());
     ///
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
+    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
     /// assert!(verifier.check_eof().is_ok());
     /// # }
     /// ```
@@ -186,18 +184,6 @@ where
     }
 }
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Builds a verifier using the default sponge implementation.
-    #[must_use]
-    pub fn default_std(narg_string: &'a [u8]) -> Self {
-        VerifierState {
-            duplex_sponge_state: StdHash::default(),
-            narg_string,
-        }
-    }
-}
-
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     /// Creates a verifier state from a duplex sponge and transcript slice.
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
@@ -210,31 +196,48 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
 
 impl<'a, H> VerifierState<'a, H>
 where
-    H: DuplexSpongeInterface<U = u8> + Default,
+    H: crate::duplex_sponge::DuplexSpongeInit,
 {
-    /// Initializes a verifier state from protocol and session identifiers plus a transcript.
+    /// The non-interactive verifier for `(session_id, instance, narg_string)`.
+    ///
+    /// Per [draft-irtf-cfrg-fiat-shamir][FS], the duplex sponge is initialized
+    /// with the 32-byte session identifier and the encoded instance is the
+    /// first value absorbed — exactly as the prover does
+    /// ([`ProverState::new`][crate::ProverState::new]).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty (forbidden by the draft).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[must_use]
-    pub fn new(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: H::default(),
+    pub fn new<T: Encoding<[u8]> + ?Sized>(
+        session_id: &[u8; 32],
+        instance: &T,
+        narg_string: &'a [u8],
+    ) -> Self {
+        let mut duplex_sponge_state = H::init(session_id);
+        let encoded = instance.encode();
+        assert!(
+            !encoded.as_ref().is_empty(),
+            "the encoded instance must be non-empty"
+        );
+        duplex_sponge_state.absorb(encoded.as_ref());
+        VerifierState {
+            duplex_sponge_state,
             narg_string,
-        };
-        verifier_state.public_message(protocol_id);
-        verifier_state.public_message(session_id);
-        verifier_state
+        }
     }
-}
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Initializes a verifier with `StdHash` as duplex sponge.
+    /// The non-interactive verifier for `(tag, instance, narg_string)`: derives
+    /// the 32-byte session identifier from the application tag (the draft's
+    /// `DeriveSessionID`) and calls [`VerifierState::new`].
     #[must_use]
-    pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: StdHash::from_protocol_id(*protocol_id),
-            narg_string,
-        };
-        verifier_state.public_message(session_id);
-        verifier_state
+    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(
+        tag: &[u8],
+        instance: &T,
+        narg_string: &'a [u8],
+    ) -> Self {
+        Self::new(&crate::derive_session_id::<H>(tag), instance, narg_string)
     }
 }

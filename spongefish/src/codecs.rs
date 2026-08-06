@@ -3,7 +3,7 @@
 /// Marker trait for types that have encoding and decoding maps.
 ///
 /// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
-/// [`NargSerialize`][crate::io::NargSerialize], and [`NargDeserialize`][crate::io::NargDeserialize]
+/// [`NargSerialize`][crate::NargSerialize], and [`NargDeserialize`][crate::NargDeserialize].
 ///
 /// # Derive Macros
 ///
@@ -46,13 +46,11 @@ where
 ///
 /// More information on the theoretical requirements is in [[CO25], Theorem 6.2].
 ///
-/// # Blanket implementations
-///
 /// # Encoding conventions
 ///
 /// For byte sequences, encoding must be the identity function.
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
-/// Integers are encoded via []
+/// Integers are encoded as their fixed-width little-endian bytes.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub trait Encoding<T = [u8]>

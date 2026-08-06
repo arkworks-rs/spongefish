@@ -7,7 +7,7 @@ use ark_ff::{BigInteger, Field, Fp, FpConfig, PrimeField, SmallFp, SmallFpConfig
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationResult,
 };
 
@@ -215,7 +215,7 @@ mod test_ark_ff {
 
     use crate::{
         codecs::Encoding,
-        io::{NargDeserialize, NargSerialize},
+        narg_string::{NargDeserialize, NargSerialize},
     };
 
     // ----- SmallFp test fields -----
@@ -247,8 +247,8 @@ mod test_ark_ff {
     where
         F: ark_ff::PrimeField
             + Encoding<[u8]>
-            + crate::io::NargSerialize
-            + crate::io::NargDeserialize,
+            + crate::narg_string::NargSerialize
+            + crate::narg_string::NargDeserialize,
     {
         for v in [0u64, 1, 42, 12345] {
             let original = F::from(v);
@@ -301,7 +301,9 @@ mod test_ark_ff {
 
     /// Deserializing p (the modulus itself) must fail — the encoding
     /// is not canonical because p ≡ 0 and 0 already has its own encoding.
-    fn reject_modulus<F: ark_ff::PrimeField + core::fmt::Debug + crate::io::NargDeserialize>() {
+    fn reject_modulus<
+        F: ark_ff::PrimeField + core::fmt::Debug + crate::narg_string::NargDeserialize,
+    >() {
         let modulus_bytes = F::MODULUS.to_bytes_be();
         // Keep only the trailing ⌈MODULUS_BIT_SIZE/8⌉ bytes; the backing BigInt
         // can be wider than the field (e.g. F16 inside SmallFp's BigInt<1>).
@@ -319,7 +321,7 @@ mod test_ark_ff {
     /// A single bit-flip must either change the decoded value or cause rejection.
     fn bitflip_testsuite<F>()
     where
-        F: ark_ff::PrimeField + Encoding<[u8]> + crate::io::NargDeserialize,
+        F: ark_ff::PrimeField + Encoding<[u8]> + crate::narg_string::NargDeserialize,
     {
         let original = F::from(42u64);
         let encoded = encode_to_vec(&original);
@@ -342,7 +344,7 @@ mod test_ark_ff {
     /// Truncated buffer must be rejected.
     fn wrong_length_testsuite<F>()
     where
-        F: ark_ff::PrimeField + Encoding<[u8]> + crate::io::NargDeserialize,
+        F: ark_ff::PrimeField + Encoding<[u8]> + crate::narg_string::NargDeserialize,
     {
         let encoded = encode_to_vec(&F::from(1u64));
 

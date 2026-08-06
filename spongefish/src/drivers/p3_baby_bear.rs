@@ -4,7 +4,7 @@ use p3_field::PrimeField32;
 
 use crate::{
     codecs::{Decoding, Encoding},
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationError, VerificationResult,
 };
 

@@ -5,7 +5,7 @@ use p3_mersenne_31::Mersenne31;
 
 use crate::{
     codecs::{Decoding, Encoding},
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationError, VerificationResult,
 };
 

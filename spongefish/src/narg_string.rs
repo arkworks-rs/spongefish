@@ -66,18 +66,6 @@ impl<T: Encoding<[u8]>> NargSerialize for T {
     }
 }
 
-impl<const N: usize> NargDeserialize for [u8; N] {
-    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        if buf.len() < N {
-            return Err(VerificationError);
-        }
-
-        let (head, tail) = buf.split_at(N);
-        *buf = tail;
-        Ok(head.try_into().unwrap())
-    }
-}
-
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         let mut rest = *buf;
@@ -91,8 +79,21 @@ impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     }
 }
 
-impl NargDeserialize for u32 {
-    fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
-        NargDeserialize::deserialize_from_narg(buf).map(Self::from_le_bytes)
-    }
+macro_rules! impl_int_deserialize {
+    ($($type:ty),*) => {$(
+        /// Little-endian, matching the [`Encoding`] convention for integers.
+        impl NargDeserialize for $type {
+            fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
+                const LEN: usize = core::mem::size_of::<$type>();
+                if buf.len() < LEN {
+                    return Err(VerificationError);
+                }
+                let (head, tail) = buf.split_at(LEN);
+                *buf = tail;
+                Ok(Self::from_le_bytes(head.try_into().unwrap()))
+            }
+        }
+    )*};
 }
+
+impl_int_deserialize!(u8, u16, u32, u64, u128);

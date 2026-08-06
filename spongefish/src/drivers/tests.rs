@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::{
     codecs::{Decoding, Encoding},
-    io::{NargDeserialize, NargSerialize},
+    narg_string::{NargDeserialize, NargSerialize},
 };
 
 fn encoded_bytes<T: Encoding<[u8]>>(value: &T) -> Vec<u8> {

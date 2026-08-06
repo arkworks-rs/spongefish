@@ -44,7 +44,7 @@ impl_integer_unit!(u8);
 impl_integer_unit!(u32);
 impl_integer_unit!(u64);
 impl_integer_unit!(u128);
-impl_integer_unit!(usize);
+// NOTE: deliberately no `usize` impl (32- vs 64-bit targets).
 
 /// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].
 ///
@@ -72,12 +72,6 @@ pub trait DuplexSpongeInterface: Clone {
     /// calling this function multiple times is equivalent to calling it once
     /// on a larger output array.
     fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
-
-    /// Ratchet the sponge.
-    ///
-    /// This function performs a one-way ratchet of its internal state, so that it cannot be inverted.
-    /// By default, this function will re-initialize a sponge using 256 [`Unit`]s squeezed from the current instance.
-    fn ratchet(&mut self) -> &mut Self;
 
     /// Squeeze a fixed-length array of size `LEN`.
     fn squeeze_array<const LEN: usize>(&mut self) -> [Self::U; LEN] {
@@ -235,12 +229,30 @@ where
         self.squeeze_pos += chunk_len;
         self.squeeze(rest)
     }
+}
 
-    fn ratchet(&mut self) -> &mut Self {
-        self.absorb_pos = RATE;
-        self.squeeze_pos = RATE;
-        self.permutation_state[0..RATE].fill_with(|| P::U::ZERO);
-        self.permutation.permute_mut(&mut self.permutation_state);
-        self
+/// Duplex sponges that can be seeded from a 32-byte session identifier.
+///
+/// For the draft-irtf-cfrg-fiat-shamir suites
+/// ([`Shake128`][crate::instantiations::Shake128],
+/// [`TurboShake128`][crate::instantiations::TurboShake128]) this is the
+/// draft's `Init(session_id)`: the identifier is absorbed padded with zeros to
+/// fill exactly one rate block. Other instantiations absorb the identifier
+/// under their own conventions and are **not** draft-compliant.
+pub trait DuplexSpongeInit: DuplexSpongeInterface<U = u8> {
+    /// Create a new duplex sponge state, seeded by the 32-byte `session_id`.
+    fn init(session_id: &[u8; 32]) -> Self;
+}
+
+impl<P, const WIDTH: usize, const RATE: usize> DuplexSpongeInit for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH, U = u8> + Default,
+{
+    /// Absorbs the session identifier as ordinary input (overwrite-mode
+    /// convention; not the draft's `Init`).
+    fn init(session_id: &[u8; 32]) -> Self {
+        let mut sponge = Self::with_permutation(P::default());
+        sponge.absorb(session_id);
+        sponge
     }
 }

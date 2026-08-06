@@ -4,7 +4,7 @@ use bls12_381::{G1Affine, G1Projective, G2Affine, G2Projective, Scalar};
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationResult,
 };
 

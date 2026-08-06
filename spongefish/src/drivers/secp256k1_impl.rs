@@ -11,7 +11,7 @@ use k256::{
 use crate::{
     codecs::{Decoding, Encoding},
     error::VerificationError,
-    io::NargDeserialize,
+    narg_string::NargDeserialize,
     VerificationResult,
 };
 
@@ -88,7 +88,7 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::*;
-    use crate::io::NargSerialize;
+    use crate::narg_string::NargSerialize;
 
     #[test]
     fn test_scalar_serialize_deserialize() {

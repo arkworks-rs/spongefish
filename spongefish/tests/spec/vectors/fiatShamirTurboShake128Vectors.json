@@ -1,0 +1,284 @@
+[
+  {
+    "Id": "fiat-shamir/turboshake128/init_squeeze",
+    "Name": "init_squeeze",
+    "Title": "Squeeze a 32-byte string after initialization",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "7ad8a3af35a3083c055e4a953ff001cdd9eeb1198f4be7a3a9ec5a209434619b"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/absorb_squeeze",
+    "Name": "absorb_squeeze",
+    "Title": "Absorb the byte string `hello world`, then squeeze 64 bytes",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "68656c6c6f20776f726c64"
+      },
+      {
+        "type": "squeeze",
+        "length": 64
+      }
+    ],
+    "Output": "8b804d7a8c524c242a94e86f7ddfec329d90e29c1f584a98812e63029a0bdb075b12c545bf9e2aa17c88673b6d9df4b08e728dc47f7d7094cee59a0d7d989634"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/absorb_split",
+    "Name": "absorb_split",
+    "Title": "Absorb is associative: `Absorb(\"abc\")` is equivalent to `Absorb(\"ab\"); Absorb(\"c\")`",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "6162"
+      },
+      {
+        "type": "absorb",
+        "data": "63"
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/stream",
+    "Name": "stream",
+    "Title": "Squeeze is associative: `Squeeze(16 + 16)` is equivalent to `Squeeze(16) || Squeeze(16)`",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "616263"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/empty_absorb",
+    "Name": "empty_absorb",
+    "Title": "Absorb of the empty string is a no-op",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "616263"
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      },
+      {
+        "type": "absorb",
+        "data": ""
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "51acee1ee6f0c6a0c5a33b625ac9eaea54bc6b9b1cb85f9b2ef843e73631792e599e1dfb1bf60638046f82f5bfa28bcfcabf1404b200647d184ead03e51fbf01"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/interleave",
+    "Name": "interleave",
+    "Title": "Absorb and squeeze can be interleaved",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "00010203040506070809"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      },
+      {
+        "type": "absorb",
+        "data": "6d6f72652064617461"
+      },
+      {
+        "type": "squeeze",
+        "length": 16
+      }
+    ],
+    "Output": "f2745534347564bed146c95655122f14636bcc58f768296be8494208db29b6be"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/multiblock",
+    "Name": "multiblock",
+    "Title": "Absorbing a byte string of length longer than the rate.",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"
+      },
+      {
+        "type": "squeeze",
+        "length": 600
+      }
+    ],
+    "Output": "0ef6787d725638e19364c25a2ba879af55a4e1c97bff52919e64cd37a218db44a475f9d7ef0e88d87b443fe6590f12fc90c41c546c92cbeb3480e679d6e1ea37fc1e10e3e41b15e80aea4745ad9ad31c22857ae360fb66848daab7df8f6135efcc940c4cc6431617cca6c05aa9b8bdf041538206ef912c0861dc07e21987550924c848cb788532637cf6e7fb1a3ea233fc335077e4910e8d7da15fe89250f28458ec17ecf448e05cf660ca4ffd1fdcb4379570d3a871aa759bb4d763d60d3e1b36ab8efcd8cd6fcca8fa67a5071ab21a1d31e4610f7ca8825b5e81f22433c495862b642c009823c312fd60fcdcd888af9c6c554da3a370946fa7bfa66ac54480b9a36d73fa6ee73ccb78b425de22814667742864608a06fa7534b053a68905ff532089b6fc0d597671ae4da685b96b1ac5d2513c0fc944d11155ed43461559a12b984fb0cb45b105d9f2391a137d104f7da6c82fcfe375143bf512824685913f2bf61613b1a2a8f55f86d1282aa36c02384381335927259361c9e5875dbe1314af82aa65264ff009f525d4f0aedcf80cb908e308132113311d0e9a6783f27a1393ae28c10914018e263020dc97f219ebdae4118a79c318bef2d3766452075e3579f4b1cddbb80a5bca83a2f1fbec44e9d487925ba23cbfce111ba865e0fdb164589c66cbb757865d1bfb4540c01dece5b4180eef4262efc24c4ae3f76c4497a53fb7f38a0de18a7053ab59b59b180ad53e3d2318661783682298d54b9f9ee6e33b2be660295ccdd7d6cc976e21827c66880a0fbcc202743cd1ea0b7351755ee4b8a0b140bbc4f6a45eb6b05798721094cebe00e08f4f7bde"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/rate_block",
+    "Name": "rate_block",
+    "Title": "Squeeze at the rate boundary",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7"
+      },
+      {
+        "type": "squeeze",
+        "length": 167
+      },
+      {
+        "type": "squeeze",
+        "length": 2
+      }
+    ],
+    "Output": "dc4b6f89697ec7e56ad210e6244a3ff25dab91ebd60981761db8f83db3a3a781ab43ffd7f325c98b912746b65d233fb5b99fd923cbff5e327b75436afd035c42ac9953ca4d686e30e5729aa460b813adf96c16917471679a4de36b19c452aef447f93f4574ddcf09bdf6410774b426ffe415ff8eb2be44c8301ae071b534895b0ab66aa0136ffe9656c607bb6e1acaea4069454e297ec0ad4eab437c25455c88aeb77d6f33f7b578e9"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/squeeze_zero",
+    "Name": "squeeze_zero",
+    "Title": "A zero-length squeeze between absorbs is a no-op",
+    "Function": "DuplexSponge",
+    "Hash": "TurboSHAKE128",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "616263"
+      },
+      {
+        "type": "squeeze",
+        "length": 0
+      },
+      {
+        "type": "absorb",
+        "data": "646566"
+      },
+      {
+        "type": "squeeze",
+        "length": 32
+      }
+    ],
+    "Output": "61d3fecc576c3faafb92db1cb22b60794075a024df9626436394c7b852ade899"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/derive_sid",
+    "Name": "derive_sid",
+    "Title": "Derive a session identifier from an application tag",
+    "Function": "DeriveSessionID",
+    "Hash": "TurboSHAKE128",
+    "Tag": "696e7465726f702d746573742d763030",
+    "Output": "4326208c9e56ae847be9356ca7c4447c752a9d7326a44a6cbee0c0dfc69505ac"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/decode_uint",
+    "Name": "decode_uint",
+    "Title": "Squeeze and reduce a P-256 scalar challenge (`DecodeUint`)",
+    "Function": "DecodeUint",
+    "Hash": "TurboSHAKE128",
+    "Group": "P-256",
+    "Modulus": "0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551",
+    "SessionId": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "Operations": [
+      {
+        "type": "absorb",
+        "data": "08000000696e7374616e6365"
+      },
+      {
+        "type": "squeeze",
+        "length": 48
+      }
+    ],
+    "Output": "82a031e31b103ac01253ba3aae215f650a06a4bb24963a05ee1f8c0b82eae90d7bd36ea8cb560a91604ae8a97eb0d564",
+    "Challenge": "0xc2088b455016d0126fcdd76335a79566e7fd8379db1de019871d459bfee9558b"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/sumcheck",
+    "Name": "sumcheck",
+    "Title": "The sumcheck protocol example ({{example-sumcheck}}) over Mersenne31.",
+    "Function": "Sumcheck",
+    "Hash": "TurboSHAKE128",
+    "Group": "Mersenne31",
+    "Modulus": "0x7fffffff",
+    "NumVariables": 4,
+    "Tag": "73756d636865636b",
+    "SessionId": "abcbcae1f2f90d02b7e6417dbb2ffe162ab00477453eac3ce83d4e7e61000280",
+    "Witness": [
+      1,
+      2,
+      4,
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096,
+      8192,
+      16384,
+      32768
+    ],
+    "ClaimedSum": "0xffff",
+    "Narg": "55550000555500006ff9a71d4decf758430dfb69f9c6b5359d8ab2744b13d83d",
+    "FinalEvaluation": "0x654028db"
+  },
+  {
+    "Id": "fiat-shamir/turboshake128/sumcheck_reject_trailing_bytes",
+    "Name": "sumcheck_reject_trailing_bytes",
+    "Title": "A NARG string with trailing bytes is rejected",
+    "Function": "Sumcheck",
+    "Hash": "TurboSHAKE128",
+    "Group": "Mersenne31",
+    "Modulus": "0x7fffffff",
+    "NumVariables": 4,
+    "Tag": "73756d636865636b",
+    "SessionId": "abcbcae1f2f90d02b7e6417dbb2ffe162ab00477453eac3ce83d4e7e61000280",
+    "ClaimedSum": "0xffff",
+    "Narg": "55550000555500006ff9a71d4decf758430dfb69f9c6b5359d8ab2744b13d83d00",
+    "Expected": "reject"
+  }
+]
