@@ -23,7 +23,7 @@ derive = ["dep:spongefish-derive"]
 zeroize = ["dep:zeroize"]
 # Cryptographic hash function features
 sha2 = ["dep:sha2"]
-sha3 = ["dep:sha3"]
+sha3 = ["dep:shake"]
 blake2 = ["dep:blake2"]
 blake3 = ["dep:blake3"]
 k12 = ["dep:k12"]
@@ -73,10 +73,10 @@ p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
 p3-koala-bear = { workspace = true, optional = true }
 p3-mersenne-31 = { workspace = true, optional = true }
-rand = { workspace = true, features = ["getrandom"] }
+rand = { workspace = true, features = ["sys_rng"] }
 risc0-zkp = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
-sha3 = { workspace = true, optional = true }
+shake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
@@ -100,7 +100,6 @@ libtest-mimic = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-sha3 = { workspace = true }
 
 [lints]
 workspace = true

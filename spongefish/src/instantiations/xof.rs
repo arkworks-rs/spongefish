@@ -119,11 +119,11 @@ where
 }
 
 #[cfg(feature = "sha3")]
-impl XOF<sha3::Shake128> {
+impl XOF<shake::Shake128> {
     pub(crate) fn from_protocol_id(protocol_id: [u8; 64]) -> Self {
         const RATE: usize = 168;
 
-        let mut hasher = sha3::Shake128::default();
+        let mut hasher = shake::Shake128::default();
         let mut initial_block = [0u8; RATE];
         initial_block[..protocol_id.len()].copy_from_slice(&protocol_id);
         digest::Update::update(&mut hasher, &initial_block);
@@ -165,7 +165,7 @@ mod tests {
     #[cfg(feature = "sha3")]
     #[test]
     fn shake128_clone_preserves_squeeze_position() {
-        assert_clone_preserves_squeeze_position::<sha3::Shake128>();
+        assert_clone_preserves_squeeze_position::<shake::Shake128>();
     }
 
     #[cfg(feature = "k12")]

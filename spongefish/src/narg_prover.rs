@@ -3,9 +3,9 @@ use core::fmt;
 #[cfg(not(feature = "sha3"))]
 use core::marker::PhantomData;
 
+use rand::{CryptoRng, Rng, SeedableRng};
 #[cfg(feature = "sha3")]
-use rand::Rng;
-use rand::{CryptoRng, RngCore, SeedableRng};
+use rand::{RngExt, TryCryptoRng, TryRng};
 
 #[cfg(feature = "sha3")]
 use crate::StdHash;
@@ -22,7 +22,7 @@ type PrivateRng<R> = PhantomData<R>;
 /// It provides the **secret coins** of the prover for zero-knowledge, and
 /// the hash function state for the verifier's **public coins**.
 ///
-/// The internal random number generator is instantiated with [`sha3::Shake128`],
+/// The internal random number generator is instantiated with [`shake::Shake128`],
 /// seeded via [`rand::rngs::StdRng`].
 ///
 /// # Safety
@@ -35,7 +35,7 @@ pub struct ProverState<
     R = StdRng,
 > where
     H: DuplexSpongeInterface,
-    R: RngCore + CryptoRng,
+    R: Rng + CryptoRng,
 {
     /// The randomness state of the prover.
     pub(crate) private_rng: PrivateRng<R>,
@@ -56,12 +56,12 @@ pub struct ProverState<
 ///
 /// For most public-coin protocols it is *vital* not to have two different verifier messages for the same prover message.
 /// For this reason, we construct an RNG that absorbs whatever the verifier absorbs, and that in addition
-/// is seeded by a cryptographic random number generator (by default, [`rand::rngs::OsRng`]).
+/// is seeded by a cryptographic random number generator.
 ///
 /// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
 #[derive(Default)]
 #[cfg(feature = "sha3")]
-pub struct ReseedableRng<R: RngCore + CryptoRng> {
+pub struct ReseedableRng<R: Rng + CryptoRng> {
     /// The duplex sponge that is used to generate the prover's private random coins.
     pub(crate) duplex_sponge: StdHash,
     /// The cryptographic random number generator that seeds the sponge.
@@ -69,10 +69,10 @@ pub struct ReseedableRng<R: RngCore + CryptoRng> {
 }
 
 #[cfg(feature = "sha3")]
-impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
+impl<R: Rng + CryptoRng> From<R> for ReseedableRng<R> {
     fn from(mut csrng: R) -> Self {
         let mut duplex_sponge = StdHash::default();
-        let seed: [u8; 32] = csrng.gen::<[u8; 32]>();
+        let seed: [u8; 32] = csrng.random();
         duplex_sponge.absorb(&seed);
         Self {
             duplex_sponge,
@@ -85,42 +85,40 @@ impl<R: RngCore + CryptoRng> From<R> for ReseedableRng<R> {
 impl ReseedableRng<StdRng> {
     /// Creates a reseedable RNG backed by `StdRng`.
     pub fn new() -> Self {
-        let csrng = StdRng::from_entropy();
+        let csrng: StdRng = rand::make_rng();
         csrng.into()
     }
 }
 
 #[cfg(feature = "sha3")]
-impl<R: RngCore + CryptoRng> RngCore for ReseedableRng<R> {
-    fn next_u32(&mut self) -> u32 {
+impl<R: Rng + CryptoRng> TryRng for ReseedableRng<R> {
+    type Error = core::convert::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         let mut buf = [0u8; 4];
-        self.fill_bytes(buf.as_mut());
-        u32::from_le_bytes(buf)
+        self.duplex_sponge.squeeze(buf.as_mut());
+        Ok(u32::from_le_bytes(buf))
     }
 
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         let mut buf = [0u8; 8];
-        self.fill_bytes(buf.as_mut());
-        u64::from_le_bytes(buf)
+        self.duplex_sponge.squeeze(buf.as_mut());
+        Ok(u64::from_le_bytes(buf))
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
         // fill `dest` with the output of the sponge
         self.duplex_sponge.squeeze(dest);
         // xxx. for extra safety we can imagine ratcheting here so that
         // the state of the sponge can't be reverted after
         // erase the state from the sponge so that it can't be reverted
         // self.duplex_sponge.ratchet();
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
-        self.duplex_sponge.squeeze(dest);
         Ok(())
     }
 }
 
 #[cfg(feature = "sha3")]
-impl<R: RngCore + CryptoRng> ReseedableRng<R> {
+impl<R: Rng + CryptoRng> ReseedableRng<R> {
     /// Reseeds the internal sponge with the provided bytes.
     pub fn reseed_with(&mut self, value: &[u8]) {
         self.duplex_sponge.ratchet();
@@ -130,18 +128,18 @@ impl<R: RngCore + CryptoRng> ReseedableRng<R> {
 
     /// Reseeds the internal sponge with fresh entropy from the CSRNG.
     pub fn reseed(&mut self) {
-        let seed = self.csrng.gen::<[u8; 32]>();
+        let seed = self.csrng.random::<[u8; 32]>();
         self.reseed_with(&seed);
     }
 }
 
 #[cfg(feature = "sha3")]
-impl<R: RngCore + CryptoRng> CryptoRng for ReseedableRng<R> {}
+impl<R: Rng + CryptoRng> TryCryptoRng for ReseedableRng<R> {}
 
 impl<H, R> fmt::Debug for ProverState<H, R>
 where
     H: DuplexSpongeInterface,
-    R: RngCore + CryptoRng,
+    R: Rng + CryptoRng,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ProverState<{}>", core::any::type_name::<H>())
@@ -151,7 +149,7 @@ where
 impl<H, R> ProverState<H, R>
 where
     H: DuplexSpongeInterface,
-    R: RngCore + CryptoRng,
+    R: Rng + CryptoRng,
 {
     #[cfg(feature = "sha3")]
     /// Returns the reseedable RNG bound to this transcript.
@@ -285,21 +283,21 @@ where
     }
 }
 
-/// Creates a new [`ProverState`] seeded using [`rand::SeedableRng::from_entropy`].
+/// Creates a new [`ProverState`] seeded using [`rand::make_rng`].
 ///
 /// [`Default`] provides alternative initialization methods than the one via
 /// [`DomainSeparator`][`crate::DomainSeparator`].
 /// [`ProverState::default`] is only available with the `yolocrypto` feature and its support in
 /// future releases is not guaranteed.
 #[cfg(feature = "yolocrypto")]
-impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> Default
+impl<H: DuplexSpongeInterface + Default, R: Rng + CryptoRng + SeedableRng> Default
     for ProverState<H, R>
 {
     fn default() -> Self {
         Self {
             duplex_sponge_state: H::default(),
             #[cfg(feature = "sha3")]
-            private_rng: R::from_entropy().into(),
+            private_rng: rand::make_rng::<R>().into(),
             #[cfg(not(feature = "sha3"))]
             private_rng: PhantomData,
             narg_string: Vec::new(),
@@ -308,12 +306,12 @@ impl<H: DuplexSpongeInterface + Default, R: RngCore + CryptoRng + SeedableRng> D
 }
 
 /// Creates a new [`ProverState`] using the given duplex sponge interface.
-impl<H: DuplexSpongeInterface, R: RngCore + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
+impl<H: DuplexSpongeInterface, R: Rng + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
     fn from(value: H) -> Self {
         Self {
             duplex_sponge_state: value,
             #[cfg(feature = "sha3")]
-            private_rng: R::from_entropy().into(),
+            private_rng: rand::make_rng::<R>().into(),
             #[cfg(not(feature = "sha3"))]
             private_rng: PhantomData,
             narg_string: Vec::new(),

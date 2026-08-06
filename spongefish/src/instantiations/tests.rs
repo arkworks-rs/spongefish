@@ -1,4 +1,4 @@
-use rand::RngCore;
+use rand::Rng;
 
 use crate::duplex_sponge::legacy::DigestBridge;
 use crate::permutations::keccak::Keccak;

@@ -1,7 +1,7 @@
 //! p256 codec implementations
 
 use p256::{
-    elliptic_curve::{group::GroupEncoding, ops::Reduce, sec1::ToEncodedPoint, PrimeField},
+    elliptic_curve::{group::GroupEncoding, ops::Reduce, sec1::ToSec1Point, PrimeField},
     AffinePoint, ProjectivePoint, Scalar, U256,
 };
 
@@ -23,8 +23,8 @@ impl Decoding<[u8]> for Scalar {
     type Repr = Array64;
 
     fn decode(buf: Self::Repr) -> Self {
-        let mut hi = Self::reduce(U256::from_be_slice(&buf.0[0..32]));
-        let lo = Self::reduce(U256::from_be_slice(&buf.0[32..64]));
+        let mut hi = Self::reduce(&U256::from_be_slice(&buf.0[0..32]));
+        let lo = Self::reduce(&U256::from_be_slice(&buf.0[32..64]));
         for _ in 0..256 {
             hi += hi;
         }
@@ -76,12 +76,12 @@ impl Encoding<[u8]> for Scalar {
 // Implement Encoding for ProjectivePoint
 impl Encoding<[u8]> for ProjectivePoint {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_encoded_point(true)
+        self.to_sec1_point(true)
     }
 }
 
 impl Encoding<[u8]> for AffinePoint {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_encoded_point(true)
+        self.to_sec1_point(true)
     }
 }

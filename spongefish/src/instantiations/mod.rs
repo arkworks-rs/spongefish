@@ -23,7 +23,7 @@ pub type Ascon12 = DuplexSponge<permutations::Ascon12, 40, 16>;
 
 #[cfg(feature = "sha3")]
 /// SHAKE-128's XOF used as a [`DuplexSpongeInterface`][`crate::DuplexSpongeInterface`].
-pub type Shake128 = xof::XOF<sha3::Shake128>;
+pub type Shake128 = xof::XOF<shake::Shake128>;
 
 /// KangarooTwelve (K12) - fast reduced-round Keccak variant.
 #[cfg(feature = "k12")]

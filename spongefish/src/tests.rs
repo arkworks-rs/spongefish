@@ -1,7 +1,7 @@
 use alloc::string::String;
 
-use rand::RngCore;
-use sha3::digest::{ExtendableOutput, Update, XofReader};
+use rand::Rng;
+use shake::digest::{ExtendableOutput, Update, XofReader};
 
 use crate::{DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError};
 
@@ -189,7 +189,7 @@ fn session_id_matches_rfc_construction() {
     let domain = b"fiat-shamir/session-id";
     initial_block[..domain.len()].copy_from_slice(domain);
 
-    let mut shake = sha3::Shake128::default();
+    let mut shake = shake::Shake128::default();
     shake.update(&initial_block);
     shake.update(b"discrete_logarithm");
     let mut reader = shake.finalize_xof();

@@ -3,9 +3,9 @@ use k256::{
     elliptic_curve::{
         bigint::U512,
         ff::{Field, PrimeField},
-        sec1::{FromEncodedPoint, ToEncodedPoint},
+        sec1::{FromSec1Point, Sec1Point, ToSec1Point},
     },
-    AffinePoint, EncodedPoint, ProjectivePoint, Scalar,
+    AffinePoint, ProjectivePoint, Scalar, Secp256k1,
 };
 
 use crate::{
@@ -26,7 +26,7 @@ impl Decoding<[u8]> for Scalar {
 
     fn decode(buf: Self::Repr) -> Self {
         use k256::elliptic_curve::ops::Reduce;
-        Self::reduce(U512::from_be_slice(&buf.0))
+        Self::reduce(&U512::from_be_slice(&buf.0))
     }
 }
 
@@ -55,8 +55,9 @@ impl NargDeserialize for ProjectivePoint {
             return Err(VerificationError);
         }
 
-        let encoded = EncodedPoint::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
-        let point = Option::from(Self::from_encoded_point(&encoded)).ok_or(VerificationError)?;
+        let encoded =
+            Sec1Point::<Secp256k1>::from_bytes(&buf[..33]).map_err(|_| VerificationError)?;
+        let point = Option::from(Self::from_sec1_point(&encoded)).ok_or(VerificationError)?;
         *buf = &buf[33..];
         Ok(point)
     }
@@ -72,13 +73,13 @@ impl Encoding<[u8]> for Scalar {
 // Implement Encoding for ProjectivePoint
 impl Encoding<[u8]> for ProjectivePoint {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_affine().to_encoded_point(true)
+        self.to_affine().to_sec1_point(true)
     }
 }
 
 impl Encoding<[u8]> for AffinePoint {
     fn encode(&self) -> impl AsRef<[u8]> {
-        self.to_encoded_point(true)
+        self.to_sec1_point(true)
     }
 }
 
@@ -91,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_scalar_serialize_deserialize() {
-        let scalar = Scalar::random(&mut rand::thread_rng());
+        let scalar = Scalar::random(&mut rand::rng());
 
         let mut buf = Vec::new();
         scalar.serialize_into_narg(&mut buf);
@@ -105,7 +106,7 @@ mod tests {
     fn test_point_serialize_deserialize() {
         use k256::elliptic_curve::Group;
 
-        let point = ProjectivePoint::random(&mut rand::thread_rng());
+        let point = ProjectivePoint::random(&mut rand::rng());
 
         let mut buf = Vec::new();
         point.serialize_into_narg(&mut buf);
@@ -117,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_scalar_encoding() {
-        let scalar = Scalar::random(&mut rand::thread_rng());
+        let scalar = Scalar::random(&mut rand::rng());
 
         let encoded = scalar.encode();
         let encoded_bytes = encoded.as_ref();
