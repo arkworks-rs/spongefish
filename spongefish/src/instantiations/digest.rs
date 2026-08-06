@@ -17,7 +17,7 @@ use digest::{
     Digest, FixedOutputReset, Output, Reset,
 };
 #[cfg(feature = "zeroize")]
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::DuplexSpongeInterface;
 
@@ -193,6 +193,9 @@ impl<D: Clone + Digest + Reset + BlockSizeUser> Drop for Hash<D> {
         self.zeroize();
     }
 }
+
+#[cfg(feature = "zeroize")]
+impl<D: Clone + Digest + Reset + BlockSizeUser> ZeroizeOnDrop for Hash<D> {}
 
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
     fn default() -> Self {

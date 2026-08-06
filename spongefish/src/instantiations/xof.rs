@@ -141,8 +141,10 @@ where
     }
 }
 
+/// Backed by the fields' own `Drop` impls: `H` must wipe on drop, and
+/// `H::Reader` is expected to do the same (both suite readers do).
 #[cfg(feature = "zeroize")]
-impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + Zeroize {}
+impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + ZeroizeOnDrop {}
 
 impl<H> Default for XOF<H>
 where

@@ -170,8 +170,21 @@ where
 {
     fn zeroize(&mut self) {
         self.absorb_pos.zeroize();
+        // `Unit` does not require `Zeroize`, so the state is cleared with a
+        // plain fill; the fence keeps the optimizer from eliding the writes.
         self.permutation_state.as_mut().fill(P::U::ZERO);
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
         self.squeeze_pos.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl<P, const WIDTH: usize, const RATE: usize> Drop for DuplexSponge<P, WIDTH, RATE>
+where
+    P: Permutation<WIDTH>,
+{
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 
