@@ -55,7 +55,7 @@ mod ascon {
         /// conversion functions under test.
         fn serialize_le(words: &ascon::State) -> [u8; STATE_BYTES] {
             let mut bytes = [0u8; STATE_BYTES];
-            for (chunk, word) in bytes.chunks_exact_mut(WORD_BYTES).zip(words) {
+            for (chunk, word) in bytes.as_chunks_mut::<WORD_BYTES>().0.iter_mut().zip(words) {
                 chunk.copy_from_slice(&word.to_le_bytes());
             }
             bytes
