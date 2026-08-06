@@ -110,6 +110,14 @@
 //! application context (see the draft's requirements). Deriving it from a tag
 //! via [`derive_session_id`] is the recommended way.
 //!
+//! Unlike merlin, there are no per-message domain-separation labels:
+//! the session identifier pins the protocol, its codecs, and the message schedule,
+//! so the sequence of absorb and squeeze operations is fixed before the interactive protocol starts.
+//! In particular, this Fiat-Shamir transformation will not bake in degree, order, and endianness metadata
+//! into every field element that is being sent to the random oracle.
+//! While cheap for bytes, this approach will be really expensive under recursion, and does not fully eliminate
+//! message confusion. Ultimately, it's the responsibility of the user to make sure two transcripts will never collide.
+//!
 //! [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
 //! [Keccak-f]: https://keccak.team/keccak_specs_summary.html
 //! [Ascon]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf

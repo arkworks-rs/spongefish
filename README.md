@@ -12,6 +12,46 @@ The project is split into several crates:
 
 Hash function can also be derived via bridges to Rust's generic [`Digest`](https://docs.rs/digest/latest/digest/) API, and [`XofReader`](https://docs.rs/digest/latest/digest/trait.XofReader.html).
 
+## Example
+
+A non-interactive proof is driven by two mirrored states: the prover writes
+messages and derives challenges, the verifier replays them from the proof
+string.
+
+```rust
+use spongefish::{ProverState, StdHash, VerifierState};
+
+// The tag identifies the protocol, the codecs, and the application context.
+let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00/my-protocol");
+let instance = [1u32, 2, 3];
+
+// Prover: send a message, derive a challenge, output the proof string.
+let mut prover_state = ProverState::<StdHash>::new(&session_id, &instance);
+prover_state.prover_message(&42u32);
+let challenge: [u8; 16] = prover_state.verifier_message();
+let narg_string = prover_state.narg_string();
+
+// Verifier: run verification on the given NARG string.
+let mut verifier_state = VerifierState::<StdHash>::new(&session_id, &instance, narg_string);
+let message: u32 = verifier_state.prover_message().expect("malformed proof");
+let expected: [u8; 16] = verifier_state.verifier_message();
+assert_eq!((message, challenge), (42, expected));
+verifier_state.check_eof().expect("trailing bytes");
+```
+
+## Feature flags
+
+| Feature | Default | Description |
+| --- | :-: | --- |
+| `turboshake128` | ✓ | The SHAKE128 and TurboSHAKE128 suites of draft-irtf-cfrg-fiat-shamir, `StdHash`, and `ProverState` |
+| `getrandom` | ✓ | Seeds the prover's private RNG from the operating system's entropy source |
+| `zeroize` | ✓ | Wipes sponge and RNG state on drop |
+| `derive` | | `#[derive(Codec)]` and friends via `spongefish-derive` |
+| `rand` | | `rand_core` trait adapters for `PrivateRng` |
+| `keccak` | | Overwrite-mode duplex sponge over Keccak-f\[1600\] |
+| `ascon` | | Overwrite-mode duplex sponge over the Ascon permutation |
+| `yolocrypto` | | Hazardous escape hatches (direct duplex sponge access) |
+
 ## More information
 
 Check out the [documentation](https://arkworks.rs/spongefish/) and some [`examples/`](https://github.com/arkworks-rs/spongefish/tree/main/spongefish/examples).

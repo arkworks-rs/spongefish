@@ -14,7 +14,7 @@ pub struct PoWGrinder<S: PowStrategy> {
 }
 
 impl<S: PowStrategy> PoWGrinder<S> {
-    /// Creates a new PoW grounder with the given challenge and difficulty.
+    /// Creates a new PoW grinder with the given challenge and difficulty.
     ///
     /// # Arguments
     /// * `challenge` - A 32-byte challenge array
@@ -51,18 +51,18 @@ pub mod convenience {
 
     /// Performs proof-of-work on a challenge and returns the solution.
     ///
-    /// This is a simple wrapper that creates a grounder and immediately grinds.
+    /// This is a simple wrapper that creates a grinder and immediately grinds.
     #[must_use]
     pub fn grind_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64) -> Option<PoWSolution> {
-        let mut grounder = PoWGrinder::<S>::new(challenge, bits);
-        grounder.grind()
+        let mut grinder = PoWGrinder::<S>::new(challenge, bits);
+        grinder.grind()
     }
 
     /// Verifies a proof-of-work nonce.
     #[must_use]
     pub fn verify_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64, nonce: u64) -> bool {
-        let mut grounder = PoWGrinder::<S>::new(challenge, bits);
-        grounder.verify(nonce)
+        let mut grinder = PoWGrinder::<S>::new(challenge, bits);
+        grinder.verify(nonce)
     }
 }
 

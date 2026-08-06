@@ -57,8 +57,8 @@ fn test_pow_keccak() {
 
     // We can't extract the nonce directly from the solution (it's one-way),
     // but we can verify by re-grinding and checking we get a valid solution
-    let mut grounder = PoWGrinder::<KeccakPoW>::new(challenge, BITS);
-    let _solution2 = grounder.grind().expect("Should find a valid solution");
+    let mut grinder = PoWGrinder::<KeccakPoW>::new(challenge, BITS);
+    let _solution2 = grinder.grind().expect("Should find a valid solution");
 
     // Both solutions should be valid (though they contain different nonces)
     // We verify by checking that grinding succeeds
