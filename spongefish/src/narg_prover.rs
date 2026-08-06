@@ -108,7 +108,7 @@ where
     pub fn new_with_seed<T: Encoding<[u8]> + ?Sized>(
         session_id: &[u8; 32],
         instance: &T,
-        seed: [u8; PrivateRng::SEED_LEN],
+        seed: [u8; crate::private_rng::SEED_LEN],
     ) -> Self {
         Self::from_parts(session_id, instance, PrivateRng::from_seed(seed))
     }

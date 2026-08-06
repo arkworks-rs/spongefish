@@ -255,6 +255,15 @@ where
 pub trait DuplexSpongeInit: DuplexSpongeInterface<U = u8> {
     /// Create a new duplex sponge state, seeded by the 32-byte `session_id`.
     fn init(session_id: &[u8; 32]) -> Self;
+
+    /// Absorb auxiliary input such as RNG entropy mixes.
+    ///
+    /// Constructions with a block structure (the XOF suites) zero-pad the
+    /// input to the next rate boundary so it is permuted before any further
+    /// operation.
+    fn absorb_block(&mut self, input: &[u8]) {
+        self.absorb(input);
+    }
 }
 
 impl<P, const WIDTH: usize, const RATE: usize> DuplexSpongeInit for DuplexSponge<P, WIDTH, RATE>

@@ -127,6 +127,18 @@ where
         sponge.absorb(&ZERO_BLOCK[..H::RATE - 32]);
         sponge
     }
+
+    /// Zero-pads each mix to a full rate block. Assumes the absorb position is
+    /// block-aligned on entry, which holds when the sponge is only touched
+    /// through `init` and `absorb_block`.
+    fn absorb_block(&mut self, input: &[u8]) {
+        const ZERO_BLOCK: [u8; 200] = [0u8; 200];
+        self.absorb(input);
+        let rem = input.len() % H::RATE;
+        if rem != 0 {
+            self.absorb(&ZERO_BLOCK[..H::RATE - rem]);
+        }
+    }
 }
 
 #[cfg(feature = "zeroize")]
