@@ -4,6 +4,9 @@
 pub mod blake3;
 #[cfg(feature = "keccak")]
 pub mod keccak;
+mod transcript;
+
+pub use transcript::DecodingPow;
 
 /// Standalone proof-of-work grinder that can work with any byte challenge.
 ///
