@@ -200,6 +200,26 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
     assert!(verifier.check_eof().is_err());
 }
 
+/// A tuple encodes as the concatenation of its components' encodings, at every
+/// supported arity — the same bytes the components produce on their own.
+#[test]
+fn tuple_encoding_concatenates_components() {
+    assert_eq!((1u8, 2u16).encode().as_ref(), b"\x01\x02\x00");
+    assert_eq!(
+        (1u8, 2u16, 3u32).encode().as_ref(),
+        b"\x01\x02\x00\x03\x00\x00\x00"
+    );
+
+    // The widest arity, and a nested tuple: both are just concatenation.
+    let wide = (1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8);
+    assert_eq!(wide.encode().as_ref(), &[1u8, 2, 3, 4, 5, 6, 7, 8]);
+    assert_eq!(((1u8, 2u8), (3u8, 4u8)).encode().as_ref(), &[1u8, 2, 3, 4]);
+
+    // A component whose own encoding is length-prefixed keeps that prefix, so
+    // the concatenation stays prefix-free.
+    assert_eq!((1u8, "hi").encode().as_ref(), b"\x01\x02\x00\x00\x00hi");
+}
+
 #[test]
 fn str_encoding_prefixes_utf8_with_le_u32_length() {
     let encoded = "hello".encode();

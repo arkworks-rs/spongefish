@@ -283,36 +283,36 @@ impl Encoding<[u8]> for str {
     }
 }
 
-impl<A, B> Encoding<[u8]> for (A, B)
-where
-    A: Encoding<[u8]>,
-    B: Encoding<[u8]>,
-{
-    fn encode(&self) -> impl AsRef<[u8]> {
-        let (first, second) = (self.0.encode(), self.1.encode());
-        let (first, second) = (first.as_ref(), second.as_ref());
-        let mut output = Vec::with_capacity(first.len() + second.len());
-        output.extend_from_slice(first);
-        output.extend_from_slice(second);
-        output
-    }
+/// Tuples encode as the concatenation of their components' encodings.
+///
+/// # Safety
+///
+/// The concatenation is prefix-free exactly when each component's encoding is,
+/// which [`Encoding`] already requires. It does **not** hold for a tuple mixing
+/// codecs of different alphabets or widths chosen at run time — the components
+/// must each be prefix-free on their own domain.
+macro_rules! impl_tuple_encoding {
+    ($(($($param:ident $binding:ident $index:tt),+);)*) => {$(
+        impl<$($param: Encoding<[u8]>),+> Encoding<[u8]> for ($($param,)+) {
+            fn encode(&self) -> impl AsRef<[u8]> {
+                let ($($binding,)+) = ($(self.$index.encode(),)+);
+                let ($($binding,)+) = ($($binding.as_ref(),)+);
+                let mut output = Vec::with_capacity(0 $(+ $binding.len())+);
+                $(output.extend_from_slice($binding);)+
+                output
+            }
+        }
+    )*};
 }
 
-impl<A, B, C> Encoding<[u8]> for (A, B, C)
-where
-    A: Encoding<[u8]>,
-    B: Encoding<[u8]>,
-    C: Encoding<[u8]>,
-{
-    fn encode(&self) -> impl AsRef<[u8]> {
-        let (first, second, third) = (self.0.encode(), self.1.encode(), self.2.encode());
-        let (first, second, third) = (first.as_ref(), second.as_ref(), third.as_ref());
-        let mut output = Vec::with_capacity(first.len() + second.len() + third.len());
-        output.extend_from_slice(first);
-        output.extend_from_slice(second);
-        output.extend_from_slice(third);
-        output
-    }
+impl_tuple_encoding! {
+    (A a 0, B b 1);
+    (A a 0, B b 1, C c 2);
+    (A a 0, B b 1, C c 2, D d 3);
+    (A a 0, B b 1, C c 2, D d 3, E e 4);
+    (A a 0, B b 1, C c 2, D d 3, E e 4, F f 5);
+    (A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6);
+    (A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7);
 }
 
 /// A variable-length sequence, encoded with a `u32` element-count prefix.
