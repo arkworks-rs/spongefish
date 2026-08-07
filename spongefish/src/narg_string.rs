@@ -69,13 +69,31 @@ impl<T: Encoding<[u8]>> NargSerialize for T {
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     fn deserialize_from_narg(buf: &mut &[u8]) -> VerificationResult<Self> {
         let mut rest = *buf;
-        let vec: Vec<T> = (0..N)
-            .map(|_| T::deserialize_from_narg(&mut rest))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut failed = false;
 
-        // This is safe because we know vec.len() == N from the iterator above
+        // Parsed in place rather than through a `Vec<T>` + `try_into`: the
+        // vector cost one heap allocation per array on the verifier's hot
+        // path, and `[T; N]` needs no allocation at all. The intermediate is
+        // `[VerificationResult<T>; N]` because `array::from_fn` must yield a
+        // value for every slot and there is nothing to yield once parsing has
+        // failed; `try_from_fn` would say this directly but is unstable.
+        let parsed: [VerificationResult<T>; N] = core::array::from_fn(|_| {
+            if failed {
+                // Short-circuit, matching the `collect::<Result<_, _>>()` this
+                // replaces: no element is parsed after the first failure.
+                return Err(VerificationError);
+            }
+            let element = T::deserialize_from_narg(&mut rest);
+            failed = element.is_err();
+            element
+        });
+
+        if failed {
+            // `rest` is discarded, so `*buf` is left where it was.
+            return Err(VerificationError);
+        }
         *buf = rest;
-        Ok(vec.try_into().unwrap_or_else(|_| unreachable!()))
+        Ok(parsed.map(|element| element.unwrap_or_else(|_| unreachable!("checked above"))))
     }
 }
 

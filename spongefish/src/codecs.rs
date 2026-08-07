@@ -1,5 +1,7 @@
 //! Maps for encoding prover messages and decoding verifier messages.
 
+use alloc::vec::Vec;
+
 /// Marker trait for types that have encoding and decoding maps.
 ///
 /// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
@@ -103,13 +105,88 @@ where
     }
 }
 
+/// The array codec's output.
+///
+/// When every element encodes to exactly one unit — the `[u8; N]` case that
+/// carries most prover messages — the whole encoding is exactly `N` units and
+/// lives inline. Otherwise it goes to the heap, as before.
+///
+/// The inline variant is `[U; N]`: its size is exactly the size of the array
+/// being encoded, so this can never blow up the stack for a wide alphabet the
+/// way a fixed unit budget could.
+enum ArrayEncoding<U, const N: usize> {
+    Inline([U; N]),
+    Heap(Vec<U>),
+}
+
+impl<U, const N: usize> AsRef<[U]> for ArrayEncoding<U, N> {
+    fn as_ref(&self) -> &[U] {
+        match self {
+            Self::Inline(units) => units,
+            Self::Heap(units) => units,
+        }
+    }
+}
+
 impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
     fn encode(&self) -> impl AsRef<[U]> {
-        let mut output = alloc::vec::Vec::new();
-        for element in self {
-            output.extend_from_slice(element.encode().as_ref());
+        if let Some(first) = self.first() {
+            let head = first.encode();
+            let head = head.as_ref();
+
+            // Fast path: one unit per element, so the total is `N` units and
+            // the buffer is exactly sized. `uniform` records whether that held
+            // for *every* element, not just the first: an element codec whose
+            // width varies falls back to the heap path below, re-encoding from
+            // scratch. The filler written for such an element is never
+            // observed, because `uniform` then discards the whole buffer.
+            //
+            // A uniform array costs exactly one encode per element. Once a
+            // width mismatch is found the remaining slots are filled without
+            // encoding at all, since the buffer they would fill is about to be
+            // thrown away — so the worst case is one encode per element here
+            // plus one in the fallback, never three.
+            if head.len() == 1 {
+                let head_unit = head[0].clone();
+                let mut uniform = true;
+                let units: [U; N] = core::array::from_fn(|index| {
+                    // Element 0 reuses the peek above.
+                    if index == 0 || !uniform {
+                        return head_unit.clone();
+                    }
+                    let encoded = self[index].encode();
+                    let encoded = encoded.as_ref();
+                    if encoded.len() == 1 {
+                        encoded[0].clone()
+                    } else {
+                        uniform = false;
+                        head_unit.clone()
+                    }
+                });
+                if uniform {
+                    return ArrayEncoding::Inline(units);
+                }
+            }
+
+            let mut output = Vec::new();
+            // Elements of an array share a type, and every codec in this crate
+            // is fixed-width, so the first element's length times `N` is the
+            // exact total: one allocation instead of `log2(N)` reallocations.
+            // A variable-width element codec merely makes this a hint — the
+            // vector still grows on its own, and the bytes are unchanged.
+            output.reserve_exact(head.len().saturating_mul(N));
+            // `head` again rather than re-encoding element 0. Reaching here
+            // after the fast path bailed out already means one wasted encode
+            // per element; the fallback exists for variable-width codecs, so
+            // it should not also be the most expensive path per element.
+            output.extend_from_slice(head);
+            for element in &self[1..] {
+                output.extend_from_slice(element.encode().as_ref());
+            }
+            ArrayEncoding::Heap(output)
+        } else {
+            ArrayEncoding::Heap(Vec::new())
         }
-        output
     }
 }
 
@@ -199,7 +276,7 @@ impl Encoding<[u8]> for str {
             .len()
             .try_into()
             .expect("string encoding requires length to fit in u32");
-        let mut out = alloc::vec::Vec::new();
+        let mut out = Vec::with_capacity(size_of::<u32>() + self.len());
         out.extend_from_slice(&len.to_le_bytes());
         out.extend_from_slice(self.as_bytes());
         out
@@ -212,9 +289,11 @@ where
     B: Encoding<[u8]>,
 {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut output = alloc::vec::Vec::new();
-        output.extend_from_slice(self.0.encode().as_ref());
-        output.extend_from_slice(self.1.encode().as_ref());
+        let (first, second) = (self.0.encode(), self.1.encode());
+        let (first, second) = (first.as_ref(), second.as_ref());
+        let mut output = Vec::with_capacity(first.len() + second.len());
+        output.extend_from_slice(first);
+        output.extend_from_slice(second);
         output
     }
 }
@@ -226,10 +305,12 @@ where
     C: Encoding<[u8]>,
 {
     fn encode(&self) -> impl AsRef<[u8]> {
-        let mut output = alloc::vec::Vec::new();
-        output.extend_from_slice(self.0.encode().as_ref());
-        output.extend_from_slice(self.1.encode().as_ref());
-        output.extend_from_slice(self.2.encode().as_ref());
+        let (first, second, third) = (self.0.encode(), self.1.encode(), self.2.encode());
+        let (first, second, third) = (first.as_ref(), second.as_ref(), third.as_ref());
+        let mut output = Vec::with_capacity(first.len() + second.len() + third.len());
+        output.extend_from_slice(first);
+        output.extend_from_slice(second);
+        output.extend_from_slice(third);
         output
     }
 }
@@ -289,14 +370,28 @@ impl<T> LengthPrefixed<T> {
     }
 }
 
-fn encode_length_prefixed<T: Encoding<[u8]>>(elements: &[T]) -> alloc::vec::Vec<u8> {
+fn encode_length_prefixed<T: Encoding<[u8]>>(elements: &[T]) -> Vec<u8> {
     let len: u32 = elements
         .len()
         .try_into()
         .expect("length-prefixed encoding requires the element count to fit in u32");
-    let mut out = alloc::vec::Vec::new();
+    let mut iter = elements.iter();
+    let Some(first) = iter.next() else {
+        return len.to_le_bytes().to_vec();
+    };
+    let head = first.encode();
+    let head = head.as_ref();
+    // Every codec in this crate is fixed-width, so the first element's length
+    // gives the exact total; a variable-width codec only makes it a hint.
+    let total = head
+        .len()
+        .saturating_mul(elements.len())
+        .saturating_add(size_of::<u32>());
+
+    let mut out = Vec::with_capacity(total);
     out.extend_from_slice(&len.to_le_bytes());
-    for element in elements {
+    out.extend_from_slice(head);
+    for element in iter {
         out.extend_from_slice(element.encode().as_ref());
     }
     out
@@ -324,7 +419,12 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
         if len > rest.len() {
             return Err(crate::VerificationError);
         }
-        let mut elements = alloc::vec::Vec::new();
+        // NOTE: `len` is attacker-controlled. Reserving `len` elements up
+        // front would let a 4-byte count trigger a `len * size_of::<T>()`
+        // allocation — an amplification the growing vector does not have. Cap
+        // the hint so it still avoids the first reallocations for the typical
+        // short sequence without handing an attacker a memory multiplier.
+        let mut elements = Vec::with_capacity(usize::min(len, 64));
         for _ in 0..len {
             let remaining = rest.len();
             let element = T::deserialize_from_narg(&mut rest)?;
@@ -355,6 +455,38 @@ where
 mod tests {
     use super::{Encoding, LengthPrefixed};
     use crate::NargDeserialize;
+
+    /// The `str` codec spans the inline/heap boundary as the string grows; the
+    /// bytes must stay `u32` length prefix followed by UTF-8, throughout.
+    #[test]
+    fn str_encoding_is_stable_across_the_spill_boundary() {
+        for len in [0usize, 1, 100, 123, 124, 125, 200, 1000] {
+            let text = "x".repeat(len);
+            let text = text.as_str();
+            let encoded = Encoding::<[u8]>::encode(&text);
+            let mut expected = alloc::vec::Vec::new();
+            expected.extend_from_slice(&(len as u32).to_le_bytes());
+            expected.extend_from_slice(text.as_bytes());
+            assert_eq!(encoded.as_ref(), &expected[..], "len {len}");
+        }
+    }
+
+    /// The length-prefixed codec now sizes its buffer from the first element's
+    /// width. The bytes must not depend on that hint being right.
+    #[test]
+    fn length_prefixed_encoding_is_stable_across_the_spill_boundary() {
+        for len in [0usize, 1, 30, 31, 32, 33, 100] {
+            let values: alloc::vec::Vec<u32> = (0..len as u32).collect();
+            let wrapper = LengthPrefixed(&values[..]);
+            let encoded = wrapper.encode();
+            let mut expected = alloc::vec::Vec::new();
+            expected.extend_from_slice(&(len as u32).to_le_bytes());
+            for value in &values {
+                expected.extend_from_slice(&value.to_le_bytes());
+            }
+            assert_eq!(encoded.as_ref(), &expected[..], "len {len}");
+        }
+    }
 
     /// Cross-architecture guard: the `str` length prefix must be a fixed-width,
     /// little-endian `u32` on every target. If this ever regresses to a
@@ -426,6 +558,82 @@ mod tests {
             LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut cursor).is_err()
         );
         assert_eq!(cursor, &bogus[..]);
+    }
+
+    /// An element codec whose encoded width depends on the *value*, not just
+    /// the type. Contrived here, but not hypothetical: compressed SEC1 points
+    /// encode the identity in one byte and every other point in 33.
+    struct VariableWidth(usize);
+
+    impl Encoding<[u8]> for VariableWidth {
+        fn encode(&self) -> impl AsRef<[u8]> {
+            alloc::vec![self.0 as u8; self.0]
+        }
+    }
+
+    /// The array codec takes an inline fast path when the *first* element
+    /// encodes to a single unit, then verifies that every other element did
+    /// too. A variable-width codec must fall back to the heap path and still
+    /// produce the plain concatenation — in particular for the dangerous
+    /// ordering where a one-unit element comes first and a wider one follows.
+    #[test]
+    fn array_encoding_handles_variable_width_elements() {
+        let cases: [[VariableWidth; 4]; 5] = [
+            // One unit first, then wider: the ordering that would let a buggy
+            // fast path commit a truncated encoding.
+            [
+                VariableWidth(1),
+                VariableWidth(3),
+                VariableWidth(1),
+                VariableWidth(2),
+            ],
+            // Wider first: the fast path is never entered.
+            [
+                VariableWidth(3),
+                VariableWidth(1),
+                VariableWidth(1),
+                VariableWidth(1),
+            ],
+            // Uniformly one unit: the fast path is entered and kept.
+            [
+                VariableWidth(1),
+                VariableWidth(1),
+                VariableWidth(1),
+                VariableWidth(1),
+            ],
+            // Uniformly wider.
+            [
+                VariableWidth(4),
+                VariableWidth(4),
+                VariableWidth(4),
+                VariableWidth(4),
+            ],
+            // A zero-width element among one-unit elements.
+            [
+                VariableWidth(1),
+                VariableWidth(0),
+                VariableWidth(1),
+                VariableWidth(1),
+            ],
+        ];
+
+        for case in &cases {
+            let mut expected = alloc::vec::Vec::new();
+            for element in case {
+                expected.extend_from_slice(element.encode().as_ref());
+            }
+            let encoded = Encoding::<[u8]>::encode(case);
+            assert_eq!(
+                encoded.as_ref(),
+                &expected[..],
+                "widths {:?}",
+                case.iter().map(|e| e.0).collect::<alloc::vec::Vec<_>>()
+            );
+        }
+
+        // The empty array encodes to nothing, on either path.
+        let empty: [VariableWidth; 0] = [];
+        assert_eq!(Encoding::<[u8]>::encode(&empty).as_ref(), b"");
     }
 
     /// An element type whose deserializer consumes no input at all — the

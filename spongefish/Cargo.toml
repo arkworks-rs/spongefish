@@ -8,6 +8,8 @@ readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+# `benches/bench_util.rs` is a shared module, not a bench target of its own.
+autobenches = false
 version.workspace = true
 
 [package.metadata.docs.rs]
@@ -45,6 +47,9 @@ zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 [dev-dependencies]
 curve25519-dalek = { workspace = true }
 hex = { workspace = true }
+# Benchmarks only: lets `benches/hotpath.rs` time the raw permutation next to
+# this crate's byte-oriented wrapper, to price the state conversion.
+keccak = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -55,3 +60,8 @@ workspace = true
 [[example]]
 name = "schnorr"
 required-features = ["getrandom", "turboshake128"]
+
+[[bench]]
+name = "hotpath"
+harness = false
+required-features = ["derive", "getrandom", "keccak", "turboshake128"]

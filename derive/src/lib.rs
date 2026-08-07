@@ -52,7 +52,15 @@ fn generate_encoding_impl(input: &DeriveInput) -> TokenStream2 {
             quote! {
                 impl #impl_generics ::spongefish::Encoding<[u8]> for #name #ty_generics #where_clause {
                     fn encode(&self) -> impl AsRef<[u8]> {
-                        let mut output = ::spongefish::__private::Vec::new();
+                        // Sized up front from the struct's own width. That is only a
+                        // hint — a field whose encoding is wider or narrower than
+                        // its in-memory size just makes the vector grow or over-
+                        // reserve — but for the fixed-width codecs that carry
+                        // prover messages it is exact, which turns several
+                        // reallocations per message into one allocation.
+                        let mut output = ::spongefish::__private::Vec::with_capacity(
+                            ::core::mem::size_of::<Self>(),
+                        );
                         #(#field_encodings)*
                         output
                     }
