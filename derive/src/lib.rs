@@ -300,6 +300,21 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 /// Derive [`Encoding`](https://docs.rs/spongefish/latest/spongefish/trait.Encoding.html) for structs.
 ///
 /// Fields marked with `#[spongefish(skip)]` are omitted from the encoding.
+/// Any other `#[spongefish(..)]` form is a compile error.
+///
+/// # Safety
+///
+/// A skipped field is not bound by the Fiat-Shamir transformation: it never
+/// reaches the sponge and never reaches the NARG string, so the verifier
+/// neither sees it nor commits to it. Skip only values that are recomputable,
+/// or genuinely irrelevant to the statement being proven.
+///
+/// Skipping *every* field leaves a zero-length encoding, which is not
+/// injective: all values of the struct then encode identically, and a prover
+/// message of that type contributes nothing to the transcript. That is
+/// well-defined but almost never intended — it is meaningful only for a type
+/// with a single inhabitant, where the constant encoding is trivially
+/// injective.
 ///
 /// ```
 /// use spongefish::Encoding;
@@ -462,20 +477,44 @@ pub fn derive_unit(input: TokenStream) -> TokenStream {
 }
 
 /// Helper function to check if a field has the `#[spongefish(skip)]` attribute.
+///
+/// # Panics
+///
+/// Panics — that is, fails the compilation of the deriving crate — on any
+/// `#[spongefish(..)]` that is not exactly `skip`.
+///
+/// Dropping a field from the transcript is a security-relevant act: the field
+/// stops being bound by the Fiat-Shamir transformation. It must therefore be
+/// spelled out, never inferred from an attribute that failed to parse. Taking
+/// `parse_nested_meta(..).is_ok()` as "skip" did the opposite: `#[spongefish()]`
+/// parses zero nested metas and returns `Ok`, so an attribute that says nothing
+/// silently removed the field from the encoding, the decoding and the NARG
+/// string. A misspelling like `#[spongefish(skpi)]` was silently ignored in the
+/// other direction. Both are now compile errors.
 fn has_skip_attribute(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if !attr.path().is_ident("spongefish") {
             return false;
         }
 
-        attr.parse_nested_meta(|meta| {
+        let mut skip = false;
+        if let Err(error) = attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("skip") {
+                skip = true;
                 Ok(())
             } else {
-                Err(meta.error("expected `skip`"))
+                Err(meta.error("unknown `spongefish` option; expected `skip`"))
             }
-        })
-        .is_ok()
+        }) {
+            panic!("{error}");
+        }
+
+        assert!(
+            skip,
+            "empty `#[spongefish(..)]`: write `#[spongefish(skip)]` to leave the \
+             field out of the transcript, or remove the attribute"
+        );
+        skip
     })
 }
 

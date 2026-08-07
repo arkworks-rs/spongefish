@@ -25,7 +25,14 @@
 /// ```
 ///
 /// Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
-/// `#[spongefish(skip)]` are initialized via `Default`.
+/// `#[spongefish(skip)]` are initialized via `Default`; any other
+/// `#[spongefish(..)]` form is a compile error.
+///
+/// A skipped field is not bound by the Fiat-Shamir transformation — it reaches
+/// neither the sponge nor the NARG string. Skipping every field therefore
+/// leaves a zero-length encoding, under which all values of the struct are
+/// indistinguishable; that is injective, and so admissible, only for a type
+/// with a single inhabitant.
 pub trait Codec<T = [u8]>:
     crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>
 where
