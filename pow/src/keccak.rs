@@ -53,14 +53,14 @@ fn test_pow_keccak() {
     let challenge = [42u8; 32];
 
     // Generate a proof-of-work solution
-    let _solution = grind_pow::<KeccakPoW>(challenge, BITS).expect("Should find a valid solution");
+    let solution = grind_pow::<KeccakPoW>(challenge, BITS).expect("Should find a valid solution");
 
-    // We can't extract the nonce directly from the solution (it's one-way),
-    // but we can verify by re-grinding and checking we get a valid solution
+    // Grinding is deterministic: it returns the minimal satisfying nonce, so
+    // re-grinding the same challenge must yield the very same solution.
     let mut grinder = PoWGrinder::<KeccakPoW>::new(challenge, BITS);
-    let _solution2 = grinder.grind().expect("Should find a valid solution");
+    let solution2 = grinder.grind().expect("Should find a valid solution");
+    assert_eq!(solution.nonce, solution2.nonce);
 
-    // Both solutions should be valid (though they contain different nonces)
-    // We verify by checking that grinding succeeds
-    assert!(grind_pow::<KeccakPoW>(challenge, BITS).is_some());
+    // And the nonce must verify against the original challenge.
+    assert!(verify_pow::<KeccakPoW>(challenge, BITS, solution.nonce));
 }
