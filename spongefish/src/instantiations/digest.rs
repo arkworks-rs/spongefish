@@ -51,33 +51,41 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
         self
     }
 
-    fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
+    fn squeeze(&mut self, mut output: &mut [u8]) -> &mut Self {
+        // Enter squeezing mode. From `Absorb` we ratchet first, which lands
+        // back in `Start`; from `Start` we install the squeeze prefix. Both
+        // transitions happen even for an empty output.
+        if self.mode == Mode::Absorb {
+            self.ratchet();
+        }
         if self.mode == Mode::Start {
             self.mode = Mode::Squeeze(0);
             // create the prefix hash
             Digest::update(&mut self.hasher, Self::mask_squeeze());
             Digest::update(&mut self.hasher, &self.cv);
-            self.squeeze(output)
-        // If Absorbing, ratchet
-        } else if self.mode == Mode::Absorb {
-            self.ratchet();
-            self.squeeze(output)
-        // If we have no more data to squeeze, return
-        } else if output.is_empty() {
-            self
-        // If we still have some digest not yet squeezed
-        // from previous invocations, write it to the output.
-        } else if !self.leftovers.is_empty() {
-            let len = usize::min(output.len(), self.leftovers.len());
-            output[..len].copy_from_slice(&self.leftovers[..len]);
-            self.leftovers.drain(..len);
-            self.squeeze(&mut output[len..])
-        // Squeeze another digest
-        } else if let Mode::Squeeze(i) = self.mode {
-            // Add the squeeze mask, current digest, and index.
+        }
+
+        // Iterative by construction: one digest block per iteration. A
+        // recursive formulation costs one stack frame per `DIGEST_SIZE` bytes
+        // and overflows the stack on large squeezes.
+        while !output.is_empty() {
+            // If we still have some digest not yet squeezed
+            // from previous invocations, write it to the output.
+            if !self.leftovers.is_empty() {
+                let len = usize::min(output.len(), self.leftovers.len());
+                output[..len].copy_from_slice(&self.leftovers[..len]);
+                self.leftovers.drain(..len);
+                output = &mut output[len..];
+                continue;
+            }
+
+            // Squeeze another digest: the squeeze mask, current digest, and index.
             // Encode the index as a fixed-width `u64` (not `usize`) so the absorbed
             // bytes are identical on 32- and 64-bit targets; otherwise a 64-bit
             // prover and a 32-bit verifier (e.g. wasm32) derive different outputs.
+            let Mode::Squeeze(i) = self.mode else {
+                unreachable!("squeezing mode is installed above")
+            };
             let mut output_hasher_prefix = self.hasher.clone();
             Digest::update(&mut output_hasher_prefix, (i as u64).to_be_bytes());
             let digest = output_hasher_prefix.finalize();
@@ -87,10 +95,9 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             self.leftovers.extend_from_slice(&digest[chunk_len..]);
             // Update the state
             self.mode = Mode::Squeeze(i + 1);
-            self.squeeze(&mut output[chunk_len..])
-        } else {
-            unreachable!()
+            output = &mut output[chunk_len..];
         }
+        self
     }
 }
 
@@ -106,9 +113,19 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Hash<D> {
     /// transition from absorbing to squeezing. This is a design detail of this
     /// digest bridge, not part of the duplex sponge interface.
     pub fn ratchet(&mut self) -> &mut Self {
+        // Folds an in-progress squeeze into `cv`, which resets the hasher and
+        // leaves `mode` at `Start`.
         self.squeeze_end();
-        // Double hash
-        self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
+        // Commit the hasher only when it actually holds absorbed input.
+        // Otherwise it has just been reset — by `squeeze_end` above, or by an
+        // earlier ratchet — and digesting it would overwrite `cv` with the
+        // constant `D(D(""))`, discarding every byte absorbed so far. In those
+        // states `cv` already commits to the whole history and ratcheting
+        // again is a no-op.
+        if self.mode == Mode::Absorb {
+            // Double hash
+            self.cv = <D as Digest>::digest(self.hasher.finalize_reset());
+        }
         // Restart the rest of the data
         #[cfg(feature = "zeroize")]
         self.leftovers.zeroize();
@@ -183,6 +200,10 @@ impl<D: BlockSizeUser + Digest + Clone + Reset> Hash<D> {
 impl<D: Clone + Digest + Reset + BlockSizeUser> Zeroize for Hash<D> {
     fn zeroize(&mut self) {
         self.cv.zeroize();
+        // Already-squeezed digest bytes still buffered here are as sensitive as
+        // the chaining value: wipe them, do not merely drop the vector.
+        self.leftovers.zeroize();
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
         Digest::reset(&mut self.hasher);
     }
 }
@@ -194,8 +215,12 @@ impl<D: Clone + Digest + Reset + BlockSizeUser> Drop for Hash<D> {
     }
 }
 
+/// The chaining value and the buffered squeeze output are wiped by
+/// [`Zeroize`] in [`Drop`]; the hasher itself is only wiped if `D` wipes on
+/// drop, which is why the marker is bounded on `D: ZeroizeOnDrop` rather than
+/// asserted for every digest.
 #[cfg(feature = "zeroize")]
-impl<D: Clone + Digest + Reset + BlockSizeUser> ZeroizeOnDrop for Hash<D> {}
+impl<D: Clone + Digest + Reset + BlockSizeUser + ZeroizeOnDrop> ZeroizeOnDrop for Hash<D> {}
 
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
     fn default() -> Self {
@@ -206,6 +231,95 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
             leftovers: Vec::new(),
         }
     }
+}
+
+/// Ratcheting must commit to everything absorbed so far, in every mode it can
+/// be called from. Ratcheting after a squeeze — or twice in a row — used to
+/// digest a hasher that had just been reset, replacing the chaining value with
+/// a constant and collapsing the state: two transcripts with nothing in common
+/// then produced identical output.
+#[cfg(test)]
+#[test]
+fn ratchet_commits_to_the_absorbed_history() {
+    fn output_after(input: &[u8], ratchets_after_squeeze: usize) -> [u8; 32] {
+        let mut sho = Hash::<sha2::Sha256>::default();
+        sho.absorb(input);
+        sho.squeeze(&mut [0u8; 16]);
+        for _ in 0..ratchets_after_squeeze {
+            sho.ratchet();
+        }
+        sho.squeeze_array::<32>()
+    }
+
+    // One ratchet after a squeeze, and a second redundant one, must both keep
+    // distinct histories distinct.
+    for ratchets in [1, 2, 3] {
+        assert_ne!(
+            output_after(b"alice pays bob one coin", ratchets),
+            output_after(b"a completely different history", ratchets),
+            "state collapsed after {ratchets} ratchet(s)"
+        );
+    }
+
+    // Ratcheting straight from absorbing already worked; keep it that way.
+    let mut absorbed = Hash::<sha2::Sha256>::default();
+    absorbed.absorb(b"one");
+    absorbed.ratchet();
+    let mut other = Hash::<sha2::Sha256>::default();
+    other.absorb(b"two");
+    other.ratchet();
+    assert_ne!(absorbed.squeeze_array::<32>(), other.squeeze_array::<32>());
+
+    // A redundant ratchet is a no-op, not a state change.
+    let mut once = Hash::<sha2::Sha256>::default();
+    once.absorb(b"input");
+    once.ratchet();
+    let mut twice = Hash::<sha2::Sha256>::default();
+    twice.absorb(b"input");
+    twice.ratchet();
+    twice.ratchet();
+    assert_eq!(once.squeeze_array::<32>(), twice.squeeze_array::<32>());
+}
+
+/// Squeezing is iterative: one digest block per iteration, not per stack
+/// frame. A recursive implementation overflows the stack well before this
+/// size, in release as well as debug.
+#[cfg(test)]
+#[test]
+fn large_squeeze_does_not_recurse() {
+    let mut sho = Hash::<sha2::Sha256>::default();
+    sho.absorb(b"message");
+    let mut output = alloc::vec![0u8; 1 << 20];
+    sho.squeeze(&mut output);
+
+    // A chunked squeeze of the same length must be byte-identical: the
+    // streaming property has to survive the rewrite.
+    let mut chunked = Hash::<sha2::Sha256>::default();
+    chunked.absorb(b"message");
+    let mut buf = alloc::vec![0u8; 1 << 20];
+    for chunk in buf.chunks_mut(Hash::<sha2::Sha256>::DIGEST_SIZE * 2 + 7) {
+        chunked.squeeze(chunk);
+    }
+    assert_eq!(output, buf);
+}
+
+/// Wiping the state must include the digest bytes buffered from an earlier
+/// squeeze, not just the chaining value.
+#[cfg(all(test, feature = "zeroize"))]
+#[test]
+fn zeroize_wipes_buffered_squeeze_output() {
+    let mut sho = Hash::<sha2::Sha256>::default();
+    sho.absorb(b"message");
+    // Squeeze less than one digest, so the remainder stays in `leftovers`.
+    sho.squeeze(&mut [0u8; 8]);
+    assert!(
+        !sho.leftovers.is_empty(),
+        "test needs buffered squeeze output"
+    );
+
+    Zeroize::zeroize(&mut sho);
+    assert!(sho.leftovers.is_empty());
+    assert!(sho.cv.iter().all(|&byte| byte == 0));
 }
 
 #[cfg(test)]

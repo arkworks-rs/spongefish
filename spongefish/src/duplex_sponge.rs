@@ -71,6 +71,10 @@ pub trait DuplexSpongeInterface: Clone {
     /// Calls to this function are meant to be associative:
     /// calling this function multiple times is equivalent to calling it once
     /// on a larger output array.
+    ///
+    /// Whether squeezing affects a subsequent absorb, and if so at what
+    /// granularity, is left to the implementation. The session identifier MUST
+    /// take care of the absorb/squeeze pattern.
     fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
 
     /// Squeeze a fixed-length array of size `LEN`.
@@ -201,6 +205,13 @@ where
     type U = P::U;
 
     fn absorb(&mut self, mut input: &[Self::U]) -> &mut Self {
+        // Absorbing is associative, so absorbing the empty string is the
+        // identity: it must not end an in-progress squeeze stream. Returning
+        // early keeps this construction in step with the XOF instantiations,
+        // which are no-ops on the empty input.
+        if input.is_empty() {
+            return self;
+        }
         self.squeeze_pos = RATE;
 
         while !input.is_empty() {
@@ -221,25 +232,31 @@ where
         self
     }
 
-    fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self {
+    fn squeeze(&mut self, mut output: &mut [Self::U]) -> &mut Self {
         if output.is_empty() {
             return self;
         }
         self.absorb_pos = 0;
 
-        if self.squeeze_pos == RATE {
-            self.squeeze_pos = 0;
-            self.permutation.permute_mut(&mut self.permutation_state);
-        }
+        // Iterative by construction: one rate block per iteration. A recursive
+        // formulation costs one stack frame per block and overflows on large
+        // squeezes.
+        while !output.is_empty() {
+            if self.squeeze_pos == RATE {
+                self.squeeze_pos = 0;
+                self.permutation.permute_mut(&mut self.permutation_state);
+            }
 
-        debug_assert!(self.squeeze_pos < RATE);
-        let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
-        let (output, rest) = output.split_at_mut(chunk_len);
-        output.clone_from_slice(
-            &self.permutation_state[self.squeeze_pos..self.squeeze_pos + chunk_len],
-        );
-        self.squeeze_pos += chunk_len;
-        self.squeeze(rest)
+            debug_assert!(self.squeeze_pos < RATE);
+            let chunk_len = usize::min(output.len(), RATE - self.squeeze_pos);
+            let (chunk, rest) = output.split_at_mut(chunk_len);
+            chunk.clone_from_slice(
+                &self.permutation_state[self.squeeze_pos..self.squeeze_pos + chunk_len],
+            );
+            self.squeeze_pos += chunk_len;
+            output = rest;
+        }
+        self
     }
 }
 
@@ -275,5 +292,83 @@ where
         let mut sponge = Self::with_permutation(P::default());
         sponge.absorb(session_id);
         sponge
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DuplexSponge, DuplexSpongeInterface, Permutation};
+
+    const WIDTH: usize = 16;
+    const RATE: usize = 8;
+
+    /// A toy bijection over the state, enough to exercise the construction's
+    /// bookkeeping without pulling in a feature-gated permutation.
+    #[derive(Clone, Default)]
+    struct Rotate;
+
+    impl Permutation<WIDTH> for Rotate {
+        type U = u8;
+
+        fn permute(&self, state: &[u8; WIDTH]) -> [u8; WIDTH] {
+            core::array::from_fn(|i| state[(i + 1) % WIDTH].wrapping_add(i as u8 + 1))
+        }
+    }
+
+    type Sponge = DuplexSponge<Rotate, WIDTH, RATE>;
+
+    /// Absorbing the empty string is the identity. It must not restart the
+    /// squeeze stream: `squeeze; absorb(&[]); squeeze` has to equal one
+    /// contiguous `squeeze`, matching the XOF instantiations.
+    #[test]
+    fn empty_absorb_is_a_no_op() {
+        let mut streaming = Sponge::default();
+        streaming.absorb(b"message");
+        let (mut lo, mut hi) = ([0u8; 12], [0u8; 12]);
+        streaming.squeeze(&mut lo);
+        streaming.absorb(&[]);
+        streaming.squeeze(&mut hi);
+
+        let mut contiguous = Sponge::default();
+        let mut all = [0u8; 24];
+        contiguous.absorb(b"message").squeeze(&mut all);
+
+        assert_eq!([lo, hi].concat(), all);
+
+        // A non-empty absorb, by contrast, does end the stream.
+        let mut reset = Sponge::default();
+        reset.absorb(b"message").squeeze(&mut lo);
+        reset.absorb(b"more").squeeze(&mut hi);
+        assert_ne!([lo, hi].concat(), all);
+    }
+
+    /// Absorbing is associative, including across empty chunks.
+    #[test]
+    fn absorb_is_associative() {
+        let mut split = Sponge::default();
+        split.absorb(b"hello ").absorb(&[]).absorb(b"world");
+        let mut joined = Sponge::default();
+        joined.absorb(b"hello world");
+        assert_eq!(split.squeeze_array::<32>(), joined.squeeze_array::<32>());
+    }
+
+    /// Squeezing is iterative: one rate block per iteration, not per stack
+    /// frame. A recursive implementation overflows well before this size on a
+    /// default test-thread stack.
+    #[test]
+    fn large_squeeze_does_not_recurse() {
+        let mut sponge = Sponge::default();
+        sponge.absorb(b"message");
+        let mut output = alloc::vec![0u8; 1 << 20];
+        sponge.squeeze(&mut output);
+
+        // And a chunked squeeze of the same length is byte-identical.
+        let mut chunked = Sponge::default();
+        chunked.absorb(b"message");
+        let mut buf = alloc::vec![0u8; 1 << 20];
+        for chunk in buf.chunks_mut(RATE * 3 + 1) {
+            chunked.squeeze(chunk);
+        }
+        assert_eq!(output, buf);
     }
 }

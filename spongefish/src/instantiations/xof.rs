@@ -124,10 +124,20 @@ where
     }
 }
 
-/// Backed by the fields' own `Drop` impls: `H` must wipe on drop, and
-/// `H::Reader` is expected to do the same (both suite readers do).
+/// Backed by the fields' own `Drop` impls, so both of them must wipe: the
+/// bound covers the reader as well as the hasher, rather than assuming it.
+///
+/// `TurboShake128` — the default `StdHash` — satisfies both bounds. `Shake128`
+/// does not carry this marker: the reader of `shake 0.1.0` wipes its state on
+/// drop but does not declare `ZeroizeOnDrop`, and this crate will not assert a
+/// guarantee the type system cannot check.
 #[cfg(feature = "zeroize")]
-impl<H> ZeroizeOnDrop for XOF<H> where H: ExtendableOutput + ZeroizeOnDrop {}
+impl<H> ZeroizeOnDrop for XOF<H>
+where
+    H: ExtendableOutput + ZeroizeOnDrop,
+    H::Reader: ZeroizeOnDrop,
+{
+}
 
 impl<H> Default for XOF<H>
 where
