@@ -13,6 +13,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::duplex_sponge::DuplexSpongeInterface;
 
+/// Zero bytes to pad an absorb up to a rate boundary.
+///
+/// 200 bytes is the Keccak-p[1600] state width, an upper bound on the rate of
+/// any XOF this module instantiates.
+const ZERO_BLOCK: [u8; 200] = [0u8; 200];
+
 /// The sponge rate, in bytes, of an XOF hasher.
 ///
 /// Required by [`XOF`]'s [`DuplexSpongeInit`][crate::duplex_sponge::DuplexSpongeInit]
@@ -91,8 +97,6 @@ where
     /// bytes to one full rate block ([`XofRate::RATE`]), so that subsequent
     /// input starts on a fresh block boundary.
     fn init(session_id: &[u8; 32]) -> Self {
-        // 200 bytes is the Keccak-p[1600] state width, an upper bound on the rate.
-        const ZERO_BLOCK: [u8; 200] = [0u8; 200];
         const { assert!(H::RATE >= 32 && H::RATE <= ZERO_BLOCK.len()) }
         let mut sponge = Self::default();
         sponge.absorb(session_id);
@@ -104,7 +108,6 @@ where
     /// block-aligned on entry, which holds when the sponge is only touched
     /// through `init` and `absorb_block`.
     fn absorb_block(&mut self, input: &[u8]) {
-        const ZERO_BLOCK: [u8; 200] = [0u8; 200];
         self.absorb(input);
         let rem = input.len() % H::RATE;
         if rem != 0 {

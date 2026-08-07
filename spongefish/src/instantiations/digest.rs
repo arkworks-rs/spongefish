@@ -9,12 +9,10 @@
 //!     ```
 //! - the implementation is for any Digest.
 
-use alloc::vec::Vec;
-
 use digest::{
     block_api::{Block, BlockSizeUser},
     typenum::Unsigned,
-    Digest, FixedOutputReset, Output, Reset,
+    Digest, FixedOutputReset, Output, OutputSizeUser, Reset,
 };
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -23,96 +21,88 @@ use crate::DuplexSpongeInterface;
 
 /// Digest bytes produced by a squeeze but not yet handed to a caller.
 ///
-/// A plain `Vec<u8>` drained from the front made a partial squeeze quadratic:
-/// every `squeeze` of `k` bytes shifted the whole remainder down. This holds a
-/// read cursor instead, so consuming is O(1).
+/// At most one digest is ever parked here: `squeeze` writes the head of each
+/// fresh digest straight into the caller's output and buffers only the tail. So
+/// this is one `Output<D>` with a read cursor — no allocation on the squeeze
+/// path, and no growth or compaction logic to get right.
 ///
 /// # Invariant
 ///
-/// `pos <= buf.len()`, and [`Leftovers::len`] means the number of *unconsumed*
-/// bytes. That second point is load-bearing: `squeeze_end` computes the
-/// transcript-affecting `byte_count = count * DIGEST_SIZE - leftovers.len()`,
-/// so `len` keeping its original meaning is what lets that arithmetic — and
-/// the output bytes — stay exactly as they were.
-#[derive(Clone, Default)]
-struct Leftovers {
-    buf: Vec<u8>,
-    /// Bytes of `buf` already handed out.
-    pos: usize,
+/// `start <= end <= DIGEST_SIZE`, and [`Leftovers::len`] means the number of
+/// *unconsumed* bytes. That second point is load-bearing: `squeeze_end`
+/// computes the transcript-affecting
+/// `byte_count = count * DIGEST_SIZE - leftovers.len()`, so `len` keeping this
+/// meaning is what holds the output bytes fixed.
+#[derive(Clone)]
+struct Leftovers<D: OutputSizeUser> {
+    buf: Output<D>,
+    /// Bytes of `buf[..end]` already handed out.
+    start: usize,
+    /// Number of digest bytes.
+    end: usize,
 }
 
-impl Leftovers {
+impl<D: OutputSizeUser> Leftovers<D> {
     /// The number of bytes not yet consumed.
     #[inline]
-    fn len(&self) -> usize {
-        debug_assert!(self.pos <= self.buf.len(), "cursor past the buffer");
-        self.buf.len() - self.pos
+    const fn len(&self) -> usize {
+        self.end - self.start
     }
 
     #[inline]
     const fn is_empty(&self) -> bool {
-        // Compared directly rather than via `len() == 0`: this runs once per
-        // digest in the squeeze loop.
-        self.pos == self.buf.len()
+        self.start == self.end
     }
 
     /// The unconsumed bytes.
     #[inline]
     fn as_slice(&self) -> &[u8] {
-        debug_assert!(self.pos <= self.buf.len(), "cursor past the buffer");
-        &self.buf[self.pos..]
+        &self.buf[self.start..self.end]
     }
 
     /// Marks the first `count` unconsumed bytes as consumed.
     #[inline]
     fn consume(&mut self, count: usize) {
         debug_assert!(count <= self.len(), "consuming more than is buffered");
-        self.pos += count;
+        self.start += count;
     }
 
-    /// Replaces the unconsumed bytes' tail with `bytes`.
-    ///
-    /// The consumed prefix is dropped here rather than on every `consume`,
-    /// which is what makes consuming O(1) while keeping the buffer bounded by
-    /// one digest.
+    /// Replaces the buffered bytes with `bytes`, the unread tail of a digest.
     #[inline]
-    fn extend_from_slice(&mut self, bytes: &[u8]) {
-        // A squeeze that consumes whole digests leaves nothing over and buffers
-        // nothing — every iteration of a contiguous multi-digest squeeze takes
-        // this path, so keep it free of any buffer traffic.
-        if bytes.is_empty() && self.buf.is_empty() {
-            // `pos <= buf.len() == 0` forces `pos == 0`, so there is nothing
-            // to reset and this path touches no memory at all.
-            debug_assert_eq!(self.pos, 0, "cursor past the buffer");
-            return;
-        }
-        if self.pos == self.buf.len() {
-            self.buf.clear();
-        } else if self.pos > 0 {
-            self.buf.drain(..self.pos);
-        }
-        self.pos = 0;
-        self.buf.extend_from_slice(bytes);
+    fn set(&mut self, bytes: &[u8]) {
+        debug_assert!(bytes.len() <= self.buf.len(), "more than one digest");
+        self.buf[..bytes.len()].copy_from_slice(bytes);
+        self.start = 0;
+        self.end = bytes.len();
     }
 
     /// Drops every buffered byte, consumed or not.
     ///
-    /// Resets the cursor as well as the buffer: a `pos` surviving a `clear`
-    /// would make `len` — and therefore `squeeze_end`'s byte count — wrong.
+    /// The bytes stay in `buf` until overwritten; only [`Zeroize`] wipes them.
     #[inline]
-    fn clear(&mut self) {
-        self.buf.clear();
-        self.pos = 0;
+    const fn clear(&mut self) {
+        self.start = 0;
+        self.end = 0;
+    }
+}
+
+impl<D: OutputSizeUser> Default for Leftovers<D> {
+    fn default() -> Self {
+        Self {
+            buf: Output::<D>::default(),
+            start: 0,
+            end: 0,
+        }
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl Zeroize for Leftovers {
+impl<D: OutputSizeUser> Zeroize for Leftovers<D> {
     fn zeroize(&mut self) {
-        // Wipes the consumed prefix too: those bytes were squeezed output and
-        // are exactly as sensitive as the unconsumed ones.
+        // Wipes the whole buffer, not just the unconsumed range: bytes already
+        // handed out were squeezed output and are exactly as sensitive.
         self.buf.zeroize();
-        self.pos = 0;
+        self.clear();
     }
 }
 
@@ -127,7 +117,7 @@ pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     /// across multiple calls when streaming.
     mode: Mode,
     /// Digest bytes left over from a previous squeeze.
-    leftovers: Leftovers,
+    leftovers: Leftovers<D>,
 }
 
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface for Hash<D> {
@@ -187,7 +177,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
             // Copy the digest into the output, and store the rest for later
             let chunk_len = usize::min(output.len(), Self::DIGEST_SIZE);
             output[..chunk_len].copy_from_slice(&digest[..chunk_len]);
-            self.leftovers.extend_from_slice(&digest[chunk_len..]);
+            self.leftovers.set(&digest[chunk_len..]);
             // Update the state
             self.mode = Mode::Squeeze(i + 1);
             output = &mut output[chunk_len..];
