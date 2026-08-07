@@ -92,15 +92,12 @@ mod ascon {
 
 #[cfg(feature = "keccak")]
 mod keccak {
-    use core::fmt::Debug;
-
-    use ::keccak::{Keccak, State1600};
+    use ::keccak::{Keccak, State1600, PLEN};
 
     use crate::duplex_sponge::Permutation;
 
-    const STATE_BYTES: usize = 200;
     const WORD_BYTES: usize = 8;
-    const _: () = assert!(STATE_BYTES == ::keccak::PLEN * WORD_BYTES);
+    const STATE_BYTES: usize = PLEN * WORD_BYTES;
 
     /// Keccak permutation internal state: 25 64-bit words,
     /// or equivalently 200 bytes in little-endian order.
@@ -111,34 +108,20 @@ mod keccak {
         type U = u8;
 
         fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
-            let mut new_state = *state;
-            self.permute_mut(&mut new_state);
-            new_state
+            let mut permuted = *state;
+            self.permute_mut(&mut permuted);
+            permuted
         }
 
         fn permute_mut(&self, state: &mut [u8; STATE_BYTES]) {
-            let mut words = bytes_to_words(state);
-            f1600(&mut words);
-            words_to_bytes(&words, state);
-        }
-    }
+            let (chunks, _) = state.as_chunks::<WORD_BYTES>();
+            let mut words: State1600 = core::array::from_fn(|i| u64::from_le_bytes(chunks[i]));
 
-    fn f1600(state: &mut State1600) {
-        Keccak::new().with_f1600(|f1600| f1600(state));
-    }
+            Keccak::new().with_f1600(|f1600| f1600(&mut words));
 
-    fn bytes_to_words(state: &[u8; STATE_BYTES]) -> State1600 {
-        core::array::from_fn(|i| {
-            let start = i * WORD_BYTES;
-            let mut word = [0; WORD_BYTES];
-            word.copy_from_slice(&state[start..start + WORD_BYTES]);
-            u64::from_le_bytes(word)
-        })
-    }
-
-    fn words_to_bytes(words: &State1600, state: &mut [u8; STATE_BYTES]) {
-        for (chunk, word) in state.as_chunks_mut::<WORD_BYTES>().0.iter_mut().zip(words) {
-            chunk.copy_from_slice(&word.to_le_bytes());
+            for (chunk, word) in state.as_chunks_mut::<WORD_BYTES>().0.iter_mut().zip(words) {
+                *chunk = word.to_le_bytes();
+            }
         }
     }
 }

@@ -42,44 +42,17 @@ pub struct XOF<H: ExtendableOutput> {
     hasher: H,
     /// XOF reader for squeeze operations (None = absorbing, Some = squeezing)
     xof_reader: Option<H::Reader>,
-    /// Number of bytes already squeezed from the current reader.
-    ///
-    /// This is needed to preserve `Clone` semantics for XOFs whose reader type
-    /// cannot itself be cloned.
-    squeezed: usize,
-}
-
-impl<H> XOF<H>
-where
-    H: ExtendableOutput + Clone,
-{
-    /// Rebuild the reader at its current offset from the cloneable hasher state.
-    fn rebuild_reader(&self) -> H::Reader {
-        let mut reader = ExtendableOutput::finalize_xof(self.hasher.clone());
-        let mut skipped = self.squeezed;
-        let mut scratch = [0u8; 256];
-
-        while skipped != 0 {
-            let chunk_len = usize::min(skipped, scratch.len());
-            XofReader::read(&mut reader, &mut scratch[..chunk_len]);
-            skipped -= chunk_len;
-        }
-
-        reader
-    }
 }
 
 impl<H> Clone for XOF<H>
 where
     H: ExtendableOutput + Clone,
+    H::Reader: Clone,
 {
     fn clone(&self) -> Self {
-        let xof_reader = self.xof_reader.as_ref().map(|_| self.rebuild_reader());
-
         Self {
             hasher: self.hasher.clone(),
-            xof_reader,
-            squeezed: self.squeezed,
+            xof_reader: self.xof_reader.clone(),
         }
     }
 }
@@ -104,7 +77,6 @@ where
             .xof_reader
             .get_or_insert_with(|| ExtendableOutput::finalize_xof(self.hasher.clone()));
         XofReader::read(reader, output);
-        self.squeezed += output.len();
 
         self
     }
@@ -149,7 +121,6 @@ where
     fn zeroize(&mut self) {
         self.hasher.zeroize();
         self.xof_reader = None;
-        self.squeezed = 0;
     }
 }
 
@@ -166,7 +137,6 @@ where
         Self {
             hasher: H::default(),
             xof_reader: None,
-            squeezed: 0,
         }
     }
 }
@@ -252,6 +222,7 @@ mod tests {
     fn assert_clone_preserves_squeeze_position<H>()
     where
         H: digest::ExtendableOutput + Clone + Default,
+        H::Reader: Clone,
     {
         let mut sponge = XOF::<H>::default();
         sponge.absorb(b"spongefish clone test");
