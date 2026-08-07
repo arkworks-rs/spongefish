@@ -1,5 +1,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(target_endian = "big")]
+compile_error!(
+    r#"
+This crate doesn't support big-endian targets.
+"#
+);
+
 #[cfg(feature = "blake3")]
 pub mod blake3;
 #[cfg(feature = "keccak")]

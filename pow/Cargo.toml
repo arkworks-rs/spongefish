@@ -20,14 +20,13 @@ all-features = true
 default = ["parallel", "blake3", "keccak"]
 parallel = ["dep:rayon"]
 blake3 = ["dep:blake3"]
-keccak = ["dep:keccak", "dep:bytemuck", "spongefish/keccak"]
+keccak = ["dep:keccak", "dep:bytemuck"]
 
 [dependencies]
 blake3 = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-spongefish = { workspace = true }
 
 [lints]
 workspace = true

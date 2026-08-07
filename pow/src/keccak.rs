@@ -11,8 +11,22 @@ pub struct KeccakPoW {
 }
 
 impl PowStrategy for KeccakPoW {
+    /// Create a new `KeccakPoW` instance with a given challenge and difficulty.
+    ///
+    /// # Panics
+    /// - If `bits` is not in the range `[0.0, 60.0)`.
     #[allow(clippy::cast_sign_loss)]
     fn new(challenge: [u8; 32], bits: f64) -> Self {
+        // The difficulty must stay in a range where `2^(64 - bits)` is a meaningful
+        // `u64` threshold. With negative `bits` the threshold exceeds `2^64` and
+        // saturates to `u64::MAX` on the cast below, so *every* nonce verifies: a
+        // silent no-op proof of work. `bits == 0.0` is the explicit "no grinding"
+        // setting and stays allowed. The upper bound mirrors `Blake3PoW`: both
+        // engines compare a single little-endian 64-bit word against the threshold,
+        // so the representable range is identical, and past ~60 bits the expected
+        // grinding cost is already out of reach anyway.
+        assert!((0.0..60.0).contains(&bits), "bits must be smaller than 60");
+
         let threshold = (64.0 - bits).exp2().ceil() as u64;
         Self {
             challenge: bytemuck::cast(challenge),
@@ -63,4 +77,33 @@ fn test_pow_keccak() {
 
     // And the nonce must verify against the original challenge.
     assert!(verify_pow::<KeccakPoW>(challenge, BITS, solution.nonce));
+}
+
+/// A negative difficulty would saturate the threshold to `u64::MAX` and make every
+/// nonce verify, so it must be rejected loudly instead.
+#[test]
+#[should_panic(expected = "bits must be smaller than 60")]
+fn test_keccak_rejects_negative_bits() {
+    let _ = <KeccakPoW as PowStrategy>::new([0u8; 32], -1.0);
+}
+
+/// Difficulties at or above 60 bits are out of the supported range.
+#[test]
+#[should_panic(expected = "bits must be smaller than 60")]
+fn test_keccak_rejects_excessive_bits() {
+    let _ = <KeccakPoW as PowStrategy>::new([0u8; 32], 60.0);
+}
+
+/// A difficulty inside the supported range still grinds and verifies.
+#[test]
+fn test_keccak_valid_difficulty_round_trip() {
+    use crate::convenience::*;
+
+    let challenge = [7u8; 32];
+    for bits in [0.0, 1.0, 8.0, 12.0] {
+        let solution =
+            grind_pow::<KeccakPoW>(challenge, bits).expect("Should find a valid solution");
+        assert!(verify_pow::<KeccakPoW>(challenge, bits, solution.nonce));
+        assert_eq!(solution.challenge, challenge);
+    }
 }
