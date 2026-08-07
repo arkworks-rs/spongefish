@@ -42,6 +42,9 @@ doc_lazy_continuation = "allow"
 tuple_array_conversions = "allow"
 naive_bytecount = "allow"
 
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
 [workspace.dependencies]
 blake3 = { version = "^1.8.4", features = ["traits-preview", "zeroize"] }
 bytemuck = "^1.22"
@@ -66,7 +69,7 @@ sha2 = "0.11.0"
 shake = "0.1.0"
 spin = { version = "0.12", default-features = false, features = ["rwlock"] }
 # Intra-workspace dependencies
-spongefish = { version = "0.7.4", path = "spongefish" }
+spongefish = { version = "0.7.4", path = "spongefish", default-features = false }
 spongefish-circuit = { version = "0.7.4", path = "circuit" }
 spongefish-derive = { version = "0.7.4", path = "derive" }
 turboshake = "0.7.1"

@@ -1,6 +1,6 @@
 [package]
 name = "spongefish-circuit"
-description = "Circuits for proving relations over spongefish transcripts"
+description = "Circuits for proving relations over spongefish."
 documentation = "https://docs.rs/spongefish-circuit"
 edition.workspace = true
 readme.workspace = true
@@ -11,7 +11,7 @@ repository.workspace = true
 # `p3-baby-bear` feature need a newer compiler (`p3-util` uses the unstable
 # `maybe_uninit_slice` before 1.93). This crate's own code builds on 1.88.
 rust-version = "1.93"
-version = "0.7.4"
+version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
@@ -21,14 +21,13 @@ default = ["p3-baby-bear"]
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 
 [dependencies]
-
 hashbrown = { workspace = true }
 itertools = { workspace = true }
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
 spin = { workspace = true }
-spongefish = { workspace = true, features = ["derive"] }
+spongefish = { workspace = true, default-features = true, features = ["derive"] }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }

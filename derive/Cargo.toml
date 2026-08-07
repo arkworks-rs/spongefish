@@ -23,3 +23,6 @@ syn = { version = "2.0", features = ["derive"] }
 
 [dev-dependencies]
 spongefish = { workspace = true, default-features = false }
+
+[lints]
+workspace = true
