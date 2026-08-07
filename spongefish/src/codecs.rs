@@ -266,10 +266,12 @@ where
 /// The count prefix makes the encoding prefix-free even when the sequence
 /// length is not fixed by the protocol, but the length still becomes part of
 /// the transcript: prover and verifier absorb whatever count is sent.
-/// Deserialization treats the count as untrusted and rejects any prefix
-/// exceeding the remaining NARG bytes; this guard assumes every element
-/// serializes to at least one byte, which injectivity guarantees for any
-/// element type with more than one value.
+/// Deserialization treats the count as untrusted: a prefix exceeding the
+/// remaining NARG bytes is rejected up front, and the parse loop additionally
+/// rejects any element that consumes zero bytes. Together these bound the work
+/// by the number of remaining bytes for *every* element type, including
+/// zero-width ones (a zero-width element makes the encoding non-injective, so
+/// rejecting it is correct rather than merely defensive).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LengthPrefixed<T>(pub T);
 
@@ -309,15 +311,23 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
     fn deserialize_from_narg(buf: &mut &[u8]) -> crate::VerificationResult<Self> {
         let mut rest = *buf;
         let len = u32::deserialize_from_narg(&mut rest)? as usize;
-        // Untrusted length: each element consumes at least one byte, so a
-        // count exceeding the remaining bytes cannot parse — reject it before
-        // looping.
+        // Untrusted length: any element that parses consumes at least one byte
+        // (enforced below), so a count exceeding the remaining bytes cannot
+        // parse — reject it before looping.
         if len > rest.len() {
             return Err(crate::VerificationError);
         }
-        let elements = (0..len)
-            .map(|_| T::deserialize_from_narg(&mut rest))
-            .collect::<Result<alloc::vec::Vec<T>, _>>()?;
+        let mut elements = alloc::vec::Vec::new();
+        for _ in 0..len {
+            let remaining = rest.len();
+            let element = T::deserialize_from_narg(&mut rest)?;
+            // A zero-width element would make the encoding non-injective and
+            // would let a huge count spin without consuming input; reject it.
+            if rest.len() == remaining {
+                return Err(crate::VerificationError);
+            }
+            elements.push(element);
+        }
         *buf = rest;
         Ok(Self(elements))
     }
@@ -409,5 +419,51 @@ mod tests {
             LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut cursor).is_err()
         );
         assert_eq!(cursor, &bogus[..]);
+    }
+
+    /// An element type whose deserializer consumes no input at all — the
+    /// shape a derived unit struct takes.
+    #[derive(Debug)]
+    struct ZeroWidth;
+
+    impl NargDeserialize for ZeroWidth {
+        fn deserialize_from_narg(_buf: &mut &[u8]) -> crate::VerificationResult<Self> {
+            Ok(Self)
+        }
+    }
+
+    /// A zero-width element type must not let an attacker-chosen count spin the
+    /// parse loop: the first element that consumes nothing is rejected, so the
+    /// work stays bounded by the remaining bytes.
+    #[test]
+    fn length_prefixed_rejects_zero_width_elements() {
+        // Count larger than the remaining bytes: caught by the cheap guard.
+        let mut bytes = alloc::vec![0xFF, 0xFF, 0xFF, 0xFF];
+        let mut cursor = &bytes[..];
+        assert!(
+            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut cursor)
+                .is_err()
+        );
+        assert_eq!(cursor, &bytes[..]);
+
+        // Count within the remaining bytes, so the loop is entered: the
+        // zero-width element is rejected on the first iteration.
+        bytes = alloc::vec![8, 0, 0, 0];
+        bytes.extend_from_slice(&[0u8; 8]);
+        let mut cursor = &bytes[..];
+        assert!(
+            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut cursor)
+                .is_err()
+        );
+        assert_eq!(cursor, &bytes[..]);
+
+        // An empty sequence still parses: no element is ever read.
+        let empty = [0u8, 0, 0, 0];
+        let mut cursor = &empty[..];
+        let LengthPrefixed(elements) =
+            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut cursor)
+                .unwrap();
+        assert!(elements.is_empty());
+        assert!(cursor.is_empty());
     }
 }
