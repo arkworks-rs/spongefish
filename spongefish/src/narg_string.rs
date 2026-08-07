@@ -148,6 +148,43 @@ pub trait NargDeserialize: Sized {
     /// Implementations read through [`NargReader`].
     /// A failed parse leaves the reader wherever it stopped.
     fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self>;
+
+    /// Reads `N` consecutive values: the body of `[Self; N]`'s implementation.
+    ///
+    /// The batch deserialization method, so that a whole array of prover message can be read at once.
+    ///
+    /// # Safety
+    ///
+    /// An override **MUST** accept exactly the inputs that `N` calls to
+    /// [`NargDeserialize::deserialize_from_narg`] accept. It **MUST** consume
+    /// exactly the same bytes they consume.
+    fn deserialize_array_from_narg<const N: usize>(
+        reader: &mut NargReader<'_>,
+    ) -> VerificationResult<[Self; N]> {
+        let mut failed = false;
+
+        // Parsed in place rather than through a `Vec<T>` + `try_into`: the
+        // vector cost one heap allocation per array on the verifier's hot
+        // path, and `[T; N]` needs no allocation at all. The intermediate is
+        // `[VerificationResult<T>; N]` because `array::from_fn` must yield a
+        // value for every slot and there is nothing to yield once parsing has
+        // failed; `try_from_fn` would say this directly but is unstable.
+        let parsed: [VerificationResult<Self>; N] = core::array::from_fn(|_| {
+            if failed {
+                // Short-circuit, matching the `collect::<Result<_, _>>()` this
+                // replaces: no element is parsed after the first failure.
+                return Err(VerificationError);
+            }
+            let element = Self::deserialize_from_narg(reader);
+            failed = element.is_err();
+            element
+        });
+
+        if failed {
+            return Err(VerificationError);
+        }
+        Ok(parsed.map(|element| element.unwrap_or_else(|_| unreachable!("checked above"))))
+    }
 }
 
 impl<T: Encoding<[u8]>> NargSerialize for T {
@@ -159,29 +196,7 @@ impl<T: Encoding<[u8]>> NargSerialize for T {
 
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
     fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
-        let mut failed = false;
-
-        // Parsed in place rather than through a `Vec<T>` + `try_into`: the
-        // vector cost one heap allocation per array on the verifier's hot
-        // path, and `[T; N]` needs no allocation at all. The intermediate is
-        // `[VerificationResult<T>; N]` because `array::from_fn` must yield a
-        // value for every slot and there is nothing to yield once parsing has
-        // failed; `try_from_fn` would say this directly but is unstable.
-        let parsed: [VerificationResult<T>; N] = core::array::from_fn(|_| {
-            if failed {
-                // Short-circuit, matching the `collect::<Result<_, _>>()` this
-                // replaces: no element is parsed after the first failure.
-                return Err(VerificationError);
-            }
-            let element = T::deserialize_from_narg(reader);
-            failed = element.is_err();
-            element
-        });
-
-        if failed {
-            return Err(VerificationError);
-        }
-        Ok(parsed.map(|element| element.unwrap_or_else(|_| unreachable!("checked above"))))
+        T::deserialize_array_from_narg::<N>(reader)
     }
 }
 
@@ -197,4 +212,20 @@ macro_rules! impl_int_deserialize {
     )*};
 }
 
-impl_int_deserialize!(u8, u16, u32, u64, u128);
+impl_int_deserialize!(u16, u32, u64, u128);
+
+/// A byte deserializes to itself, so `[u8; N]` is one fixed-size read rather
+/// than `N` single-byte parses.
+impl NargDeserialize for u8 {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+        Ok(reader.take_array::<1>()?[0])
+    }
+
+    /// Exactly the `N` single-byte reads it replaces: the same bytes consumed,
+    /// the same rejection of a short NARG string, one bounds check.
+    fn deserialize_array_from_narg<const N: usize>(
+        reader: &mut NargReader<'_>,
+    ) -> VerificationResult<[Self; N]> {
+        reader.take_array::<N>()
+    }
+}
