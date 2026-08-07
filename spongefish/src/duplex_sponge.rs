@@ -32,6 +32,33 @@ pub trait Unit: Clone + Sized {
     const ZERO: Self;
 }
 
+/// The embedding of byte strings into a sponge alphabet.
+///
+/// Some inputs are byte strings whatever the sponge's alphabet is,  above all the
+/// 32-byte session identifier, which [draft-irtf-cfrg-fiat-shamir][FS] derives
+/// with a byte-oriented hash and hands to `Init`.
+///
+/// # Safety
+///
+/// The map **MUST** be injective on the byte lengths it is used at. It need
+/// not be prefix-free. The session identifier is always exactly 32 bytes,
+/// but a caller absorbing variable-length byte strings through it must length-
+/// prefix them itself.
+///
+/// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+pub trait UnitFromBytes: Unit {
+    /// Reads `bytes` as a string of units.
+    fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]>;
+}
+
+/// Over bytes the embedding is the identity, and borrows rather than
+/// allocating: a byte sponge pays nothing for this indirection.
+impl UnitFromBytes for u8 {
+    fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]> {
+        bytes
+    }
+}
+
 macro_rules! impl_integer_unit {
     ($t:ty) => {
         impl Unit for $t {
@@ -273,7 +300,16 @@ where
 /// draft's `Init(session_id)`: the identifier is absorbed padded with zeros to
 /// fill exactly one rate block. Other instantiations absorb the identifier
 /// under their own conventions and are **not** draft-compliant.
-pub trait DuplexSpongeInit: DuplexSpongeInterface<U = u8> {
+///
+/// # Alphabets
+///
+/// A session identifier is a byte string, whatever the sponge's alphabet: the
+/// draft derives it from an application tag with a byte-oriented hash, and it
+/// is the caller who supplies it. A sponge over a non-byte alphabet therefore
+/// needs one more thing — a way to read those 32 bytes as units — which is
+/// [`UnitFromBytes`]. See the blanket implementation on [`DuplexSponge`]
+/// below.
+pub trait DuplexSpongeInit: DuplexSpongeInterface {
     /// Create a new duplex sponge state, seeded by the 32-byte `session_id`.
     fn init(session_id: &[u8; 32]) -> Self;
 
@@ -282,20 +318,29 @@ pub trait DuplexSpongeInit: DuplexSpongeInterface<U = u8> {
     /// Constructions with a block structure (the XOF suites) zero-pad the
     /// input to the next rate boundary so it is permuted before any further
     /// operation.
-    fn absorb_block(&mut self, input: &[u8]) {
+    fn absorb_block(&mut self, input: &[Self::U]) {
         self.absorb(input);
     }
 }
 
+/// The overwrite-mode duplex sponge is seeded over **any** alphabet that a
+/// byte string embeds into: the session identifier is absorbed as ordinary
+/// input, through [`UnitFromBytes`].
+///
+/// Over bytes that embedding is the identity and borrows rather than
+/// allocating, so this is the plain `absorb(session_id)` it replaces — same
+/// transcript, same cost. Over a field alphabet, the crate defining the
+/// [`Unit`] defines the embedding too (see `spongefish-circuit` for BabyBear).
 impl<P, const WIDTH: usize, const RATE: usize> DuplexSpongeInit for DuplexSponge<P, WIDTH, RATE>
 where
-    P: Permutation<WIDTH, U = u8> + Default,
+    P: Permutation<WIDTH> + Default,
+    P::U: UnitFromBytes,
 {
     /// Absorbs the session identifier as ordinary input (overwrite-mode
     /// convention; not the draft's `Init`).
     fn init(session_id: &[u8; 32]) -> Self {
         let mut sponge = Self::with_permutation(P::default());
-        sponge.absorb(session_id);
+        sponge.absorb(P::U::encode_bytes(session_id).as_ref());
         sponge
     }
 }

@@ -167,7 +167,9 @@ pub(crate) mod error;
 #[doc(hidden)]
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
-pub use duplex_sponge::{DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit};
+pub use duplex_sponge::{
+    DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit, UnitFromBytes,
+};
 pub use error::{VerificationError, VerificationResult};
 #[cfg(feature = "turboshake128")]
 pub use narg_prover::ProverState;
@@ -198,7 +200,7 @@ pub type StdHash = instantiations::TurboShake128;
 /// # }
 /// ```
 #[must_use]
-pub fn derive_session_id<H: DuplexSpongeInit>(tag: &[u8]) -> [u8; 32] {
+pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> [u8; 32] {
     let mut sponge = H::init(b"irtf-cfrg-fiat-shamir/session-id");
     sponge.absorb(tag);
     let mut out = [0u8; 32];

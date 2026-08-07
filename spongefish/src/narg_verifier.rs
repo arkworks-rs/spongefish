@@ -304,7 +304,7 @@ where
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[must_use]
-    pub fn new<T: Encoding<[u8]> + ?Sized>(
+    pub fn new<T: Encoding<[H::U]> + ?Sized>(
         session_id: &[u8; 32],
         instance: &T,
         narg_string: &'a [u8],
@@ -322,16 +322,41 @@ where
         }
     }
 
+    /// The non-interactive verifier for `(tag, instance, narg_string)`,
+    /// deriving the 32-byte session identifier from the application tag with
+    /// the byte sponge `D` (the draft's `DeriveSessionID`), then calling
+    /// [`VerifierState::new`].
+    ///
+    /// The dual of
+    /// [`ProverState::from_tag_with`][crate::ProverState::from_tag_with]: `D`
+    /// must be the very sponge the prover derived with.
+    #[must_use]
+    pub fn from_tag_with<D, T>(tag: &[u8], instance: &T, narg_string: &'a [u8]) -> Self
+    where
+        D: crate::duplex_sponge::DuplexSpongeInit<U = u8>,
+        T: Encoding<[H::U]> + ?Sized,
+    {
+        Self::new(&crate::derive_session_id::<D>(tag), instance, narg_string)
+    }
+}
+
+impl<'a, H> VerifierState<'a, H>
+where
+    H: crate::duplex_sponge::DuplexSpongeInit<U = u8>,
+{
     /// The non-interactive verifier for `(tag, instance, narg_string)`: derives
     /// the 32-byte session identifier from the application tag (the draft's
     /// `DeriveSessionID`) and calls [`VerifierState::new`].
+    ///
+    /// A byte sponge derives its own session identifier, so this is
+    /// [`VerifierState::from_tag_with`] with `D = H`.
     #[must_use]
     pub fn from_tag<T: Encoding<[u8]> + ?Sized>(
         tag: &[u8],
         instance: &T,
         narg_string: &'a [u8],
     ) -> Self {
-        Self::new(&crate::derive_session_id::<H>(tag), instance, narg_string)
+        Self::from_tag_with::<H, T>(tag, instance, narg_string)
     }
 }
 

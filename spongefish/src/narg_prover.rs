@@ -86,17 +86,33 @@ where
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[cfg(feature = "getrandom")]
     #[must_use]
-    pub fn new<T: Encoding<[u8]> + ?Sized>(session_id: &[u8; 32], instance: &T) -> Self {
+    pub fn new<T: Encoding<[H::U]> + ?Sized>(session_id: &[u8; 32], instance: &T) -> Self {
         Self::from_parts(session_id, instance, PrivateRng::from_os_entropy())
     }
 
-    /// The non-interactive prover for `(tag, instance)`: derives the 32-byte
-    /// session identifier from the application tag (the draft's
-    /// `DeriveSessionID`) and calls [`ProverState::new`].
+    /// The non-interactive prover for `(tag, instance)`, deriving the 32-byte
+    /// session identifier from the application tag with the byte sponge `D`
+    /// (the draft's `DeriveSessionID`), then calling [`ProverState::new`].
+    ///
+    /// A session identifier is a byte string and `DeriveSessionID` squeezes
+    /// bytes, so the derivation always runs over a byte-oriented sponge — for
+    /// a sponge over a field alphabet there is no self-evident choice, and `D`
+    /// names it:
+    ///
+    /// ```ignore
+    /// ProverState::<PoseidonSponge>::from_tag_with::<StdHash, _>(TAG, &instance)
+    /// ```
+    ///
+    /// Byte sponges derive with themselves and should call
+    /// [`ProverState::from_tag`], which is this method with `D = H`.
     #[cfg(feature = "getrandom")]
     #[must_use]
-    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(tag: &[u8], instance: &T) -> Self {
-        Self::new(&crate::derive_session_id::<H>(tag), instance)
+    pub fn from_tag_with<D, T>(tag: &[u8], instance: &T) -> Self
+    where
+        D: crate::DuplexSpongeInit<U = u8>,
+        T: Encoding<[H::U]> + ?Sized,
+    {
+        Self::new(&crate::derive_session_id::<D>(tag), instance)
     }
 
     /// The non-interactive prover with a **deterministic** private RNG.
@@ -105,7 +121,7 @@ where
     ///
     /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
     #[must_use]
-    pub fn new_with_seed<T: Encoding<[u8]> + ?Sized>(
+    pub fn new_with_seed<T: Encoding<[H::U]> + ?Sized>(
         session_id: &[u8; 32],
         instance: &T,
         seed: [u8; crate::private_rng::SEED_LEN],
@@ -119,7 +135,7 @@ where
     ///
     /// Panics if the encoded instance is empty (forbidden by the draft).
     #[must_use]
-    pub fn from_parts<T: Encoding<[u8]> + ?Sized>(
+    pub fn from_parts<T: Encoding<[H::U]> + ?Sized>(
         session_id: &[u8; 32],
         instance: &T,
         private_rng: PrivateRng,
@@ -136,6 +152,23 @@ where
             duplex_sponge_state,
             narg_string: Vec::new(),
         }
+    }
+}
+
+impl<H> ProverState<H>
+where
+    H: DuplexSpongeInit<U = u8>,
+{
+    /// The non-interactive prover for `(tag, instance)`: derives the 32-byte
+    /// session identifier from the application tag (the draft's
+    /// `DeriveSessionID`) and calls [`ProverState::new`].
+    ///
+    /// A byte sponge derives its own session identifier, so this is
+    /// [`ProverState::from_tag_with`] with `D = H`.
+    #[cfg(feature = "getrandom")]
+    #[must_use]
+    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(tag: &[u8], instance: &T) -> Self {
+        Self::from_tag_with::<H, T>(tag, instance)
     }
 }
 

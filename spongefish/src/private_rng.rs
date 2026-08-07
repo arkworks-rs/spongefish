@@ -16,8 +16,11 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// The prover's private randomness: a byte-oriented duplex sponge seeded from
 /// the operating system's entropy source (or an explicit seed).
 ///
-/// Generic over the sponge: the default is [`StdHash`], and any
-/// [`DuplexSpongeInit`] works. The output stream is exactly
+/// Generic over the sponge: the default is [`StdHash`], and any byte-oriented
+/// [`DuplexSpongeInit`] works — the RNG's whole interface is bytes, so unlike
+/// the public coins it does not follow the protocol's alphabet. An algebraic
+/// prover keeps a byte RNG and maps its output into the field itself. The
+/// output stream is exactly
 /// `H::init(seed)` followed by squeezes, so a seeded
 /// `PrivateRng<H>` reproduces the deterministic byte stream of the
 /// corresponding suite (e.g. the test-vector DRNGs of
@@ -39,11 +42,11 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// `TryCryptoRng` marker, hence also the blanket `Rng` / `CryptoRng`), so it
 /// can be passed to ecosystem samplers (`ff::Field::random`, arkworks'
 /// `UniformRand`, ...).
-pub struct PrivateRng<H: DuplexSpongeInit = StdHash> {
+pub struct PrivateRng<H: DuplexSpongeInit<U = u8> = StdHash> {
     sponge: H,
 }
 
-impl<H: DuplexSpongeInit> PrivateRng<H> {
+impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     /// The byte length of the RNG seed.
     pub const SEED_LEN: usize = SEED_LEN;
 
@@ -101,14 +104,14 @@ impl<H: DuplexSpongeInit> PrivateRng<H> {
     }
 }
 
-impl<H: DuplexSpongeInit> fmt::Debug for PrivateRng<H> {
+impl<H: DuplexSpongeInit<U = u8>> fmt::Debug for PrivateRng<H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("PrivateRng")
     }
 }
 
 #[cfg(feature = "rand")]
-impl<H: DuplexSpongeInit> rand_core::TryRng for PrivateRng<H> {
+impl<H: DuplexSpongeInit<U = u8>> rand_core::TryRng for PrivateRng<H> {
     type Error = core::convert::Infallible;
 
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
@@ -130,4 +133,4 @@ impl<H: DuplexSpongeInit> rand_core::TryRng for PrivateRng<H> {
 }
 
 #[cfg(feature = "rand")]
-impl<H: DuplexSpongeInit> rand_core::TryCryptoRng for PrivateRng<H> {}
+impl<H: DuplexSpongeInit<U = u8>> rand_core::TryCryptoRng for PrivateRng<H> {}

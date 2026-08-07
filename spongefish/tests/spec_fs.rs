@@ -57,7 +57,7 @@ fn unhex(s: &str) -> Vec<u8> {
     hex::decode(s).expect("valid hex in vector file")
 }
 
-fn run_vectors<S: DuplexSpongeInit>(json: &str) {
+fn run_vectors<S: DuplexSpongeInit<U = u8>>(json: &str) {
     let vectors: Vec<Vector> = serde_json::from_str(json).expect("valid vector JSON");
     assert_eq!(vectors.len(), TOTAL_RECORDS, "unexpected vector count");
     let mut executed = 0;
