@@ -13,7 +13,7 @@ use spongefish::{
     derive_session_id,
     instantiations::{Hash, Keccak, KeccakF1600, Shake128, TurboShake128},
     Codec, DuplexSpongeInit, DuplexSpongeInterface, Encoding, LengthPrefixed, NargDeserialize,
-    NargSerialize, Permutation, ProverState, StdHash, VerifierState,
+    NargReader, NargSerialize, Permutation, ProverState, StdHash, VerifierState,
 };
 
 /// A round message of the shape a real prover sends: a couple of group-element
@@ -106,22 +106,22 @@ fn codec_benches() {
     let mut buf = Vec::new();
     round.serialize_into_narg(&mut buf);
     bench("deserialize/derive(68 B struct)", || {
-        let mut cursor = &buf[..];
-        sink(RoundMessage::deserialize_from_narg(&mut cursor));
+        let mut reader = NargReader::new(&buf);
+        sink(RoundMessage::deserialize_from_narg(&mut reader));
     });
 
     let mut bytes_buf = Vec::new();
     bytes32.serialize_into_narg(&mut bytes_buf);
     bench("deserialize/[u8; 32]", || {
-        let mut cursor = &bytes_buf[..];
-        sink(<[u8; 32]>::deserialize_from_narg(&mut cursor));
+        let mut reader = NargReader::new(&bytes_buf);
+        sink(<[u8; 32]>::deserialize_from_narg(&mut reader));
     });
 
     let mut array_buf = Vec::new();
     array.serialize_into_narg(&mut array_buf);
     bench("deserialize/[u32; 8]", || {
-        let mut cursor = &array_buf[..];
-        sink(<[u32; 8]>::deserialize_from_narg(&mut cursor));
+        let mut reader = NargReader::new(&array_buf);
+        sink(<[u32; 8]>::deserialize_from_narg(&mut reader));
     });
 }
 

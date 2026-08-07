@@ -149,7 +149,7 @@ fn initialization_matches_manual_shake128() {
 }
 
 #[test]
-fn closure_codecs_round_trip() {
+fn closure_codecs_correctness() {
     struct Foreign(u64);
 
     let instance = [9u32];
@@ -163,14 +163,7 @@ fn closure_codecs_round_trip() {
 
     let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
     let read = verifier
-        .prover_message_as(|buf| {
-            if buf.len() < 8 {
-                return Err(VerificationError);
-            }
-            let value = u64::from_le_bytes(buf[..8].try_into().unwrap());
-            *buf = &buf[8..];
-            Ok(Foreign(value))
-        })
+        .prover_message_as(|reader| Ok(Foreign(u64::from_le_bytes(reader.take_array()?))))
         .unwrap();
     assert_eq!(read.0, value.0);
     let verifier_challenge: [u8; 16] = verifier.verifier_message();
@@ -183,8 +176,12 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
     struct BadMessage;
 
     impl NargDeserialize for BadMessage {
-        fn deserialize_from_narg(buf: &mut &[u8]) -> crate::VerificationResult<Self> {
-            *buf = &buf[1..];
+        fn deserialize_from_narg(
+            reader: &mut crate::NargReader<'_>,
+        ) -> crate::VerificationResult<Self> {
+            // Consumes input and *then* fails: the reader is left advanced,
+            // and the verifier must still not move.
+            reader.take(1)?;
             Err(VerificationError)
         }
     }
@@ -293,16 +290,15 @@ fn prover_message_with_matches_trait_path() {
 
 #[test]
 fn verifier_prover_message_with_rolls_back_on_error() {
-    static ELSEWHERE: [u8; 2] = [1, 2];
-
     let proof = [7u8, 8, 9];
     let session_id = test_session_id(b"with rollback");
     let mut verifier = VerifierState::<StdHash>::new(&session_id, b"instance", &proof);
 
-    // A failing deserializer leaves the cursor unchanged and absorbs nothing.
+    // A deserializer that consumes input and *then* fails leaves the cursor
+    // unchanged and absorbs nothing: the reader it advanced is discarded.
     let result: VerificationResult<u64> = verifier.prover_message_with(
-        |buf| {
-            *buf = &buf[1..];
+        |reader| {
+            reader.take(1)?;
             Err(VerificationError)
         },
         |v: &u64| v.to_le_bytes(),
@@ -310,19 +306,26 @@ fn verifier_prover_message_with_rolls_back_on_error() {
     assert!(result.is_err());
     assert_eq!(verifier.narg_string, &proof);
 
-    // A deserializer that repoints its cursor off the NARG string is rejected.
+    // A deserializer that consumes the whole NARG string is accepted. The
+    // `&mut &[u8]` cursor this replaced could not express it: a closure
+    // signalling "all consumed" with an empty slice failed the pointer-identity
+    // check and had its proof rejected.
     let result: VerificationResult<u64> = verifier.prover_message_with(
-        |buf| {
-            *buf = &ELSEWHERE;
+        |reader| {
+            reader.take(reader.remaining_len())?;
             Ok(3)
         },
         |v: &u64| v.to_le_bytes(),
     );
-    assert!(result.is_err());
-    assert_eq!(verifier.narg_string, &proof);
+    assert_eq!(result.unwrap(), 3);
+    assert!(verifier.narg_string.is_empty());
 }
 
 #[test]
+// The reader closure below is not redundant: the deserializer bound is
+// higher-ranked over the reader's lifetime, which a bare
+// `NargReader::take_array` method reference cannot satisfy.
+#[allow(clippy::redundant_closure_for_method_calls)]
 fn closure_batch_helpers_round_trip() {
     let instance = [1u32];
     let session_id = test_session_id(b"closure batch");
@@ -336,14 +339,7 @@ fn closure_batch_helpers_round_trip() {
 
     let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
     let read_back = verifier
-        .prover_messages_vec_as(points.len(), |buf| {
-            if buf.len() < 4 {
-                return Err(VerificationError);
-            }
-            let point: [u8; 4] = buf[..4].try_into().unwrap();
-            *buf = &buf[4..];
-            Ok(point)
-        })
+        .prover_messages_vec_as(points.len(), |reader| reader.take_array::<4>())
         .unwrap();
     assert_eq!(read_back, points);
     let verifier_challenge: [u8; 16] = verifier.verifier_message();

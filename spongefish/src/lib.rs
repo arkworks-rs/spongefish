@@ -171,7 +171,7 @@ pub use duplex_sponge::{DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, P
 pub use error::{VerificationError, VerificationResult};
 #[cfg(feature = "turboshake128")]
 pub use narg_prover::ProverState;
-pub use narg_string::{NargDeserialize, NargSerialize};
+pub use narg_string::{NargDeserialize, NargReader, NargSerialize};
 pub use narg_verifier::VerifierState;
 #[cfg(feature = "turboshake128")]
 pub use private_rng::PrivateRng;

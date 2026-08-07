@@ -4,7 +4,7 @@ use core::fmt;
 #[cfg(feature = "turboshake128")]
 use crate::StdHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, VerificationError,
     VerificationResult,
 };
 
@@ -58,10 +58,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> VerificationResult<T> {
-        let mut narg_string = self.narg_string;
-        let message = T::deserialize_from_narg(&mut narg_string)?;
+        let mut reader = NargReader::new(self.narg_string);
+        let message = T::deserialize_from_narg(&mut reader)?;
+        let consumed = reader.consumed();
         self.duplex_sponge_state.absorb(message.encode().as_ref());
-        self.narg_string = narg_string;
+        self.narg_string = &self.narg_string[consumed..];
         Ok(message)
     }
 
@@ -193,10 +194,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_with<T, B: AsRef<[H::U]>>(
         &mut self,
-        deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
         encode: impl FnOnce(&T) -> B,
     ) -> VerificationResult<T> {
-        let (message, consumed) = deserialize_staged(self.narg_string, deserialize)?;
+        let mut reader = NargReader::new(self.narg_string);
+        let message = deserialize(&mut reader)?;
+        let consumed = reader.consumed();
         self.duplex_sponge_state.absorb(encode(&message).as_ref());
         self.narg_string = &self.narg_string[consumed..];
         Ok(message)
@@ -332,31 +335,6 @@ where
     }
 }
 
-/// Runs `deserialize` on a staged copy of `narg_string`, returning the
-/// message and the number of bytes consumed.
-///
-/// The cursor left behind by the closure must be a true suffix of the
-/// original slice: callers advance the transcript (and absorb, either the
-/// consumed prefix or the re-encoded message) based on this arithmetic, so a
-/// closure that repoints its cursor anywhere else is rejected. On error the
-/// staged copy is discarded, leaving the caller's cursor unchanged with
-/// nothing absorbed.
-fn deserialize_staged<T>(
-    narg_string: &[u8],
-    deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
-) -> VerificationResult<(T, usize)> {
-    let mut remaining = narg_string;
-    let message = deserialize(&mut remaining)?;
-    let consumed = narg_string
-        .len()
-        .checked_sub(remaining.len())
-        .ok_or(VerificationError)?;
-    if !core::ptr::eq(narg_string[consumed..].as_ptr(), remaining.as_ptr()) {
-        return Err(VerificationError);
-    }
-    Ok((message, consumed))
-}
-
 impl<H> VerifierState<'_, H>
 where
     H: DuplexSpongeInterface<U = u8>,
@@ -372,10 +350,9 @@ where
     /// within one function call is the implementation guidance of
     /// [draft-irtf-cfrg-fiat-shamir][FS] (§ "Implementation guidance").
     ///
-    /// On failure the cursor is left unchanged (the closure operates on a
-    /// staged copy), and nothing is absorbed. A closure that leaves its
-    /// cursor pointing anywhere but a suffix of the unread NARG string is
-    /// rejected with a [`VerificationError`].
+    /// The closure reads through a [`NargReader`] of its own, and this state only
+    /// advances once the closure has succeeded.
+    /// On failure the cursor is left to the previous position.
     ///
     /// For sponges over a non-byte alphabet, where the absorbed units cannot
     /// be the consumed bytes, use [`VerifierState::prover_message_with`].
@@ -394,9 +371,11 @@ where
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_as<T>(
         &mut self,
-        deserialize: impl FnOnce(&mut &[u8]) -> VerificationResult<T>,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
     ) -> VerificationResult<T> {
-        let (message, consumed) = deserialize_staged(self.narg_string, deserialize)?;
+        let mut reader = NargReader::new(self.narg_string);
+        let message = deserialize(&mut reader)?;
+        let consumed = reader.consumed();
         self.duplex_sponge_state
             .absorb(&self.narg_string[..consumed]);
         self.narg_string = &self.narg_string[consumed..];
@@ -421,7 +400,7 @@ where
     pub fn prover_messages_vec_as<T>(
         &mut self,
         len: usize,
-        mut deserialize: impl FnMut(&mut &[u8]) -> VerificationResult<T>,
+        mut deserialize: impl FnMut(&mut NargReader<'_>) -> VerificationResult<T>,
     ) -> VerificationResult<Vec<T>> {
         (0..len)
             .map(|_| self.prover_message_as(&mut deserialize))

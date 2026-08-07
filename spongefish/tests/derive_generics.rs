@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 
-use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargSerialize};
+use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargReader, NargSerialize};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Codec)]
 struct TaggedValue<T, const N: usize> {
@@ -22,10 +22,10 @@ fn codec_derive_handles_generic_types() {
     assert_eq!(encoded.as_ref(), 7u32.to_le_bytes());
 
     let serialized = tagged.serialize_into_new_narg();
-    let mut buf: &[u8] = serialized.as_ref();
-    let roundtrip = TaggedValue::<u8, 4>::deserialize_from_narg(&mut buf).expect("roundtrip");
+    let mut reader = NargReader::new(serialized.as_ref());
+    let roundtrip = TaggedValue::<u8, 4>::deserialize_from_narg(&mut reader).expect("roundtrip");
     assert_eq!(roundtrip.value, tagged.value);
-    assert!(buf.is_empty());
+    assert!(reader.is_empty());
 
     #[allow(clippy::items_after_statements)]
     fn assert_codec<T: Codec>(_: &T) {}
@@ -143,10 +143,10 @@ fn codec_derive_pins_multi_field_byte_layout() {
     // NARG round-trip keeps the same layout.
     let serialized = header.serialize_into_new_narg();
     assert_eq!(serialized.as_ref(), &expected);
-    let mut buf: &[u8] = serialized.as_ref();
-    let roundtrip = Header::deserialize_from_narg(&mut buf).expect("roundtrip");
+    let mut reader = NargReader::new(serialized.as_ref());
+    let roundtrip = Header::deserialize_from_narg(&mut reader).expect("roundtrip");
     assert_eq!(roundtrip.id, header.id);
-    assert!(buf.is_empty());
+    assert!(reader.is_empty());
 
     // Tuple structs follow the same rules.
     let pair = Pair(0x0102, 0x03, 0xFFFF_FFFF);

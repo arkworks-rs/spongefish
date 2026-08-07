@@ -245,7 +245,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                #field_name: <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
+                                #field_name: <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(reader)?,
                             }
                         }
                     });
@@ -267,7 +267,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
                         } else {
                             deserialize_bounds.push(field_type.clone());
                             quote! {
-                                <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(&mut rest)?,
+                                <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(reader)?,
                             }
                         }
                     });
@@ -288,13 +288,13 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 
             quote! {
                 impl #impl_generics ::spongefish::NargDeserialize for #name #ty_generics #where_clause {
-                    fn deserialize_from_narg(buf: &mut &[u8]) -> ::spongefish::VerificationResult<Self> {
-                        let mut rest = *buf;
-                        let value = (|| -> ::spongefish::VerificationResult<Self> {
-                            #field_deserializations
-                        })()?;
-                        *buf = rest;
-                        Ok(value)
+                    fn deserialize_from_narg(
+                        reader: &mut ::spongefish::NargReader<'_>,
+                    ) -> ::spongefish::VerificationResult<Self> {
+                        // A unit struct, or one whose every field is skipped,
+                        // reads nothing at all.
+                        let _ = &reader;
+                        #field_deserializations
                     }
                 }
             }

@@ -45,13 +45,6 @@ fn compress(point: &RistrettoPoint) -> [u8; 32] {
     point.compress().to_bytes()
 }
 
-/// Splits a fixed-size chunk off the front of the NARG cursor.
-fn take<const N: usize>(buf: &mut &[u8]) -> VerificationResult<[u8; N]> {
-    let (head, rest) = buf.split_first_chunk().ok_or(VerificationError)?;
-    *buf = rest;
-    Ok(*head)
-}
-
 /// The statement being proven: the generator and the public key, compressed.
 #[allow(non_snake_case)]
 fn instance(X: &RistrettoPoint) -> [u8; 64] {
@@ -103,16 +96,17 @@ trait SchnorrVerifier {
 
 impl SchnorrVerifier for VerifierState<'_> {
     fn prover_point(&mut self) -> VerificationResult<RistrettoPoint> {
-        self.prover_message_as(|buf| {
-            CompressedRistretto(take(buf)?)
+        self.prover_message_as(|reader| {
+            CompressedRistretto(reader.take_array()?)
                 .decompress()
                 .ok_or(VerificationError)
         })
     }
 
     fn prover_scalar(&mut self) -> VerificationResult<Scalar> {
-        self.prover_message_as(|buf| {
-            Option::from(Scalar::from_canonical_bytes(take(buf)?)).ok_or(VerificationError)
+        self.prover_message_as(|reader| {
+            Option::from(Scalar::from_canonical_bytes(reader.take_array()?))
+                .ok_or(VerificationError)
         })
     }
 
