@@ -131,6 +131,13 @@ impl<T, const WIDTH: usize> PermutationWitness<T, WIDTH> {
 impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationInstanceBuilder<T, WIDTH> {
     type U = FieldVar;
 
+    /// Allocating a permutation is inherently by-value — it mints fresh output
+    /// variables rather than mixing the state in place — so both maps go
+    /// through [`Self::allocate_permutation`].
+    fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
+        *state = self.allocate_permutation(state);
+    }
+
     fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH] {
         self.allocate_permutation(state)
     }
@@ -140,6 +147,11 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> Permutation<WIDTH>
     for PermutationWitnessBuilder<P, WIDTH>
 {
     type U = P::U;
+
+    /// See the note on [`PermutationInstanceBuilder`]'s implementation.
+    fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
+        *state = self.allocate_permutation(state);
+    }
 
     fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH] {
         self.allocate_permutation(state)

@@ -20,9 +20,7 @@ struct DummyPermutation;
 impl Permutation<16> for DummyPermutation {
     type U = BabyBearUnit;
 
-    fn permute(&self, state: &[Self::U; 16]) -> [Self::U; 16] {
-        *state
-    }
+    fn permute_mut(&self, _state: &mut [Self::U; 16]) {}
 }
 
 fn instance_builder() -> TestInstanceBuilder {

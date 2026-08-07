@@ -97,13 +97,18 @@ pub trait Permutation<const WIDTH: usize>: Clone {
     /// The [`Unit`] defining the alphabet for the permutation function.
     type U: Unit;
 
-    /// The permutation function.
-    fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH];
+    /// The permutation function, evaluated in place.
+    ///
+    /// This is the required method because it is the shape every real
+    /// permutation has: the state is mixed where it lies. A by-value
+    /// [`Permutation::permute`] is derived from it, not the other way around.
+    fn permute_mut(&self, state: &mut [Self::U; WIDTH]);
 
-    /// In-place evaluation of [`Permutation::permute`].
-    fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
-        let new_state = self.permute(state);
-        state.clone_from(&new_state);
+    /// By-value evaluation of [`Permutation::permute_mut`].
+    fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH] {
+        let mut permuted = state.clone();
+        self.permute_mut(&mut permuted);
+        permuted
     }
 }
 
@@ -310,8 +315,8 @@ mod tests {
     impl Permutation<WIDTH> for Rotate {
         type U = u8;
 
-        fn permute(&self, state: &[u8; WIDTH]) -> [u8; WIDTH] {
-            core::array::from_fn(|i| state[(i + 1) % WIDTH].wrapping_add(i as u8 + 1))
+        fn permute_mut(&self, state: &mut [u8; WIDTH]) {
+            *state = core::array::from_fn(|i| state[(i + 1) % WIDTH].wrapping_add(i as u8 + 1));
         }
     }
 

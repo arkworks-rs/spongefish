@@ -19,12 +19,6 @@ mod ascon {
     impl Permutation<STATE_BYTES> for AsconP12 {
         type U = u8;
 
-        fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
-            let mut new_state = *state;
-            self.permute_mut(&mut new_state);
-            new_state
-        }
-
         fn permute_mut(&self, state: &mut [u8; STATE_BYTES]) {
             let mut words = bytes_to_words(state);
             ascon::permute12(&mut words);
@@ -106,12 +100,6 @@ mod keccak {
 
     impl Permutation<STATE_BYTES> for KeccakF1600 {
         type U = u8;
-
-        fn permute(&self, state: &[u8; STATE_BYTES]) -> [u8; STATE_BYTES] {
-            let mut permuted = *state;
-            self.permute_mut(&mut permuted);
-            permuted
-        }
 
         fn permute_mut(&self, state: &mut [u8; STATE_BYTES]) {
             let (chunks, _) = state.as_chunks::<WORD_BYTES>();

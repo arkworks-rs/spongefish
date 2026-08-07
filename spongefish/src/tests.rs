@@ -221,15 +221,13 @@ mod word_sponge {
     impl Permutation<4> for ToyPermutation {
         type U = u64;
 
-        fn permute(&self, state: &[u64; 4]) -> [u64; 4] {
-            let mut s = *state;
+        fn permute_mut(&self, s: &mut [u64; 4]) {
             for _ in 0..8 {
                 s[0] = s[0].wrapping_add(s[1]).rotate_left(13) ^ s[2];
                 s[1] = s[1].wrapping_add(s[2]).rotate_left(29) ^ s[3];
                 s[2] = s[2].wrapping_add(s[3]).rotate_left(43) ^ s[0];
                 s[3] = s[3].wrapping_add(s[0]).rotate_left(7) ^ s[1];
             }
-            s
         }
     }
 
