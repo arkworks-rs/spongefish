@@ -8,6 +8,7 @@ readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 # `benches/bench_util.rs` is a shared module, not a bench target of its own.
 autobenches = false
 version.workspace = true
@@ -40,8 +41,8 @@ getrandom = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 rand_core = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
-turboshake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
+turboshake = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
 [dev-dependencies]

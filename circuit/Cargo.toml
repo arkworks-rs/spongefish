@@ -7,6 +7,10 @@ readme.workspace = true
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+# Higher than the workspace floor: the Plonky3 dependencies behind the default
+# `p3-baby-bear` feature need a newer compiler (`p3-util` uses the unstable
+# `maybe_uninit_slice` before 1.93). This crate's own code builds on 1.88.
+rust-version = "1.93"
 version = "0.7.4"
 
 [package.metadata.docs.rs]
