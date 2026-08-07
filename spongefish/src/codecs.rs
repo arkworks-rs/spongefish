@@ -41,8 +41,8 @@ where
 /// # Safety
 ///
 /// [`spongefish`][`crate`] assumes that prover and verifier will know the length of all the prover messages.
-/// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of any other
-/// instance of the same type.
+/// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of the
+/// encoding of any other instance of the same type.
 ///
 /// More information on the theoretical requirements is in [[CO25], Theorem 6.2].
 ///
@@ -79,10 +79,10 @@ where
     /// ```
     type Repr: Default + AsMut<T>;
 
-    ///  The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
+    /// The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
     ///
-    /// This map is not exactly a decoding function (e.g., it can be onto). What is demanded from this function is that
-    /// it preserves the uniform distribution: if [`Decoding::Repr`] is distributed uniformly at random, the also the output of [`decode`][Decoding::decode] is so.
+    /// This map is not exactly a decoding function (e.g., it need not be injective). What is demanded from this function is that
+    /// it preserves the uniform distribution: if [`Decoding::Repr`] is distributed uniformly at random, then so is the output of [`decode`][Decoding::decode].
     fn decode(buf: Self::Repr) -> Self;
 }
 
@@ -323,10 +323,10 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
     }
 }
 
-/// Blanket implementation of [`Codec`] for all traits implementing
+/// Blanket implementation of [`Codec`] for all types implementing
 /// [`NargSerialize`][`crate::NargSerialize`],
-/// [`NargDeserialize`][`crate::NargSerialize`],
-/// [`Encoding`], and [`Decoding`]
+/// [`NargDeserialize`][`crate::NargDeserialize`],
+/// [`Encoding`], and [`Decoding`].
 impl<T, E> Codec<T> for E
 where
     T: ?Sized,

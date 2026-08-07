@@ -8,7 +8,7 @@ use itertools::Itertools;
 use spin::RwLock;
 use spongefish::Unit;
 
-/// A symbolic wire over which we perform out computation.
+/// A symbolic wire over which we perform our computation.
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct FieldVar(usize);
 
@@ -48,7 +48,7 @@ impl core::fmt::Debug for FieldVar {
 /// Allocator for field variables.
 ///
 /// Creates a new wire identifier when requested,
-/// and keeps tracks of the wires that have been declared as public.
+/// and keeps track of the wires that have been declared as public.
 #[derive(Clone)]
 pub struct VarAllocator<T> {
     state: Arc<RwLock<AllocatorState<T>>>,
@@ -142,7 +142,7 @@ impl<T: Clone + Unit> VarAllocator<T> {
 
     /// Assigns the wire variable `var` to `val`.
     ///
-    /// If the wire was already present, it is over-written.
+    /// If the wire was already present, it is overwritten.
     pub fn set_public_var(&self, var: FieldVar, val: T) {
         self.state.write().public_values.insert(var, val);
     }
@@ -154,7 +154,7 @@ impl<T: Clone + Unit> VarAllocator<T> {
     ///
     /// # Panics
     ///
-    /// If the iterators have different length, this function will panic.
+    /// If the iterators have different lengths, this function will panic.
     pub fn set_public_vars<Val, Var>(
         &self,
         vars: impl IntoIterator<Item = Var>,

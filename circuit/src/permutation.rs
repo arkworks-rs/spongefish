@@ -6,8 +6,8 @@ use spongefish::{Permutation, Unit};
 
 use crate::allocator::{FieldVar, VarAllocator};
 
-/// A [`PermutationInstanceBuilder`] allows to build a relation for
-/// evaluations of a permutation acting over WIDTH elements.
+/// A [`PermutationInstanceBuilder`] builds a relation for evaluations of a
+/// permutation acting over `WIDTH` elements.
 #[derive(Clone)]
 pub struct PermutationInstanceBuilder<T, const WIDTH: usize> {
     allocator: VarAllocator<T>,
@@ -87,7 +87,7 @@ pub struct PermutationWitnessBuilder<P: Permutation<WIDTH>, const WIDTH: usize> 
 pub struct PermutationInstance<T, const WIDTH: usize> {
     pub vars_count: usize,
     pub public_values: Vec<(FieldVar, T)>,
-    /// The input-output wires to be proven
+    /// The input-output wires to be proven.
     pub query_answers: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
     pub linear_constraints: LinearConstraints<FieldVar, T>,
 }

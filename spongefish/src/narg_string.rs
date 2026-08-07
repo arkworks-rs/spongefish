@@ -12,21 +12,21 @@ use crate::{codecs::Encoding, VerificationError, VerificationResult};
 /// When serializing integers modulo N, serialization is expected to
 /// follow the [I2OSP] conversion procedure from RFC8017, including for
 /// prime-order finite fields.
-/// Serialization of elements in a field extensions must serialize each base field element.
+/// Serialization of elements in a field extension must serialize each base field element.
 ///
 /// [I2OSP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.1
-/// [DuplexSpongeInterface]: [`crate::DuplexSpongeInterface`]
+/// [DuplexSpongeInterface]: crate::DuplexSpongeInterface
 pub trait NargSerialize {
     /// Serializes `self` into `dst` by extending the vector.
     ///
     /// # Safety
     ///
-    /// This procedure must compute an injective map.
+    /// This procedure must output a prefix-free string.
     /// The bytes appended for one value must be exactly the bytes that the matching
     /// [`NargDeserialize`] implementation consumes on success.
     fn serialize_into_narg(&self, dst: &mut Vec<u8>);
 
-    /// Shorthand for [`NargSerialize::serialize_into_narg`] for an empty byte array.
+    /// Shorthand for [`NargSerialize::serialize_into_narg`] into a freshly allocated buffer.
     fn serialize_into_new_narg(&self) -> impl AsRef<[u8]> {
         let mut buf = alloc::vec::Vec::new();
         self.serialize_into_narg(&mut buf);
@@ -43,7 +43,7 @@ pub trait NargSerialize {
 /// When de-serializing integers modulo N, this procedure is expected to compute the
 /// conversion procedure [OS2IP] from RFC8017.
 /// Prime-order fields must follow the same convention (seen as $Z/pZ$ elements),
-/// and field extensions must serialize each of their base field elements.
+/// and field extensions must deserialize each of their base field elements.
 /// Implementations must advance `buf` past the consumed bytes on success.
 /// That is, after a successful call, `*buf` must point to the first byte after the
 /// deserialized value.

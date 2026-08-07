@@ -10,7 +10,7 @@ The project is split into several crates:
 - `spongefish-derive`: derive macros for codecs and related traits.
 - `spongefish-pow`: proof‑of‑work helpers for deriving Fiat–Shamir challenges via grinding.
 
-Hash function can also be derived via bridges to Rust's generic [`Digest`](https://docs.rs/digest/latest/digest/) API, and [`XofReader`](https://docs.rs/digest/latest/digest/trait.XofReader.html).
+Hash functions can also be bridged in from Rust's generic [`Digest`](https://docs.rs/digest/latest/digest/) API and [`XofReader`](https://docs.rs/digest/latest/digest/trait.XofReader.html).
 
 ## Example
 

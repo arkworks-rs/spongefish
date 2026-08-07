@@ -1,6 +1,6 @@
-//! The Fiat--Shamir transformation for public-coin protocols.
+//! The Fiat-Shamir transformation for public-coin protocols.
 //!
-//! Implements the duplex-sponge Fiat--Shamir transformation of
+//! Implements the duplex-sponge Fiat-Shamir transformation of
 //! [draft-irtf-cfrg-fiat-shamir], from [[CO25]].
 //!
 //! # Examples
@@ -103,7 +103,7 @@
 //! the overwrite-mode duplex sponges (`Keccak`, `Ascon12`) are proven secure in
 //! the ideal permutation model [[CO25]]; all other constructions are heuristic.
 //!
-//! Previous version of this library were audited by [Radically Open Security].
+//! Previous versions of this library were audited by [Radically Open Security].
 //!
 //! The user has full responsibility for choosing the session identifier: it
 //! must uniquely identify the non-interactive argument, its codecs, and the
@@ -157,7 +157,7 @@ mod narg_verifier;
 /// Utilities for serializing prover messages and de-serializing NARG strings.
 pub(crate) mod narg_string;
 
-/// Codecs are functions for encoding prover messages into [`Unit`]s  and producing verifier messages.
+/// Codecs are functions for encoding prover messages into [`Unit`]s and producing verifier messages.
 pub(crate) mod codecs;
 
 /// Defines [`VerificationError`].

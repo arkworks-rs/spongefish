@@ -1,6 +1,6 @@
 //! This module defines the duplex sponge construction that can absorb and squeeze data.
 //!
-//! Hashes can operate over generic elements called [`Unit`], be them field elements, bytes, or any other data structure.
+//! Hashes can operate over generic elements called [`Unit`], be they field elements, bytes, or any other data structure.
 //! Roughly speaking, a [`Unit`] requires only [`Clone`] and [`Sized`], and has a
 //! special element [`Unit::ZERO`] that denotes the default, neutral value to write on initialization and deletion.
 //!
@@ -8,7 +8,7 @@
 //! On top of which we build the prover and verifier state.
 //!
 //! Many instantiations of [`DuplexSpongeInterface`] are provided in this crate.
-//! While a formal analysis exists only for ideal permutations using [`Permutation`] used with the [`DuplexSponge`] struct,
+//! While a formal analysis exists only for ideal permutations, i.e. a [`Permutation`] used with the [`DuplexSponge`] struct,
 //! we also provide additional examples from generic XOFs implementing [`digest::ExtendableOutput`] and hash functions implementing [`digest::Digest`].
 
 #[cfg(feature = "zeroize")]
@@ -80,7 +80,7 @@ pub trait DuplexSpongeInterface: Clone {
         output
     }
 
-    /// Squeeze `len` elements into a fresh-allocated array.
+    /// Squeeze `len` elements into a freshly allocated array.
     fn squeeze_boxed(&mut self, len: usize) -> alloc::boxed::Box<[Self::U]> {
         let mut output = alloc::vec![Self::U::ZERO; len];
         self.squeeze(&mut output);
@@ -88,7 +88,7 @@ pub trait DuplexSpongeInterface: Clone {
     }
 }
 
-/// A permutation over operating over an array of `WIDTH` [`Unit`]s.
+/// A permutation operating over an array of `WIDTH` [`Unit`]s.
 pub trait Permutation<const WIDTH: usize>: Clone {
     /// The [`Unit`] defining the alphabet for the permutation function.
     type U: Unit;
@@ -96,7 +96,7 @@ pub trait Permutation<const WIDTH: usize>: Clone {
     /// The permutation function.
     fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH];
 
-    /// In-place permutation function evaluation [`Permutation::permute`].
+    /// In-place evaluation of [`Permutation::permute`].
     fn permute_mut(&self, state: &mut [Self::U; WIDTH]) {
         let new_state = self.permute(state);
         state.clone_from(&new_state);
@@ -109,13 +109,12 @@ pub trait Permutation<const WIDTH: usize>: Clone {
 ///
 /// # Instantiation
 ///
-/// The rate segment is written in the first units of the sponge;
+/// The rate segment is written in the first `RATE` units of the sponge;
 /// the capacity segment is written in the last `WIDTH`-`RATE` units of the sponge.
-///
 ///
 /// # Panics
 ///
-/// Instantiation will panic if `WIDTH` is less or equal to `RATE`, or if `RATE` is zero.
+/// Instantiation will panic if `WIDTH` is less than or equal to `RATE`, or if `RATE` is zero.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 #[derive(Clone, PartialEq, Eq)]

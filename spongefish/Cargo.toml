@@ -1,7 +1,7 @@
 [package]
 name = "spongefish"
 authors = ["Michele Orrù <m@orru.net>", "Giacomo Fenzi <giacomofenzi@outlook.com>"]
-description = "An implementation of the Fiat--Shamir transformation from Duplex Sponges."
+description = "A Fiat-Shamir transformation using Duplex Sponges."
 documentation = "https://docs.rs/spongefish"
 edition.workspace = true
 readme.workspace = true

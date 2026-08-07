@@ -1,8 +1,8 @@
 //! A [`DuplexSpongeInterface`] bridge for fixed-output [`digest::Digest`] hash functions.
 //!
-//! This code is inspired from libsignal's poksho:
-//! <https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs>.
-//! With the following generalizations:
+//! This code is inspired by libsignal's poksho:
+//! <https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs>,
+//! with the following generalizations:
 //! - squeeze satisfies streaming
 //!     ```text
 //!     squeeze(1); squeeze(1); squeeze(1) = squeeze(3);
@@ -21,12 +21,12 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::DuplexSpongeInterface;
 
-/// A Bridge to our sponge interface for legacy `Digest` implementations.
+/// A bridge to our sponge interface for legacy `Digest` implementations.
 #[derive(Clone)]
 pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     /// The underlying hasher.
     hasher: D,
-    /// Cached digest
+    /// Cached digest.
     cv: Output<D>,
     /// Current operation, keeping state between absorb and squeeze
     /// across multiple calls when streaming.

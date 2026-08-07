@@ -29,7 +29,7 @@ impl<S: PowStrategy> PoWGrinder<S> {
     /// Attempts to find a nonce that satisfies the proof-of-work requirement.
     ///
     /// Returns the minimal nonce that makes the hash fall below the target threshold,
-    /// or None if no valid nonce is found (extremely unlikely for reasonable difficulty).
+    /// or `None` if no valid nonce is found (extremely unlikely for reasonable difficulty).
     pub fn grind(&mut self) -> Option<PoWSolution> {
         self.strategy.solve()
     }
@@ -76,7 +76,7 @@ pub trait PowStrategy: Clone + Sync {
     /// Check if the `nonce` satisfies the challenge.
     fn check(&mut self, nonce: u64) -> bool;
 
-    /// Builds a solution given the input nonce
+    /// Builds a solution given the input nonce.
     fn solution(&self, nonce: u64) -> PoWSolution;
 
     /// Finds the minimal `nonce` that satisfies the challenge.

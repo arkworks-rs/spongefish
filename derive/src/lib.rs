@@ -281,7 +281,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 
 /// Derive [`Encoding`](https://docs.rs/spongefish/latest/spongefish/trait.Encoding.html) for structs.
 ///
-/// Skipped fields fall back to `Default`.
+/// Fields marked with `#[spongefish(skip)]` are omitted from the encoding.
 ///
 /// ```
 /// use spongefish::Encoding;
@@ -297,7 +297,6 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> TokenStream2 {
 /// let colors = Rgb { r: 1, g: 2, b: 3 };
 /// let data = colors.encode();
 /// assert_eq!(data.as_ref(), [1, 2, 3]);
-///
 /// ```
 #[proc_macro_derive(Encoding, attributes(spongefish))]
 pub fn derive_encoding(input: TokenStream) -> TokenStream {
@@ -342,7 +341,7 @@ pub fn derive_codec(input: TokenStream) -> TokenStream {
     })
 }
 
-/// Derive [`Unit`]s for structs.
+/// Derive [`Unit`](https://docs.rs/spongefish/latest/spongefish/trait.Unit.html) for structs.
 ///
 /// ```
 /// use spongefish::Unit;
@@ -356,10 +355,7 @@ pub fn derive_codec(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// assert_eq!((Rgb::ZERO.r, Rgb::ZERO.g, Rgb::ZERO.b), (0, 0, 0));
-///
 /// ```
-///
-/// [Unit]: https://docs.rs/spongefish/latest/spongefish/trait.Unit.html
 #[proc_macro_derive(Unit, attributes(spongefish))]
 pub fn derive_unit(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -447,7 +443,7 @@ pub fn derive_unit(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// Helper function to check if a field has the #[spongefish(skip)] attribute
+/// Helper function to check if a field has the `#[spongefish(skip)]` attribute.
 fn has_skip_attribute(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if !attr.path().is_ident("spongefish") {

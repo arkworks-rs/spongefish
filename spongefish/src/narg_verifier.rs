@@ -8,7 +8,16 @@ use crate::{
     VerificationResult,
 };
 
-/// [`VerifierState`] is the verifier state.
+/// [`VerifierState`] is the verifier state in the non-interactive
+/// transformation.
+///
+/// It holds the hash function state producing the verifier's **public coins**,
+/// and a cursor over the NARG string being read. Build one with
+/// [`VerifierState::new`] from a 32-byte session identifier (see
+/// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
+/// the NARG string, or with [`VerifierState::from_tag`] directly from an
+/// application tag. Once every message has been read, conclude with
+/// [`VerifierState::check_eof`]:
 ///
 /// ```
 /// # #[cfg(feature = "turboshake128")]
@@ -40,7 +49,12 @@ pub struct VerifierState<
 }
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
-    /// Reads a prover message and absorbs it into the duplex sponge state.
+    /// Reads a prover message from the NARG string and absorbs its encoding
+    /// into the duplex sponge state.
+    ///
+    /// The dual of
+    /// [`ProverState::prover_message`][crate::ProverState::prover_message]. On
+    /// failure the cursor is left unchanged and nothing is absorbed.
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> VerificationResult<T> {
@@ -51,7 +65,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(message)
     }
 
-    /// Absorbs a public message without consuming the transcript.
+    /// Absorbs a public message without consuming the NARG string.
     ///
     /// ```
     /// # #[cfg(feature = "turboshake128")]
@@ -68,7 +82,9 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Returns a verifier message `T` that is uniformly distributed and implements `Encoding<[H::U]>`.
+    /// Returns a verifier message `T` that is uniformly distributed.
+    ///
+    /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -208,15 +224,18 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// see [`ProverState::verifier_message_as`][crate::ProverState::verifier_message_as]
     /// for the full requirements. Prover and verifier must use identical
     /// decoding maps, and any change **MUST** be reflected in the session tag
-    /// (FS § "Session identifiers", requirement 2).
+    /// ([draft-irtf-cfrg-fiat-shamir][FS], § "Session identifiers",
+    /// requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
         let buf = self.duplex_sponge_state.squeeze_boxed(n);
         decode(&buf)
     }
 
-    /// The Fiat--Shamir transformation produces a NARG string with
+    /// The Fiat-Shamir transformation produces a NARG string with
     /// **fixed, deterministic length**.
-    /// This check ensures that no trailing bytes remain in the transcript.
+    /// This check ensures that no trailing bytes remain in the NARG string.
     ///
     /// ```
     /// # #[cfg(feature = "turboshake128")]
@@ -256,7 +275,7 @@ where
 }
 
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
-    /// Creates a verifier state from a duplex sponge and transcript slice.
+    /// Creates a verifier state from a duplex sponge and a NARG string.
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state,
