@@ -144,11 +144,9 @@ mod duplex_sponge;
 pub mod instantiations;
 
 /// The NARG prover state.
-#[cfg(feature = "turboshake128")]
 mod narg_prover;
 
 /// The prover's private randomness source.
-#[cfg(feature = "turboshake128")]
 mod private_rng;
 
 /// The NARG verifier state.
@@ -171,11 +169,9 @@ pub use duplex_sponge::{
     DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit, UnitFromBytes,
 };
 pub use error::{VerificationError, VerificationResult};
-#[cfg(feature = "turboshake128")]
 pub use narg_prover::ProverState;
 pub use narg_string::{NargDeserialize, NargReader, NargSerialize};
 pub use narg_verifier::VerifierState;
-#[cfg(feature = "turboshake128")]
 pub use private_rng::PrivateRng;
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};

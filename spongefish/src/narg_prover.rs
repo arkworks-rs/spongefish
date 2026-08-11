@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+#[cfg(feature = "turboshake128")]
+use crate::StdHash;
 use crate::{
     duplex_sponge::DuplexSpongeInit, Decoding, DuplexSpongeInterface, Encoding, NargSerialize,
-    PrivateRng, SessionId, StdHash,
+    PrivateRng, SessionId,
 };
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
@@ -28,9 +30,8 @@ use crate::{
 /// # }
 /// ```
 ///
-/// The private RNG is always a [`PrivateRng`] over [`StdHash`], independently
-/// of the sponge `H` carrying the public coins; this is why the type is gated
-/// on the `turboshake128` feature.
+/// The private RNG is a [`PrivateRng`] over `R`, independently of the sponge
+/// `H` carrying the public coins.
 ///
 /// # Safety
 ///
@@ -38,12 +39,17 @@ use crate::{
 /// coins, and therefore to losing zero-knowledge. [`ProverState`] does not
 /// implement [`Clone`] or [`Copy`] to prevent accidental state-restoration
 /// attacks.
-pub struct ProverState<H = StdHash>
-where
+pub struct ProverState<
+    #[cfg(feature = "turboshake128")] H = StdHash,
+    #[cfg(not(feature = "turboshake128"))] H,
+    #[cfg(feature = "turboshake128")] R = StdHash,
+    #[cfg(not(feature = "turboshake128"))] R,
+> where
     H: DuplexSpongeInterface,
+    R: DuplexSpongeInit<U = u8>,
 {
     /// The randomness state of the prover.
-    pub(crate) private_rng: PrivateRng,
+    pub(crate) private_rng: PrivateRng<R>,
     /// The public coins for the protocol.
     ///
     /// # Safety
@@ -57,18 +63,20 @@ where
     pub(crate) narg_string: Vec<u8>,
 }
 
-impl<H> fmt::Debug for ProverState<H>
+impl<H, R> fmt::Debug for ProverState<H, R>
 where
     H: DuplexSpongeInterface,
+    R: DuplexSpongeInit<U = u8>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ProverState<{}>", core::any::type_name::<H>())
     }
 }
 
-impl<H> ProverState<H>
+impl<H, R> ProverState<H, R>
 where
     H: DuplexSpongeInit,
+    R: DuplexSpongeInit<U = u8>,
 {
     /// The non-interactive prover for `(session_id, instance)`, seeded from
     /// the operating system's entropy source.
@@ -86,7 +94,7 @@ where
     #[cfg(feature = "getrandom")]
     #[must_use]
     pub fn new<T: Encoding<[H::U]> + ?Sized>(session_id: &SessionId, instance: &T) -> Self {
-        Self::from_parts(session_id, instance, PrivateRng::from_os_entropy())
+        Self::from_parts(session_id, instance, PrivateRng::<R>::from_os_entropy())
     }
 
     /// The non-interactive prover with a **deterministic** private RNG.
@@ -100,7 +108,7 @@ where
         instance: &T,
         seed: [u8; crate::private_rng::SEED_LEN],
     ) -> Self {
-        Self::from_parts(session_id, instance, PrivateRng::from_seed(seed))
+        Self::from_parts(session_id, instance, PrivateRng::<R>::from_seed(seed))
     }
 
     /// The non-interactive prover from an explicitly-constructed [`PrivateRng`].
@@ -112,7 +120,7 @@ where
     pub fn from_parts<T: Encoding<[H::U]> + ?Sized>(
         session_id: &SessionId,
         instance: &T,
-        private_rng: PrivateRng,
+        private_rng: PrivateRng<R>,
     ) -> Self {
         let mut duplex_sponge_state = H::init(session_id.as_bytes());
         let encoded = instance.encode();
@@ -129,12 +137,13 @@ where
     }
 }
 
-impl<H> ProverState<H>
+impl<H, R> ProverState<H, R>
 where
     H: DuplexSpongeInterface,
+    R: DuplexSpongeInit<U = u8>,
 {
     /// Returns the private RNG bound to this prover.
-    pub const fn rng(&mut self) -> &mut PrivateRng {
+    pub const fn rng(&mut self) -> &mut PrivateRng<R> {
         &mut self.private_rng
     }
 
@@ -350,9 +359,10 @@ where
     }
 }
 
-impl<H> ProverState<H>
+impl<H, R> ProverState<H, R>
 where
     H: DuplexSpongeInterface<U = u8>,
+    R: DuplexSpongeInit<U = u8>,
 {
     /// Input a prover message using an encoding closure.
     ///
@@ -420,7 +430,11 @@ where
 ///
 /// [`ProverState::default`] is only available with the `yolocrypto` feature and
 /// its support in future releases is not guaranteed.
-#[cfg(all(feature = "yolocrypto", feature = "getrandom"))]
+#[cfg(all(
+    feature = "yolocrypto",
+    feature = "getrandom",
+    feature = "turboshake128"
+))]
 impl<H: DuplexSpongeInterface + Default> Default for ProverState<H> {
     fn default() -> Self {
         Self {
@@ -432,7 +446,7 @@ impl<H: DuplexSpongeInterface + Default> Default for ProverState<H> {
 }
 
 /// Creates a new [`ProverState`] using the given duplex sponge interface.
-#[cfg(feature = "getrandom")]
+#[cfg(all(feature = "getrandom", feature = "turboshake128"))]
 impl<H: DuplexSpongeInterface> From<H> for ProverState<H> {
     fn from(value: H) -> Self {
         Self {

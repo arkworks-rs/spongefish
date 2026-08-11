@@ -1,6 +1,8 @@
 use core::fmt;
 
-use crate::{duplex_sponge::DuplexSpongeInit, Decoding, StdHash};
+#[cfg(feature = "turboshake128")]
+use crate::StdHash;
+use crate::{duplex_sponge::DuplexSpongeInit, Decoding};
 
 /// The byte length of a [`PrivateRng`] seed.
 pub const SEED_LEN: usize = 32;
@@ -42,7 +44,10 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// `TryCryptoRng` marker, hence also the blanket `Rng` / `CryptoRng`), so it
 /// can be passed to ecosystem samplers (`ff::Field::random`, arkworks'
 /// `UniformRand`, ...).
-pub struct PrivateRng<H: DuplexSpongeInit<U = u8> = StdHash> {
+pub struct PrivateRng<
+    #[cfg(feature = "turboshake128")] H: DuplexSpongeInit<U = u8> = StdHash,
+    #[cfg(not(feature = "turboshake128"))] H: DuplexSpongeInit<U = u8>,
+> {
     sponge: H,
 }
 
