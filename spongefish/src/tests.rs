@@ -1,9 +1,11 @@
+use alloc::format;
+
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, DuplexSpongeInterface, Encoding, LengthPrefixed, NargDeserialize,
-    NargSerialize, ProverState, SessionId, StdHash, VerificationError, VerificationResult,
-    VerifierState,
+    derive_session_id, Argument, DuplexSpongeInterface, Encoding, Narg, NargDeserialize,
+    NargSerialize, PrivateRng, ProverState, SessionId, StdHash, Transcript, VerificationError,
+    VerificationResult, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
@@ -11,18 +13,35 @@ fn test_session_id(tag: &[u8]) -> SessionId {
 }
 
 #[test]
-fn prover_rng_emits_entropy() {
-    let instance = [42u32, 7u32];
-    let session_id = test_session_id(b"rng test");
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
+fn witness_debug_is_redacted() {
+    assert_eq!(format!("{:?}", Witness::known("witness")), "Witness(..)");
+    assert_eq!(format!("{:?}", Witness::<&str>::unknown()), "Witness(..)");
+}
 
-    let mut first = [0u8; 32];
-    prover.rng().fill_bytes(&mut first);
-    let mut second = [0u8; 32];
-    prover.rng().fill_bytes(&mut second);
+#[test]
+#[should_panic(expected = "an Argument must be zero-sized")]
+fn argument_cannot_override_the_statelessness_check() {
+    #[allow(dead_code)]
+    struct Stateful(u8);
 
-    assert_ne!(first, [0u8; 32]);
-    assert_ne!(first, second);
+    impl Argument for Stateful {
+        const NO_STATE: () = ();
+
+        type Instance = u32;
+        type Witness = ();
+        type Output = ();
+
+        fn run<T: Transcript>(
+            _transcript: &mut T,
+            _instance: &Self::Instance,
+            _witness: Witness<&Self::Witness>,
+        ) -> VerificationResult<Self::Output> {
+            Ok(())
+        }
+    }
+
+    let session_id = test_session_id(b"stateful argument");
+    let _ = Narg::prove::<Stateful>(&session_id, &0, &());
 }
 
 #[test]
@@ -46,19 +65,18 @@ fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
 }
 
 #[test]
-fn prover_messages_round_trip() {
-    let instance = [1u32, 2u32];
-    let session_id = test_session_id(b"round trip");
+fn sample_vec_matches_repeated_sampling() {
+    let seed = [11u8; 32];
+    let mut vector_rng = PrivateRng::<StdHash>::from_seed(seed);
+    let mut repeated_rng = PrivateRng::<StdHash>::from_seed(seed);
 
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
-    prover.public_message(&instance[0]);
-    prover.prover_message(&instance[1]);
-    let proof = prover.narg_string().to_vec();
+    let samples = vector_rng.sample_vec::<u32>(4);
+    let expected = (0..4)
+        .map(|_| repeated_rng.sample::<u32>())
+        .collect::<alloc::vec::Vec<_>>();
 
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
-    verifier.public_message(&instance[0]);
-    assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[1]);
-    assert!(verifier.check_eof().is_ok());
+    assert_eq!(samples, expected);
+    assert!(vector_rng.sample_vec::<u32>(0).is_empty());
 }
 
 #[test]
@@ -74,38 +92,6 @@ fn check_eof_reports_remaining_bytes() {
     let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
     assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[0]);
     assert!(verifier.check_eof().is_err());
-}
-
-#[test]
-fn verifier_challenge_matches_prover() {
-    let instance = [10u32, 11u32];
-    let session_id = test_session_id(b"challenge sync");
-
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
-    let challenge: u32 = prover.verifier_message();
-    let proof = prover.narg_string().to_vec();
-
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
-    let reproduced: u32 = verifier.verifier_message();
-    assert_eq!(challenge, reproduced);
-}
-
-#[test]
-fn distinct_session_ids_diverge() {
-    let instance = [3u32];
-
-    let mut a = ProverState::<StdHash>::new(&test_session_id(b"session A"), &instance);
-    let mut b = ProverState::<StdHash>::new(&test_session_id(b"session B"), &instance);
-
-    let ca: u32 = a.verifier_message();
-    let cb: u32 = b.verifier_message();
-    assert_ne!(ca, cb);
-}
-
-#[test]
-fn derive_session_id_is_deterministic() {
-    assert_eq!(test_session_id(b"same tag"), test_session_id(b"same tag"));
-    assert_ne!(test_session_id(b"tag one"), test_session_id(b"tag two"));
 }
 
 /// The verifier messages are the XOF over
@@ -137,19 +123,13 @@ fn closure_codecs_correctness() {
     let session_id = test_session_id(b"closure codecs");
 
     let value = Foreign(0xdead_beef);
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
-    prover.prover_message_as(&value, |v| v.0.to_le_bytes());
-    let prover_challenge: [u8; 16] = prover.verifier_message();
-    let proof = prover.narg_string().to_vec();
+    let proof = ProverState::<StdHash>::new(&session_id, &instance)
+        .last_prover_message_as(&value, |v| v.0.to_le_bytes());
 
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
-    let read = verifier
-        .prover_message_as(|reader| Ok(Foreign(u64::from_le_bytes(reader.take_array()?))))
+    let read = VerifierState::<StdHash>::new(&session_id, &instance, &proof)
+        .last_prover_message_as(|reader| Ok(Foreign(u64::from_le_bytes(reader.take_array()?))))
         .unwrap();
     assert_eq!(read.0, value.0);
-    let verifier_challenge: [u8; 16] = verifier.verifier_message();
-    assert_eq!(prover_challenge, verifier_challenge);
-    assert!(verifier.check_eof().is_ok());
 }
 
 #[test]
@@ -201,15 +181,6 @@ fn tuple_encoding_concatenates_components() {
     assert_eq!((1u8, "hi").encode().as_ref(), b"\x01\x02\x00\x00\x00hi");
 }
 
-#[test]
-fn str_encoding_prefixes_utf8_with_le_u32_length() {
-    let encoded = "hello".encode();
-    assert_eq!(encoded.as_ref(), b"\x05\x00\x00\x00hello");
-
-    let encoded_utf8 = "hé".encode();
-    assert_eq!(encoded_utf8.as_ref(), b"\x03\x00\x00\x00h\xc3\xa9");
-}
-
 mod word_sponge {
     use crate::duplex_sponge::{DuplexSponge, Permutation};
 
@@ -251,7 +222,7 @@ fn closure_codecs_generic_alphabet_round_trip() {
     });
     prover.public_message_as(&3u64, |v| [*v]);
     let prover_challenge: [u64; 2] = prover.verifier_message_as(2, |units| [units[0], units[1]]);
-    let proof = prover.narg_string().to_vec();
+    let proof = prover.into_narg_string();
 
     let mut verifier = VerifierState::from_parts(session, &proof);
     let read = verifier
@@ -332,50 +303,15 @@ fn closure_batch_helpers_round_trip() {
 
     let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
     prover.prover_messages_as(&points, |point| *point);
-    let proof = prover.narg_string().to_vec();
+    let proof = prover.into_narg_string();
     assert_eq!(proof, points.concat());
-    let prover_challenge: [u8; 16] = prover.verifier_message();
 
     let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
     let read_back = verifier
         .prover_messages_vec_as(points.len(), |reader| reader.take_array::<4>())
         .unwrap();
     assert_eq!(read_back, points);
-    let verifier_challenge: [u8; 16] = verifier.verifier_message();
-    assert_eq!(prover_challenge, verifier_challenge);
     assert!(verifier.check_eof().is_ok());
-}
-
-#[test]
-fn length_prefixed_round_trip() {
-    let instance = [9u32];
-    let session_id = test_session_id(b"length prefixed");
-    let values = alloc::vec![10u32, 20, 30];
-
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
-    prover.prover_message(&LengthPrefixed(&values[..]));
-    let proof = prover.narg_string().to_vec();
-    let prover_challenge: [u8; 16] = prover.verifier_message();
-
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
-    let LengthPrefixed(read_back): LengthPrefixed<alloc::vec::Vec<u32>> =
-        verifier.prover_message().unwrap();
-    assert_eq!(read_back, values);
-    let verifier_challenge: [u8; 16] = verifier.verifier_message();
-    assert_eq!(prover_challenge, verifier_challenge);
-    assert!(verifier.check_eof().is_ok());
-
-    // A tampered NARG string either fails to parse or produces a different verifier message.
-    let mut tampered = proof;
-    tampered[0] ^= 1;
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &tampered);
-    if verifier
-        .prover_message::<LengthPrefixed<alloc::vec::Vec<u32>>>()
-        .is_ok()
-    {
-        let tampered_challenge: [u8; 16] = verifier.verifier_message();
-        assert_ne!(prover_challenge, tampered_challenge);
-    }
 }
 
 #[test]

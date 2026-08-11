@@ -15,22 +15,9 @@ use crate::{
 /// and a cursor over the NARG string being read. Build one with
 /// [`VerifierState::new`] from a 32-byte session identifier (see
 /// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
-/// the NARG string. Once every message has been read, conclude with
-/// [`VerifierState::check_eof`]:
-///
-/// ```
-/// # #[cfg(feature = "turboshake128")]
-/// # {
-/// use spongefish::{StdHash, VerifierState};
-///
-/// let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00");
-/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra bytes");
-/// assert!(verifier.check_eof().is_err());
-///
-/// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
-/// assert!(verifier.check_eof().is_ok());
-/// # }
-/// ```
+/// the NARG string. Most protocols should use
+/// [`Narg::verify`][crate::Narg::verify], which manages this state and always
+/// enforces end of input.
 pub struct VerifierState<
     'a,
     #[cfg(feature = "turboshake128")] H = StdHash,
@@ -72,6 +59,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [`VerifierState::prover_message`] followed by
     /// [`VerifierState::check_eof`], in one call that consumes the state, so
     /// the trailing-bytes check cannot be forgotten.
+    ///
     pub fn last_prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         mut self,
     ) -> VerificationResult<T> {
@@ -81,18 +69,6 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Absorbs a public message without consuming the NARG string.
-    ///
-    /// ```
-    /// # #[cfg(feature = "turboshake128")]
-    /// # {
-    /// use spongefish::{StdHash, VerifierState};
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_message");
-    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
-    /// verifier.public_message(&123u32);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
@@ -124,18 +100,6 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
     /// never from prover-controlled data. See
     /// [`ProverState::public_messages`][crate::ProverState::public_messages]).
-    ///
-    /// ```
-    /// # #[cfg(feature = "turboshake128")]
-    /// # {
-    /// use spongefish::{StdHash, VerifierState};
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_messages");
-    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
-    /// verifier.public_messages(&[1u32, 2u32]);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
@@ -148,18 +112,6 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// The number of messages must be fixed by the protocol; see
     /// [`VerifierState::public_messages`].
-    ///
-    /// ```
-    /// # #[cfg(feature = "turboshake128")]
-    /// # {
-    /// use spongefish::{StdHash, VerifierState};
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/VerifierState::public_messages_iter");
-    /// let mut verifier = VerifierState::<StdHash>::new(&session_id, &0u32, &[]);
-    /// verifier.public_messages_iter([1u32, 2u32]);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
@@ -262,27 +214,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         decode(&buf)
     }
 
-    /// The Fiat-Shamir transformation produces a NARG string with
-    /// **fixed, deterministic length**.
-    /// This check ensures that no trailing bytes remain in the NARG string.
-    ///
-    /// ```
-    /// # #[cfg(feature = "turboshake128")]
-    /// # {
-    /// # use spongefish::{StdHash, VerifierState};
-    /// let session_id = spongefish::derive_session_id::<StdHash>(b"examples/check_eof");
-    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"extra");
-    /// assert!(verifier.check_eof().is_err());
-    ///
-    /// let verifier = VerifierState::<StdHash>::new(&session_id, b"instance", b"");
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
+    /// Ensure that no trailing bytes remain in the NARG string.
     ///
     /// # Safety
     ///
-    /// Skipping this check can introduce a security vulnerability:
-    /// extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
     /// leading to a proof that **lacks strong simulation extractability**.
     /// A NARG string that fails this check should be rejected.
     pub fn check_eof(self) -> VerificationResult<()> {
@@ -322,11 +258,13 @@ where
     /// Per [draft-irtf-cfrg-fiat-shamir][FS], the duplex sponge is initialized
     /// with the 32-byte session identifier and the encoded instance is the
     /// first value absorbed — exactly as the prover does
-    /// ([`ProverState::new`][crate::ProverState::new]).
+    /// ([`ProverState::new`][crate::ProverState::new]). Derive the identifier
+    /// from an application tag with [`derive_session_id`][crate::derive_session_id]
+    /// before calling this constructor.
     ///
     /// # Panics
     ///
-    /// Panics if the encoded instance is empty (forbidden by the draft).
+    /// Panics if the encoded instance is empty, as per [draft-irtf-cfrg-fiat-shamir][FS].
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[must_use]
@@ -347,7 +285,6 @@ where
             narg_string,
         }
     }
-
 }
 
 impl<H> VerifierState<'_, H>
@@ -363,7 +300,7 @@ where
     /// and advances the cursor; the consumed bytes are then absorbed
     /// verbatim, in the same call — reading and hashing a prover message
     /// within one function call is the implementation guidance of
-    /// [draft-irtf-cfrg-fiat-shamir][FS] (§ "Implementation guidance").
+    /// [draft-irtf-cfrg-fiat-shamir][FS] (section "Implementation guidance").
     ///
     /// The closure reads through a [`NargReader`] of its own, and this state only
     /// advances once the closure has succeeded.

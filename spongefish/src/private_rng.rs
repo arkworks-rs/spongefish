@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt;
 
 #[cfg(feature = "turboshake128")]
@@ -15,27 +16,17 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
     seed.fill(0);
 }
 
-/// The prover's private randomness: a byte-oriented duplex sponge seeded from
-/// the operating system's entropy source (or an explicit seed).
+/// The prover's private randomness.
 ///
-/// Generic over the sponge: the default is [`StdHash`], and any byte-oriented
-/// [`DuplexSpongeInit`] works — the RNG's whole interface is bytes, so unlike
-/// the public coins it does not follow the protocol's alphabet. An algebraic
-/// prover keeps a byte RNG and maps its output into the field itself. The
-/// output stream is exactly
-/// `H::init(seed)` followed by squeezes, so a seeded
-/// `PrivateRng<H>` reproduces the deterministic byte stream of the
-/// corresponding suite (e.g. the test-vector DRNGs of
-/// draft-irtf-cfrg-sigma-protocols over
-/// [`Shake128`][crate::instantiations::Shake128]).
+/// Seeded from the operating system's entropy source (or an explicit seed),
+/// the prover's private randomness is produced by default via [`StdHash`],
+/// and any byte-oriented [`DuplexSpongeInit`] works.
 ///
 /// # Compartmentalization
 ///
-/// The seed is absorbed via the construction's `Init` convention: on the XOF
-/// suites it occupies its own rate block and is permuted **before any other
-/// operation touches the state**. Entropy mixed in later
-/// ([`PrivateRng::mix_entropy`]) is compartmentalized the same way through
-/// [`DuplexSpongeInit::absorb_block`].
+/// The seed is absorbed via the construction's `Init` convention.
+/// Entropy mixed in later via ([`PrivateRng::mix_entropy`]) is
+/// absorbed through [`DuplexSpongeInit::absorb_block`].
 ///
 /// # Interoperability with `rand`
 ///
@@ -105,6 +96,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
         T::decode(buf)
+    }
+
+    /// Samples `n` values through their [`Decoding`] codec.
+    pub fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Vec<T> {
+        (0..n).map(|_| self.sample()).collect()
     }
 }
 

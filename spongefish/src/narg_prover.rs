@@ -16,19 +16,8 @@ use crate::{
 ///
 /// Build one with [`ProverState::new`] from a 32-byte session identifier
 /// (see [`derive_session_id`][crate::derive_session_id]) and the encoded
-/// instance:
-///
-/// ```
-/// # #[cfg(feature = "getrandom")]
-/// # {
-/// use spongefish::ProverState;
-///
-/// let session_id = spongefish::derive_session_id::<spongefish::StdHash>(b"example-v00");
-/// let mut prover_state = ProverState::<spongefish::StdHash>::new(&session_id, b"instance");
-/// prover_state.prover_message(&42u32);
-/// let narg_string = prover_state.narg_string();
-/// # }
-/// ```
+/// instance. Most protocols should use [`Narg::prove`][crate::Narg::prove]
+/// directly.
 ///
 /// The private RNG is a [`PrivateRng`] over `R`, independently of the sponge
 /// `H` carrying the public coins.
@@ -78,12 +67,13 @@ where
     H: DuplexSpongeInit,
     R: DuplexSpongeInit<U = u8>,
 {
-    /// The non-interactive prover for `(session_id, instance)`, seeded from
-    /// the operating system's entropy source.
+    /// The non-interactive prover internal state.
     ///
-    /// Per [draft-irtf-cfrg-fiat-shamir][FS], the duplex sponge is initialized
-    /// with the 32-byte session identifier and the encoded instance is the
-    /// first value absorbed.
+    /// The duplex sponge is initialized with the 32-byte session identifier
+    /// and the encoded instance is the first value absorbed.
+    ///
+    /// Use [`derive_session_id`][crate::derive_session_id] before calling
+    /// this constructor.
     ///
     /// # Panics
     ///
@@ -175,18 +165,6 @@ where
     /// outside of the NARG, and is to be included in the Fiat-Shamir transformation but not in
     /// the final NARG string.
     ///
-    /// ```
-    /// # #[cfg(feature = "getrandom")]
-    /// # {
-    /// use spongefish::{ProverState, StdHash};
-    ///
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/ProverState::public_message");
-    /// let mut prover_state = ProverState::<StdHash>::new(&session_id, &0u32);
-    /// prover_state.public_message(&123u32);
-    /// assert_eq!(prover_state.narg_string(), b"");
-    /// # }
-    /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
@@ -196,19 +174,6 @@ where
     /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
     /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
     ///
-    /// ```
-    /// # #[cfg(feature = "getrandom")]
-    /// # {
-    /// use spongefish::{ProverState, StdHash};
-    ///
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/ProverState::prover_message");
-    /// let mut prover_state = ProverState::<StdHash>::new(&session_id, &0u32);
-    /// prover_state.prover_message(&42u32);
-    /// let expected = 42u32.to_le_bytes();
-    /// assert_eq!(prover_state.narg_string(), expected.as_slice());
-    /// # }
-    /// ```
     pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into_narg(&mut self.narg_string);
@@ -307,23 +272,6 @@ where
     }
 
     /// Input a prover message using encoding and serialization closures.
-    ///
-    /// ```
-    /// # #[cfg(feature = "getrandom")]
-    /// # {
-    /// use spongefish::{Encoding, NargSerialize, ProverState, StdHash};
-    ///
-    /// let session_id =
-    ///     spongefish::derive_session_id::<StdHash>(b"examples/ProverState::prover_message_with");
-    /// let mut trait_path = ProverState::<StdHash>::new(&session_id, &0u32);
-    /// let mut closure_path = ProverState::<StdHash>::new(&session_id, &0u32);
-    ///
-    /// trait_path.prover_message(&42u32);
-    /// closure_path.prover_message_with(&42u32, |x| x.encode(), |x, out| x.serialize_into_narg(out));
-    ///
-    /// assert_eq!(trait_path.narg_string(), closure_path.narg_string());
-    /// # }
-    /// ```
     ///
     /// On byte-oriented sponges (`H::U = u8`), prefer [`ProverState::prover_message_as`].
     ///

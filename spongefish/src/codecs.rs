@@ -302,49 +302,43 @@ impl_tuple_encoding! {
 
 /// A variable-length sequence, encoded with a `u32` element-count prefix.
 ///
-/// [`Encoding`] for bare sequences must be prefix-free, which rules out
-/// concatenating a variable number of element encodings: `[a]` would encode to
-/// a strict prefix of `[a, b]`. This combinator restores prefix-freeness by
-/// prepending the element count as a little-endian `u32` (the same convention
-/// as the [`str`] codec), followed by each element's encoding in order.
-///
-/// The prover encodes a borrowed slice; the verifier reads back an owned
-/// vector:
-///
 /// ```
 /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 /// # {
-/// use spongefish::{LengthPrefixed, ProverState, StdHash, VerifierState};
+/// use spongefish::{Argument, LengthPrefixed, Narg, StdHash, Transcript,
+///                  VerificationResult, Witness};
+///
+/// struct Sequence;
+/// impl Argument for Sequence {
+///     type Instance = u32;
+///     type Witness = Vec<u32>;
+///     type Output = Vec<u32>;
+///
+///     fn run<T: Transcript>(
+///         transcript: &mut T,
+///         _instance: &u32,
+///         witness: Witness<&Vec<u32>>,
+///     ) -> VerificationResult<Vec<u32>> {
+///         let LengthPrefixed(values) = transcript.prover_message(
+///             witness.map(|values| LengthPrefixed(values.clone())),
+///         )?;
+///         Ok(values)
+///     }
+/// }
 ///
 /// let session_id = spongefish::derive_session_id::<StdHash>(b"examples/LengthPrefixed");
 /// let values = vec![7u32, 8, 9];
-///
-/// let mut prover_state = ProverState::<StdHash>::new(&session_id, &0u32);
-/// prover_state.prover_message(&LengthPrefixed(&values[..]));
-///
-/// let mut verifier_state =
-///     VerifierState::<StdHash>::new(&session_id, &0u32, prover_state.narg_string());
-/// let LengthPrefixed(read_back): LengthPrefixed<Vec<u32>> =
-///     verifier_state.prover_message().unwrap();
-/// assert_eq!(read_back, values);
-/// assert!(verifier_state.check_eof().is_ok());
+/// let (narg, prover_output) = Narg::prove::<Sequence>(&session_id, &0, &values).unwrap();
+/// assert_eq!(prover_output, values);
+/// assert_eq!(Narg::verify::<Sequence>(&session_id, &0, &narg).unwrap(), values);
 /// # }
 /// ```
-///
-/// The owned form also composes with `#[derive(Codec)]`, so a round message
-/// may hold a `LengthPrefixed<Vec<T>>` field.
 ///
 /// # Safety
 ///
 /// The count prefix makes the encoding prefix-free even when the sequence
-/// length is not fixed by the protocol, but the length still becomes part of
-/// the transcript: prover and verifier absorb whatever count is sent.
-/// Deserialization treats the count as untrusted: a prefix exceeding the
-/// remaining NARG bytes is rejected up front, and the parse loop additionally
-/// rejects any element that consumes zero bytes. Together these bound the work
-/// by the number of remaining bytes for *every* element type, including
-/// zero-width ones (a zero-width element makes the encoding non-injective, so
-/// rejecting it is correct rather than merely defensive).
+/// length is not fixed by the protocol, but does not disambiguate the type or what the length indicates.
+/// This information is part of the session identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LengthPrefixed<T>(pub T);
 
@@ -405,11 +399,7 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
         if len > reader.remaining_len() {
             return Err(crate::VerificationError);
         }
-        // NOTE: `len` is attacker-controlled. Reserving `len` elements up
-        // front would let a 4-byte count trigger a `len * size_of::<T>()`
-        // allocation — an amplification the growing vector does not have. Cap
-        // the hint so it still avoids the first reallocations for the typical
-        // short sequence without handing an attacker a memory multiplier.
+        // Cap the NARG string length hint so to avoid long allocations.
         let mut elements = Vec::with_capacity(usize::min(len, 64));
         for _ in 0..len {
             let before = reader.consumed();

@@ -3,42 +3,11 @@
 //! Implements the duplex-sponge Fiat-Shamir transformation of
 //! [draft-irtf-cfrg-fiat-shamir], from [[CO25]].
 //!
-//! # Examples
-//!
-//! A [`ProverState`] and a [`VerifierState`] are built from a 32-byte
-//! **session identifier** (derived from an application tag, see
-//! [`derive_session_id`]) and the encoded **instance**, which must be
-//! non-empty.
-//!
-//! ```
-//! # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
-//! # {
-//! use spongefish::{ProverState, StdHash, VerifierState};
-//!
-//! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
-//! const P: u64 = (1 << 31) - 1;
-//! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
-//! let witness = 42;
-//! let instance = [2, language(witness)];
-//!
-//! // The tag identifies the protocol, the codecs, and the application context.
-//! let session_id =
-//!     spongefish::derive_session_id::<StdHash>(b"example-v00/simplest-proof-system-mod-p");
-//!
-//! // non-interactive prover
-//! let mut prover_state = ProverState::<StdHash>::new(&session_id, &instance);
-//! prover_state.prover_message(&witness);
-//! let narg_string = prover_state.narg_string();
-//! assert!(narg_string.len() > 0);
-//!
-//! // non-interactive verifier
-//! let mut verifier_state = VerifierState::<StdHash>::new(&session_id, &instance, narg_string);
-//! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
-//! assert_eq!(language(claimed_witness), language(witness));
-//! // a proof is malleable if we don't check we read everything
-//! assert!(verifier_state.check_eof().is_ok())
-//! # }
-//! ```
+//! Write a protocol once as an [`Argument`] generic over [`Transcript`]. The
+//! [`Narg`] transformation runs that body as prover or verifier, supplying a
+//! known or unknown [`Witness`] respectively. See the
+//! [README quick start](https://github.com/arkworks-rs/spongefish#example) for
+//! the complete example.
 //!
 //! ## Prover randomness
 //!
@@ -161,7 +130,14 @@ pub(crate) mod codecs;
 /// Defines [`VerificationError`].
 pub(crate) mod error;
 
+/// Writing a public-coin interactive argument once, and running it as both
+/// sides of the Fiat-Shamir transformation.
+mod argument;
+
 // Re-export the core interfaces for building the FS transformation.
+#[cfg(feature = "turboshake128")]
+pub use argument::Narg;
+pub use argument::{Argument, FiatShamir, Transcript, Witness};
 #[doc(hidden)]
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
