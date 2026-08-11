@@ -59,7 +59,15 @@ sha2 = { workspace = true }
 workspace = true
 
 [[test]]
+name = "interactive_noncanonical"
+required-features = ["getrandom", "turboshake128"]
+
+[[test]]
 name = "interactive_schnorr"
+required-features = ["getrandom", "turboshake128"]
+
+[[test]]
+name = "interactive_sumcheck"
 required-features = ["getrandom", "turboshake128"]
 
 [[bench]]
