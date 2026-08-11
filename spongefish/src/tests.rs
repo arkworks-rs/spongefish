@@ -39,7 +39,7 @@ fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
     assert_eq!(ra, rb);
 
     let mut c = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
-    c.mix_entropy(b"extra");
+    c.mix_entropy(&[9u8; 32]);
     let mut rc = [0u8; 32];
     c.rng().fill_bytes(&mut rc);
     assert_ne!(ra, rc);

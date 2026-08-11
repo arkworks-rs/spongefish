@@ -87,12 +87,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         rng
     }
 
-    /// Mixes additional entropy into the RNG state, compartmentalized per the
-    /// sponge construction ([`DuplexSpongeInit::absorb_block`]).
-    pub fn mix_entropy(&mut self, data: &[u8]) {
-        if !data.is_empty() {
-            self.sponge.absorb_block(data);
-        }
+    /// Mixes additional entropy into the RNG state.
+    ///
+    /// The input `data` is a fixed-width seed zero-padded to fill the hash block.
+    pub fn mix_entropy(&mut self, data: &[u8; SEED_LEN]) {
+        self.sponge.absorb_block(data);
     }
 
     /// Fills `dest` with random bytes.

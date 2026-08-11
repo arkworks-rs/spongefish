@@ -149,7 +149,7 @@ where
 
     /// Mixes external entropy into the private RNG
     /// (see [`PrivateRng::mix_entropy`]).
-    pub fn mix_entropy(&mut self, data: &[u8]) {
+    pub fn mix_entropy(&mut self, data: &[u8; crate::private_rng::SEED_LEN]) {
         self.private_rng.mix_entropy(data);
     }
 
