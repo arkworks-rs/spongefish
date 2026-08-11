@@ -36,9 +36,8 @@ impl From<BabyBearUnit> for BabyBear {
 /// identifier: [`DuplexSponge`][spongefish::DuplexSponge] implements
 /// [`DuplexSpongeInit`][spongefish::DuplexSpongeInit] over any alphabet that
 /// byte strings embed into. With it,
-/// [`ProverState::new`][spongefish::ProverState::new] and
-/// [`from_tag_with`][spongefish::ProverState::from_tag_with] work over BabyBear
-/// exactly as they do over bytes.
+/// [`ProverState::new`][spongefish::ProverState::new] works over BabyBear
+/// exactly as it does over bytes.
 ///
 /// One element per byte rather than a denser packing: every element is then in
 /// `[0, 256)`, so the map is injective by inspection and there is no remainder

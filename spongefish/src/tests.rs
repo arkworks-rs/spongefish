@@ -2,10 +2,11 @@ use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
     derive_session_id, DuplexSpongeInterface, Encoding, LengthPrefixed, NargDeserialize,
-    NargSerialize, ProverState, StdHash, VerificationError, VerificationResult, VerifierState,
+    NargSerialize, ProverState, SessionId, StdHash, VerificationError, VerificationResult,
+    VerifierState,
 };
 
-fn test_session_id(tag: &[u8]) -> [u8; 32] {
+fn test_session_id(tag: &[u8]) -> SessionId {
     derive_session_id::<StdHash>(tag)
 }
 
@@ -107,26 +108,6 @@ fn derive_session_id_is_deterministic() {
     assert_ne!(test_session_id(b"tag one"), test_session_id(b"tag two"));
 }
 
-/// `DeriveSessionID` must match the draft's construction: the SHAKE128 XOF
-/// over `"irtf-cfrg-fiat-shamir/session-id" || zeros(136) || tag`.
-#[test]
-fn session_id_matches_draft_construction() {
-    let mut initial_block = [0u8; 168];
-    initial_block[..32].copy_from_slice(b"irtf-cfrg-fiat-shamir/session-id");
-
-    let mut xof = shake::Shake128::default();
-    xof.update(&initial_block);
-    xof.update(b"discrete_logarithm");
-    let mut reader = xof.finalize_xof();
-    let mut expected = [0u8; 32];
-    reader.read(&mut expected);
-
-    assert_eq!(
-        derive_session_id::<crate::instantiations::Shake128>(b"discrete_logarithm"),
-        expected
-    );
-}
-
 /// The verifier messages are the XOF over
 /// `session_id || zeros(136) || encode(instance) || ...`.
 #[test]
@@ -138,7 +119,7 @@ fn initialization_matches_manual_shake128() {
     let challenge: [u8; 32] = prover.verifier_message();
 
     let mut xof = shake::Shake128::default();
-    xof.update(&session_id);
+    xof.update(session_id.as_bytes());
     xof.update(&[0u8; 136]);
     xof.update(instance.encode().as_ref());
     let mut reader = xof.finalize_xof();

@@ -185,6 +185,52 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 #[cfg(feature = "turboshake128")]
 pub type StdHash = instantiations::TurboShake128;
 
+/// The 32-byte session identifier of draft-irtf-cfrg-fiat-shamir, as produced
+/// by [`derive_session_id`] from an application tag.
+///
+/// It is a newtype rather than a bare `[u8; 32]` so that a tag and an
+/// identifier cannot be confused for one another: a 32-byte tag literal is
+/// itself a `&[u8; 32]`, and would otherwise seed a transcript directly
+/// wherever an identifier is expected — silently skipping the derivation.
+/// Transcript constructors accept only `&SessionId`, so passing either a tag
+/// or the identifier's raw bytes does not compile:
+///
+/// ```compile_fail,E0308
+/// use spongefish::{derive_session_id, ProverState, StdHash};
+///
+/// let session_id = derive_session_id::<StdHash>(b"example-v00");
+/// ProverState::<StdHash>::new(session_id.as_bytes(), b"instance");
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SessionId([u8; 32]);
+
+impl SessionId {
+    /// Wraps 32 bytes already derived elsewhere — a vendored test vector, or
+    /// an identifier carried across a protocol boundary. Deriving from a tag
+    /// with [`derive_session_id`] is the ordinary route.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl From<[u8; 32]> for SessionId {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl AsRef<[u8]> for SessionId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// The draft's `DeriveSessionID(tag)`: derive a 32-byte session identifier
 /// from an application-chosen tag, using the duplex sponge `H`.
 ///
@@ -200,12 +246,12 @@ pub type StdHash = instantiations::TurboShake128;
 /// # }
 /// ```
 #[must_use]
-pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> [u8; 32] {
+pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> SessionId {
     let mut sponge = H::init(b"irtf-cfrg-fiat-shamir/session-id");
     sponge.absorb(tag);
     let mut out = [0u8; 32];
     sponge.squeeze(&mut out);
-    out
+    SessionId(out)
 }
 
 /// Implementation details used by the derive macros. Not public API.

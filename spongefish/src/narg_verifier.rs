@@ -4,8 +4,8 @@ use core::fmt;
 #[cfg(feature = "turboshake128")]
 use crate::StdHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, VerificationError,
-    VerificationResult,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, SessionId,
+    VerificationError, VerificationResult,
 };
 
 /// [`VerifierState`] is the verifier state in the non-interactive
@@ -15,8 +15,7 @@ use crate::{
 /// and a cursor over the NARG string being read. Build one with
 /// [`VerifierState::new`] from a 32-byte session identifier (see
 /// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
-/// the NARG string, or with [`VerifierState::from_tag`] directly from an
-/// application tag. Once every message has been read, conclude with
+/// the NARG string. Once every message has been read, conclude with
 /// [`VerifierState::check_eof`]:
 ///
 /// ```
@@ -305,11 +304,11 @@ where
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[must_use]
     pub fn new<T: Encoding<[H::U]> + ?Sized>(
-        session_id: &[u8; 32],
+        session_id: &SessionId,
         instance: &T,
         narg_string: &'a [u8],
     ) -> Self {
-        let mut duplex_sponge_state = H::init(session_id);
+        let mut duplex_sponge_state = H::init(session_id.as_bytes());
         let encoded = instance.encode();
         assert!(
             !encoded.as_ref().is_empty(),
@@ -322,42 +321,6 @@ where
         }
     }
 
-    /// The non-interactive verifier for `(tag, instance, narg_string)`,
-    /// deriving the 32-byte session identifier from the application tag with
-    /// the byte sponge `D` (the draft's `DeriveSessionID`), then calling
-    /// [`VerifierState::new`].
-    ///
-    /// The dual of
-    /// [`ProverState::from_tag_with`][crate::ProverState::from_tag_with]: `D`
-    /// must be the very sponge the prover derived with.
-    #[must_use]
-    pub fn from_tag_with<D, T>(tag: &[u8], instance: &T, narg_string: &'a [u8]) -> Self
-    where
-        D: crate::duplex_sponge::DuplexSpongeInit<U = u8>,
-        T: Encoding<[H::U]> + ?Sized,
-    {
-        Self::new(&crate::derive_session_id::<D>(tag), instance, narg_string)
-    }
-}
-
-impl<'a, H> VerifierState<'a, H>
-where
-    H: crate::duplex_sponge::DuplexSpongeInit<U = u8>,
-{
-    /// The non-interactive verifier for `(tag, instance, narg_string)`: derives
-    /// the 32-byte session identifier from the application tag (the draft's
-    /// `DeriveSessionID`) and calls [`VerifierState::new`].
-    ///
-    /// A byte sponge derives its own session identifier, so this is
-    /// [`VerifierState::from_tag_with`] with `D = H`.
-    #[must_use]
-    pub fn from_tag<T: Encoding<[u8]> + ?Sized>(
-        tag: &[u8],
-        instance: &T,
-        narg_string: &'a [u8],
-    ) -> Self {
-        Self::from_tag_with::<H, T>(tag, instance, narg_string)
-    }
 }
 
 impl<H> VerifierState<'_, H>

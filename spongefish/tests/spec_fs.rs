@@ -89,7 +89,7 @@ fn run_vectors<S: DuplexSpongeInit<U = u8>>(json: &str) {
                 let tag = unhex(vector.tag.as_ref().expect("tag"));
                 let expected = unhex(vector.output.as_ref().expect("output"));
                 assert_eq!(
-                    derive_session_id::<S>(&tag).as_slice(),
+                    derive_session_id::<S>(&tag).as_bytes().as_slice(),
                     expected,
                     "vector {}",
                     vector.name
