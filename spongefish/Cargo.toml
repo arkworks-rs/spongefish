@@ -58,10 +58,6 @@ sha2 = { workspace = true }
 [lints]
 workspace = true
 
-[[example]]
-name = "schnorr"
-required-features = ["getrandom", "turboshake128"]
-
 [[bench]]
 name = "hotpath"
 harness = false
