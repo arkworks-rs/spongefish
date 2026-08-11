@@ -65,6 +65,21 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(message)
     }
 
+    /// Reads the last prover message, then enforces end of input.
+    ///
+    /// The dual of
+    /// [`ProverState::last_prover_message`][crate::ProverState::last_prover_message]:
+    /// [`VerifierState::prover_message`] followed by
+    /// [`VerifierState::check_eof`], in one call that consumes the state, so
+    /// the trailing-bytes check cannot be forgotten.
+    pub fn last_prover_message<T: Encoding<[H::U]> + NargDeserialize>(
+        mut self,
+    ) -> VerificationResult<T> {
+        let message = self.prover_message()?;
+        self.check_eof()?;
+        Ok(message)
+    }
+
     /// Absorbs a public message without consuming the NARG string.
     ///
     /// ```
@@ -201,6 +216,18 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         let consumed = reader.consumed();
         self.duplex_sponge_state.absorb(encode(&message).as_ref());
         self.narg_string = &self.narg_string[consumed..];
+        Ok(message)
+    }
+
+    /// [`VerifierState::prover_message_with`] as a terminal
+    /// (see [`VerifierState::last_prover_message`]).
+    pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
+        mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
+        encode: impl FnOnce(&T) -> B,
+    ) -> VerificationResult<T> {
+        let message = self.prover_message_with(deserialize, encode)?;
+        self.check_eof()?;
         Ok(message)
     }
 
@@ -367,6 +394,17 @@ where
         self.duplex_sponge_state
             .absorb(&self.narg_string[..consumed]);
         self.narg_string = &self.narg_string[consumed..];
+        Ok(message)
+    }
+
+    /// [`VerifierState::prover_message_as`] as a terminal
+    /// (see [`VerifierState::last_prover_message`]).
+    pub fn last_prover_message_as<T>(
+        mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
+    ) -> VerificationResult<T> {
+        let message = self.prover_message_as(deserialize)?;
+        self.check_eof()?;
         Ok(message)
     }
 

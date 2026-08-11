@@ -159,6 +159,16 @@ where
         self.narg_string.as_slice()
     }
 
+    /// Consumes the state and returns the NARG string.
+    ///
+    /// The terminal for a transcript whose last move is a verifier message or
+    /// a public message. When the last move is a prover message, send it with
+    /// [`ProverState::last_prover_message`] instead.
+    #[must_use]
+    pub fn into_narg_string(self) -> Vec<u8> {
+        self.narg_string
+    }
+
     /// Input a public message to the Fiat-Shamir transformation.
     ///
     /// A public message in this context is a message that is shared among prover and verifier
@@ -202,6 +212,19 @@ where
     pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         message.serialize_into_narg(&mut self.narg_string);
+    }
+
+    /// Input the last prover message and return the NARG string.
+    ///
+    /// This function runs [`ProverState::prover_message`] consuming the prover state and
+    /// returning the NARG string ([`ProverState::narg_string`]).
+    #[must_use]
+    pub fn last_prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(
+        mut self,
+        message: &T,
+    ) -> Vec<u8> {
+        self.prover_message(message);
+        self.narg_string
     }
 
     /// Returns a verifier message `T` that is uniformly distributed.
@@ -322,6 +345,19 @@ where
         serialize(message, &mut self.narg_string);
     }
 
+    /// [`ProverState::prover_message_with`] as a terminal
+    /// (see [`ProverState::last_prover_message`]).
+    #[must_use]
+    pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
+    ) -> Vec<u8> {
+        self.prover_message_with(message, encode, serialize);
+        self.narg_string
+    }
+
     /// Absorb a public message using an encoding closure.
     ///
     /// Like [`ProverState::prover_message_with`] without the serialization
@@ -401,6 +437,18 @@ where
         let bytes = encode(message);
         self.duplex_sponge_state.absorb(bytes.as_ref());
         self.narg_string.extend_from_slice(bytes.as_ref());
+    }
+
+    /// [`ProverState::prover_message_as`] as a terminal
+    /// (see [`ProverState::last_prover_message`]).
+    #[must_use]
+    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
+        mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) -> Vec<u8> {
+        self.prover_message_as(message, encode);
+        self.narg_string
     }
 
     /// Input a slice of prover messages through a closure.

@@ -377,3 +377,29 @@ fn length_prefixed_round_trip() {
         assert_ne!(prover_challenge, tampered_challenge);
     }
 }
+
+#[test]
+fn terminal_helpers_match_the_non_terminal_path_and_reject_trailing_bytes() {
+    let instance = [4u32];
+    let session_id = test_session_id(b"terminal matches");
+
+    let mut open = ProverState::<StdHash>::new(&session_id, &instance);
+    open.prover_message(&1u32);
+    open.prover_message(&2u32);
+
+    let mut terminal = ProverState::<StdHash>::new(&session_id, &instance);
+    terminal.prover_message(&1u32);
+    let narg_string = terminal.last_prover_message(&2u32);
+
+    assert_eq!(open.narg_string(), narg_string);
+
+    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &narg_string);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
+    assert_eq!(verifier.last_prover_message::<u32>().unwrap(), 2);
+
+    let mut with_trailing = narg_string;
+    with_trailing.push(0);
+    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &with_trailing);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
+    assert!(verifier.last_prover_message::<u32>().is_err());
+}
