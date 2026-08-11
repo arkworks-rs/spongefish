@@ -99,6 +99,12 @@
 
 extern crate alloc;
 
+// Keep the README's canonical quick start compiled without duplicating it in
+// the rendered crate documentation.
+#[cfg(all(doctest, feature = "turboshake128", feature = "getrandom"))]
+#[doc = include_str!("../../README.md")]
+pub mod readme_doctests {}
+
 #[cfg(target_endian = "big")]
 compile_error!(
     r#"

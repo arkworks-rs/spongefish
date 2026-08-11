@@ -18,11 +18,15 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - The `LengthPrefixed` combinator for prefix-free encoding of variable-length sequences.
 - `Encoding` for tuples up to arity 8; previously only pairs and triples were covered.
 - `UnitFromBytes`, the embedding of 32-byte strings into a sponge alphabet. 
-- `ProverState::from_tag_with` / `VerifierState::from_tag_with`, which implements `DeriveSessionID` from the specification.
+- Typed session identifiers (`SessionId`), so transcript constructors cannot confuse application tags with already-derived identifiers.
+- A typed, single-body API for writing a public-coin argument once and a compiler into a non-interactive argument.
+- Consuming terminal-message helpers that return the prover's NARG string and make the verifier's end-of-input check mandatory.
 
 ### Changed
 
 - **Breaking:** the library aligns with the latest `draft-irtf-cfrg-fiat-shamir`: session identifiers replace `DomainSeparator`, and the SHAKE128 and TurboSHAKE128 suites are the draft's constructions.
+- **Breaking:** raw `[u8]` no longer implements `Encoding`, as a bare byte string is not prefix-free. Use `LengthPrefixed`, `str`, a fixed-width array, or the closure codecs.
+- **Breaking:** `PrivateRng::mix_entropy` accepts exactly one 32-byte seed.
 - **Breaking:** external codecs drivers are removed, we are embracing the orphan rule. We are stopping to implement `Unit` for other libraries, as this caused a proliferation of feature flags, and down the line conflicts with versioning.
 - **Breaking:** `rand` is now an optional dependency, and `getrandom`-seeded private RNG are the default for prover randomness.
 - **Breaking:** `LengthPrefixed` provides a shorthand for prefix-free encodings, and replaces `Vec<T>`'s `Encoding` implementation.

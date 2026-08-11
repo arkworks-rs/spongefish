@@ -1,8 +1,9 @@
 # spongefish: a duplex sponge Fiat–Shamir library 🧽🐟
 
 Sponge FiSh (duplex **sponge** **Fi**at–**Sh**amir) is a permutation-agnostic Fiat–Shamir library that believes in random oracles.
-It facilitates the writing of multi-round public coin protocols.
-It provides a generic API for generating the verifier's random coins and the prover randomness.
+It facilitates writing multi-round public-coin protocols once as an `Argument`,
+then running the same body as prover or verifier.
+It provides a generic API for generating the verifier's public coins and the prover's private randomness.
 The project is split into several crates:
 
 - `spongefish`: the core library implementing draft-irtf-cfrg-fiat-shamir, together with the duplex sponge API.
@@ -14,51 +15,72 @@ Hash functions can also be bridged in from Rust's generic [`Digest`](https://doc
 
 ## Example
 
-A non-interactive proof is driven by two mirrored states: the prover writes
-messages and derives challenges, the verifier replays them from the proof
-string.
+Implement the public-coin dialogue once, generic over `Transcript`, then compile
+it into a non-interactive argument with `Narg`:
 
 ```rust
-use spongefish::{ProverState, StdHash, VerifierState};
+use spongefish::{Argument, Narg, StdHash, Transcript, VerificationResult, Witness};
+
+struct Schnorr;
+
+impl Argument for Schnorr {
+    type Instance = [u32; 2]; // [generator, public key]
+    type Witness = u32;
+    type Output = ();
+
+    fn run<T: Transcript>(
+        transcript: &mut T,
+        instance: &Self::Instance,
+        witness: Witness<&Self::Witness>,
+    ) -> VerificationResult<()> {
+        let [generator, public_key] = *instance;
+        let nonce = transcript.sample::<u32>();
+        let commitment = transcript
+            .prover_message(nonce.map(|k| generator.wrapping_mul(k)))?;
+        let challenge = transcript.verifier_message::<u32>();
+        let response = transcript.prover_message(
+            nonce
+                .zip(witness)
+                .map(|(k, x)| k.wrapping_add(challenge.wrapping_mul(*x))),
+        )?;
+        transcript.check(|| {
+            generator.wrapping_mul(response)
+                == commitment.wrapping_add(challenge.wrapping_mul(public_key))
+        })
+    }
+}
 
 // The tag identifies the protocol, the codecs, and the application context.
-let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00/my-protocol");
-let instance = [1u32, 2, 3];
+let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00/schnorr-u32");
+let witness = 42u32;
+let instance = [7, 7 * witness];
 
-// Prover: send a message, derive a challenge, output the proof string.
-let mut prover_state = ProverState::<StdHash>::new(&session_id, &instance);
-prover_state.prover_message(&42u32);
-let challenge: [u8; 16] = prover_state.verifier_message();
-let narg_string = prover_state.narg_string();
-
-// Verifier: run verification on the given NARG string.
-let mut verifier_state = VerifierState::<StdHash>::new(&session_id, &instance, narg_string);
-let message: u32 = verifier_state.prover_message().expect("malformed proof");
-let expected: [u8; 16] = verifier_state.verifier_message();
-assert_eq!((message, challenge), (42, expected));
-verifier_state.check_eof().expect("trailing bytes");
+let (narg, ()) = Narg::prove::<Schnorr>(&session_id, &instance, &witness).unwrap();
+Narg::verify::<Schnorr>(&session_id, &instance, &narg).unwrap();
 ```
 
 ## Feature flags
 
 | Feature | Default | Description |
 | --- | :-: | --- |
-| `turboshake128` | ✓ | The SHAKE128 and TurboSHAKE128 suites of draft-irtf-cfrg-fiat-shamir, `StdHash`, and `ProverState` |
-| `getrandom` | ✓ | Seeds the prover's private RNG from the operating system's entropy source |
+| `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `StdHash`, `Narg`, and `ProverState` |
+| `getrandom` | ✓ | Enables OS-seeded `ProverState::new`; with `turboshake128`, also enables `Narg::prove` |
 | `zeroize` | ✓ | Wipes sponge and RNG state on drop |
 | `derive` | | `#[derive(Codec)]` and friends via `spongefish-derive` |
 | `rand` | | `rand_core` trait adapters for `PrivateRng` |
 | `keccak` | | Overwrite-mode duplex sponge over Keccak-f\[1600\] |
 | `ascon` | | Overwrite-mode duplex sponge over the Ascon permutation |
-| `yolocrypto` | | Hazardous escape hatches (direct duplex sponge access) |
+| `yolocrypto` | | direct access to the duplex sponge |
 
 ## More information
 
-Check out the [documentation](https://arkworks.rs/spongefish/) and some [`examples/`](https://github.com/arkworks-rs/spongefish/tree/main/spongefish/examples).
+See the [crate documentation](https://arkworks.rs/spongefish/), the
+[Ristretto Schnorr integration test](https://github.com/arkworks-rs/spongefish/blob/main/spongefish/tests/interactive_schnorr.rs),
+and the [sumcheck integration test](https://github.com/arkworks-rs/spongefish/blob/main/spongefish/tests/interactive_sumcheck.rs).
 
 ## Funding
 
-This project is funded through [NGI0 Entrust](https://nlnet.nl/entrust), a fund established by [NLnet](https://nlnet.nl) with financial support from the European Commission's [Next Generation Internet](https://ngi.eu) program. Learn more at the [NLnet project page](https://nlnet.nl/project/sigmaprotocols).
+This project was funded through [NGI0 Entrust](https://nlnet.nl/entrust), a fund established by [NLnet](https://nlnet.nl) with financial support from the European Commission's [Next Generation Internet](https://ngi.eu) program. Learn more at the [NLnet project page](https://nlnet.nl/project/sigmaprotocols).
 
 [<img src="https://nlnet.nl/logo/banner.png" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
 [<img src="https://nlnet.nl/image/logos/NGI0_tag.svg" alt="NGI Zero Logo" width="20%" />](https://nlnet.nl/entrust)
