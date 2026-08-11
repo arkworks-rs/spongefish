@@ -251,21 +251,6 @@ impl<const N: usize> Decoding<[u8]> for [u8; N] {
     }
 }
 
-/// Handy for serializing byte strings.
-///
-/// # Safety
-///
-/// This implementation is the identity map on `[u8]`.
-/// > **Warning:**
-/// > It is the responsibility of the caller to ensure that the byte string length is fixed by
-/// > the surrounding protocol and that any value encoded this way is prefix-free. Otherwise,
-/// > distinct prover messages may become ambiguous in the transcript.
-impl Encoding<[u8]> for [u8] {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self
-    }
-}
-
 /// Handy for serializing UTF-8 strings.
 ///
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
