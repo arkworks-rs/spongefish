@@ -309,8 +309,11 @@ mod tests {
     fn test_solve_sequential() {
         let challenge = [2u8; 32];
         let mut pow = Blake3PoW::new(challenge, 10.0);
-        let nonce = pow.solve().expect("Should find a nonce");
-        assert!(pow.check(nonce), "Found nonce does not satisfy challenge");
+        let solution = pow.solve().expect("Should find a nonce");
+        assert!(
+            pow.check(solution.nonce),
+            "Found nonce does not satisfy challenge"
+        );
     }
 
     #[cfg(feature = "parallel")]
