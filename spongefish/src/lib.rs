@@ -37,7 +37,7 @@
 //! # }
 //! ```
 //! The above code will fail to compile if no instance is given.
-//! The implementor has full responsibility in providing the correct instance of the proof system.
+//! The implementer has full responsibility for providing the correct instance of the proof system.
 //!
 //! ## Building on external libraries
 //!
