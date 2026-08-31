@@ -37,7 +37,7 @@ fn codec_derive_handles_generic_types() {
     let mut buf: &[u8] = serialized.as_ref();
     let roundtrip = TaggedValue::<u8, 4>::deserialize_from_narg(&mut buf).expect("roundtrip");
     assert_eq!(roundtrip.value, tagged.value);
-    assert!(buf.is_empty());
+    assert_eq!(buf, []);
 
     #[allow(clippy::items_after_statements)]
     fn assert_codec<T: Codec>(_: &T) {}

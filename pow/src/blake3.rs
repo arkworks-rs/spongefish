@@ -176,12 +176,12 @@ impl Blake3PoW {
         // If the batch would overflow `u64`, stop at the last representable nonce
         // and zero the remaining lanes so they never get reported as valid.
         let mut valid_lanes = MAX_SIMD_DEGREE;
-        for i in 0..MAX_SIMD_DEGREE {
+        for (i, input) in self.inputs.iter_mut().enumerate() {
             let Some(batch_nonce) = nonce.checked_add(i as u64) else {
                 valid_lanes = i;
                 break;
             };
-            self.inputs[i][32..40].copy_from_slice(&batch_nonce.to_le_bytes());
+            input[32..40].copy_from_slice(&batch_nonce.to_le_bytes());
         }
         for input in &mut self.inputs[valid_lanes..] {
             input[32..40].fill(0);
