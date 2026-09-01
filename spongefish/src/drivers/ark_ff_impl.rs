@@ -268,7 +268,7 @@ mod test_ark_ff {
         let ser = encode_to_vec(&p_minus_1);
         let mut sl: &[u8] = &ser;
         let de = F::deserialize_from_narg(&mut sl).expect("p-1 should deserialize");
-        assert!(sl.is_empty());
+        assert_eq!(sl, []);
         assert_eq!(de, p_minus_1);
     }
 
