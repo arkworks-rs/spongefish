@@ -230,6 +230,7 @@ pub use error::{VerificationError, VerificationResult};
 pub use io::{NargDeserialize, NargSerialize};
 pub use narg_prover::ProverState;
 pub use narg_verifier::VerifierState;
+pub use rand::{CryptoRng, RngCore};
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
