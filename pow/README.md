@@ -17,7 +17,7 @@ The caller is responsible for connecting it to the Fiat–Shamir transformation,
 The prover squeezes a challenge from its state, grinds a nonce for it, and then sends that nonce as an ordinary prover message. The verifier squeezes the same challenge, reads the nonce from the proof, and re-checks it.
 
 ```rust,ignore
-use spongefish::{ProverState, StdHash, VerifierState};
+use spongefish::{Narg, ProverState, VerifierState};
 use spongefish_pow::{
     blake3::Blake3PoW,
     convenience::{grind_pow, verify_pow},
@@ -26,10 +26,10 @@ use spongefish_pow::{
 // Fixed by the protocol, never read from the proof.
 const POW_BITS: f64 = 20.0;
 
-let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00/grinding");
+let session_id = Narg::derive_session_id(b"example-v00/grinding");
 
 // Prover.
-let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
+let mut prover = ProverState::new(&session_id, &instance);
 // ... earlier prover messages go here ...
 
 // Squeeze the 32-byte grinding challenge.
@@ -43,7 +43,7 @@ prover.prover_message(&solution.nonce);
 let narg_string = prover.narg_string();
 
 // Verifier.
-let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, narg_string);
+let mut verifier = VerifierState::new(&session_id, &instance, narg_string);
 // ... read the earlier prover messages in the same order ...
 
 // Same squeeze, same challenge.

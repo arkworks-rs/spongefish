@@ -305,7 +305,7 @@ impl_tuple_encoding! {
 /// ```
 /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 /// # {
-/// use spongefish::{Argument, LengthPrefixed, Narg, StdHash, Transcript,
+/// use spongefish::{Argument, LengthPrefixed, Narg, DefaultHash, Transcript,
 ///                  VerificationResult, Witness};
 ///
 /// struct Sequence;
@@ -326,7 +326,7 @@ impl_tuple_encoding! {
 ///     }
 /// }
 ///
-/// let session_id = spongefish::derive_session_id::<StdHash>(b"examples/LengthPrefixed");
+/// let tag = b"examples/LengthPrefixed";
 /// let values = vec![7u32, 8, 9];
 /// let (narg, prover_output) = Narg::prove::<Sequence>(&session_id, &0, &values).unwrap();
 /// assert_eq!(prover_output, values);

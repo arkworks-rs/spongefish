@@ -48,7 +48,7 @@
 //!
 //! 1. `Shake128` and `TurboShake128`, the duplex sponges of
 //!    [draft-irtf-cfrg-fiat-shamir], available with the default
-//!    `turboshake128` feature flag (the default is [`StdHash`] =
+//!    `turboshake128` feature flag (the default is [`DefaultHash`] =
 //!    TurboSHAKE128);
 //! 2. `Keccak`, the overwrite-mode duplex sponge
 //!    construction [[CO25], Section 3.3] over the Keccak-f\[1600\] permutation
@@ -161,7 +161,7 @@ pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 /// The default hash function provided by the library: the TurboSHAKE128
 /// duplex sponge of draft-irtf-cfrg-fiat-shamir.
 #[cfg(feature = "turboshake128")]
-pub type StdHash = instantiations::TurboShake128;
+pub type DefaultHash = instantiations::TurboShake128;
 
 /// The 32-byte session identifier of draft-irtf-cfrg-fiat-shamir, as produced
 /// by [`derive_session_id`] from an application tag.
@@ -174,10 +174,10 @@ pub type StdHash = instantiations::TurboShake128;
 /// or the identifier's raw bytes does not compile:
 ///
 /// ```compile_fail,E0308
-/// use spongefish::{derive_session_id, ProverState, StdHash};
+/// use spongefish::{Narg, ProverState};
 ///
-/// let session_id = derive_session_id::<StdHash>(b"example-v00");
-/// ProverState::<StdHash>::new(session_id.as_bytes(), b"instance");
+/// let session_id = Narg::derive_session_id(b"example-v00");
+/// ProverState::new(session_id.as_bytes(), b"instance");
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionId([u8; 32]);
@@ -220,7 +220,7 @@ impl AsRef<[u8]> for SessionId {
 /// ```
 /// # #[cfg(feature = "turboshake128")]
 /// # {
-/// let session_id = spongefish::derive_session_id::<spongefish::StdHash>(b"EXAMPLE-V01-DSFS");
+/// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"EXAMPLE-V01-DSFS");
 /// # }
 /// ```
 #[must_use]

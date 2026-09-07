@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 #[cfg(feature = "turboshake128")]
-use crate::StdHash;
+use crate::DefaultHash;
 use crate::{
     Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, SessionId,
     VerificationError, VerificationResult,
@@ -20,7 +20,7 @@ use crate::{
 /// enforces end of input.
 pub struct VerifierState<
     'a,
-    #[cfg(feature = "turboshake128")] H = StdHash,
+    #[cfg(feature = "turboshake128")] H = DefaultHash,
     #[cfg(not(feature = "turboshake128"))] H,
 > where
     H: DuplexSpongeInterface,

@@ -24,7 +24,7 @@ yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
 zeroize = ["dep:zeroize", "shake?/zeroize", "turboshake?/zeroize"]
-# The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and StdHash.
+# The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and DefaultHash.
 turboshake128 = ["dep:shake", "dep:turboshake"]
 # Prover randomness: OS entropy for the private RNG (default), and an optional
 # rand_core adapter so the RNG can be passed to ecosystem samplers.

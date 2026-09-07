@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 #[cfg(feature = "turboshake128")]
-use crate::StdHash;
+use crate::DefaultHash;
 use crate::{duplex_sponge::DuplexSpongeInit, Decoding};
 
 /// The byte length of a [`PrivateRng`] seed.
@@ -19,7 +19,7 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// The prover's private randomness.
 ///
 /// Seeded from the operating system's entropy source (or an explicit seed),
-/// the prover's private randomness is produced by default via [`StdHash`],
+/// the prover's private randomness is produced by default via [`DefaultHash`],
 /// and any byte-oriented [`DuplexSpongeInit`] works.
 ///
 /// # Compartmentalization
@@ -36,7 +36,7 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// can be passed to ecosystem samplers (`ff::Field::random`, arkworks'
 /// `UniformRand`, ...).
 pub struct PrivateRng<
-    #[cfg(feature = "turboshake128")] H: DuplexSpongeInit<U = u8> = StdHash,
+    #[cfg(feature = "turboshake128")] H: DuplexSpongeInit<U = u8> = DefaultHash,
     #[cfg(not(feature = "turboshake128"))] H: DuplexSpongeInit<U = u8>,
 > {
     sponge: H,

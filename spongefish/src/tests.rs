@@ -3,13 +3,13 @@ use alloc::format;
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Argument, DuplexSpongeInterface, Encoding, Narg, NargDeserialize,
-    NargSerialize, PrivateRng, ProverState, SessionId, StdHash, Transcript, VerificationError,
-    VerificationResult, VerifierState, Witness,
+    derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, Narg,
+    NargDeserialize, NargSerialize, PrivateRng, ProverState, SessionId, Transcript,
+    VerificationError, VerificationResult, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
-    derive_session_id::<StdHash>(tag)
+    Narg::derive_session_id(tag)
 }
 
 #[test]
@@ -50,14 +50,14 @@ fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
     let session_id = test_session_id(b"seeded rng");
     let seed = [7u8; 32];
 
-    let mut a = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
-    let mut b = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
+    let mut a = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
+    let mut b = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
     let (mut ra, mut rb) = ([0u8; 32], [0u8; 32]);
     a.rng().fill_bytes(&mut ra);
     b.rng().fill_bytes(&mut rb);
     assert_eq!(ra, rb);
 
-    let mut c = ProverState::<StdHash>::new_with_seed(&session_id, &instance, seed);
+    let mut c = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
     c.mix_entropy(&[9u8; 32]);
     let mut rc = [0u8; 32];
     c.rng().fill_bytes(&mut rc);
@@ -67,8 +67,8 @@ fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
 #[test]
 fn sample_vec_matches_repeated_sampling() {
     let seed = [11u8; 32];
-    let mut vector_rng = PrivateRng::<StdHash>::from_seed(seed);
-    let mut repeated_rng = PrivateRng::<StdHash>::from_seed(seed);
+    let mut vector_rng = PrivateRng::<DefaultHash>::from_seed(seed);
+    let mut repeated_rng = PrivateRng::<DefaultHash>::from_seed(seed);
 
     let samples = vector_rng.sample_vec::<u32>(4);
     let expected = (0..4)
@@ -84,12 +84,12 @@ fn check_eof_reports_remaining_bytes() {
     let instance = [5u32, 6u32];
     let session_id = test_session_id(b"check eof");
 
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
     prover.prover_message(&instance[0]);
     let mut proof = prover.narg_string().to_vec();
     proof.extend_from_slice(&[9u8, 9, 9, 9]);
 
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
     assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[0]);
     assert!(verifier.check_eof().is_err());
 }
@@ -123,10 +123,10 @@ fn closure_codecs_correctness() {
     let session_id = test_session_id(b"closure codecs");
 
     let value = Foreign(0xdead_beef);
-    let proof = ProverState::<StdHash>::new(&session_id, &instance)
+    let proof = ProverState::<DefaultHash>::new(&session_id, &instance)
         .last_prover_message_as(&value, |v| v.0.to_le_bytes());
 
-    let read = VerifierState::<StdHash>::new(&session_id, &instance, &proof)
+    let read = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof)
         .last_prover_message_as(|reader| Ok(Foreign(u64::from_le_bytes(reader.take_array()?))))
         .unwrap();
     assert_eq!(read.0, value.0);
@@ -155,7 +155,7 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
 
     let proof = [7u8, 8, 9];
     let session_id = test_session_id(b"rollback");
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, b"instance", &proof);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
     assert!(verifier.prover_message::<BadMessage>().is_err());
     assert_eq!(verifier.narg_string, &proof);
     assert!(verifier.check_eof().is_err());
@@ -243,8 +243,8 @@ fn prover_message_with_matches_trait_path() {
     let instance = [4u32];
     let session_id = test_session_id(b"with matches trait");
 
-    let mut trait_path = ProverState::<StdHash>::new(&session_id, &instance);
-    let mut closure_path = ProverState::<StdHash>::new(&session_id, &instance);
+    let mut trait_path = ProverState::<DefaultHash>::new(&session_id, &instance);
+    let mut closure_path = ProverState::<DefaultHash>::new(&session_id, &instance);
     trait_path.prover_message(&42u32);
     closure_path.prover_message_with(
         &42u32,
@@ -262,7 +262,7 @@ fn prover_message_with_matches_trait_path() {
 fn verifier_prover_message_with_rolls_back_on_error() {
     let proof = [7u8, 8, 9];
     let session_id = test_session_id(b"with rollback");
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, b"instance", &proof);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
 
     // A deserializer that consumes input and *then* fails leaves the cursor
     // unchanged and absorbs nothing: the reader it advanced is discarded.
@@ -301,12 +301,12 @@ fn closure_batch_helpers_round_trip() {
     let session_id = test_session_id(b"closure batch");
     let points: [[u8; 4]; 3] = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]];
 
-    let mut prover = ProverState::<StdHash>::new(&session_id, &instance);
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
     prover.prover_messages_as(&points, |point| *point);
     let proof = prover.into_narg_string();
     assert_eq!(proof, points.concat());
 
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &proof);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
     let read_back = verifier
         .prover_messages_vec_as(points.len(), |reader| reader.take_array::<4>())
         .unwrap();
@@ -319,23 +319,23 @@ fn terminal_helpers_match_the_non_terminal_path_and_reject_trailing_bytes() {
     let instance = [4u32];
     let session_id = test_session_id(b"terminal matches");
 
-    let mut open = ProverState::<StdHash>::new(&session_id, &instance);
+    let mut open = ProverState::<DefaultHash>::new(&session_id, &instance);
     open.prover_message(&1u32);
     open.prover_message(&2u32);
 
-    let mut terminal = ProverState::<StdHash>::new(&session_id, &instance);
+    let mut terminal = ProverState::<DefaultHash>::new(&session_id, &instance);
     terminal.prover_message(&1u32);
     let narg_string = terminal.last_prover_message(&2u32);
 
     assert_eq!(open.narg_string(), narg_string);
 
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &narg_string);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
     assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
     assert_eq!(verifier.last_prover_message::<u32>().unwrap(), 2);
 
     let mut with_trailing = narg_string;
     with_trailing.push(0);
-    let mut verifier = VerifierState::<StdHash>::new(&session_id, &instance, &with_trailing);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &with_trailing);
     assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
     assert!(verifier.last_prover_message::<u32>().is_err());
 }

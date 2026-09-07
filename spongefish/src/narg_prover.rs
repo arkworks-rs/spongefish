@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::fmt;
 
 #[cfg(feature = "turboshake128")]
-use crate::StdHash;
+use crate::DefaultHash;
 use crate::{
     duplex_sponge::DuplexSpongeInit, Decoding, DuplexSpongeInterface, Encoding, NargSerialize,
     PrivateRng, SessionId,
@@ -29,9 +29,9 @@ use crate::{
 /// implement [`Clone`] or [`Copy`] to prevent accidental state-restoration
 /// attacks.
 pub struct ProverState<
-    #[cfg(feature = "turboshake128")] H = StdHash,
+    #[cfg(feature = "turboshake128")] H = DefaultHash,
     #[cfg(not(feature = "turboshake128"))] H,
-    #[cfg(feature = "turboshake128")] R = StdHash,
+    #[cfg(feature = "turboshake128")] R = DefaultHash,
     #[cfg(not(feature = "turboshake128"))] R,
 > where
     H: DuplexSpongeInterface,

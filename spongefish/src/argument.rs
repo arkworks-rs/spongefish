@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 #[cfg(feature = "turboshake128")]
-use crate::StdHash;
+use crate::DefaultHash;
 use crate::{
     Decoding, DuplexSpongeInit, DuplexSpongeInterface, Encoding, NargDeserialize, ProverState,
     VerificationError, VerificationResult, VerifierState,
@@ -275,18 +275,18 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
 /// Use [`Narg::prove`] for the draft's default suite, or
 /// `FiatShamir::<Keccak>::prove(..)` for another.
 #[cfg(feature = "turboshake128")]
-pub struct FiatShamir<H = StdHash>(PhantomData<H>);
+pub struct FiatShamir<H = DefaultHash>(PhantomData<H>);
 
 /// The transformation at a sponge you name. Without the `turboshake128`
 /// feature there is no default suite to fall back on.
 #[cfg(not(feature = "turboshake128"))]
 pub struct FiatShamir<H>(PhantomData<H>);
 
-/// The transformation at [`StdHash`], the TurboSHAKE128 suite of the draft.
+/// The transformation at [`DefaultHash`], the TurboSHAKE128 suite of the draft.
 ///
 /// A type alias fixes the parameter, so `Narg::prove(..)` needs no turbofish.
 #[cfg(feature = "turboshake128")]
-pub type Narg = FiatShamir<StdHash>;
+pub type Narg = FiatShamir<DefaultHash>;
 
 impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
     /// Run `argument` as the non-interactive prover.

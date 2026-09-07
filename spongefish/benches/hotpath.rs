@@ -12,8 +12,8 @@ use bench_util::{bench, sink};
 use spongefish::{
     derive_session_id,
     instantiations::{Hash, Keccak, KeccakF1600, Shake128, TurboShake128},
-    Codec, DuplexSpongeInit, DuplexSpongeInterface, Encoding, LengthPrefixed, NargDeserialize,
-    NargReader, NargSerialize, Permutation, ProverState, StdHash, VerifierState,
+    Codec, DuplexSpongeInit, DuplexSpongeInterface, Encoding, LengthPrefixed,
+    Narg, NargDeserialize, NargReader, NargSerialize, Permutation, ProverState, VerifierState,
 };
 
 /// A round message of the shape a real prover sends: a couple of group-element
@@ -208,13 +208,13 @@ fn sponge_benches() {
 
 fn driver_benches() {
     println!("\n== prover / verifier drivers ==");
-    let sid = derive_session_id::<StdHash>(b"spongefish/bench");
+    let sid = Narg::derive_session_id(b"spongefish/bench");
     let instance = [1u8; 32];
     let seed = [0u8; 32];
 
     let round = RoundMessage::default();
     bench("prover/32x prover_message(derive 68 B)", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         for _ in 0..32 {
             prover.prover_message(&round);
         }
@@ -222,7 +222,7 @@ fn driver_benches() {
     });
 
     bench("prover/256x prover_message(u32)", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         for i in 0..256u32 {
             prover.prover_message(&i);
         }
@@ -230,7 +230,7 @@ fn driver_benches() {
     });
 
     bench("prover/256x prover_message([u8; 32])", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         for _ in 0..256 {
             prover.prover_message(&[7u8; 32]);
         }
@@ -238,7 +238,7 @@ fn driver_benches() {
     });
 
     bench("prover/interleaved 32 rounds (message + challenge)", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         for _ in 0..32 {
             prover.prover_message(&round);
             let challenge: [u8; 16] = prover.verifier_message();
@@ -248,7 +248,7 @@ fn driver_benches() {
     });
 
     bench("prover/private rng: 32x 32 B", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         let mut out = [0u8; 32];
         for _ in 0..32 {
             prover.rng().fill_bytes(&mut out);
@@ -257,7 +257,7 @@ fn driver_benches() {
     });
 
     // Build a NARG string once, then measure the verifier replaying it.
-    let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+    let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
     for _ in 0..32 {
         prover.prover_message(&round);
         let challenge: [u8; 16] = prover.verifier_message();
@@ -266,7 +266,7 @@ fn driver_benches() {
     let narg = prover.narg_string().to_vec();
 
     bench("verifier/interleaved 32 rounds", || {
-        let mut verifier = VerifierState::<StdHash>::new(&sid, &instance, &narg);
+        let mut verifier = VerifierState::<DefaultHash>::new(&sid, &instance, &narg);
         for _ in 0..32 {
             let msg: RoundMessage = verifier.prover_message().unwrap();
             sink(msg.index);
@@ -279,14 +279,14 @@ fn driver_benches() {
     // that the squeeze then overwrites in full. Compare against
     // `sponge/turboshake128/squeeze 32 B`, which squeezes the same 32 bytes
     // into a buffer that is never zeroed.
-    let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+    let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
     bench("verifier/verifier_message::<[u8; 32]>", || {
         let challenge: [u8; 32] = prover.verifier_message();
         sink(challenge[0]);
     });
 
     bench("session/derive_session_id", || {
-        sink(derive_session_id::<StdHash>(b"spongefish/bench"));
+        sink(Narg::derive_session_id(b"spongefish/bench"));
     });
 }
 
@@ -300,14 +300,14 @@ fn protocol_benches() {
     use curve25519_dalek::{constants::RISTRETTO_BASEPOINT_POINT, scalar::Scalar};
 
     println!("\n== realistic protocol (with group arithmetic) ==");
-    let sid = derive_session_id::<StdHash>(b"spongefish/bench/protocol");
+    let sid = Narg::derive_session_id(b"spongefish/bench/protocol");
     let instance = [1u8; 32];
     let seed = [0u8; 32];
 
     bench(
         "protocol/32 rounds: scalar mult + message + challenge",
         || {
-            let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+            let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
             let mut accumulator = RISTRETTO_BASEPOINT_POINT;
             for index in 0..32u32 {
                 // The cryptographic work a real prover does per round.
@@ -328,7 +328,7 @@ fn protocol_benches() {
     // The same loop with the group arithmetic removed, so the codec share can
     // be read off directly as the difference.
     bench("protocol/32 rounds: message + challenge only", || {
-        let mut prover = ProverState::<StdHash>::new_with_seed(&sid, &instance, seed);
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&sid, &instance, seed);
         for index in 0..32u32 {
             let message = RoundMessage {
                 commitment: [3u8; 32],

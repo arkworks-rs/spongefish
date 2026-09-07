@@ -18,7 +18,7 @@ pub type Shake128 = XOF<shake::Shake128>;
 /// The TurboSHAKE128 duplex sponge of draft-irtf-cfrg-fiat-shamir
 /// (`Keccak-p[1600, 12]`, RFC 9861, `D = 0x1F`).
 ///
-/// This is the library's default hash ([`StdHash`][crate::StdHash]).
+/// This is the library's default hash ([`DefaultHash`][crate::DefaultHash]).
 #[cfg(feature = "turboshake128")]
 pub type TurboShake128 = XOF<::turboshake::TurboShake128>;
 

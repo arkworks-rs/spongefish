@@ -8,8 +8,7 @@
 
 use spongefish::{Argument, Narg, Transcript, Witness};
 use spongefish::{
-    ByteArray, Decoding, Encoding, NargDeserialize, NargReader, StdHash, VerificationError,
-    VerificationResult,
+    ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError,
 };
 
 const P: u32 = (1 << 31) - 1;
@@ -192,7 +191,7 @@ fn hex(s: &str) -> Vec<u8> {
 
 fn setup() -> (spongefish::SessionId, Claim, Vec<M31>) {
     (
-        spongefish::derive_session_id::<StdHash>(TAG),
+        Narg::derive_session_id(TAG),
         Claim {
             num_variables: 4,
             claimed_sum: M31(0xffff),
@@ -204,11 +203,11 @@ fn setup() -> (spongefish::SessionId, Claim, Vec<M31>) {
 #[test]
 fn matches_the_cfrg_vector() {
     let (sid, instance, table) = setup();
-    let (narg, output) = Narg::prove::<Sumcheck>(&sid, &instance, &table).expect("prover");
+    let (narg, output) = Narg::prove_with_session_id::<Sumcheck>(&sid, &instance, &table).expect("prover");
     assert_eq!(narg, hex(NARG), "NARG string differs from the CFRG vector");
     assert_eq!(output, M31(FINAL_EVALUATION));
     assert_eq!(
-        Narg::verify::<Sumcheck>(&sid, &instance, &narg).expect("must verify"),
+        Narg::verify_with_session_id::<Sumcheck>(&sid, &instance, &narg).expect("must verify"),
         M31(FINAL_EVALUATION)
     );
 }
@@ -219,7 +218,7 @@ fn rejects_trailing_bytes() {
     let (sid, instance, _) = setup();
     let mut narg = hex(NARG);
     narg.push(0);
-    assert!(Narg::verify::<Sumcheck>(&sid, &instance, &narg).is_err());
+    assert!(Narg::verify_with_session_id::<Sumcheck>(&sid, &instance, &narg).is_err());
 }
 
 /// The decisive composition test: the same protocol written as one flat body
@@ -228,11 +227,11 @@ fn rejects_trailing_bytes() {
 #[test]
 fn nesting_does_not_change_the_transcript() {
     let (sid, instance, table) = setup();
-    let (narg, output) = Narg::prove::<NestedSumcheck>(&sid, &instance, &table).expect("prover");
+    let (narg, output) = Narg::prove_with_session_id::<NestedSumcheck>(&sid, &instance, &table).expect("prover");
     assert_eq!(narg, hex(NARG), "nesting changed the NARG string");
     assert_eq!(output, M31(FINAL_EVALUATION));
     assert_eq!(
-        Narg::verify::<NestedSumcheck>(&sid, &instance, &narg).unwrap(),
+        Narg::verify_with_session_id::<NestedSumcheck>(&sid, &instance, &narg).unwrap(),
         M31(FINAL_EVALUATION)
     );
 }

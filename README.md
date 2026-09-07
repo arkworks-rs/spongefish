@@ -19,7 +19,7 @@ Implement the public-coin dialogue once, generic over `Transcript`, then compile
 it into a non-interactive argument with `Narg`:
 
 ```rust
-use spongefish::{Argument, Narg, StdHash, Transcript, VerificationResult, Witness};
+use spongefish::{Argument, Narg, DefaultHash, Transcript, VerificationResult, Witness};
 
 struct Schnorr;
 
@@ -51,7 +51,6 @@ impl Argument for Schnorr {
 }
 
 // The tag identifies the protocol, the codecs, and the application context.
-let session_id = spongefish::derive_session_id::<StdHash>(b"example-v00/schnorr-u32");
 let witness = 42u32;
 let instance = [7, 7 * witness];
 
@@ -63,7 +62,7 @@ Narg::verify::<Schnorr>(&session_id, &instance, &narg).unwrap();
 
 | Feature | Default | Description |
 | --- | :-: | --- |
-| `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `StdHash`, `Narg`, and `ProverState` |
+| `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `DefaultHash`, `Narg`, and `ProverState` |
 | `getrandom` | ✓ | Enables OS-seeded `ProverState::new`; with `turboshake128`, also enables `Narg::prove` |
 | `zeroize` | ✓ | Wipes sponge and RNG state on drop |
 | `derive` | | `#[derive(Codec)]` and friends via `spongefish-derive` |
