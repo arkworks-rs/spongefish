@@ -21,18 +21,7 @@ use crate::DuplexSpongeInterface;
 
 /// Digest bytes produced by a squeeze but not yet handed to a caller.
 ///
-/// At most one digest is ever parked here: `squeeze` writes the head of each
-/// fresh digest straight into the caller's output and buffers only the tail. So
-/// this is one `Output<D>` with a read cursor — no allocation on the squeeze
-/// path, and no growth or compaction logic to get right.
-///
-/// # Invariant
-///
-/// `start <= end <= DIGEST_SIZE`, and [`Leftovers::len`] means the number of
-/// *unconsumed* bytes. That second point is load-bearing: `squeeze_end`
-/// computes the transcript-affecting
-/// `byte_count = count * DIGEST_SIZE - leftovers.len()`, so `len` keeping this
-/// meaning is what holds the output bytes fixed.
+/// At most one digest is ever parked here, for use in subsequent `squeeze` calls.
 #[derive(Clone)]
 struct Leftovers<D: OutputSizeUser> {
     buf: Output<D>,
