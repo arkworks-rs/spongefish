@@ -97,11 +97,13 @@ pub trait DuplexSpongeInterface: Clone {
     ///
     /// Calls to this function are meant to be associative:
     /// calling this function multiple times is equivalent to calling it once
-    /// on a larger output array.
+    /// on a larger output array. However, an empty squeeze is not guaranteed
+    /// to be a no-op. For example, `absorb("a"); squeeze(0); absorb("b")`
+    /// might behave differently from `absorb("ab")`.
     ///
-    /// Whether squeezing affects a subsequent absorb, and if so at what
-    /// granularity, is left to the implementation. The session identifier MUST
-    /// take care of the absorb/squeeze pattern.
+    /// Whether squeezing affects a subsequent absorb, and at what granularity,
+    /// is left to the implementation. The session identifier MUST account for
+    /// the absorb/squeeze pattern.
     fn squeeze(&mut self, output: &mut [Self::U]) -> &mut Self;
 
     /// Squeeze a fixed-length array of size `LEN`.
