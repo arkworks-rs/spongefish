@@ -327,9 +327,9 @@ impl_tuple_encoding! {
 ///
 /// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"examples/LengthPrefixed");
 /// let values = vec![7u32, 8, 9];
-/// let (narg, prover_output) = Narg::prove::<Sequence>(&session_id, &0, &values).unwrap();
+/// let (narg, prover_output) = Narg::prove::<Sequence>(tag, &0, &values).unwrap();
 /// assert_eq!(prover_output, values);
-/// assert_eq!(Narg::verify::<Sequence>(&session_id, &0, &narg).unwrap(), values);
+/// assert_eq!(Narg::verify::<Sequence>(tag, &0, &narg).unwrap(), values);
 /// # }
 /// ```
 ///

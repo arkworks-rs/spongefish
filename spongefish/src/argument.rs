@@ -83,6 +83,52 @@ impl<T> From<T> for Witness<T> {
 }
 
 /// The interactive protocol transcript.
+///
+/// A transcript allows to express an interactive protocol.
+///
+/// ```
+/// # use spongefish::{Transcript, VerificationError, Witness};
+/// fn know_one<T: Transcript>(
+///     transcript: &mut T,
+///     witness: Witness<u64>,
+/// ) -> Result<(), VerificationError> {
+///     let value = transcript.prover_message(witness)?;
+///     transcript.check(|| value == 1)
+/// }
+/// ```
+///
+/// An interactive protocol can be turned into a non-interactive one easily.
+/// For instance:
+///
+/// ```
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+/// # {
+/// use spongefish::{Argument, Narg, Transcript};
+/// use spongefish::{VerificationError, Witness};
+///
+/// struct KnowOne;
+///
+/// impl Argument for KnowOne {
+///     type Instance = u8;
+///     type Witness = u64;
+///     type Output = ();
+///
+///     fn run<T: Transcript>(
+///         transcript: &mut T,
+///         _instance: &u8,
+///         witness: Witness<&u64>,
+///     ) -> Result<(), VerificationError> {
+///         let value = transcript.prover_message(witness.map(|value| *value))?;
+///         transcript.check(|| value == 1)
+///     }
+/// }
+///
+/// let tag = b"examples/know-one";
+/// let (proof, ()) = Narg::prove::<KnowOne>(tag, &0, &1).unwrap();
+/// assert_eq!(Narg::verify::<KnowOne>(tag, &0, &proof).unwrap(), ());
+/// # }
+/// ```
+///
 pub trait Transcript {
     /// A prover message: the prover sends the value, the verifier reads one.
     ///
@@ -92,22 +138,28 @@ pub trait Transcript {
     where
         T: Encoding + NargDeserialize;
 
-    /// A verifier message. Both sides derive it the same way, so it is
-    /// infallible and known to both.
+    /// A verifier message, sent by the verifier to the prover.
     fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T;
 
-    /// A value both parties hold: absorbed, not carried by the proof.
+    /// A "public" prover message from the prover to the verifier.
+    ///
+    /// A public message is a message that doesn't need to be part of the NARG string
+    /// (for instance, because it's already part of the context of metadata).
+    ///
+    /// A public message will not be serialized in the final NARG string, leading to
+    /// shorter proofs, yet it will be part of the non-interactive Fiat-Shamir transformation.
     fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
 
-    /// The prover's private randomness. Unknown on the verifier, which is what
-    /// makes the rest of the body typecheck on both sides.
+    /// Samples a random element using the prover's private randomness.
+    ///
+    /// Zero-knowledge argument provers often require randomness, and this function
+    /// allows to return a random type `T`, marked as `Witness`.
     fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T>;
 
-    /// `n` samples from the prover's private randomness. Unknown on the
-    /// verifier, without allocating a placeholder vector there.
+    /// Samples `n` random elements using the prover's private randomness.
     fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Witness<Vec<T>>;
 
-    /// A verification equation.
+    /// The interactive verifier checks.
     ///
     /// The closure `holds` is called also by the prover in `debug` builds.
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
@@ -286,7 +338,17 @@ pub struct FiatShamir<H>(PhantomData<H>);
 pub type Narg = FiatShamir<DefaultHash>;
 
 impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
-    /// Run `argument` as the non-interactive prover.
+    /// Derive a session identifier using this transformation's duplex sponge.
+    ///
+    /// For the default [`Narg`] transformation, this is the ergonomic
+    /// counterpart to [`crate::derive_session_id`].
+    #[must_use]
+    pub fn derive_session_id(tag: &[u8]) -> crate::SessionId {
+        crate::derive_session_id::<H>(tag)
+    }
+
+    /// Run `argument` as the non-interactive prover, deriving the session
+    /// identifier from `tag` first.
     ///
     /// Returns the NARG string and whatever terminal value the dialogue
     /// produced — for a sumcheck, the folded evaluation that a surrounding
@@ -295,31 +357,55 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
     /// verifier has no randomness and so needs neither feature.
     #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
     pub fn prove<A: Argument>(
+        tag: &[u8],
+        instance: &A::Instance,
+        witness: &A::Witness,
+    ) -> Result<(alloc::vec::Vec<u8>, A::Output), VerificationError> {
+        let session_id = Self::derive_session_id(tag);
+        Self::prove_with_session_id::<A>(&session_id, instance, witness)
+    }
+
+    /// Run `argument` as the non-interactive prover with a pre-derived session
+    /// identifier.
+    #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+    pub fn prove_with_session_id<A: Argument>(
         session_id: &crate::SessionId,
         instance: &A::Instance,
         witness: &A::Witness,
     ) -> Result<(alloc::vec::Vec<u8>, A::Output), VerificationError> {
         assert_argument_has_no_state::<A>();
         let () = A::NO_STATE;
-        let mut transcript = ProverState::<H>::new(session_id, instance);
-        let output = A::run(&mut transcript, instance, Witness::known(witness))?;
-        Ok((transcript.into_narg_string(), output))
+        let mut prover_state = ProverState::<H>::new(session_id, instance);
+        let output = A::run(&mut prover_state, instance, Witness::known(witness))?;
+        Ok((prover_state.into_narg_string(), output))
     }
 
-    /// Run `argument` as the non-interactive verifier.
+    /// Run `argument` as the non-interactive verifier, deriving the session
+    /// identifier from `tag` first.
     ///
     /// The end-of-input check is here and not optional: trailing bytes make a
     /// proof malleable.
     pub fn verify<A: Argument>(
+        tag: &[u8],
+        instance: &A::Instance,
+        narg_string: &[u8],
+    ) -> Result<A::Output, VerificationError> {
+        let session_id = Self::derive_session_id(tag);
+        Self::verify_with_session_id::<A>(&session_id, instance, narg_string)
+    }
+
+    /// Run `argument` as the non-interactive verifier with a pre-derived
+    /// session identifier.
+    pub fn verify_with_session_id<A: Argument>(
         session_id: &crate::SessionId,
         instance: &A::Instance,
         narg_string: &[u8],
     ) -> Result<A::Output, VerificationError> {
         assert_argument_has_no_state::<A>();
         let () = A::NO_STATE;
-        let mut transcript = VerifierState::<H>::new(session_id, instance, narg_string);
-        let output = A::run(&mut transcript, instance, Witness::unknown())?;
-        transcript.check_eof()?;
+        let mut verifier_state = VerifierState::<H>::new(session_id, instance, narg_string);
+        let output = A::run(&mut verifier_state, instance, Witness::unknown())?;
+        verifier_state.check_eof()?;
         Ok(output)
     }
 }

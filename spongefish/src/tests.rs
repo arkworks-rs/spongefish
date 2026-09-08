@@ -41,7 +41,7 @@ fn argument_cannot_override_the_statelessness_check() {
     }
 
     let session_id = test_session_id(b"stateful argument");
-    let _ = Narg::prove::<Stateful>(&session_id, &0, &());
+    let _ = Narg::prove_with_session_id::<Stateful>(&session_id, &0, &());
 }
 
 #[test]
