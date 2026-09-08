@@ -287,7 +287,7 @@ fn expand(generated: Result<TokenStream2>) -> TokenStream {
 /// Fields marked with `#[spongefish(skip)]` are omitted from the encoding.
 /// Any other `#[spongefish(..)]` form is a compile error.
 ///
-/// # Safety
+/// # Security
 ///
 /// Skip only values that are recomputable, or genuinely irrelevant to the statement being proven.
 ///

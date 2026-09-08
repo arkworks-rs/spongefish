@@ -22,7 +22,7 @@ use crate::{
 /// The private RNG is a [`PrivateRng`] over `R`, independently of the sponge
 /// `H` carrying the public coins.
 ///
-/// # Safety
+/// # Security
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private
 /// coins, and therefore to losing zero-knowledge. [`ProverState`] does not
@@ -41,7 +41,7 @@ pub struct ProverState<
     pub(crate) private_rng: PrivateRng<R>,
     /// The public coins for the protocol.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Copying this object will break the soundness guarantees installed at the [`ProverState`] level.
     #[cfg(feature = "yolocrypto")]
@@ -89,7 +89,7 @@ where
 
     /// The non-interactive prover with a **deterministic** private RNG.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
     #[must_use]
@@ -203,7 +203,7 @@ where
 
     /// Input to the Fiat-Shamir transformation a slice of public messages.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
@@ -217,7 +217,7 @@ where
 
     /// Input to the Fiat-Shamir transformation an iterator of public messages.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// The number of messages must be fixed by the protocol; see
     /// [`ProverState::public_messages`].
@@ -234,7 +234,7 @@ where
     /// Input a slice of prover messages: each is absorbed into the duplex
     /// sponge and serialized into the NARG string, in order.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
@@ -248,7 +248,7 @@ where
     /// Input an iterator of prover messages: each is absorbed into the duplex
     /// sponge and serialized into the NARG string, in order.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// The number of messages must be fixed by the protocol; see [`ProverState::prover_messages`].
     pub fn prover_messages_iter<J>(&mut self, messages: J)
@@ -406,7 +406,7 @@ where
     /// verifier reads the batch back with
     /// [`VerifierState::prover_messages_vec_as`][crate::VerifierState::prover_messages_vec_as].
     ///
-    /// # Safety
+    /// # Security
     ///
     /// The number of messages must be fixed by the protocol or derived from the instance.
     /// See [`ProverState::prover_messages`].

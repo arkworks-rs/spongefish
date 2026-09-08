@@ -115,7 +115,7 @@ impl<'a> NargReader<'a> {
 pub trait NargSerialize {
     /// Serializes `self` into `dst` by extending the vector.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// This procedure must output a prefix-free string.
     /// The bytes appended for one value must be exactly the bytes that the matching
@@ -154,7 +154,7 @@ pub trait NargDeserialize: Sized {
     ///
     /// The batch deserialization method, so that a whole array of prover message can be read at once.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// An override **MUST** accept exactly the inputs that `N` calls to
     /// [`NargDeserialize::deserialize_from_narg`] accept. It **MUST** consume

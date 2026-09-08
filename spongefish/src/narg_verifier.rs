@@ -94,7 +94,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Absorbs a slice of public messages.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
@@ -108,7 +108,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Absorbs an iterator of public messages.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// The number of messages must be fixed by the protocol; see
     /// [`VerifierState::public_messages`].
@@ -216,7 +216,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Ensure that no trailing bytes remain in the NARG string.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
     /// leading to a proof that **lacks strong simulation extractability**.
@@ -356,7 +356,7 @@ where
     /// On failure the cursor is left at the last successfully read message,
     /// with nothing further absorbed.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// `len` must be fixed by the protocol or derived from the instance —
     /// never from the NARG string itself.

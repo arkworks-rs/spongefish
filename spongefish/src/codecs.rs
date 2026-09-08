@@ -47,7 +47,7 @@ where
 /// [`Encoding<T>`] defines an encoding into a type `T`.
 /// By default `T = [u8]` in order to serve encoding for byte-oriented hash functions.
 ///
-/// # Safety
+/// # Security
 ///
 /// [`spongefish`][`crate`] assumes that prover and verifier will know the length of all the prover messages.
 /// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of the
@@ -270,7 +270,7 @@ impl Encoding<[u8]> for str {
 
 /// Tuples encode as the concatenation of their components' encodings.
 ///
-/// # Safety
+/// # Security
 ///
 /// The concatenation is prefix-free exactly when each component's encoding is,
 /// which [`Encoding`] already requires. It does **not** hold for a tuple mixing
@@ -334,7 +334,7 @@ impl_tuple_encoding! {
 /// # }
 /// ```
 ///
-/// # Safety
+/// # Security
 ///
 /// The count prefix makes the encoding prefix-free even when the sequence
 /// length is not fixed by the protocol, but does not disambiguate the type or what the length indicates.

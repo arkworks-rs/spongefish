@@ -65,7 +65,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
 
     /// Builds a **deterministic** RNG from a seed.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// This is for test vectors and reproducible tests only. Proving with a
     /// fixed or reused seed compromises zero-knowledge.

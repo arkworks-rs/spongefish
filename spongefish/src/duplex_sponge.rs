@@ -38,7 +38,7 @@ pub trait Unit: Clone + Sized {
 /// 32-byte session identifier, which [draft-irtf-cfrg-fiat-shamir][FS] derives
 /// with a byte-oriented hash and hands to `Init`.
 ///
-/// # Safety
+/// # Security
 ///
 /// The map **MUST** be injective on the byte lengths it is used at. It need
 /// not be prefix-free. The session identifier is always exactly 32 bytes,

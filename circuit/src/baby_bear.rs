@@ -44,7 +44,7 @@ impl From<BabyBearUnit> for BabyBear {
 /// case to get wrong. A 32-byte session identifier costs 32 units, absorbed
 /// once per proof.
 ///
-/// # Safety
+/// # Security
 ///
 /// Like the identity embedding on bytes, this map is injective but **not**
 /// prefix-free across lengths: `b"ab"` maps to a prefix of `b"abc"`. It is
