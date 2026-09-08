@@ -282,7 +282,9 @@ fn verifier_prover_message_with_rolls_back_on_error() {
     // check and had its proof rejected.
     let result: Result<u64, VerificationError> = verifier.prover_message_with(
         |reader| {
-            reader.take(reader.remaining_len())?;
+            while !reader.is_empty() {
+                reader.take(1)?;
+            }
             Ok(3)
         },
         |v: &u64| v.to_le_bytes(),

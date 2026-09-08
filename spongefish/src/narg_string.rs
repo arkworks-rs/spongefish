@@ -46,24 +46,24 @@ impl<'a> NargReader<'a> {
         self.position
     }
 
-    /// The bytes not yet consumed.
+    /// Whether the whole NARG string has been consumed.
+    ///
+    /// This is the only thing a parser may ask about what is left. How many
+    /// bytes remain is deliberately not exposed: a deserializer that sizes a
+    /// read from it is framing the message by the length of the surrounding
+    /// NARG string rather than by its own encoding, which is a soundness
+    /// hazard as soon as that message stops being the last one. A prefix-free
+    /// encoding can always be read forward, as from a socket.
     #[must_use]
-    pub const fn remaining(&self) -> &'a [u8] {
+    pub const fn is_empty(&self) -> bool {
+        self.position == self.narg_string.len()
+    }
+
+    /// The bytes not yet consumed. Internal: see [`NargReader::is_empty`].
+    const fn unread(&self) -> &'a [u8] {
         // `position <= narg_string.len()` is maintained by `take`, the only
         // method that advances it, so this split never panics.
         self.narg_string.split_at(self.position).1
-    }
-
-    /// The number of bytes not yet consumed.
-    #[must_use]
-    pub const fn remaining_len(&self) -> usize {
-        self.narg_string.len() - self.position
-    }
-
-    /// Whether the whole NARG string has been consumed.
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.remaining_len() == 0
     }
 
     /// Consumes the next `len` bytes.
@@ -74,7 +74,7 @@ impl<'a> NargReader<'a> {
     /// an over-long length prefix fails here rather than being trusted.
     pub fn take(&mut self, len: usize) -> Result<&'a [u8], VerificationError> {
         let (head, _) = self
-            .remaining()
+            .unread()
             .split_at_checked(len)
             .ok_or(VerificationError)?;
         self.position += len;
@@ -87,7 +87,7 @@ impl<'a> NargReader<'a> {
     /// group element, a canonical scalar, a digest.
     pub fn take_array<const N: usize>(&mut self) -> Result<[u8; N], VerificationError> {
         let (head, _) = self
-            .remaining()
+            .unread()
             .split_first_chunk::<N>()
             .ok_or(VerificationError)?;
         self.position += N;

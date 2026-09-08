@@ -392,12 +392,9 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
         reader: &mut crate::NargReader<'_>,
     ) -> Result<Self, crate::VerificationError> {
         let len = u32::deserialize_from_narg(reader)? as usize;
-        // Untrusted length: any element that parses consumes at least one byte
-        // (enforced below), so a count exceeding the remaining bytes cannot
-        // parse — reject it before looping.
-        if len > reader.remaining_len() {
-            return Err(crate::VerificationError);
-        }
+        // The count is untrusted, and it is not checked against what is left:
+        // the loop below is bounded anyway, because every element must consume
+        // at least one byte (enforced below) and a read past the end fails.
         // Cap the NARG string length hint so to avoid long allocations.
         let mut elements = Vec::with_capacity(usize::min(len, 64));
         for _ in 0..len {
