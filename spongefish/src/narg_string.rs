@@ -106,8 +106,9 @@ impl<'a> NargReader<'a> {
 ///
 /// When serializing integers modulo N, serialization is expected to
 /// follow the [I2OSP] conversion procedure from RFC8017, including for
-/// prime-order finite fields.
-/// Serialization of elements in a field extension must serialize each base field element.
+/// prime-order finite fields; [I2OSP] is defined in big-endian order.
+/// Serialization of elements in a field extension must serialize each base
+/// field element.
 ///
 /// [I2OSP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.1
 /// [DuplexSpongeInterface]: crate::DuplexSpongeInterface
