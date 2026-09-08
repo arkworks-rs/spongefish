@@ -110,7 +110,7 @@ pub trait Transcript {
     /// A verification equation.
     ///
     /// The closure `holds` is called also by the prover in `debug` builds.
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
+    fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
 }
 
 /// The interactive argument.
@@ -212,7 +212,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Witness::known(self.rng().sample_vec(n))
     }
 
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
+    fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
         // Short-circuits, so a release build never calls `holds` and the
         // equation is dead code.
         if cfg!(debug_assertions) && !holds() {
@@ -250,7 +250,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Witness::unknown()
     }
 
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
+    fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
         if holds() {
             Ok(())
         } else {
