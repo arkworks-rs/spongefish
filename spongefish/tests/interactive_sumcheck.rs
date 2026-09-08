@@ -35,7 +35,7 @@ impl Encoding<[u8]> for M31 {
 }
 
 impl NargDeserialize for M31 {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         let v = u32::from_le_bytes(reader.take_array::<4>()?);
         if v >= P {
             return Err(VerificationError);
@@ -97,7 +97,7 @@ impl Argument for Sumcheck {
         transcript: &mut T,
         instance: &Claim,
         witness: Witness<&Vec<M31>>,
-    ) -> VerificationResult<M31> {
+    ) -> Result<M31, VerificationError> {
         // The verifier's `table` is unknown and stays unknown; every `map`
         // below is a no-op on its side.
         let mut table: Witness<Vec<M31>> = witness.map(Clone::clone);
@@ -143,7 +143,7 @@ impl Argument for SumcheckRound {
         transcript: &mut T,
         claim: &M31,
         table: Witness<&Vec<M31>>,
-    ) -> VerificationResult<(M31, Witness<Vec<M31>>)> {
+    ) -> Result<(M31, Witness<Vec<M31>>), VerificationError> {
         let coefficients = table.map(|t| round_coefficients(t));
         let a0 = transcript.prover_message(coefficients.map(|c| c.0))?;
         let a1 = transcript.prover_message(coefficients.map(|c| c.1))?;
@@ -164,7 +164,7 @@ impl Argument for NestedSumcheck {
         transcript: &mut T,
         instance: &Claim,
         witness: Witness<&Vec<M31>>,
-    ) -> VerificationResult<M31> {
+    ) -> Result<M31, VerificationError> {
         let mut table = witness.map(Clone::clone);
         let mut claim = instance.claimed_sum;
         for _ in 0..instance.num_variables {

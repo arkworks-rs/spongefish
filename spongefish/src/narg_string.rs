@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use crate::{codecs::Encoding, VerificationError, VerificationResult};
+use crate::{codecs::Encoding, VerificationError};
 
 /// A forward-only cursor over a NARG string.
 ///
@@ -74,7 +74,7 @@ impl<'a> NargReader<'a> {
     /// the cursor where it was — a truncated NARG string can never make a
     /// parser read past its end. `len` may come from the NARG string itself:
     /// an over-long length prefix fails here rather than being trusted.
-    pub fn take(&mut self, len: usize) -> VerificationResult<&'a [u8]> {
+    pub fn take(&mut self, len: usize) -> Result<&'a [u8], VerificationError> {
         let (head, _) = self
             .remaining()
             .split_at_checked(len)
@@ -87,7 +87,7 @@ impl<'a> NargReader<'a> {
     ///
     /// The fixed-length read that carries most prover messages: a compressed
     /// group element, a canonical scalar, a digest.
-    pub fn take_array<const N: usize>(&mut self) -> VerificationResult<[u8; N]> {
+    pub fn take_array<const N: usize>(&mut self) -> Result<[u8; N], VerificationError> {
         let (head, _) = self
             .remaining()
             .split_first_chunk::<N>()
@@ -147,7 +147,7 @@ pub trait NargDeserialize: Sized {
     ///
     /// Implementations read through [`NargReader`].
     /// A failed parse leaves the reader wherever it stopped.
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self>;
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError>;
 
     /// Reads `N` consecutive values: the body of `[Self; N]`'s implementation.
     ///
@@ -160,16 +160,16 @@ pub trait NargDeserialize: Sized {
     /// exactly the same bytes they consume.
     fn deserialize_array_from_narg<const N: usize>(
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<[Self; N]> {
+    ) -> Result<[Self; N], VerificationError> {
         let mut failed = false;
 
         // Parsed in place rather than through a `Vec<T>` + `try_into`: the
         // vector cost one heap allocation per array on the verifier's hot
         // path, and `[T; N]` needs no allocation at all. The intermediate is
-        // `[VerificationResult<T>; N]` because `array::from_fn` must yield a
+        // `[Result<T, VerificationError>; N]` because `array::from_fn` must yield a
         // value for every slot and there is nothing to yield once parsing has
         // failed; `try_from_fn` would say this directly but is unstable.
-        let parsed: [VerificationResult<Self>; N] = core::array::from_fn(|_| {
+        let parsed: [Result<Self, VerificationError>; N] = core::array::from_fn(|_| {
             if failed {
                 // Short-circuit, matching the `collect::<Result<_, _>>()` this
                 // replaces: no element is parsed after the first failure.
@@ -195,7 +195,7 @@ impl<T: Encoding<[u8]>> NargSerialize for T {
 }
 
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         T::deserialize_array_from_narg::<N>(reader)
     }
 }
@@ -204,7 +204,7 @@ macro_rules! impl_int_deserialize {
     ($($type:ty),*) => {$(
         /// Little-endian, matching the [`Encoding`] convention for integers.
         impl NargDeserialize for $type {
-            fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+            fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
                 const LEN: usize = core::mem::size_of::<$type>();
                 Ok(Self::from_le_bytes(reader.take_array::<LEN>()?))
             }
@@ -217,7 +217,7 @@ impl_int_deserialize!(u16, u32, u64, u128);
 /// A byte deserializes to itself, so `[u8; N]` is one fixed-size read rather
 /// than `N` single-byte parses.
 impl NargDeserialize for u8 {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Ok(reader.take_array::<1>()?[0])
     }
 
@@ -225,7 +225,7 @@ impl NargDeserialize for u8 {
     /// the same rejection of a short NARG string, one bounds check.
     fn deserialize_array_from_narg<const N: usize>(
         reader: &mut NargReader<'_>,
-    ) -> VerificationResult<[Self; N]> {
+    ) -> Result<[Self; N], VerificationError> {
         reader.take_array::<N>()
     }
 }

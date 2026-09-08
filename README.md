@@ -19,7 +19,7 @@ Implement the public-coin dialogue once, generic over `Transcript`, then compile
 it into a non-interactive argument with `Narg`:
 
 ```rust
-use spongefish::{Argument, Narg, DefaultHash, Transcript, VerificationResult, Witness};
+use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
 
 struct Schnorr;
 
@@ -32,7 +32,7 @@ impl Argument for Schnorr {
         transcript: &mut T,
         instance: &Self::Instance,
         witness: Witness<&Self::Witness>,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         let [generator, public_key] = *instance;
         let nonce = transcript.sample::<u32>();
         let commitment = transcript
@@ -51,6 +51,7 @@ impl Argument for Schnorr {
 }
 
 // The tag identifies the protocol, the codecs, and the application context.
+let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"example-v00/schnorr-u32");
 let witness = 42u32;
 let instance = [7, 7 * witness];
 

@@ -42,7 +42,7 @@ impl Encoding<[u8]> for Point {
     }
 }
 impl NargDeserialize for Point {
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         CompressedRistretto(r.take_array::<32>()?)
             .decompress()
             .map(Point)
@@ -62,7 +62,7 @@ impl Encoding<[u8]> for Fr {
     }
 }
 impl NargDeserialize for Fr {
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Option::<Scalar>::from(Scalar::from_canonical_bytes(r.take_array::<32>()?))
             .map(Fr)
             .ok_or(VerificationError)
@@ -102,7 +102,7 @@ impl Argument for Schnorr {
         transcript: &mut T,
         instance: &Dlog,
         witness: Witness<&Fr>,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         let k = transcript.sample::<Fr>();
         let a = transcript.prover_message(k.map(|k| instance.g.mul(k)))?;
         let c: Fr = transcript.verifier_message();
@@ -164,7 +164,7 @@ fn the_prover_does_not_compute_the_verification_equation_in_release() {
             transcript: &mut T,
             _instance: &Dlog,
             _witness: Witness<&Fr>,
-        ) -> VerificationResult<()> {
+        ) -> Result<(), VerificationError> {
             transcript.check(|| {
                 EVALUATIONS.fetch_add(1, Ordering::Relaxed);
                 true

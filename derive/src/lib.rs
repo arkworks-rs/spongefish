@@ -242,7 +242,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &quote! {
             fn deserialize_from_narg(
                 reader: &mut ::spongefish::NargReader<'_>,
-            ) -> ::spongefish::VerificationResult<Self> {
+            ) -> ::core::result::Result<Self, ::spongefish::VerificationError> {
                 // A unit struct, or one whose every field is skipped,
                 // reads nothing at all.
                 let _ = &reader;

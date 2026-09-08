@@ -5,7 +5,7 @@ use core::marker::PhantomData;
 use crate::DefaultHash;
 use crate::{
     Decoding, DuplexSpongeInit, DuplexSpongeInterface, Encoding, NargDeserialize, ProverState,
-    VerificationError, VerificationResult, VerifierState,
+    VerificationError, VerifierState,
 };
 
 /// A witness value.
@@ -13,9 +13,9 @@ use crate::{
 /// Denoted a value which the verifier may not have.
 ///
 /// ```compile_fail,E0308
-/// # use spongefish::{Transcript, VerificationResult, Witness};
+/// # use spongefish::{Transcript, Witness};
 /// fn check<T: Transcript>(transcript: &mut T, witness: Witness<u64>)
-///     -> VerificationResult<()>
+///     -> Result<(), VerificationError>
 /// {
 ///     transcript.check(|| witness.map(|w| w == 0)) // `Witness<bool>`, not `bool`
 /// }
@@ -24,9 +24,9 @@ use crate::{
 /// Control flow may not depend on a value marked [`Witness`].
 ///
 /// ```compile_fail,E0308
-/// # use spongefish::{Transcript, VerificationResult, Witness};
+/// # use spongefish::{Transcript, Witness};
 /// fn run<T: Transcript>(transcript: &mut T, witness: Witness<u64>)
-///     -> VerificationResult<()>
+///     -> Result<(), VerificationError>
 /// {
 ///     if witness.map(|w| w > 5) { // `Witness<bool>`, not `bool`
 ///         transcript.prover_message(Witness::known(1u64))?;
@@ -88,7 +88,7 @@ pub trait Transcript {
     ///
     /// It takes a [`Witness<T>`] and returns a plain `T`, declassifying a secret value into
     /// one that can be used by the verifier.
-    fn prover_message<T>(&mut self, value: Witness<T>) -> VerificationResult<T>
+    fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
         T: Encoding<[u8]> + NargDeserialize;
 
@@ -109,11 +109,8 @@ pub trait Transcript {
 
     /// A verification equation.
     ///
-    /// On the prover in a release build it is never called, and the equation's arithmetic
-    /// is never performed.
-    ///
-    /// The closure returns the validity condition `bool`.
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> VerificationResult<()>;
+    /// The closure `holds` is called also by the prover in `debug` builds.
+    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
 }
 
 /// The interactive argument.
@@ -125,7 +122,7 @@ pub trait Transcript {
 /// zero-sized, so that a field is a clear compile error:
 ///
 /// ```compile_fail,E0080
-/// # use spongefish::{Argument, Transcript, VerificationResult, Witness};
+/// # use spongefish::{Argument, Transcript, Witness};
 /// struct IP {
 ///     generator: u64,   // reaches neither the sponge nor the session id
 /// }
@@ -139,7 +136,7 @@ pub trait Transcript {
 ///         _instance: &u64,
 ///         _witness: Witness<&u64>,
 ///     )
-///         -> VerificationResult<()> { Ok(()) }
+///         -> Result<(), VerificationError> { Ok(()) }
 /// }
 ///
 /// const _: () = <IP as Argument>::NO_STATE;
@@ -171,7 +168,7 @@ pub trait Argument: Sized {
         transcript: &mut T,
         instance: &Self::Instance,
         witness: Witness<&Self::Witness>,
-    ) -> VerificationResult<Self::Output>;
+    ) -> Result<Self::Output, VerificationError>;
 }
 
 #[inline]
@@ -187,7 +184,7 @@ fn assert_argument_has_no_state<A: Argument>() {
 impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
     for ProverState<H, R>
 {
-    fn prover_message<T>(&mut self, value: Witness<T>) -> VerificationResult<T>
+    fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
         T: Encoding<[u8]> + NargDeserialize,
     {
@@ -215,7 +212,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Witness::known(self.rng().sample_vec(n))
     }
 
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> VerificationResult<()> {
+    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
         // Short-circuits, so a release build never calls `holds` and the
         // equation is dead code.
         if cfg!(debug_assertions) && !holds() {
@@ -226,7 +223,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 }
 
 impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
-    fn prover_message<T>(&mut self, _value: Witness<T>) -> VerificationResult<T>
+    fn prover_message<T>(&mut self, _value: Witness<T>) -> Result<T, VerificationError>
     where
         T: Encoding<[u8]> + NargDeserialize,
     {
@@ -253,7 +250,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Witness::unknown()
     }
 
-    fn check(&mut self, holds: impl FnOnce() -> bool) -> VerificationResult<()> {
+    fn check(&mut self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
         if holds() {
             Ok(())
         } else {
@@ -301,7 +298,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         session_id: &crate::SessionId,
         instance: &A::Instance,
         witness: &A::Witness,
-    ) -> VerificationResult<(alloc::vec::Vec<u8>, A::Output)> {
+    ) -> Result<(alloc::vec::Vec<u8>, A::Output), VerificationError> {
         assert_argument_has_no_state::<A>();
         let () = A::NO_STATE;
         let mut transcript = ProverState::<H>::new(session_id, instance);
@@ -317,7 +314,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         session_id: &crate::SessionId,
         instance: &A::Instance,
         narg_string: &[u8],
-    ) -> VerificationResult<A::Output> {
+    ) -> Result<A::Output, VerificationError> {
         assert_argument_has_no_state::<A>();
         let () = A::NO_STATE;
         let mut transcript = VerifierState::<H>::new(session_id, instance, narg_string);

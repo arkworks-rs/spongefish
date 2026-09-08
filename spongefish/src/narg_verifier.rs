@@ -5,7 +5,7 @@ use core::fmt;
 use crate::DefaultHash;
 use crate::{
     Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, SessionId,
-    VerificationError, VerificationResult,
+    VerificationError,
 };
 
 /// [`VerifierState`] is the verifier state in the non-interactive
@@ -43,7 +43,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// failure the cursor is left unchanged and nothing is absorbed.
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
-    ) -> VerificationResult<T> {
+    ) -> Result<T, VerificationError> {
         let mut reader = NargReader::new(self.narg_string);
         let message = T::deserialize_from_narg(&mut reader)?;
         let consumed = reader.consumed();
@@ -62,7 +62,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     pub fn last_prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         mut self,
-    ) -> VerificationResult<T> {
+    ) -> Result<T, VerificationError> {
         let message = self.prover_message()?;
         self.check_eof()?;
         Ok(message)
@@ -125,7 +125,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Reads a fixed-size array of prover messages `T`, each implementing `Encoding<[H::U]>`.
     pub fn prover_messages<T: Encoding<[H::U]> + NargDeserialize, const N: usize>(
         &mut self,
-    ) -> VerificationResult<[T; N]> {
+    ) -> Result<[T; N], VerificationError> {
         let result = self.prover_messages_vec::<T>(N)?;
         Ok(result.try_into().unwrap_or_else(|_| unreachable!()))
     }
@@ -134,7 +134,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_messages_vec<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
         len: usize,
-    ) -> VerificationResult<Vec<T>> {
+    ) -> Result<Vec<T>, VerificationError> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
@@ -160,9 +160,9 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_with<T, B: AsRef<[H::U]>>(
         &mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
         encode: impl FnOnce(&T) -> B,
-    ) -> VerificationResult<T> {
+    ) -> Result<T, VerificationError> {
         let mut reader = NargReader::new(self.narg_string);
         let message = deserialize(&mut reader)?;
         let consumed = reader.consumed();
@@ -175,9 +175,9 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// (see [`VerifierState::last_prover_message`]).
     pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
         mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
         encode: impl FnOnce(&T) -> B,
-    ) -> VerificationResult<T> {
+    ) -> Result<T, VerificationError> {
         let message = self.prover_message_with(deserialize, encode)?;
         self.check_eof()?;
         Ok(message)
@@ -221,7 +221,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
     /// leading to a proof that **lacks strong simulation extractability**.
     /// A NARG string that fails this check should be rejected.
-    pub fn check_eof(self) -> VerificationResult<()> {
+    pub fn check_eof(self) -> Result<(), VerificationError> {
         if self.narg_string.is_empty() {
             Ok(())
         } else {
@@ -323,8 +323,8 @@ where
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_as<T>(
         &mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
-    ) -> VerificationResult<T> {
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<T, VerificationError> {
         let mut reader = NargReader::new(self.narg_string);
         let message = deserialize(&mut reader)?;
         let consumed = reader.consumed();
@@ -338,8 +338,8 @@ where
     /// (see [`VerifierState::last_prover_message`]).
     pub fn last_prover_message_as<T>(
         mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> VerificationResult<T>,
-    ) -> VerificationResult<T> {
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<T, VerificationError> {
         let message = self.prover_message_as(deserialize)?;
         self.check_eof()?;
         Ok(message)
@@ -363,8 +363,8 @@ where
     pub fn prover_messages_vec_as<T>(
         &mut self,
         len: usize,
-        mut deserialize: impl FnMut(&mut NargReader<'_>) -> VerificationResult<T>,
-    ) -> VerificationResult<Vec<T>> {
+        mut deserialize: impl FnMut(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<Vec<T>, VerificationError> {
         (0..len)
             .map(|_| self.prover_message_as(&mut deserialize))
             .collect()

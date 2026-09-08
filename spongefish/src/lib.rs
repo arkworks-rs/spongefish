@@ -150,7 +150,7 @@ pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
 pub use duplex_sponge::{
     DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit, UnitFromBytes,
 };
-pub use error::{VerificationError, VerificationResult};
+pub use error::VerificationError;
 pub use narg_prover::ProverState;
 pub use narg_string::{NargDeserialize, NargReader, NargSerialize};
 pub use narg_verifier::VerifierState;

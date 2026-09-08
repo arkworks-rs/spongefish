@@ -305,8 +305,8 @@ impl_tuple_encoding! {
 /// ```
 /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 /// # {
-/// use spongefish::{Argument, LengthPrefixed, Narg, DefaultHash, Transcript,
-///                  VerificationResult, Witness};
+/// use spongefish::{Argument, LengthPrefixed, Narg, Transcript,
+///                  VerificationError, Witness};
 ///
 /// struct Sequence;
 /// impl Argument for Sequence {
@@ -318,7 +318,7 @@ impl_tuple_encoding! {
 ///         transcript: &mut T,
 ///         _instance: &u32,
 ///         witness: Witness<&Vec<u32>>,
-///     ) -> VerificationResult<Vec<u32>> {
+///     ) -> Result<Vec<u32>, VerificationError> {
 ///         let LengthPrefixed(values) = transcript.prover_message(
 ///             witness.map(|values| LengthPrefixed(values.clone())),
 ///         )?;
@@ -326,7 +326,7 @@ impl_tuple_encoding! {
 ///     }
 /// }
 ///
-/// let tag = b"examples/LengthPrefixed";
+/// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"examples/LengthPrefixed");
 /// let values = vec![7u32, 8, 9];
 /// let (narg, prover_output) = Narg::prove::<Sequence>(&session_id, &0, &values).unwrap();
 /// assert_eq!(prover_output, values);
@@ -391,7 +391,7 @@ impl<T: Encoding<[u8]>> Encoding<[u8]> for LengthPrefixed<alloc::vec::Vec<T>> {
 impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc::vec::Vec<T>> {
     fn deserialize_from_narg(
         reader: &mut crate::NargReader<'_>,
-    ) -> crate::VerificationResult<Self> {
+    ) -> Result<Self, crate::VerificationError> {
         let len = u32::deserialize_from_narg(reader)? as usize;
         // Untrusted length: any element that parses consumes at least one byte
         // (enforced below), so a count exceeding the remaining bytes cannot
@@ -618,7 +618,7 @@ mod tests {
     impl NargDeserialize for ZeroWidth {
         fn deserialize_from_narg(
             _reader: &mut crate::NargReader<'_>,
-        ) -> crate::VerificationResult<Self> {
+        ) -> Result<Self, crate::VerificationError> {
             Ok(Self)
         }
     }

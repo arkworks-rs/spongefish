@@ -5,7 +5,7 @@ use shake::{ExtendableOutput, Update, XofReader};
 use crate::{
     derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, Narg,
     NargDeserialize, NargSerialize, PrivateRng, ProverState, SessionId, Transcript,
-    VerificationError, VerificationResult, VerifierState, Witness,
+    VerificationError, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
@@ -35,7 +35,7 @@ fn argument_cannot_override_the_statelessness_check() {
             _transcript: &mut T,
             _instance: &Self::Instance,
             _witness: Witness<&Self::Witness>,
-        ) -> VerificationResult<Self::Output> {
+        ) -> Result<Self::Output, VerificationError> {
             Ok(())
         }
     }
@@ -139,7 +139,7 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
     impl NargDeserialize for BadMessage {
         fn deserialize_from_narg(
             reader: &mut crate::NargReader<'_>,
-        ) -> crate::VerificationResult<Self> {
+        ) -> Result<Self, crate::VerificationError> {
             // Consumes input and *then* fails: the reader is left advanced,
             // and the verifier must still not move.
             reader.take(1)?;
@@ -266,7 +266,7 @@ fn verifier_prover_message_with_rolls_back_on_error() {
 
     // A deserializer that consumes input and *then* fails leaves the cursor
     // unchanged and absorbs nothing: the reader it advanced is discarded.
-    let result: VerificationResult<u64> = verifier.prover_message_with(
+    let result: Result<u64, VerificationError> = verifier.prover_message_with(
         |reader| {
             reader.take(1)?;
             Err(VerificationError)
@@ -280,7 +280,7 @@ fn verifier_prover_message_with_rolls_back_on_error() {
     // `&mut &[u8]` cursor this replaced could not express it: a closure
     // signalling "all consumed" with an empty slice failed the pointer-identity
     // check and had its proof rejected.
-    let result: VerificationResult<u64> = verifier.prover_message_with(
+    let result: Result<u64, VerificationError> = verifier.prover_message_with(
         |reader| {
             reader.take(reader.remaining_len())?;
             Ok(3)

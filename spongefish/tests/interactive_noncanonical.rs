@@ -33,7 +33,7 @@ impl Encoding<[u8]> for Elem {
 }
 
 impl NargDeserialize for Elem {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> VerificationResult<Self> {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         // The bug, stated plainly. A canonical codec would reject `v >= P`.
         Ok(Self(u64::from_le_bytes(reader.take_array::<8>()?) % P))
     }
@@ -65,7 +65,7 @@ impl Argument for Toy {
         transcript: &mut T,
         instance: &Claim,
         witness: Witness<&Elem>,
-    ) -> VerificationResult<()> {
+    ) -> Result<(), VerificationError> {
         let a = transcript.prover_message(witness.map(|w| *w))?;
         let c: Elem = transcript.verifier_message();
         let z = transcript.prover_message(Witness::known(Elem((a.0 + c.0) % P)))?;
