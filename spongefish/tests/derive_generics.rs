@@ -63,7 +63,7 @@ impl AsMut<[u8]> for PaddedRepr {
 #[derive(Debug, PartialEq, Eq)]
 struct Padded(u16);
 
-impl Encoding<[u8]> for Padded {
+impl Encoding for Padded {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0.to_le_bytes()
     }

@@ -172,13 +172,13 @@ where
     /// Input a prover message of type `T` into the Fiat-Shamir transformation.
     ///
     /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
-    /// duplex sponge, and [`Encoding<[u8]>`] to be serialized into the NARG string.
+    /// duplex sponge, and [`Encoding`] to be serialized into the NARG string.
     ///
-    pub fn prover_message<T: Encoding<[H::U]> + Encoding<[u8]> + ?Sized>(&mut self, message: &T) {
+    pub fn prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state
             .absorb(<T as Encoding<[H::U]>>::encode(message).as_ref());
         self.narg_string
-            .extend_from_slice(<T as Encoding<[u8]>>::encode(message).as_ref());
+            .extend_from_slice(<T as Encoding>::encode(message).as_ref());
     }
 
     /// Input the last prover message and return the NARG string.
@@ -186,7 +186,7 @@ where
     /// This function runs [`ProverState::prover_message`] consuming the prover state and
     /// returning the NARG string ([`ProverState::narg_string`]).
     #[must_use]
-    pub fn last_prover_message<T: Encoding<[H::U]> + Encoding<[u8]> + ?Sized>(
+    pub fn last_prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(
         mut self,
         message: &T,
     ) -> Vec<u8> {
@@ -241,7 +241,7 @@ where
     /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
     /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
-    pub fn prover_messages<T: Encoding<[H::U]> + Encoding<[u8]>>(&mut self, messages: &[T]) {
+    pub fn prover_messages<T: Encoding<[H::U]> + Encoding>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
         }
@@ -256,7 +256,7 @@ where
     pub fn prover_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
-        J::Item: Encoding<[H::U]> + Encoding<[u8]>,
+        J::Item: Encoding<[H::U]> + Encoding,
     {
         messages
             .into_iter()

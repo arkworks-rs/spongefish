@@ -55,7 +55,7 @@ impl Default for WideMessage {
 /// length is a compile-time constant, so LLVM deletes the encoding entirely and
 /// the benchmark measures nothing. Passing the *slice* through `black_box`
 /// makes the buffer escape, so it has to be written.
-fn measure_encode<T: Encoding<[u8]> + ?Sized>(value: &T) {
+fn measure_encode<T: Encoding + ?Sized>(value: &T) {
     let encoded = value.encode();
     black_box(encoded.as_ref());
 }

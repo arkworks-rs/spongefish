@@ -90,14 +90,14 @@ pub trait Transcript {
     /// one that can be used by the verifier.
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding<[u8]> + NargDeserialize;
+        T: Encoding + NargDeserialize;
 
     /// A verifier message. Both sides derive it the same way, so it is
     /// infallible and known to both.
     fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T;
 
     /// A value both parties hold: absorbed, not carried by the proof.
-    fn public_message<T: Encoding<[u8]> + ?Sized>(&mut self, value: &T);
+    fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
 
     /// The prover's private randomness. Unknown on the verifier, which is what
     /// makes the rest of the body typecheck on both sides.
@@ -155,7 +155,7 @@ pub trait Argument: Sized {
 
     /// The statement. Everything public lives here, because this is what gets
     /// absorbed — a public value outside it is the weak Fiat-Shamir bug.
-    type Instance: Encoding<[u8]>;
+    type Instance: Encoding;
     /// The prover's private input.
     type Witness;
     /// What both parties compute by the end.
@@ -186,7 +186,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 {
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding<[u8]> + NargDeserialize,
+        T: Encoding + NargDeserialize,
     {
         // `Witness::unknown()` here means the caller ran the prover without a
         // witness. Nothing to send.
@@ -200,7 +200,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Self::verifier_message(self)
     }
 
-    fn public_message<T: Encoding<[u8]> + ?Sized>(&mut self, value: &T) {
+    fn public_message<T: Encoding + ?Sized>(&mut self, value: &T) {
         Self::public_message(self, value);
     }
 
@@ -225,7 +225,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
     fn prover_message<T>(&mut self, _value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding<[u8]> + NargDeserialize,
+        T: Encoding + NargDeserialize,
     {
         // The argument is `unknown` and is dropped; the message comes off the
         // wire. Absorbing the bytes read rather than a re-encoding of what was
@@ -238,7 +238,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Self::verifier_message(self)
     }
 
-    fn public_message<T: Encoding<[u8]> + ?Sized>(&mut self, value: &T) {
+    fn public_message<T: Encoding + ?Sized>(&mut self, value: &T) {
         Self::public_message(self, value);
     }
 

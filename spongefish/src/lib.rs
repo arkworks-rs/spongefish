@@ -21,7 +21,7 @@
 //!
 //! A prover message must implement:
 //! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
-//! - [`Encoding<[u8]>`], to serialize the message in a NARG string;
+//! - [`Encoding`], to serialize the message in a NARG string;
 //! - [`NargDeserialize`], to read from a NARG string.
 //!
 //! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.

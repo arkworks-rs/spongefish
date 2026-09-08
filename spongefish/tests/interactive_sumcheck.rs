@@ -26,7 +26,7 @@ impl M31 {
     }
 }
 
-impl Encoding<[u8]> for M31 {
+impl Encoding for M31 {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0.to_le_bytes()
     }
@@ -54,7 +54,7 @@ pub struct Claim {
     claimed_sum: M31,
 }
 
-impl Encoding<[u8]> for Claim {
+impl Encoding for Claim {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut out = [0u8; 8];
         out[..4].copy_from_slice(&self.num_variables.to_le_bytes());

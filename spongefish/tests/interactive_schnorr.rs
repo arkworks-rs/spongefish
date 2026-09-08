@@ -34,7 +34,7 @@ impl Fr {
     }
 }
 
-impl Encoding<[u8]> for Point {
+impl Encoding for Point {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0.compress().to_bytes()
     }
@@ -54,7 +54,7 @@ impl Decoding<[u8]> for Point {
     }
 }
 
-impl Encoding<[u8]> for Fr {
+impl Encoding for Fr {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0.to_bytes()
     }
@@ -78,7 +78,7 @@ pub struct Dlog {
     pk: Point,
 }
 
-impl Encoding<[u8]> for Dlog {
+impl Encoding for Dlog {
     fn encode(&self) -> impl AsRef<[u8]> {
         let mut out = [0u8; 64];
         out[..32].copy_from_slice(self.g.encode().as_ref());

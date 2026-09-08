@@ -99,7 +99,7 @@ impl<'a> NargReader<'a> {
 ///
 /// # Semantics
 ///
-/// All objects encoded using [`Encoding<[u8]>`] must be de-serializable
+/// All objects encoded using [`Encoding`] must be de-serializable
 /// (i.e., return `Ok(Self)`).
 /// When de-serializing integers modulo N, this procedure is expected to compute the
 /// conversion procedure [OS2IP] from RFC8017.

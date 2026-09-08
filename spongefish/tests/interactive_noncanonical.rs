@@ -24,7 +24,7 @@ const P: u64 = (1 << 61) - 1;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Elem(u64);
 
-impl Encoding<[u8]> for Elem {
+impl Encoding for Elem {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0.to_le_bytes()
     }
@@ -46,7 +46,7 @@ impl Decoding<[u8]> for Elem {
 
 struct Claim(Elem);
 
-impl Encoding<[u8]> for Claim {
+impl Encoding for Claim {
     fn encode(&self) -> impl AsRef<[u8]> {
         self.0 .0.to_le_bytes()
     }

@@ -35,8 +35,7 @@ use alloc::vec::Vec;
 /// leaves a zero-length encoding, under which all values of the struct are
 /// indistinguishable; that is injective, and so admissible, only for a type
 /// with a single inhabitant.
-pub trait Codec<T = [u8]>:
-    crate::NargDeserialize + Encoding<[u8]> + Encoding<T> + Decoding<T>
+pub trait Codec<T = [u8]>: crate::NargDeserialize + Encoding + Encoding<T> + Decoding<T>
 where
     T: ?Sized,
 {
@@ -192,7 +191,7 @@ impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
 
 macro_rules! impl_int_encoding {
     ($type: ty) => {
-        impl Encoding<[u8]> for $type {
+        impl Encoding for $type {
             fn encode(&self) -> impl AsRef<[u8]> {
                 self.to_le_bytes()
             }
@@ -255,7 +254,7 @@ impl<const N: usize> Decoding<[u8]> for [u8; N] {
 ///
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
 /// This makes the byte-oriented encoding prefix-free.
-impl Encoding<[u8]> for str {
+impl Encoding for str {
     fn encode(&self) -> impl AsRef<[u8]> {
         let len: u32 = self
             .len()
@@ -278,7 +277,7 @@ impl Encoding<[u8]> for str {
 /// must each be prefix-free on their own domain.
 macro_rules! impl_tuple_encoding {
     ($(($($param:ident $binding:ident $index:tt),+);)*) => {$(
-        impl<$($param: Encoding<[u8]>),+> Encoding<[u8]> for ($($param,)+) {
+        impl<$($param: Encoding),+> Encoding for ($($param,)+) {
             fn encode(&self) -> impl AsRef<[u8]> {
                 let ($($binding,)+) = ($(self.$index.encode(),)+);
                 let ($($binding,)+) = ($($binding.as_ref(),)+);
@@ -349,7 +348,7 @@ impl<T> LengthPrefixed<T> {
     }
 }
 
-fn encode_length_prefixed<T: Encoding<[u8]>>(elements: &[T]) -> Vec<u8> {
+fn encode_length_prefixed<T: Encoding>(elements: &[T]) -> Vec<u8> {
     let len: u32 = elements
         .len()
         .try_into()
@@ -376,13 +375,13 @@ fn encode_length_prefixed<T: Encoding<[u8]>>(elements: &[T]) -> Vec<u8> {
     out
 }
 
-impl<T: Encoding<[u8]>> Encoding<[u8]> for LengthPrefixed<&[T]> {
+impl<T: Encoding> Encoding for LengthPrefixed<&[T]> {
     fn encode(&self) -> impl AsRef<[u8]> {
         encode_length_prefixed(self.0)
     }
 }
 
-impl<T: Encoding<[u8]>> Encoding<[u8]> for LengthPrefixed<alloc::vec::Vec<T>> {
+impl<T: Encoding> Encoding for LengthPrefixed<alloc::vec::Vec<T>> {
     fn encode(&self) -> impl AsRef<[u8]> {
         encode_length_prefixed(&self.0)
     }
@@ -420,7 +419,7 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
 impl<T, E> Codec<T> for E
 where
     T: ?Sized,
-    E: crate::NargDeserialize + Encoding<[u8]> + Encoding<T> + Decoding<T>,
+    E: crate::NargDeserialize + Encoding + Encoding<T> + Decoding<T>,
 {
 }
 
@@ -537,7 +536,7 @@ mod tests {
     /// encode the identity in one byte and every other point in 33.
     struct VariableWidth(usize);
 
-    impl Encoding<[u8]> for VariableWidth {
+    impl Encoding for VariableWidth {
         fn encode(&self) -> impl AsRef<[u8]> {
             alloc::vec![self.0 as u8; self.0]
         }

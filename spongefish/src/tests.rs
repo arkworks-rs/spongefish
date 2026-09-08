@@ -147,7 +147,7 @@ fn verifier_prover_message_rolls_back_on_deserialize_error() {
         }
     }
 
-    impl crate::Encoding<[u8]> for BadMessage {
+    impl crate::Encoding for BadMessage {
         fn encode(&self) -> impl AsRef<[u8]> {
             []
         }

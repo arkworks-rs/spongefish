@@ -138,7 +138,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
     });
 
-    let trait_path = quote!(::spongefish::Encoding<[u8]>);
+    let trait_path = quote!(::spongefish::Encoding);
     Ok(impl_block(
         input,
         &trait_path,
