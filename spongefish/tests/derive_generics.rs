@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 
-use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargReader, NargSerialize};
+use spongefish::{Codec, Decoding, Encoding, NargDeserialize, NargReader};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Codec)]
 struct TaggedValue<T, const N: usize> {
@@ -21,7 +21,7 @@ fn codec_derive_handles_generic_types() {
     let encoded = tagged.encode();
     assert_eq!(encoded.as_ref(), 7u32.to_le_bytes());
 
-    let serialized = tagged.serialize_into_new_narg();
+    let serialized = tagged.encode();
     let mut reader = NargReader::new(serialized.as_ref());
     let roundtrip = TaggedValue::<u8, 4>::deserialize_from_narg(&mut reader).expect("roundtrip");
     assert_eq!(roundtrip.value, tagged.value);
@@ -141,7 +141,7 @@ fn codec_derive_pins_multi_field_byte_layout() {
     assert_eq!((decoded.tag, decoded.id, decoded.nonce), (1, 2, 3));
 
     // NARG round-trip keeps the same layout.
-    let serialized = header.serialize_into_new_narg();
+    let serialized = header.encode();
     assert_eq!(serialized.as_ref(), &expected);
     let mut reader = NargReader::new(serialized.as_ref());
     let roundtrip = Header::deserialize_from_narg(&mut reader).expect("roundtrip");

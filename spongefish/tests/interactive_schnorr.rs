@@ -5,10 +5,8 @@ use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
-use spongefish::{Argument, Narg, Transcript, Witness};
-use spongefish::{
-    ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError,
-};
+use spongefish::{derive_session_id, Argument, DefaultHash, Narg, Transcript, Witness};
+use spongefish::{ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Point(RistrettoPoint);
@@ -117,7 +115,7 @@ fn setup() -> (spongefish::SessionId, Dlog, Fr) {
     let g = Point::generator();
     let x = Fr(Scalar::from(31337u64));
     (
-        Narg::derive_session_id(b"https://example.com/typed/v1 schnorr"),
+        derive_session_id::<DefaultHash>(b"https://example.com/typed/v1 schnorr"),
         Dlog { g, pk: g.mul(x) },
         x,
     )
@@ -126,16 +124,16 @@ fn setup() -> (spongefish::SessionId, Dlog, Fr) {
 #[test]
 fn correctness() {
     let (sid, instance, x) = setup();
-    let (narg, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).expect("prover");
+    let (narg, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).expect("prover");
     assert_eq!(narg.len(), 64);
-    assert!(Narg::verify_with_session_id::<Schnorr>(&sid, &instance, &narg).is_ok());
+    assert!(Narg::verify::<Schnorr>(&sid, &instance, &narg).is_ok());
 }
 
 #[test]
 fn nonces_are_not_reused() {
     let (sid, instance, x) = setup();
-    let (a, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
-    let (b, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
+    let (a, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).unwrap();
+    let (b, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).unwrap();
     assert_ne!(a, b);
 }
 
@@ -173,7 +171,7 @@ fn the_prover_does_not_compute_the_verification_equation_in_release() {
     }
 
     let (sid, instance, x) = setup();
-    let (narg, ()) = Narg::prove_with_session_id::<Counted>(&sid, &instance, &x).expect("prover");
+    let (narg, ()) = Narg::prove::<Counted>(&sid, &instance, &x).expect("prover");
 
     // Debug builds keep it as a completeness self-test; release builds skip it.
     let expected = u32::from(cfg!(debug_assertions));
@@ -184,7 +182,7 @@ fn the_prover_does_not_compute_the_verification_equation_in_release() {
     );
 
     // The verifier always evaluates it, whatever the profile.
-    assert!(Narg::verify_with_session_id::<Counted>(&sid, &instance, &narg).is_ok());
+    assert!(Narg::verify::<Counted>(&sid, &instance, &narg).is_ok());
     assert_eq!(
         EVALUATIONS.load(Ordering::Relaxed),
         1,

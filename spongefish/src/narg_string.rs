@@ -1,6 +1,4 @@
-use alloc::vec::Vec;
-
-use crate::{codecs::Encoding, VerificationError};
+use crate::VerificationError;
 
 /// A forward-only cursor over a NARG string.
 ///
@@ -97,44 +95,11 @@ impl<'a> NargReader<'a> {
     }
 }
 
-/// Trait for serialization of an object as a NARG string.
-///
-/// # Semantics
-///
-/// When using a byte-oriented hash function, the serialized object
-/// is the same as what's absorbed by the [DuplexSpongeInterface].
-///
-/// When serializing integers modulo N, serialization is expected to
-/// follow the [I2OSP] conversion procedure from RFC8017, including for
-/// prime-order finite fields; [I2OSP] is defined in big-endian order.
-/// Serialization of elements in a field extension must serialize each base
-/// field element.
-///
-/// [I2OSP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.1
-/// [DuplexSpongeInterface]: crate::DuplexSpongeInterface
-pub trait NargSerialize {
-    /// Serializes `self` into `dst` by extending the vector.
-    ///
-    /// # Security
-    ///
-    /// This procedure must output a prefix-free string.
-    /// The bytes appended for one value must be exactly the bytes that the matching
-    /// [`NargDeserialize`] implementation consumes on success.
-    fn serialize_into_narg(&self, dst: &mut Vec<u8>);
-
-    /// Shorthand for [`NargSerialize::serialize_into_narg`] into a freshly allocated buffer.
-    fn serialize_into_new_narg(&self) -> impl AsRef<[u8]> {
-        let mut buf = alloc::vec::Vec::new();
-        self.serialize_into_narg(&mut buf);
-        buf.into_boxed_slice()
-    }
-}
-
 /// Trait for reading an object from a NARG string.
 ///
 /// # Semantics
 ///
-/// All objects serialized using [`NargSerialize`] must be de-serializable
+/// All objects encoded using [`Encoding<[u8]>`] must be de-serializable
 /// (i.e., return `Ok(Self)`).
 /// When de-serializing integers modulo N, this procedure is expected to compute the
 /// conversion procedure [OS2IP] from RFC8017.
@@ -143,7 +108,7 @@ pub trait NargSerialize {
 ///
 /// [OS2IP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.2
 pub trait NargDeserialize: Sized {
-    /// This map must compute the inverse of [`NargSerialize::serialize_into_narg`],
+    /// This map must compute the inverse of [`Encoding::encode`],
     /// or return an error if a pre-image does not exist.
     ///
     /// Implementations read through [`NargReader`].
@@ -185,13 +150,6 @@ pub trait NargDeserialize: Sized {
             return Err(VerificationError);
         }
         Ok(parsed.map(|element| element.unwrap_or_else(|_| unreachable!("checked above"))))
-    }
-}
-
-impl<T: Encoding<[u8]>> NargSerialize for T {
-    /// Serialization for byte strings is the identity map.
-    fn serialize_into_narg(&self, dst: &mut Vec<u8>) {
-        dst.extend_from_slice(self.encode().as_ref());
     }
 }
 

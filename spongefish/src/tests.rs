@@ -4,12 +4,12 @@ use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
     derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, Narg,
-    NargDeserialize, NargSerialize, PrivateRng, ProverState, SessionId, Transcript,
-    VerificationError, VerifierState, Witness,
+    NargDeserialize, PrivateRng, ProverState, SessionId, Transcript, VerificationError,
+    VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
-    Narg::derive_session_id(tag)
+    derive_session_id::<DefaultHash>(tag)
 }
 
 #[test]
@@ -249,7 +249,7 @@ fn prover_message_with_matches_trait_path() {
     closure_path.prover_message_with(
         &42u32,
         |x| x.to_le_bytes(),
-        NargSerialize::serialize_into_narg,
+        |x, dst| dst.extend_from_slice(x.encode().as_ref()),
     );
 
     assert_eq!(trait_path.narg_string(), closure_path.narg_string());

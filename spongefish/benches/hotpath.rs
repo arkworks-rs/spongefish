@@ -12,8 +12,8 @@ use bench_util::{bench, sink};
 use spongefish::{
     derive_session_id,
     instantiations::{Hash, Keccak, KeccakF1600, Shake128, TurboShake128},
-    Codec, DuplexSpongeInit, DuplexSpongeInterface, Encoding, LengthPrefixed,
-    Narg, NargDeserialize, NargReader, NargSerialize, Permutation, ProverState, VerifierState,
+    Codec, DuplexSpongeInit, DuplexSpongeInterface, Encoding, LengthPrefixed, Narg,
+    NargDeserialize, NargReader, Permutation, ProverState, VerifierState,
 };
 
 /// A round message of the shape a real prover sends: a couple of group-element
@@ -99,26 +99,26 @@ fn codec_benches() {
     let mut narg = Vec::with_capacity(1 << 16);
     bench("serialize/derive(68 B struct)", || {
         narg.clear();
-        round.serialize_into_narg(&mut narg);
+        narg.extend_from_slice(round.encode().as_ref());
     });
 
     println!("\n== NARG deserialization ==");
     let mut buf = Vec::new();
-    round.serialize_into_narg(&mut buf);
+    buf.extend_from_slice(round.encode().as_ref());
     bench("deserialize/derive(68 B struct)", || {
         let mut reader = NargReader::new(&buf);
         sink(RoundMessage::deserialize_from_narg(&mut reader));
     });
 
     let mut bytes_buf = Vec::new();
-    bytes32.serialize_into_narg(&mut bytes_buf);
+    bytes_buf.extend_from_slice(bytes32.encode().as_ref());
     bench("deserialize/[u8; 32]", || {
         let mut reader = NargReader::new(&bytes_buf);
         sink(<[u8; 32]>::deserialize_from_narg(&mut reader));
     });
 
     let mut array_buf = Vec::new();
-    array.serialize_into_narg(&mut array_buf);
+    array_buf.extend_from_slice(array.encode().as_ref());
     bench("deserialize/[u32; 8]", || {
         let mut reader = NargReader::new(&array_buf);
         sink(<[u32; 8]>::deserialize_from_narg(&mut reader));

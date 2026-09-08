@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 /// Marker trait for types that have encoding and decoding maps.
 ///
 /// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
-/// [`NargSerialize`][crate::NargSerialize], and [`NargDeserialize`][crate::NargDeserialize].
+/// and [`NargDeserialize`][crate::NargDeserialize].
 ///
 /// # Derive Macros
 ///
@@ -36,7 +36,7 @@ use alloc::vec::Vec;
 /// indistinguishable; that is injective, and so admissible, only for a type
 /// with a single inhabitant.
 pub trait Codec<T = [u8]>:
-    crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>
+    crate::NargDeserialize + Encoding<[u8]> + Encoding<T> + Decoding<T>
 where
     T: ?Sized,
 {
@@ -416,13 +416,11 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc:
 }
 
 /// Blanket implementation of [`Codec`] for all types implementing
-/// [`NargSerialize`][`crate::NargSerialize`],
-/// [`NargDeserialize`][`crate::NargDeserialize`],
-/// [`Encoding`], and [`Decoding`].
+/// [`NargDeserialize`][`crate::NargDeserialize`], [`Encoding`], and [`Decoding`].
 impl<T, E> Codec<T> for E
 where
     T: ?Sized,
-    E: crate::NargDeserialize + crate::NargSerialize + Encoding<T> + Decoding<T>,
+    E: crate::NargDeserialize + Encoding<[u8]> + Encoding<T> + Decoding<T>,
 {
 }
 

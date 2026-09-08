@@ -13,10 +13,8 @@
 //! neither does a bit-flip sweep — every flip that survives parsing lands on a
 //! different value, not on a different encoding of the same one.
 
-use spongefish::{Argument, Narg, Transcript, Witness};
-use spongefish::{
-    ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError,
-};
+use spongefish::{derive_session_id, Argument, DefaultHash, Narg, Transcript, Witness};
+use spongefish::{ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError};
 
 /// A prime small enough that `a` and `a + P` both fit in `u64`.
 const P: u64 = (1 << 61) - 1;
@@ -76,13 +74,13 @@ impl Argument for Toy {
 
 #[test]
 fn a_second_encoding_of_the_same_message_is_rejected() {
-    let sid = Narg::derive_session_id(b"noncanonical-witness");
+    let sid = derive_session_id::<DefaultHash>(b"noncanonical-witness");
     let w = Elem(5);
     let instance = Claim(w);
 
-    let (narg, ()) = Narg::prove_with_session_id::<Toy>(&sid, &instance, &w).expect("prover");
+    let (narg, ()) = Narg::prove::<Toy>(&sid, &instance, &w).expect("prover");
     assert!(
-        Narg::verify_with_session_id::<Toy>(&sid, &instance, &narg).is_ok(),
+        Narg::verify::<Toy>(&sid, &instance, &narg).is_ok(),
         "honest proof must verify"
     );
 
@@ -94,7 +92,7 @@ fn a_second_encoding_of_the_same_message_is_rejected() {
     assert_ne!(mauled, narg, "the maul must actually change the bytes");
 
     assert!(
-        Narg::verify_with_session_id::<Toy>(&sid, &instance, &mauled).is_err(),
+        Narg::verify::<Toy>(&sid, &instance, &mauled).is_err(),
         "a second accepting NARG string exists for one statement: the verifier absorbed a \
          re-encoding of what it parsed instead of the bytes it read"
     );

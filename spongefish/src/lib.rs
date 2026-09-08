@@ -21,7 +21,7 @@
 //!
 //! A prover message must implement:
 //! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
-//! - [`NargSerialize`], to serialize the message in a NARG string;
+//! - [`Encoding<[u8]>`], to serialize the message in a NARG string;
 //! - [`NargDeserialize`], to read from a NARG string.
 //!
 //! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
@@ -152,7 +152,7 @@ pub use duplex_sponge::{
 };
 pub use error::VerificationError;
 pub use narg_prover::ProverState;
-pub use narg_string::{NargDeserialize, NargReader, NargSerialize};
+pub use narg_string::{NargDeserialize, NargReader};
 pub use narg_verifier::VerifierState;
 pub use private_rng::PrivateRng;
 #[cfg(feature = "derive")]
