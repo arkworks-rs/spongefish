@@ -51,12 +51,12 @@ impl Argument for Schnorr {
 }
 
 // The tag identifies the protocol, the codecs, and the application context.
-let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"example-v00/schnorr-u32");
+let tag = b"example-v00/schnorr-u32";
 let witness = 42u32;
 let instance = [7, 7 * witness];
 
-let (narg, ()) = Narg::prove::<Schnorr>(&session_id, &instance, &witness).unwrap();
-Narg::verify::<Schnorr>(&session_id, &instance, &narg).unwrap();
+let (narg, ()) = Narg::prove::<Schnorr>(tag, &instance, &witness).unwrap();
+Narg::verify::<Schnorr>(tag, &instance, &narg).unwrap();
 ```
 
 ## Feature flags

@@ -141,11 +141,12 @@ fn setup() -> (spongefish::SessionId, Claim, Vec<M31>) {
 #[test]
 fn matches_the_cfrg_vector() {
     let (sid, instance, table) = setup();
-    let (narg, output) = Narg::prove::<Sumcheck>(&sid, &instance, &table).expect("prover");
+    let (narg, output) =
+        Narg::prove_with_session_id::<Sumcheck>(&sid, &instance, &table).expect("prover");
     assert_eq!(narg, hex(NARG), "NARG string differs from the CFRG vector");
     assert_eq!(output, M31(FINAL_EVALUATION));
     assert_eq!(
-        Narg::verify::<Sumcheck>(&sid, &instance, &narg).expect("must verify"),
+        Narg::verify_with_session_id::<Sumcheck>(&sid, &instance, &narg).expect("must verify"),
         M31(FINAL_EVALUATION)
     );
 }
@@ -156,5 +157,5 @@ fn rejects_trailing_bytes() {
     let (sid, instance, _) = setup();
     let mut narg = hex(NARG);
     narg.push(0);
-    assert!(Narg::verify::<Sumcheck>(&sid, &instance, &narg).is_err());
+    assert!(Narg::verify_with_session_id::<Sumcheck>(&sid, &instance, &narg).is_err());
 }

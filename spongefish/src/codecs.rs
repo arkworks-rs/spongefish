@@ -325,7 +325,7 @@ impl_tuple_encoding! {
 ///     }
 /// }
 ///
-/// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"examples/LengthPrefixed");
+/// let tag = b"examples/LengthPrefixed";
 /// let values = vec![7u32, 8, 9];
 /// let (narg, prover_output) = Narg::prove::<Sequence>(tag, &0, &values).unwrap();
 /// assert_eq!(prover_output, values);

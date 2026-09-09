@@ -124,16 +124,16 @@ fn setup() -> (spongefish::SessionId, Dlog, Fr) {
 #[test]
 fn correctness() {
     let (sid, instance, x) = setup();
-    let (narg, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).expect("prover");
+    let (narg, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).expect("prover");
     assert_eq!(narg.len(), 64);
-    assert!(Narg::verify::<Schnorr>(&sid, &instance, &narg).is_ok());
+    assert!(Narg::verify_with_session_id::<Schnorr>(&sid, &instance, &narg).is_ok());
 }
 
 #[test]
 fn nonces_are_not_reused() {
     let (sid, instance, x) = setup();
-    let (a, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).unwrap();
-    let (b, ()) = Narg::prove::<Schnorr>(&sid, &instance, &x).unwrap();
+    let (a, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
+    let (b, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
     assert_ne!(a, b);
 }
 
@@ -171,7 +171,7 @@ fn the_prover_does_not_compute_the_verification_equation_in_release() {
     }
 
     let (sid, instance, x) = setup();
-    let (narg, ()) = Narg::prove::<Counted>(&sid, &instance, &x).expect("prover");
+    let (narg, ()) = Narg::prove_with_session_id::<Counted>(&sid, &instance, &x).expect("prover");
 
     // Debug builds keep it as a completeness self-test; release builds skip it.
     let expected = u32::from(cfg!(debug_assertions));
@@ -182,7 +182,7 @@ fn the_prover_does_not_compute_the_verification_equation_in_release() {
     );
 
     // The verifier always evaluates it, whatever the profile.
-    assert!(Narg::verify::<Counted>(&sid, &instance, &narg).is_ok());
+    assert!(Narg::verify_with_session_id::<Counted>(&sid, &instance, &narg).is_ok());
     assert_eq!(
         EVALUATIONS.load(Ordering::Relaxed),
         1,
