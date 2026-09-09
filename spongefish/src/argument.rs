@@ -10,21 +10,24 @@ use crate::{
 
 /// A witness value.
 ///
-/// A marker structure indicated a value the verifier may not have.
+/// A marker indicating a witness value.
 ///
-/// ```compile_fail,E0308
-/// # use spongefish::{Transcript, Witness};
-/// fn check<T: Transcript>(transcript: &mut T, witness: Witness<u64>)
-///     -> Result<(), VerificationError>
-/// {
-///     transcript.check(|| witness.map(|w| w == 0)) // `Witness<bool>`, not `bool`
-/// }
+/// Values marked `Witness` may be transformed and combined without exposing their
+/// contents:
+///
+/// ```
+/// use spongefish::Witness;
+///
+/// let left = Witness::known(2u64);
+/// let right = Witness::known(3u64);
+/// let _sum = left.zip(right).map(|(left, right)| left + right);
+/// let _unknown = Witness::<u64>::unknown().map(|value| value + 1);
 /// ```
 ///
 /// Control flow may not depend on a value marked [`Witness`].
 ///
 /// ```compile_fail,E0308
-/// # use spongefish::{Transcript, Witness};
+/// # use spongefish::{Transcript, VerificationError, Witness};
 /// fn run<T: Transcript>(transcript: &mut T, witness: Witness<u64>)
 ///     -> Result<(), VerificationError>
 /// {
@@ -32,6 +35,17 @@ use crate::{
 ///         transcript.prover_message(Witness::known(1u64))?;
 ///     }
 ///     Ok(())
+/// }
+/// ```
+///
+/// A [`Transcript::check`] may not be done on witness variables.
+///
+/// ```compile_fail,E0308
+/// # use spongefish::{Transcript, VerificationError, Witness};
+/// fn check<T: Transcript>(transcript: &mut T, witness: Witness<u64>)
+///     -> Result<(), VerificationError>
+/// {
+///     transcript.check(|| witness.map(|w| w == 0)) // `Witness<bool>`, not `bool`
 /// }
 /// ```
 #[derive(Clone, Copy, Default)]
@@ -99,8 +113,11 @@ impl<T> From<T> for Witness<T> {
 pub trait Transcript {
     /// A prover message: the prover sends the value, the verifier reads one.
     ///
-    /// It takes a [`Witness<T>`] and returns a plain `T`, declassifying a secret value into
-    /// one that can be used by the verifier.
+    /// The prover uses its known witness value to derive the prover message.
+    /// The verifier does not know a witness (i.e. the witness value is empty) and
+    /// reads the prover message sent by the prover.
+    /// In a zero-knowledge protocol, this prover message contributes to the proof, but
+    /// communicates nothing about the witness.
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
         T: Encoding + NargDeserialize;
