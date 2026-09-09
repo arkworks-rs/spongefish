@@ -106,7 +106,7 @@ pub trait Transcript {
         T: Encoding + NargDeserialize;
 
     /// A verifier message, sent by the verifier to the prover.
-    fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T;
+    fn verifier_message<T: Decoding>(&mut self) -> T;
 
     /// A "public" prover message from the prover to the verifier.
     ///
@@ -121,10 +121,10 @@ pub trait Transcript {
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
     /// allows to return a random type `T`, marked as `Witness`.
-    fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T>;
+    fn sample<T: Decoding>(&mut self) -> Witness<T>;
 
     /// Samples `n` random elements using the prover's private randomness.
-    fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Witness<Vec<T>>;
+    fn sample_vec<T: Decoding>(&mut self, n: usize) -> Witness<Vec<T>>;
 
     /// The interactive verifier checks.
     ///
@@ -239,7 +239,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Ok(value)
     }
 
-    fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T {
+    fn verifier_message<T: Decoding>(&mut self) -> T {
         Self::verifier_message(self)
     }
 
@@ -247,11 +247,11 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Self::public_message(self, value);
     }
 
-    fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T> {
+    fn sample<T: Decoding>(&mut self) -> Witness<T> {
         Witness::known(self.rng().sample())
     }
 
-    fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Witness<Vec<T>> {
+    fn sample_vec<T: Decoding>(&mut self, n: usize) -> Witness<Vec<T>> {
         Witness::known(self.rng().sample_vec(n))
     }
 
@@ -276,7 +276,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Self::prover_message_as(self, T::deserialize_from_narg)
     }
 
-    fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T {
+    fn verifier_message<T: Decoding>(&mut self) -> T {
         Self::verifier_message(self)
     }
 
@@ -284,11 +284,11 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Self::public_message(self, value);
     }
 
-    fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T> {
+    fn sample<T: Decoding>(&mut self) -> Witness<T> {
         Witness::unknown()
     }
 
-    fn sample_vec<T: Decoding<[u8]>>(&mut self, _n: usize) -> Witness<Vec<T>> {
+    fn sample_vec<T: Decoding>(&mut self, _n: usize) -> Witness<Vec<T>> {
         Witness::unknown()
     }
 

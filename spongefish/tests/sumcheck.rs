@@ -39,7 +39,7 @@ impl NargDeserialize for M31 {
     }
 }
 
-impl Decoding<[u8]> for M31 {
+impl Decoding for M31 {
     type Repr = ByteArray<4>;
     fn decode(buf: ByteArray<4>) -> Self {
         Self(u32::from_le_bytes(*buf.as_ref()) % P)

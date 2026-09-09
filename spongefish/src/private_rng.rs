@@ -92,14 +92,14 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
 
     /// Samples a value through its [`Decoding`] codec — the same
     /// distribution-preserving path used for verifier messages.
-    pub fn sample<T: Decoding<[u8]>>(&mut self) -> T {
+    pub fn sample<T: Decoding>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
         T::decode(buf)
     }
 
     /// Samples `n` values through their [`Decoding`] codec.
-    pub fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Vec<T> {
+    pub fn sample_vec<T: Decoding>(&mut self, n: usize) -> Vec<T> {
         (0..n).map(|_| self.sample()).collect()
     }
 }

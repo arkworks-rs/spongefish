@@ -47,7 +47,7 @@ impl NargDeserialize for Point {
             .ok_or(VerificationError)
     }
 }
-impl Decoding<[u8]> for Point {
+impl Decoding for Point {
     type Repr = ByteArray<64>;
     fn decode(b: ByteArray<64>) -> Self {
         Self(RistrettoPoint::from_uniform_bytes(b.as_ref()))
@@ -66,7 +66,7 @@ impl NargDeserialize for Fr {
             .ok_or(VerificationError)
     }
 }
-impl Decoding<[u8]> for Fr {
+impl Decoding for Fr {
     type Repr = ByteArray<64>;
     fn decode(b: ByteArray<64>) -> Self {
         Self(Scalar::from_bytes_mod_order_wide(b.as_ref()))

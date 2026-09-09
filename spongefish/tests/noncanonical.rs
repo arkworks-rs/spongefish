@@ -37,7 +37,7 @@ impl NargDeserialize for Elem {
     }
 }
 
-impl Decoding<[u8]> for Elem {
+impl Decoding for Elem {
     type Repr = ByteArray<8>;
     fn decode(buf: ByteArray<8>) -> Self {
         Self(u64::from_le_bytes(*buf.as_ref()) % P)

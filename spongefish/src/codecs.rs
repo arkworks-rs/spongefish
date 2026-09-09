@@ -201,7 +201,7 @@ macro_rules! impl_int_encoding {
 
 macro_rules! impl_int_decoding {
     ($type: ty) => {
-        impl Decoding<[u8]> for $type {
+        impl Decoding for $type {
             type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
 
             fn decode(buf: Self::Repr) -> Self {
@@ -242,7 +242,7 @@ impl<const N: usize> AsMut<[u8]> for ByteArray<N> {
     }
 }
 
-impl<const N: usize> Decoding<[u8]> for [u8; N] {
+impl<const N: usize> Decoding for [u8; N] {
     type Repr = ByteArray<N>;
 
     fn decode(buf: Self::Repr) -> Self {

@@ -69,7 +69,7 @@ impl Encoding for Padded {
     }
 }
 
-impl Decoding<[u8]> for Padded {
+impl Decoding for Padded {
     type Repr = PaddedRepr;
 
     fn decode(buf: Self::Repr) -> Self {
@@ -88,12 +88,12 @@ struct HasPaddedField {
 #[test]
 #[should_panic(expected = "`Decoding` derive")]
 fn decoding_derive_rejects_inconsistent_repr_width() {
-    let buffer = <HasPaddedField as Decoding<[u8]>>::Repr::default();
+    let buffer = <HasPaddedField as Decoding>::Repr::default();
     let _ = HasPaddedField::decode(buffer);
 }
 
 /// Builds a `Decoding::Repr` out of raw bytes, the way the sponge fills it.
-fn repr<T: Decoding<[u8]>>(bytes: &[u8]) -> T::Repr {
+fn repr<T: Decoding>(bytes: &[u8]) -> T::Repr {
     let mut buffer = T::Repr::default();
     buffer.as_mut().copy_from_slice(bytes);
     buffer
@@ -122,7 +122,7 @@ fn codec_derive_pins_multi_field_byte_layout() {
     // Decoding: the representation is exactly as wide as the encoding, and
     // consuming those same bytes reconstructs the non-skipped fields.
     assert_eq!(
-        core::mem::size_of::<<Header as Decoding<[u8]>>::Repr>(),
+        core::mem::size_of::<<Header as Decoding>::Repr>(),
         expected.len()
     );
     let decoded = Header::decode(repr::<Header>(&expected));
@@ -151,7 +151,7 @@ fn codec_derive_pins_multi_field_byte_layout() {
     // Tuple structs follow the same rules.
     let pair = Pair(0x0102, 0x03, 0xFFFF_FFFF);
     assert_eq!(pair.encode().as_ref(), &[0x02, 0x01, 0x03]);
-    assert_eq!(core::mem::size_of::<<Pair as Decoding<[u8]>>::Repr>(), 3);
+    assert_eq!(core::mem::size_of::<<Pair as Decoding>::Repr>(), 3);
     let decoded = Pair::decode(repr::<Pair>(&[0x02, 0x01, 0x03]));
     assert_eq!(decoded, Pair(0x0102, 0x03, 0));
 }

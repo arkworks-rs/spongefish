@@ -97,7 +97,7 @@ fn impl_block(
 /// [`decode_field_expr`]).
 fn field_repr_size(field_type: &Type) -> TokenStream2 {
     quote! {
-        ::core::mem::size_of::<<#field_type as ::spongefish::Decoding<[u8]>>::Repr>()
+        ::core::mem::size_of::<<#field_type as ::spongefish::Decoding>::Repr>()
     }
 }
 
@@ -110,7 +110,7 @@ fn field_repr_size(field_type: &Type) -> TokenStream2 {
 fn decode_field_expr(field_type: &Type) -> TokenStream2 {
     quote! {
         {
-            let mut field_buf = <#field_type as ::spongefish::Decoding<[u8]>>::Repr::default();
+            let mut field_buf = <#field_type as ::spongefish::Decoding>::Repr::default();
             let field_size = ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf).len();
             let start = offset;
             let end = start + field_size;
@@ -122,7 +122,7 @@ fn decode_field_expr(field_type: &Type) -> TokenStream2 {
             ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf)
                 .copy_from_slice(&bytes[start..end]);
             offset = end;
-            <#field_type as ::spongefish::Decoding<[u8]>>::decode(field_buf)
+            <#field_type as ::spongefish::Decoding>::decode(field_buf)
         }
     }
 }
@@ -204,7 +204,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
     };
 
-    let trait_path = quote!(::spongefish::Decoding<[u8]>);
+    let trait_path = quote!(::spongefish::Decoding);
     Ok(impl_block(
         input,
         &trait_path,
