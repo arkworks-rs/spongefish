@@ -60,17 +60,14 @@ impl UnitFromBytes for u8 {
 }
 
 macro_rules! impl_integer_unit {
-    ($t:ty) => {
+    ($($t:ty),*) => {$(
         impl Unit for $t {
             const ZERO: Self = 0;
         }
-    };
+    )*};
 }
 
-impl_integer_unit!(u8);
-impl_integer_unit!(u32);
-impl_integer_unit!(u64);
-impl_integer_unit!(u128);
+impl_integer_unit!(u8, u32, u64, u128);
 // NOTE: deliberately no `usize` impl (32- vs 64-bit targets).
 
 /// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].

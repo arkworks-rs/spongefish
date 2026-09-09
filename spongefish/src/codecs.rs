@@ -190,17 +190,13 @@ impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
 }
 
 macro_rules! impl_int_encoding {
-    ($type: ty) => {
+    ($($type: ty),*) => {$(
         impl Encoding for $type {
             fn encode(&self) -> impl AsRef<[u8]> {
                 self.to_le_bytes()
             }
         }
-    };
-}
 
-macro_rules! impl_int_decoding {
-    ($type: ty) => {
         impl Decoding for $type {
             type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
 
@@ -208,19 +204,10 @@ macro_rules! impl_int_decoding {
                 <$type>::from_le_bytes(Decoding::decode(buf))
             }
         }
-    };
+    )*};
 }
 
-impl_int_encoding!(u8);
-impl_int_decoding!(u8);
-impl_int_encoding!(u16);
-impl_int_decoding!(u16);
-impl_int_encoding!(u32);
-impl_int_decoding!(u32);
-impl_int_encoding!(u64);
-impl_int_decoding!(u64);
-impl_int_encoding!(u128);
-impl_int_decoding!(u128);
+impl_int_encoding!(u8, u16, u32, u64, u128);
 
 #[derive(Debug, Clone)]
 pub struct ByteArray<const N: usize>([u8; N]);
