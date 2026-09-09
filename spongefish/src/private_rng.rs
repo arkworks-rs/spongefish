@@ -25,8 +25,8 @@ fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
 /// # Compartmentalization
 ///
 /// The seed is absorbed via the construction's `Init` convention.
-/// Entropy mixed in later via ([`PrivateRng::mix_entropy`]) is
-/// absorbed through [`DuplexSpongeInit::absorb_block`].
+/// Entropy mixed in later via ([`PrivateRng::mix_entropy`]) in its own block,
+/// via [`DuplexSpongeInit::absorb_block`].
 ///
 /// # Interoperability with `rand`
 ///
@@ -48,11 +48,14 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
 
     /// Seeds the RNG with 32 bytes from the operating system's entropy source.
     ///
+    /// # Security
+    ///
+    /// If the entropy source is compromised or not cryptographically secure,
+    /// the resulting non-interactive argument will lose zero-knowledge.
+    ///
     /// # Panics
     ///
-    /// Panics if the operating system's entropy source fails: proceeding to
-    /// prove with broken randomness would compromise zero-knowledge (and, for
-    /// sigma protocols, leak the witness).
+    /// Panics if the operating system's entropy source fails.
     #[cfg(feature = "getrandom")]
     #[must_use]
     pub fn from_os_entropy() -> Self {
@@ -63,12 +66,12 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         rng
     }
 
-    /// Builds a **deterministic** RNG from a seed.
+    /// Builds a **deterministic** CSRNG from a seed.
     ///
     /// # Security
     ///
-    /// This is for test vectors and reproducible tests only. Proving with a
-    /// fixed or reused seed compromises zero-knowledge.
+    /// This function is meant to be used for test vectors and reproducible tests only.
+    /// Proving with a fixed or reused seed compromises zero-knowledge.
     #[must_use]
     pub fn from_seed(mut seed: [u8; SEED_LEN]) -> Self {
         let rng = Self {
