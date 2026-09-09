@@ -63,7 +63,7 @@ impl Encoding for Claim {
 fn round_coefficients(table: &[M31]) -> (M31, M31) {
     let mut even = M31::default();
     let mut odd = M31::default();
-    for pair in table.chunks_exact(2) {
+    for pair in table.as_chunks::<2>().0 {
         even = even.add(pair[0]);
         odd = odd.add(pair[1]);
     }
@@ -72,7 +72,9 @@ fn round_coefficients(table: &[M31]) -> (M31, M31) {
 
 fn fold(table: &[M31], r: M31) -> Vec<M31> {
     table
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|p| p[0].add(r.mul(p[1].sub(p[0]))))
         .collect()
 }

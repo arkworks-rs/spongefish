@@ -76,7 +76,7 @@ fn sample_vec_matches_repeated_sampling() {
         .collect::<alloc::vec::Vec<_>>();
 
     assert_eq!(samples, expected);
-    assert!(vector_rng.sample_vec::<u32>(0).is_empty());
+    assert_eq!(vector_rng.sample_vec::<u32>(0), [] as [u32; 0]);
 }
 
 #[test]
@@ -290,7 +290,7 @@ fn verifier_prover_message_with_rolls_back_on_error() {
         |v: &u64| v.to_le_bytes(),
     );
     assert_eq!(result.unwrap(), 3);
-    assert!(verifier.narg_string.is_empty());
+    assert_eq!(verifier.narg_string, []);
 }
 
 #[test]

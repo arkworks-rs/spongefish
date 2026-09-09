@@ -2,13 +2,11 @@
 name = "spongefish-pow"
 description = "Proof-of-work challenge grinding for spongefish."
 documentation = "https://docs.rs/spongefish-pow"
-readme = "README.md"
 authors = [
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
     "Remco Bloemen <remco@wicked.ventures>",
 ]
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

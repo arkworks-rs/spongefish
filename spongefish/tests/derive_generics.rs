@@ -47,7 +47,7 @@ struct Header {
 struct Pair(u16, u8, #[spongefish(skip)] u32);
 
 /// A `Repr` whose `AsMut<[u8]>` slice is narrower than its `size_of` — the
-/// padding case that used to make the derive mis-slice silently.
+/// padding case that used to make the derive silently slice the wrong bytes.
 #[derive(Default)]
 struct PaddedRepr {
     data: [u8; 2],
@@ -83,8 +83,7 @@ struct HasPaddedField {
     second: u8,
 }
 
-/// A `Repr` whose slice width disagrees with `size_of::<Repr>()` must fail
-/// loudly rather than mis-slice the squeezed bytes.
+/// A `Repr` whose slice width disagrees with `size_of::<Repr>()` must panic.
 #[test]
 #[should_panic(expected = "`Decoding` derive")]
 fn decoding_derive_rejects_inconsistent_repr_width() {

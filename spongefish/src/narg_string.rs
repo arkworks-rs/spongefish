@@ -129,7 +129,7 @@ impl<'a> NargReader<'a> {
 ///
 /// [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 pub trait NargDeserialize: Sized {
-    /// This map must compute the inverse of [`Encoding::encode`],
+    /// This map must compute the inverse of [`Encoding::encode`](crate::Encoding::encode),
     /// or return an error if a pre-image does not exist.
     ///
     /// Implementations read through [`NargReader`].
@@ -182,7 +182,7 @@ impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
 
 macro_rules! impl_int_deserialize {
     ($($type:ty),*) => {$(
-        /// Little-endian, matching the [`Encoding`] convention for integers.
+        /// Little-endian, matching the [`Encoding`](crate::Encoding) convention for integers.
         impl NargDeserialize for $type {
             fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
                 const LEN: usize = core::mem::size_of::<$type>();

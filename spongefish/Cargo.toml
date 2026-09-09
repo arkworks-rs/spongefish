@@ -5,7 +5,6 @@ description = "A Fiat-Shamir transformation using Duplex Sponges."
 documentation = "https://docs.rs/spongefish"
 edition.workspace = true
 readme.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

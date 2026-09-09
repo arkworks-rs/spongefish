@@ -103,10 +103,11 @@ fn field_repr_size(field_type: &Type) -> TokenStream2 {
 
 /// Decodes one field out of `bytes`, advancing the shared `offset` cursor.
 ///
-/// The width comes from `AsMut::<[u8]>::as_mut(..).len()`, the single source of
-/// truth for how many bytes the sponge fills. The bounds check turns a `Repr`
-/// whose slice length disagrees with its `size_of` into a loud panic instead of
-/// a silent mis-slice.
+/// The width comes from `AsMut::<[u8]>::as_mut(..).len()`.
+///
+/// # Panics
+///
+/// The bounds check will panic if `Repr` is a slice whose length disagrees with its `size_of`.
 fn decode_field_expr(field_type: &Type) -> TokenStream2 {
     quote! {
         {

@@ -14,7 +14,6 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 version = "0.7.4"
 repository = "https://github.com/arkworks-rs/spongefish"
-homepage = "https://github.com/arkworks-rs/spongefish"
 
 [workspace.lints.clippy]
 # all lints that are on by default (correctness, suspicious, style, complexity, perf)
@@ -70,7 +69,6 @@ shake = "0.1.0"
 spin = { version = "0.12", default-features = false, features = ["rwlock"] }
 # Intra-workspace dependencies
 spongefish = { version = "0.7.4", path = "spongefish", default-features = false }
-spongefish-circuit = { version = "0.7.4", path = "circuit" }
 spongefish-derive = { version = "0.7.4", path = "derive" }
 turboshake = "0.7.1"
 zeroize = "^1.8.1"

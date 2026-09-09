@@ -2,7 +2,7 @@
 //!
 //! - the [`Hash`][crate::instantiations::Hash] bridge for fixed-output digests,
 //! - the [`XOF`][crate::instantiations::XOF] bridge for extendable-output functions,
-//! - the raw permutations behind the [`DuplexSponge`][crate::duplex_sponge::DuplexSponge] construction,
+//! - the raw permutations behind the [`DuplexSponge`] construction,
 //!
 //! along with the named suites built from them.
 

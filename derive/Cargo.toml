@@ -4,7 +4,6 @@ description = "Derive macros for the spongefish Fiat-Shamir library"
 documentation = "https://docs.rs/spongefish-derive"
 edition.workspace = true
 readme.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
