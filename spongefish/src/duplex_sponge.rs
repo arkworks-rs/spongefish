@@ -127,13 +127,11 @@ pub trait Permutation<const WIDTH: usize>: Clone {
     type U: Unit;
 
     /// The permutation function, evaluated in place.
-    ///
-    /// This is the required method because it is the shape every real
-    /// permutation has: the state is mixed where it lies. A by-value
-    /// [`Permutation::permute`] is derived from it, not the other way around.
     fn permute_mut(&self, state: &mut [Self::U; WIDTH]);
 
-    /// By-value evaluation of [`Permutation::permute_mut`].
+    /// The permutation function.
+    ///
+    /// This is the functional analogue of [`Permutation::permute_mut`].
     fn permute(&self, state: &[Self::U; WIDTH]) -> [Self::U; WIDTH] {
         let mut permuted = state.clone();
         self.permute_mut(&mut permuted);

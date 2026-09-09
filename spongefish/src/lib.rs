@@ -170,6 +170,17 @@ pub type DefaultHash = instantiations::TurboShake128;
 /// identifier cannot be confused for one another: a 32-byte tag literal is
 /// itself a `&[u8; 32]`, and would otherwise seed a transcript directly
 /// wherever an identifier is expected — silently skipping the derivation.
+///
+/// ```
+/// # #[cfg(feature = "turboshake128")]
+/// # {
+/// use spongefish::Narg;
+///
+/// let session_id = Narg::derive_session_id(b"example-v00");
+/// assert_eq!(session_id.as_bytes().len(), 32);
+/// # }
+/// ```
+///
 /// Transcript constructors accept only `&SessionId`, so passing either a tag
 /// or the identifier's raw bytes does not compile:
 ///
