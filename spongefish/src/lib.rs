@@ -1,97 +1,129 @@
-//! The Fiat-Shamir transformation for public-coin protocols.
+//! # Duplex Sponge Fiat-Shamir
 //!
-//! Implements the duplex-sponge Fiat-Shamir transformation of
-//! [draft-irtf-cfrg-fiat-shamir], from [[CO25]].
+//! Spongefish implements the duplex-sponge Fiat–Shamir transformation for
+//! public-coin interactive arguments. This crate is spec-compatible with
+//! [draft-irtf-cfrg-fiat-shamir], and the generic duplex construction follows
+//! [[CO25]].
 //!
-//! Write a protocol once as an [`Argument`] generic over [`Transcript`]. The
-//! [`Narg`] transformation runs that body as prover or verifier, supplying a
-//! known or unknown [`Witness`] respectively. See the
-//! [README quick start](https://github.com/arkworks-rs/spongefish#example) for
-//! the complete example.
+//! The main feature of this library is to provide a way for people to write an interactive
+//! [`Argument`], and compile it automatically into a NARG that can be proven with
+//! [`Narg::prove`], and verified with [`Narg::verify`].
+//!
+//! It also offers a "transcript-like" API via [`ProverState`] or [`VerifierState`] directly.
+//!
+//! ## Usage
+//!
+//! A minimal (cryptographically unsound) example is:
+//!
+//! ```
+//! # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+//! # {
+//! use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
+//!
+//! struct Equality;
+//!
+//! impl Argument for Equality {
+//!     type Instance = u32;
+//!     type Witness = u32;
+//!     type Output = ();
+//!
+//!     fn run<T: Transcript>(
+//!         transcript: &mut T,
+//!         instance: &u32,
+//!         witness: Witness<&u32>,
+//!     ) -> Result<(), VerificationError> {
+//!         let value = transcript.prover_message(witness.map(|value| *value))?;
+//!         transcript.check(|| value == *instance)
+//!     }
+//! }
+//!
+//! let tag = b"spongefish/docs/equality/v1";
+//! let (narg, ()) = Narg::prove::<Equality>(tag, &7, &7).unwrap();
+//! Narg::verify::<Equality>(tag, &7, &narg).unwrap();
+//! # }
+//! ```
+//!
+//! See the [README quick start] for a multi-round example.
+//!
+//! ## Security requirements
+//!
+//! Spongefish implements a transformation; it does not make an insecure
+//! interactive protocol secure. The interactive protocol must be public coin, and
+//! implementors must follow the security considerations of
+//! [draft-irtf-cfrg-fiat-shamir]. In particular:
+//!
+//! - Every application tag must uniquely pin the **non-interactive** NARG, its
+//!   codecs, and the application context where it is being used. Reusing a tag
+//!   can invalidate simulation extractability (soundness).
+//!   [`Narg`] derives the typed [`SessionId`] from this tag.
+//! - Encodings absorbed into the random oracle must satisfy the
+//!   prefix-freeness requirements documented by [`Encoding`]. Codec changes
+//!   require a new application tag.
+//! - Verification must consume the complete NARG. [`Narg::verify`] performs
+//!   this check; low-level users must call [`VerifierState::check_eof`].
+//! - Prover randomness must be secret, unpredictable, and never reused.
+//!   Deterministic constructors are for tests and test vectors only.
+//!
+//! The current codebase should be treated as unaudited. Earlier revisions were
+//! reviewed by Radically Open Security and OpenZeppelin; see the repository's
+//! [security policy] for scope, versions, and private reporting instructions.
+//!
+//! ## Messages and codecs
+//!
+//! Conversions to/from the hash function are handled by the traits:
+//!
+//! - [`Encoding`], which is a prefix-free serialization map.
+//!   [`Encoding<[u8]>`] is used for serialization as well.
+//! - [`Decoding`], which is a uniform-distribution-preserving map.
+//!
+//! To de-serialize objects from the NARG string we use `NARGDeserialzie`.
+//! [`Codec`] is the combined shorthand, and the optional `derive` feature supplies derive
+//! macros for these traits.
+//!
+//! Fixed-width integers, byte arrays, and tuples have built-in codecs.
+//! Variable-length sequences must use [`LengthPrefixed`] (or an equally
+//! unambiguous custom encoding); concatenating variable-length encodings
+//! without framing is unsafe.
+//!
+//! For a sponge over another alphabet `U`, [`Encoding<[U]>`] is the map
+//! absorbed into the oracle, while [`Encoding`] remains the byte serialization
+//! written to the NARG. The low-level
+//! [`ProverState::prover_message_with`] and
+//! [`VerifierState::prover_message_with`] methods accept these maps as
+//! closures when implementing traits is inconvenient.
 //!
 //! ## Prover randomness
 //!
-//! The prover carries a private RNG ([`ProverState::rng`]), seeded from the
-//! operating system's entropy source (`getrandom`, enabled by default).
-//! External randomness can be mixed in with [`ProverState::mix_entropy`].
-//! Deterministic provers for test vectors can use
-//! [`ProverState::new_with_seed`].
+//! With the default `getrandom` feature, the NARG prover will also have access to a
+//! CSRNG [`PrivateRng`], seeded by the operating system.
 //!
-//! ## Deriving your own encoding and decoding
+//! [`ProverState::mix_entropy`] can mix an additional fixed-width seed.
+//! [`ProverState::new_with_seed`] is deterministic and must
+//! not be used for production proofs.
 //!
-//! A prover message must implement:
-//! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
-//! - [`Encoding`], to serialize the message in a NARG string;
-//! - [`NargDeserialize`], to read from a NARG string.
+//! ## Suites and low-level APIs
 //!
-//! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
+//! The [`instantiations`] module provides:
 //!
-//! For byte-oriented sponges, a prover message's encoded bytes and serialized
-//! bytes coincide. For algebraic sponges, encoding maps to the oracle's alphabet (e.g. field elements),
-//! while serialization always targets bytes.
-//! The interface [`Codec`] is a shorthand for all of the above.
+//! - `Shake128` and `TurboShake128`, the suites specified by
+//!   [draft-irtf-cfrg-fiat-shamir]. `TurboShake128` is [`DefaultHash`] and backs
+//!   [`Narg`] when the default `turboshake128` feature is enabled.
+//! - `Keccak` and `Ascon12`, overwrite-mode duplex sponges available through
+//!   their respective feature flags. These are not the draft's SHAKE suites.
+//! - [`instantiations::XOF`] and [`instantiations::Hash`], bridges for the
+//!   RustCrypto `digest` traits. Constructions outside the draft or the ideal-
+//!   permutation analysis of [[CO25]] should be treated as heuristic.
 //!
-//! Prover and verifier states accept also codec closures. On byte-oriented sponges,
-//! [`ProverState::prover_message_as`] and [`VerifierState::prover_message_as`]
-//! take a single closure: the absorbed bytes and the NARG bytes coincide by
-//! construction. On sponges over any alphabet,
-//! [`ProverState::prover_message_with`] and
-//! [`VerifierState::prover_message_with`] take the encoding and
-//! (de)serialization maps as separate closures, mirroring the trait pair.
-//! Unsigned integers and byte arrays have codecs attached to them.
-//! Variable-length sequences use the [`LengthPrefixed`] combinator, which
-//! prepends a `u32` element count to keep the encoding prefix-free.
+//! [`FiatShamir`] selects a non-default sponge. [`DuplexSponge`] and
+//! [`DuplexSpongeInterface`] expose the underlying construction for specialist
+//! use. The `yolocrypto` feature exposes additional internal state and should
+//! not be enabled by ordinary applications.
 //!
-//! # Supported hash functions
+//! This crate is `no_std`.
 //!
-//! All hash functions are available in [`instantiations`]:
-//!
-//! 1. `Shake128` and `TurboShake128`, the duplex sponges of
-//!    [draft-irtf-cfrg-fiat-shamir], available with the default
-//!    `turboshake128` feature flag (the default is [`DefaultHash`] =
-//!    TurboSHAKE128);
-//! 2. `Keccak`, the overwrite-mode duplex sponge
-//!    construction [[CO25], Section 3.3] over the Keccak-f\[1600\] permutation
-//!    (**not** the draft's SHAKE128 suite). Available with the `keccak` feature flag;
-//! 3. `Ascon12`, the overwrite-mode duplex sponge over the
-//!    Ascon permutation. Available with the `ascon` feature flag.
-//!
-//! # Implementing your own hash functions
-//!
-//! The duplex sponge construction [`DuplexSponge`] is described
-//! in [[CO25], Section 3.3].
-//!
-//! The extensible output function [`instantiations::XOF`]
-//! wraps an object implementing [`digest::ExtendableOutput`], and the hash
-//! bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
-//! the [`digest::Digest`] trait; both implement the [`DuplexSpongeInterface`].
-//!
-//! ## Security considerations
-//!
-//! The SHAKE128 and TurboSHAKE128 suites implement [draft-irtf-cfrg-fiat-shamir];
-//! the overwrite-mode duplex sponges (`Keccak`, `Ascon12`) are proven secure in
-//! the ideal permutation model [[CO25]]; all other constructions are heuristic.
-//!
-//! Previous versions of this library were audited by [Radically Open Security].
-//!
-//! The user has full responsibility for choosing the session identifier: it
-//! must uniquely identify the non-interactive argument, its codecs, and the
-//! application context (see the draft's requirements). Deriving it from a tag
-//! via [`derive_session_id`] is the recommended way.
-//!
-//! Unlike merlin, there are no per-message domain-separation labels:
-//! the session identifier pins the protocol, its codecs, and the message schedule,
-//! so the sequence of absorb and squeeze operations is fixed before the interactive protocol starts.
-//! In particular, this Fiat-Shamir transformation will not bake in degree, order, and endianness metadata
-//! into every field element that is being sent to the random oracle.
-//! While cheap for bytes, this approach will be really expensive under recursion, and does not fully eliminate
-//! message confusion. Ultimately, it's the responsibility of the user to make sure two transcripts will never collide.
-//!
-//! [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
-//! [Keccak-f]: https://keccak.team/keccak_specs_summary.html
-//! [Ascon]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf
+//! [README quick start]: https://github.com/arkworks-rs/spongefish#example
+//! [security policy]: https://github.com/arkworks-rs/spongefish/blob/main/SECURITY.md
 //! [CO25]: https://eprint.iacr.org/2025/536.pdf
-//! [Radically Open Security]: https://www.radicallyopensecurity.com/
 //! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 
 #![no_std]

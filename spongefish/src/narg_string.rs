@@ -97,16 +97,35 @@ impl<'a> NargReader<'a> {
 
 /// Trait for reading an object from a NARG string.
 ///
+/// # Security requirements
+///
+/// The input of [`NargDeserialize::deserialize_from_narg`] is attacker-controlled.
+/// An implementation **MUST**:
+///
+/// - be the inverse of the corresponding [`Encoding<[u8]>`] implementation:
+///   every value produced by `Encoding::encode` must deserialize to that value,
+///   and there must be at most one valid value for each possible input.
+///   Accepting multiple encodings for the same value can make a proof malleable.
+///   Invalid inputs must be rejected.
+/// - Lengths, counts, and other hints read from the NARG string are untrusted and must
+///   be checked before they are used for indexing, allocation, or arithmetic;
+/// - For a returned value `T`, all validation for that value must be satisfied. For
+///   example, an elliptic-curve point must be on the intended curve and in
+///   the intended subgroup, and a field element or scalar must be in its
+///   canonical range. Any additional validity condition required by the
+///   protocol must also be checked;
+/// - It must not panic on invalid input, read beyond the input, or silently substitute a default value.
+///   Implementations that allocate based on attacker-controlled input should impose an appropriate bound before
+///   allocating.
+///
+/// The implementation need not consume the entire reader: composite encodings
+/// consume only their own prefix. The caller must reject trailing bytes after
+/// the complete NARG has been parsed.
+///
 /// # Semantics
 ///
-/// All objects encoded using [`Encoding`] must be de-serializable
-/// (i.e., return `Ok(Self)`).
-/// When de-serializing integers modulo N, this procedure is expected to compute the
-/// conversion procedure [OS2IP] from RFC8017.
-/// Prime-order fields must follow the same convention (seen as $Z/pZ$ elements),
-/// and field extensions must deserialize each of their base field elements.
-///
-/// [OS2IP]: https://datatracker.ietf.org/doc/html/rfc8017#section-4.2
+/// This procedure is expected to follow the
+/// Deserialization section of (draft-irtf-cfrg-fiat-shamir)[https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/].
 pub trait NargDeserialize: Sized {
     /// This map must compute the inverse of [`Encoding::encode`],
     /// or return an error if a pre-image does not exist.

@@ -48,6 +48,11 @@ use crate::{
 ///     transcript.check(|| witness.map(|w| w == 0)) // `Witness<bool>`, not `bool`
 /// }
 /// ```
+///
+/// [`Witness`] is not a secret-memory container.
+/// It prevents verifier code and control flow from directly depending on a
+/// prover-only value, but it does not by itself provide zeroization or side-
+/// channel resistance.
 #[derive(Clone, Copy, Default)]
 pub struct Witness<T>(Option<T>);
 
