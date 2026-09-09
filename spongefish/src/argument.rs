@@ -10,7 +10,7 @@ use crate::{
 
 /// A witness value.
 ///
-/// Denoted a value which the verifier may not have.
+/// A marker structure indicated a value the verifier may not have.
 ///
 /// ```compile_fail,E0308
 /// # use spongefish::{Transcript, Witness};
@@ -44,24 +44,24 @@ impl<T> core::fmt::Debug for Witness<T> {
 }
 
 impl<T> Witness<T> {
-    /// The prover's view.
+    /// Initializes the witness with value `T` (the prover's view).
     pub const fn known(value: T) -> Self {
         Self(Some(value))
     }
 
-    /// The verifier's view. Carries no `T`, so nothing downstream can read one.
+    /// Set the witness to `None` (the verifier's view).
     pub const fn unknown() -> Self {
         Self(None)
     }
 
     /// Compute with the value if there is one.
-    ///
-    /// The closure must be pure; see the type-level warning above.
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Witness<U> {
         Witness(self.0.map(f))
     }
 
-    /// Combine two, known only when both are.
+    /// Combine two witnesses.
+    ///
+    /// The result is a known value only when `self` and `other` both are.
     pub fn zip<U>(self, other: Witness<U>) -> Witness<(T, U)> {
         Witness(self.0.zip(other.0))
     }
@@ -96,9 +96,43 @@ impl<T> From<T> for Witness<T> {
 ///     transcript.check(|| value == 1)
 /// }
 /// ```
-///
-/// An interactive protocol can be turned into a non-interactive one easily.
-/// For instance:
+pub trait Transcript {
+    /// A prover message: the prover sends the value, the verifier reads one.
+    ///
+    /// It takes a [`Witness<T>`] and returns a plain `T`, declassifying a secret value into
+    /// one that can be used by the verifier.
+    fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
+    where
+        T: Encoding + NargDeserialize;
+
+    /// A verifier message, sent by the verifier to the prover.
+    fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T;
+
+    /// A "public" prover message from the prover to the verifier.
+    ///
+    /// A public message is a message that doesn't need to be part of the NARG string
+    /// (for instance, because it's already part of the context of metadata).
+    ///
+    /// A public message will not be serialized in the final NARG string, leading to
+    /// shorter proofs, but it will be part of the non-interactive Fiat-Shamir transformation.
+    fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
+
+    /// Samples a random element using the prover's private randomness.
+    ///
+    /// Zero-knowledge argument provers often require randomness, and this function
+    /// allows to return a random type `T`, marked as `Witness`.
+    fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T>;
+
+    /// Samples `n` random elements using the prover's private randomness.
+    fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Witness<Vec<T>>;
+
+    /// The interactive verifier checks.
+    ///
+    /// The closure `holds` is called also by the prover in `debug` builds.
+    fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
+}
+
+/// The interactive argument.
 ///
 /// ```
 /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
@@ -129,49 +163,13 @@ impl<T> From<T> for Witness<T> {
 /// # }
 /// ```
 ///
-pub trait Transcript {
-    /// A prover message: the prover sends the value, the verifier reads one.
-    ///
-    /// It takes a [`Witness<T>`] and returns a plain `T`, declassifying a secret value into
-    /// one that can be used by the verifier.
-    fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
-    where
-        T: Encoding + NargDeserialize;
-
-    /// A verifier message, sent by the verifier to the prover.
-    fn verifier_message<T: Decoding<[u8]>>(&mut self) -> T;
-
-    /// A "public" prover message from the prover to the verifier.
-    ///
-    /// A public message is a message that doesn't need to be part of the NARG string
-    /// (for instance, because it's already part of the context of metadata).
-    ///
-    /// A public message will not be serialized in the final NARG string, leading to
-    /// shorter proofs, yet it will be part of the non-interactive Fiat-Shamir transformation.
-    fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
-
-    /// Samples a random element using the prover's private randomness.
-    ///
-    /// Zero-knowledge argument provers often require randomness, and this function
-    /// allows to return a random type `T`, marked as `Witness`.
-    fn sample<T: Decoding<[u8]>>(&mut self) -> Witness<T>;
-
-    /// Samples `n` random elements using the prover's private randomness.
-    fn sample_vec<T: Decoding<[u8]>>(&mut self, n: usize) -> Witness<Vec<T>>;
-
-    /// The interactive verifier checks.
-    ///
-    /// The closure `holds` is called also by the prover in `debug` builds.
-    fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
-}
-
-/// The interactive argument.
+/// # Security
 ///
-/// # Why there is no `self`
+/// An interactive argument is a marker structure. It should not carry any state, as
+/// those are part of the instance and the session identifier.
 ///
-/// An implementor of this trait should not carry any state outside of the instance
-/// or the section identifier. Additionally, the type should be
-/// zero-sized, so that a field is a clear compile error:
+/// This is partially enforced making sure implementations are zero-sized,
+/// so that a field is a clear compile error:
 ///
 /// ```compile_fail,E0080
 /// # use spongefish::{Argument, Transcript, Witness};
@@ -195,9 +193,6 @@ pub trait Transcript {
 /// ```
 pub trait Argument: Sized {
     /// Asserts that the implementor carries no data.
-    ///
-    /// Checked by [`FiatShamir::prove`] and [`FiatShamir::verify`]. Not part of
-    /// the public API; do not override it.
     #[doc(hidden)]
     const NO_STATE: () = assert!(
         core::mem::size_of::<Self>() == 0,
@@ -205,17 +200,14 @@ pub trait Argument: Sized {
          `Instance`, and `Witness`. Protocol parameters can be const generics",
     );
 
-    /// The statement. Everything public lives here, because this is what gets
-    /// absorbed — a public value outside it is the weak Fiat-Shamir bug.
+    /// The instance of the interactive argument.
     type Instance: Encoding;
-    /// The prover's private input.
+    /// The witness of the interactive argument.
     type Witness;
-    /// What both parties compute by the end.
+    /// The output resulting from the interaction.
     type Output;
 
-    /// Generic over the side, which is the whole trick: `prove` instantiates it
-    /// with a known witness, `verify` with an unknown one, and there is one
-    /// body.
+    /// The interactive argument.
     fn run<T: Transcript>(
         transcript: &mut T,
         instance: &Self::Instance,
@@ -240,8 +232,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
     where
         T: Encoding + NargDeserialize,
     {
-        // `Witness::unknown()` here means the caller ran the prover without a
-        // witness. Nothing to send.
+        // `Witness::unknown()` here fails with `VerificationError`.
         let Witness(value) = value;
         let value = value.ok_or(VerificationError)?;
         Self::prover_message(self, &value);
@@ -265,8 +256,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
     }
 
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
-        // Short-circuits, so a release build never calls `holds` and the
-        // equation is dead code.
+        // The verification equations are not run in release mode.
         if cfg!(debug_assertions) && !holds() {
             return Err(VerificationError);
         }
@@ -313,21 +303,12 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
 
 // --- entry points ----------------------------------------------------------
 
-/// The Fiat-Shamir transformation, at a chosen duplex sponge.
-///
-/// This is a type rather than two free functions so that the sponge can be
-/// named once and defaulted: Rust allows no default on a function's generic
-/// parameters, and — less obviously — a struct's default is not applied in
-/// expression position either, so `FiatShamir::prove(..)` would still ask you
-/// to infer `H`. The alias [`Narg`] is what closes that gap.
+/// The duplex sponge Fiat-Shamir transformation.
 ///
 /// Use [`Narg::prove`] for the draft's default suite, or
 /// `FiatShamir::<Keccak>::prove(..)` for another.
 #[cfg(feature = "turboshake128")]
 pub struct FiatShamir<H = DefaultHash>(PhantomData<H>);
-
-/// The transformation at a sponge you name. Without the `turboshake128`
-/// feature there is no default suite to fall back on.
 #[cfg(not(feature = "turboshake128"))]
 pub struct FiatShamir<H>(PhantomData<H>);
 
@@ -347,14 +328,14 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         crate::derive_session_id::<H>(tag)
     }
 
-    /// Run `argument` as the non-interactive prover, deriving the session
-    /// identifier from `tag` first.
+    /// The non-intearctive prover.
     ///
-    /// Returns the NARG string and whatever terminal value the dialogue
-    /// produced — for a sumcheck, the folded evaluation that a surrounding
-    /// construction has to tie to reality.
-    /// Seeding the prover's private RNG is what needs `getrandom`; the
-    /// verifier has no randomness and so needs neither feature.
+    /// Returns a NARG string along with whatever terminal value the prover produced
+    /// at the end. For instance in reductions of knowledge this can be the reduced
+    /// relation instance/witness pair.
+    ///
+    /// The session identifier is derived from the `tag` using
+    /// [`derive_session_id`](crate::derive_session_id).
     #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
     pub fn prove<A: Argument>(
         tag: &[u8],
@@ -365,8 +346,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         Self::prove_with_session_id::<A>(&session_id, instance, witness)
     }
 
-    /// Run `argument` as the non-interactive prover with a pre-derived session
-    /// identifier.
+    /// The non-interactive prover, with a custom session identifier.
     #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
     pub fn prove_with_session_id<A: Argument>(
         session_id: &crate::SessionId,
@@ -380,11 +360,10 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         Ok((prover_state.into_narg_string(), output))
     }
 
-    /// Run `argument` as the non-interactive verifier, deriving the session
-    /// identifier from `tag` first.
+    /// The non-interactive verifier.
     ///
-    /// The end-of-input check is here and not optional: trailing bytes make a
-    /// proof malleable.
+    /// The session identifier is derived from the `tag` using
+    /// [`derive_session_id`](crate::derive_session_id).
     pub fn verify<A: Argument>(
         tag: &[u8],
         instance: &A::Instance,
@@ -394,8 +373,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         Self::verify_with_session_id::<A>(&session_id, instance, narg_string)
     }
 
-    /// Run `argument` as the non-interactive verifier with a pre-derived
-    /// session identifier.
+    /// The non-interactive verifier, with a custom session identifier.
     pub fn verify_with_session_id<A: Argument>(
         session_id: &crate::SessionId,
         instance: &A::Instance,
