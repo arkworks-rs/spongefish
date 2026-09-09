@@ -20,9 +20,6 @@ use crate::duplex_sponge::DuplexSpongeInterface;
 const ZERO_BLOCK: [u8; 200] = [0u8; 200];
 
 /// The sponge rate, in bytes, of an XOF hasher.
-///
-/// Required by [`XOF`]'s [`DuplexSpongeInit`][crate::duplex_sponge::DuplexSpongeInit]
-/// implementation to pad the session identifier to one full rate block.
 pub trait XofRate {
     /// The rate in bytes.
     const RATE: usize;
@@ -48,6 +45,8 @@ pub struct XOF<H: ExtendableOutput> {
     hasher: H,
     /// XOF reader for squeeze operations (None = absorbing, Some = squeezing)
     xof_reader: Option<H::Reader>,
+    /// The current position within the XOF's rate block.
+    absorb_position: usize,
 }
 
 impl<H> Clone for XOF<H>
@@ -59,13 +58,14 @@ where
         Self {
             hasher: self.hasher.clone(),
             xof_reader: self.xof_reader.clone(),
+            absorb_position: self.absorb_position,
         }
     }
 }
 
 impl<H> DuplexSpongeInterface for XOF<H>
 where
-    H: ExtendableOutput + Clone + Default,
+    H: ExtendableOutput + Clone + Default + XofRate,
     H::Reader: Clone,
 {
     type U = u8;
@@ -74,6 +74,7 @@ where
         if !input.is_empty() {
             self.xof_reader = None;
             Update::update(&mut self.hasher, input);
+            self.absorb_position = (self.absorb_position + input.len() % H::RATE) % H::RATE;
         }
         self
     }
@@ -88,6 +89,15 @@ where
     }
 }
 
+impl<H> XOF<H>
+where
+    H: ExtendableOutput + XofRate,
+{
+    const fn rate() -> usize {
+        H::RATE
+    }
+}
+
 impl<H> crate::duplex_sponge::DuplexSpongeInit for XOF<H>
 where
     H: ExtendableOutput + Clone + Default + XofRate,
@@ -97,21 +107,22 @@ where
     /// bytes to one full rate block ([`XofRate::RATE`]), so that subsequent
     /// input starts on a fresh block boundary.
     fn init(session_id: &[u8; 32]) -> Self {
-        const { assert!(H::RATE >= 32 && H::RATE <= ZERO_BLOCK.len()) }
+        const { assert!(Self::rate() >= 32 && Self::rate() <= ZERO_BLOCK.len()) }
         let mut sponge = Self::default();
         sponge.absorb(session_id);
-        sponge.absorb(&ZERO_BLOCK[..H::RATE - 32]);
+        sponge.absorb(&ZERO_BLOCK[..Self::rate() - 32]);
         sponge
     }
 
-    /// Zero-pads each mix to a full rate block. Assumes the absorb position is
-    /// block-aligned on entry, which holds when the sponge is only touched
-    /// through `init` and `absorb_block`.
+    /// Zero-pads each mix until the absorb position reaches a full rate block.
+    ///
+    /// The input is **not** padded: this means that absorbing `input` is equivalent to
+    /// absorbing `input || 0 ..`, for any `0` up to the remaining units to fill the block.
     fn absorb_block(&mut self, input: &[u8]) {
         self.absorb(input);
-        let rem = input.len() % H::RATE;
+        let rem = self.absorb_position;
         if rem != 0 {
-            self.absorb(&ZERO_BLOCK[..H::RATE - rem]);
+            self.absorb(&ZERO_BLOCK[..Self::rate() - rem]);
         }
     }
 }
@@ -150,6 +161,7 @@ where
         Self {
             hasher: H::default(),
             xof_reader: None,
+            absorb_position: 0,
         }
     }
 }
@@ -231,10 +243,28 @@ mod tests {
         assert_eq!(after_reset, expected_out);
     }
 
+    #[cfg(feature = "turboshake128")]
+    #[test]
+    fn absorb_block_fills_the_current_rate_block() {
+        let sid = [7u8; 32];
+        let mut got = TurboShake128::init(&sid);
+        got.absorb(b"prefix").absorb_block(b"mix");
+
+        let mut expected = TurboShake128::init(&sid);
+        expected.absorb(b"prefix").absorb(b"mix");
+        expected.absorb(&[0u8; 168 - 6 - 3]);
+
+        let mut got_output = [0u8; 32];
+        let mut expected_output = [0u8; 32];
+        got.squeeze(&mut got_output);
+        expected.squeeze(&mut expected_output);
+        assert_eq!(got_output, expected_output);
+    }
+
     #[allow(unused)]
     fn assert_clone_preserves_squeeze_position<H>()
     where
-        H: digest::ExtendableOutput + Clone + Default,
+        H: digest::ExtendableOutput + Clone + Default + super::XofRate,
         H::Reader: Clone,
     {
         let mut sponge = XOF::<H>::default();

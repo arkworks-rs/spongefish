@@ -124,8 +124,10 @@ impl<'a> NargReader<'a> {
 ///
 /// # Semantics
 ///
-/// This procedure is expected to follow the
-/// Deserialization section of (draft-irtf-cfrg-fiat-shamir)[https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/].
+/// This procedure is expected to follow the Deserialization section of
+/// [draft-irtf-cfrg-fiat-shamir].
+///
+/// [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 pub trait NargDeserialize: Sized {
     /// This map must compute the inverse of [`Encoding::encode`],
     /// or return an error if a pre-image does not exist.

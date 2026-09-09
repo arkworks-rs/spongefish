@@ -5,9 +5,9 @@
 //! [draft-irtf-cfrg-fiat-shamir], and the generic duplex construction follows
 //! [[CO25]].
 //!
-//! The main feature of this library is to provide a way for people to write an interactive
-//! [`Argument`], and compile it automatically into a NARG that can be proven with
-//! [`Narg::prove`], and verified with [`Narg::verify`].
+//! The main feature of this library is to let users write an interactive
+//! [`Argument`] and automatically compile it into a NARG that can be generated
+//! with [`Narg::prove`] and verified with [`Narg::verify`].
 //!
 //! It also offers a "transcript-like" API via [`ProverState`] or [`VerifierState`] directly.
 //!
@@ -54,7 +54,7 @@
 //!
 //! - Every application tag must uniquely pin the **non-interactive** NARG, its
 //!   codecs, and the application context where it is being used. Reusing a tag
-//!   can invalidate simulation extractability (soundness).
+//!   can invalidate soundness and domain separation.
 //!   [`Narg`] derives the typed [`SessionId`] from this tag.
 //! - Encodings absorbed into the random oracle must satisfy the
 //!   prefix-freeness requirements documented by [`Encoding`]. Codec changes
@@ -76,7 +76,7 @@
 //!   [`Encoding<[u8]>`] is used for serialization as well.
 //! - [`Decoding`], which is a uniform-distribution-preserving map.
 //!
-//! To de-serialize objects from the NARG string we use `NARGDeserialzie`.
+//! To deserialize objects from the NARG string, use [`NargDeserialize`].
 //! [`Codec`] is the combined shorthand, and the optional `derive` feature supplies derive
 //! macros for these traits.
 //!
@@ -95,7 +95,8 @@
 //! ## Prover randomness
 //!
 //! With the default `getrandom` feature, the NARG prover will also have access to a
-//! CSRNG [`PrivateRng`], seeded by the operating system.
+//! cryptographically secure pseudorandom number generator ([`PrivateRng`])
+//! seeded by the operating system.
 //!
 //! [`ProverState::mix_entropy`] can mix an additional fixed-width seed.
 //! [`ProverState::new_with_seed`] is deterministic and must
