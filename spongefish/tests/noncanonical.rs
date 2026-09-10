@@ -2,7 +2,7 @@
 //!
 //! If a prover can maul a message into a second byte string that parses to the same value,
 //! we lose a soundness property called simulation extractability (as well as universal composability).
-//! This file provides one such exmaple that **should NOT** be reproduced.
+//! This file provides one such example that **should NOT** be reproduced.
 use spongefish::{
     Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
     VerificationError, Witness,
