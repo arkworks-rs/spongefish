@@ -313,33 +313,21 @@ impl<T: Encoding> Encoding for LengthPrefixed<&[T]> {
     }
 }
 
-impl<T: Encoding> Encoding for LengthPrefixed<alloc::vec::Vec<T>> {
+impl<T: Encoding> Encoding for LengthPrefixed<Vec<T>> {
     fn encode(&self) -> impl AsRef<[u8]> {
         encode_length_prefixed(&self.0)
     }
 }
 
-impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<alloc::vec::Vec<T>> {
-    fn deserialize_from_narg(
-        reader: &mut crate::NargReader<'_>,
-    ) -> Result<Self, crate::VerificationError> {
-        let len = u32::deserialize_from_narg(reader)? as usize;
-        // The count is untrusted, and it is not checked against what is left:
-        // the loop below is bounded anyway, because every element must consume
-        // at least one byte (enforced below) and a read past the end fails.
-        // Cap the NARG string length hint so to avoid long allocations.
-        let mut elements = Vec::with_capacity(usize::min(len, 64));
-        for _ in 0..len {
-            let before = reader.consumed();
-            let element = T::deserialize_from_narg(reader)?;
-            // A zero-width element would make the encoding non-injective and
-            // would let a huge count spin without consuming input; reject it.
-            if reader.consumed() == before {
-                return Err(crate::VerificationError);
-            }
-            elements.push(element);
-        }
-        Ok(Self(elements))
+impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<Vec<T>> {
+    /// A truncated count and a zero-width element are failures of this codec
+    /// itself, so the element error is folded into the same
+    /// [`VerificationError`][crate::VerificationError].
+    type Error = crate::VerificationError;
+
+    fn deserialize_from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+        let len = reader.read::<u32>()? as usize;
+        reader.read_vec(len).map(Self)
     }
 }
 
@@ -354,7 +342,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Encoding, LengthPrefixed};
+    use super::{Encoding, LengthPrefixed, Vec};
     use crate::NargDeserialize;
 
     /// The `str` codec spans the inline/heap boundary as the string grows; the
@@ -365,7 +353,7 @@ mod tests {
             let text = "x".repeat(len);
             let text = text.as_str();
             let encoded = Encoding::<[u8]>::encode(&text);
-            let mut expected = alloc::vec::Vec::new();
+            let mut expected = Vec::new();
             expected.extend_from_slice(&(len as u32).to_le_bytes());
             expected.extend_from_slice(text.as_bytes());
             assert_eq!(encoded.as_ref(), &expected[..], "len {len}");
@@ -377,10 +365,10 @@ mod tests {
     #[test]
     fn length_prefixed_encoding_is_stable_across_the_spill_boundary() {
         for len in [0usize, 1, 30, 31, 32, 33, 100] {
-            let values: alloc::vec::Vec<u32> = (0..len as u32).collect();
+            let values: Vec<u32> = (0..len as u32).collect();
             let wrapper = LengthPrefixed(&values[..]);
             let encoded = wrapper.encode();
-            let mut expected = alloc::vec::Vec::new();
+            let mut expected = Vec::new();
             expected.extend_from_slice(&(len as u32).to_le_bytes());
             for value in &values {
                 expected.extend_from_slice(&value.to_le_bytes());
@@ -439,25 +427,19 @@ mod tests {
 
         let mut reader = crate::NargReader::new(bytes.as_ref());
         let LengthPrefixed(read_back) =
-            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut reader).unwrap();
+            LengthPrefixed::<Vec<u32>>::deserialize_from_narg(&mut reader).unwrap();
         assert_eq!(read_back, values);
         assert!(reader.is_empty());
 
         // Truncated element data is rejected.
         let truncated = &bytes.as_ref()[..bytes.as_ref().len() - 1];
         let mut reader = crate::NargReader::new(truncated);
-        assert!(
-            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut reader).is_err()
-        );
+        assert!(LengthPrefixed::<Vec<u32>>::deserialize_from_narg(&mut reader).is_err());
 
-        // A huge count with no data behind it is rejected by the length
-        // guard, before any element parsing: only the count is ever consumed.
+        // A huge count with no data behind it fails on the first element.
         let bogus = [0xFF, 0xFF, 0xFF, 0xFF];
         let mut reader = crate::NargReader::new(&bogus);
-        assert!(
-            LengthPrefixed::<alloc::vec::Vec<u32>>::deserialize_from_narg(&mut reader).is_err()
-        );
-        assert_eq!(reader.consumed(), size_of::<u32>());
+        assert!(LengthPrefixed::<Vec<u32>>::deserialize_from_narg(&mut reader).is_err());
     }
 
     /// An element codec whose encoded width depends on the *value*, not just
@@ -516,7 +498,7 @@ mod tests {
         ];
 
         for case in &cases {
-            let mut expected = alloc::vec::Vec::new();
+            let mut expected = Vec::new();
             for element in case {
                 expected.extend_from_slice(element.encode().as_ref());
             }
@@ -525,7 +507,7 @@ mod tests {
                 encoded.as_ref(),
                 &expected[..],
                 "widths {:?}",
-                case.iter().map(|e| e.0).collect::<alloc::vec::Vec<_>>()
+                case.iter().map(|e| e.0).collect::<Vec<_>>()
             );
         }
 
@@ -540,9 +522,9 @@ mod tests {
     struct ZeroWidth;
 
     impl NargDeserialize for ZeroWidth {
-        fn deserialize_from_narg(
-            _reader: &mut crate::NargReader<'_>,
-        ) -> Result<Self, crate::VerificationError> {
+        type Error = crate::VerificationError;
+
+        fn deserialize_from_narg(_reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
             Ok(Self)
         }
     }
@@ -552,34 +534,24 @@ mod tests {
     /// work stays bounded by the remaining bytes.
     #[test]
     fn length_prefixed_rejects_zero_width_elements() {
-        // Count larger than the remaining bytes: caught by the cheap guard,
-        // before any element is parsed.
+        // A huge count with nothing behind it: the first element consumes
+        // nothing and is rejected, so the loop never spins through the count.
         let mut bytes = alloc::vec![0xFF, 0xFF, 0xFF, 0xFF];
         let mut reader = crate::NargReader::new(&bytes);
-        assert!(
-            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut reader)
-                .is_err()
-        );
-        assert_eq!(reader.consumed(), size_of::<u32>());
+        assert!(LengthPrefixed::<Vec<ZeroWidth>>::deserialize_from_narg(&mut reader).is_err());
 
-        // Count within the remaining bytes, so the loop is entered: the
-        // zero-width element is rejected on the first iteration, leaving the
-        // eight payload bytes unread rather than spinning through the count.
+        // A count with payload behind it is rejected on the first element all
+        // the same: the elements would never consume the payload.
         bytes = alloc::vec![8, 0, 0, 0];
         bytes.extend_from_slice(&[0u8; 8]);
         let mut reader = crate::NargReader::new(&bytes);
-        assert!(
-            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut reader)
-                .is_err()
-        );
-        assert_eq!(reader.consumed(), size_of::<u32>());
+        assert!(LengthPrefixed::<Vec<ZeroWidth>>::deserialize_from_narg(&mut reader).is_err());
 
         // An empty sequence still parses: no element is ever read.
         let empty = [0u8, 0, 0, 0];
         let mut reader = crate::NargReader::new(&empty);
         let LengthPrefixed(elements) =
-            LengthPrefixed::<alloc::vec::Vec<ZeroWidth>>::deserialize_from_narg(&mut reader)
-                .unwrap();
+            LengthPrefixed::<Vec<ZeroWidth>>::deserialize_from_narg(&mut reader).unwrap();
         assert!(elements.is_empty());
         assert!(reader.is_empty());
     }

@@ -13,8 +13,10 @@
 //! neither does a bit-flip sweep — every flip that survives parsing lands on a
 //! different value, not on a different encoding of the same one.
 
-use spongefish::{derive_session_id, Argument, DefaultHash, Narg, Transcript, Witness};
-use spongefish::{ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError};
+use spongefish::{
+    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
+    NargReader, Transcript, VerificationError, Witness,
+};
 
 /// A prime small enough that `a` and `a + P` both fit in `u64`.
 const P: u64 = (1 << 61) - 1;
@@ -31,9 +33,12 @@ impl Encoding for Elem {
 }
 
 impl NargDeserialize for Elem {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
         // The bug, stated plainly. A canonical codec would reject `v >= P`.
-        Ok(Self(u64::from_le_bytes(reader.take_array::<8>()?) % P))
+        let bytes = reader.take_array::<8>().ok_or(VerificationError)?;
+        Ok(Self(u64::from_le_bytes(bytes) % P))
     }
 }
 

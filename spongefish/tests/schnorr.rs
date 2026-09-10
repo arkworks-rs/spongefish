@@ -5,8 +5,10 @@ use curve25519_dalek::{
     ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
 };
-use spongefish::{derive_session_id, Argument, DefaultHash, Narg, Transcript, Witness};
-use spongefish::{ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError};
+use spongefish::{
+    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
+    NargReader, Transcript, VerificationError, Witness,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Point(RistrettoPoint);
@@ -40,8 +42,10 @@ impl Encoding for Point {
     }
 }
 impl NargDeserialize for Point {
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
-        CompressedRistretto(r.take_array::<32>()?)
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+        CompressedRistretto(r.take_array::<32>().ok_or(VerificationError)?)
             .decompress()
             .map(Point)
             .ok_or(VerificationError)
@@ -60,8 +64,11 @@ impl Encoding for Fr {
     }
 }
 impl NargDeserialize for Fr {
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
-        Option::<Scalar>::from(Scalar::from_canonical_bytes(r.take_array::<32>()?))
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+        let bytes = r.take_array::<32>().ok_or(VerificationError)?;
+        Option::<Scalar>::from(Scalar::from_canonical_bytes(bytes))
             .map(Fr)
             .ok_or(VerificationError)
     }

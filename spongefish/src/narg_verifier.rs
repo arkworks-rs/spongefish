@@ -12,7 +12,9 @@ use crate::{
 /// transformation.
 ///
 /// It holds the hash function state producing the verifier's **public coins**,
-/// and a cursor over the NARG string being read. Build one with
+/// and a [`NargReader`] over the NARG string. A rejected prover message
+/// poisons the reader, and with it the state: every later read fails, and so
+/// does [`VerifierState::check_eof`]. Build one with
 /// [`VerifierState::new`] from a 32-byte session identifier (see
 /// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
 /// the NARG string. Most protocols should use
@@ -30,8 +32,8 @@ pub struct VerifierState<
     pub duplex_sponge_state: H,
     #[cfg(not(feature = "yolocrypto"))]
     pub(crate) duplex_sponge_state: H,
-    /// The NARG string currently read.
-    pub(crate) narg_string: &'a [u8],
+    /// The cursor over the NARG string, poisoned by the first rejected message.
+    pub(crate) reader: NargReader<'a>,
 }
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
@@ -40,15 +42,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// The dual of
     /// [`ProverState::prover_message`][crate::ProverState::prover_message]. On
-    /// failure the cursor is left unchanged and nothing is absorbed.
+    /// failure nothing is absorbed and the state is poisoned.
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> Result<T, VerificationError> {
-        let mut reader = NargReader::new(self.narg_string);
-        let message = T::deserialize_from_narg(&mut reader)?;
-        let consumed = reader.consumed();
+        let (message, _) = self.read_message(|reader| reader.read::<T>().map_err(Into::into))?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
-        self.narg_string = &self.narg_string[consumed..];
         Ok(message)
     }
 
@@ -140,7 +139,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Reads a prover message with deserialization and encoding closures.
     ///
-    /// On failure, the NARG string is left unchanged and nothing is absorbed.
+    /// On failure nothing is absorbed and the state is poisoned.
     ///
     /// On byte-oriented sponges (`H::U = u8`), prefer
     /// [`VerifierState::prover_message_as`]: it absorbs exactly the bytes the
@@ -163,11 +162,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
         encode: impl FnOnce(&T) -> B,
     ) -> Result<T, VerificationError> {
-        let mut reader = NargReader::new(self.narg_string);
-        let message = deserialize(&mut reader)?;
-        let consumed = reader.consumed();
+        let (message, _) = self.read_message(deserialize)?;
         self.duplex_sponge_state.absorb(encode(&message).as_ref());
-        self.narg_string = &self.narg_string[consumed..];
         Ok(message)
     }
 
@@ -213,21 +209,6 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         let buf = self.duplex_sponge_state.squeeze_boxed(n);
         decode(&buf)
     }
-
-    /// Ensure that no trailing bytes remain in the NARG string.
-    ///
-    /// # Security
-    ///
-    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
-    /// leading to a proof that **lacks strong simulation extractability**.
-    /// A NARG string that fails this check should be rejected.
-    pub fn check_eof(self) -> Result<(), VerificationError> {
-        if self.narg_string.is_empty() {
-            Ok(())
-        } else {
-            Err(VerificationError)
-        }
-    }
 }
 
 impl<H> fmt::Debug for VerifierState<'_, H>
@@ -244,8 +225,51 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state,
-            narg_string,
+            reader: NargReader::new(narg_string),
         }
+    }
+
+    /// Reads one message from the front of the NARG string.
+    ///
+    /// Returns the message and the bytes it occupied, and advances past them.
+    /// A parse that fails poisons the reader; one that catches a failure and
+    /// returns anyway finds it poisoned. Either is rejected.
+    fn read_message<T>(
+        &mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<(T, &'a [u8]), VerificationError> {
+        let before = self.reader.unread().ok_or(VerificationError)?;
+        let message = self.reader.read_with(deserialize)?;
+        let after = self.reader.unread().ok_or(VerificationError)?;
+        Ok((message, &before[..before.len() - after.len()]))
+    }
+
+    /// Ensures that no trailing bytes remain in the NARG string.
+    ///
+    /// A poisoned state never passes.
+    ///
+    /// # Security
+    ///
+    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// leading to a proof that **lacks strong simulation extractability**.
+    /// A NARG string that fails this check should be rejected.
+    pub fn check_eof(self) -> Result<(), VerificationError> {
+        if self.reader.is_empty() {
+            Ok(())
+        } else {
+            Err(VerificationError)
+        }
+    }
+
+    /// Consumes the state and returns the unread rest of the NARG string, or
+    /// an error if the state is poisoned.
+    ///
+    /// Empty exactly when [`VerifierState::check_eof`] would succeed. For a
+    /// proof followed by data the caller parses itself; the caller then owns
+    /// the end-of-input check (see the security note on
+    /// [`VerifierState::check_eof`]).
+    pub fn into_narg_string(self) -> Result<&'a [u8], VerificationError> {
+        self.reader.unread().ok_or(VerificationError)
     }
 }
 
@@ -282,7 +306,7 @@ where
         duplex_sponge_state.absorb(encoded.as_ref());
         VerifierState {
             duplex_sponge_state,
-            narg_string,
+            reader: NargReader::new(narg_string),
         }
     }
 }
@@ -302,9 +326,8 @@ where
     /// within one function call is the implementation guidance of
     /// [draft-irtf-cfrg-fiat-shamir][FS] (section "Implementation guidance").
     ///
-    /// The closure reads through a [`NargReader`] of its own, and this state only
-    /// advances once the closure has succeeded.
-    /// On failure the cursor is left to the previous position.
+    /// The closure reads through the state's own [`NargReader`]. On failure
+    /// nothing is absorbed and the state is poisoned.
     ///
     /// For sponges over a non-byte alphabet, where the absorbed units cannot
     /// be the consumed bytes, use [`VerifierState::prover_message_with`].
@@ -325,12 +348,8 @@ where
         &mut self,
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<T, VerificationError> {
-        let mut reader = NargReader::new(self.narg_string);
-        let message = deserialize(&mut reader)?;
-        let consumed = reader.consumed();
-        self.duplex_sponge_state
-            .absorb(&self.narg_string[..consumed]);
-        self.narg_string = &self.narg_string[consumed..];
+        let (message, bytes) = self.read_message(deserialize)?;
+        self.duplex_sponge_state.absorb(bytes);
         Ok(message)
     }
 
@@ -353,8 +372,8 @@ where
     /// the reader for a batch sent with
     /// [`ProverState::prover_messages_as`][crate::ProverState::prover_messages_as].
     ///
-    /// On failure the cursor is left at the last successfully read message,
-    /// with nothing further absorbed.
+    /// On failure the state is poisoned, with nothing absorbed past the last
+    /// message read.
     ///
     /// # Security
     ///

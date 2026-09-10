@@ -293,7 +293,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         // wire. Absorbing the bytes read rather than a re-encoding of what was
         // parsed is what keeps a non-canonical codec from admitting a second
         // accepting proof.
-        Self::prover_message_as(self, T::deserialize_from_narg)
+        Self::prover_message_as(self, |reader| reader.read::<T>().map_err(Into::into))
     }
 
     fn verifier_message<T: Decoding>(&mut self) -> T {

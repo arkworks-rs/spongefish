@@ -231,7 +231,8 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
         let field_type = field.ty;
         quote! {
-            #member: <#field_type as ::spongefish::NargDeserialize>::deserialize_from_narg(reader)?,
+            #member: ::spongefish::NargReader::read::<#field_type>(reader)
+                .map_err(::core::convert::Into::<::spongefish::VerificationError>::into)?,
         }
     });
 
@@ -241,6 +242,8 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &trait_path,
         &bounded,
         &quote! {
+            type Error = ::spongefish::VerificationError;
+
             fn deserialize_from_narg(
                 reader: &mut ::spongefish::NargReader<'_>,
             ) -> ::core::result::Result<Self, ::spongefish::VerificationError> {

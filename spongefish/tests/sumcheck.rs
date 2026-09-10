@@ -3,8 +3,10 @@
 //! This file tests sumcheck relation for multilinear polynomials in `N` variables
 //! over the field of size `P = 2^31-1`.
 
-use spongefish::{derive_session_id, Argument, DefaultHash, Narg, Transcript, Witness};
-use spongefish::{ByteArray, Decoding, Encoding, NargDeserialize, NargReader, VerificationError};
+use spongefish::{
+    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
+    NargReader, Transcript, VerificationError, Witness,
+};
 
 const P: u32 = (1 << 31) - 1;
 
@@ -30,8 +32,11 @@ impl Encoding for M31 {
 }
 
 impl NargDeserialize for M31 {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
-        let v = u32::from_le_bytes(reader.take_array::<4>()?);
+    type Error = VerificationError;
+
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+        let bytes = reader.take_array::<4>().ok_or(VerificationError)?;
+        let v = u32::from_le_bytes(bytes);
         if v >= P {
             return Err(VerificationError);
         }
