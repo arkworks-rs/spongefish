@@ -397,7 +397,8 @@ where
         message: &'a T,
         encode: impl FnOnce(&'a T) -> B,
     ) -> Vec<u8> {
-        self.prover_message_as(message, encode);
+        let bytes = encode(message);
+        self.narg_string.extend_from_slice(bytes.as_ref());
         self.narg_string
     }
 
