@@ -104,88 +104,33 @@ where
     }
 }
 
-/// The array codec's output.
+/// Arrays encode as the concatenation of their elements' encodings.
 ///
-/// When every element encodes to exactly one unit — the `[u8; N]` case that
-/// carries most prover messages — the whole encoding is exactly `N` units and
-/// lives inline. Otherwise it goes to the heap, as before.
+/// # Security
 ///
-/// The inline variant is `[U; N]`: its size is exactly the size of the array
-/// being encoded, so this can never blow up the stack for a wide alphabet the
-/// way a fixed unit budget could.
-enum ArrayEncoding<U, const N: usize> {
-    Inline([U; N]),
-    Heap(Vec<U>),
-}
-
-impl<U, const N: usize> AsRef<[U]> for ArrayEncoding<U, N> {
-    fn as_ref(&self) -> &[U] {
-        match self {
-            Self::Inline(units) => units,
-            Self::Heap(units) => units,
-        }
-    }
-}
-
+/// The concatenation is prefix-free because `N` is fixed by the type, so the
+/// number of elements can never be chosen by the prover; for a length chosen at
+/// run time, use [`LengthPrefixed`] instead. Each element's encoding must be
+/// prefix-free on its own domain, which [`Encoding`] already requires.
 impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
     fn encode(&self) -> impl AsRef<[U]> {
+        let mut output = Vec::new();
         if let Some(first) = self.first() {
             let head = first.encode();
             let head = head.as_ref();
-
-            // Fast path: one unit per element, so the total is `N` units and
-            // the buffer is exactly sized. `uniform` records whether that held
-            // for *every* element, not just the first: an element codec whose
-            // width varies falls back to the heap path below, re-encoding from
-            // scratch. The filler written for such an element is never
-            // observed, because `uniform` then discards the whole buffer.
-            //
-            // A uniform array costs exactly one encode per element. Once a
-            // width mismatch is found the remaining slots are filled without
-            // encoding at all, since the buffer they would fill is about to be
-            // thrown away — so the worst case is one encode per element here
-            // plus one in the fallback, never three.
-            if head.len() == 1 {
-                let head_unit = head[0].clone();
-                let mut uniform = true;
-                let units: [U; N] = core::array::from_fn(|index| {
-                    // Element 0 reuses the peek above.
-                    if index == 0 || !uniform {
-                        return head_unit.clone();
-                    }
-                    let encoded = self[index].encode();
-                    let encoded = encoded.as_ref();
-                    if encoded.len() == 1 {
-                        encoded[0].clone()
-                    } else {
-                        uniform = false;
-                        head_unit.clone()
-                    }
-                });
-                if uniform {
-                    return ArrayEncoding::Inline(units);
-                }
-            }
-
-            let mut output = Vec::new();
             // Elements of an array share a type, and every codec in this crate
             // is fixed-width, so the first element's length times `N` is the
             // exact total: one allocation instead of `log2(N)` reallocations.
             // A variable-width element codec merely makes this a hint — the
             // vector still grows on its own, and the bytes are unchanged.
             output.reserve_exact(head.len().saturating_mul(N));
-            // `head` again rather than re-encoding element 0. Reaching here
-            // after the fast path bailed out already means one wasted encode
-            // per element; the fallback exists for variable-width codecs, so
-            // it should not also be the most expensive path per element.
+            // `head` again rather than re-encoding element 0.
             output.extend_from_slice(head);
             for element in &self[1..] {
                 output.extend_from_slice(element.encode().as_ref());
             }
-            ArrayEncoding::Heap(output)
-        } else {
-            ArrayEncoding::Heap(Vec::new())
         }
+        output
     }
 }
 
@@ -526,30 +471,28 @@ mod tests {
         }
     }
 
-    /// The array codec takes an inline fast path when the *first* element
-    /// encodes to a single unit, then verifies that every other element did
-    /// too. A variable-width codec must fall back to the heap path and still
-    /// produce the plain concatenation — in particular for the dangerous
-    /// ordering where a one-unit element comes first and a wider one follows.
+    /// The array codec sizes its buffer from the first element's width. A
+    /// variable-width codec must still produce the plain concatenation, whatever
+    /// order the widths arrive in.
     #[test]
     fn array_encoding_handles_variable_width_elements() {
         let cases: [[VariableWidth; 4]; 5] = [
-            // One unit first, then wider: the ordering that would let a buggy
-            // fast path commit a truncated encoding.
+            // One unit first, then wider: the ordering that would truncate if
+            // the hint were treated as the exact total.
             [
                 VariableWidth(1),
                 VariableWidth(3),
                 VariableWidth(1),
                 VariableWidth(2),
             ],
-            // Wider first: the fast path is never entered.
+            // Wider first: the hint overshoots.
             [
                 VariableWidth(3),
                 VariableWidth(1),
                 VariableWidth(1),
                 VariableWidth(1),
             ],
-            // Uniformly one unit: the fast path is entered and kept.
+            // Uniformly one unit: the hint is exact.
             [
                 VariableWidth(1),
                 VariableWidth(1),
