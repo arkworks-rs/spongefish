@@ -1,0 +1,104 @@
+# cargo-deny configuration for the spongefish workspace.
+#
+# Run locally with `cargo deny check`; CI runs the same command (see the
+# `supply-chain` job in .github/workflows/pr.yml).
+
+[graph]
+# spongefish is a no-std library that is expected to build anywhere, so audit
+# the dependency graph for every target rather than just the host.
+all-features = true
+# Audit dev-dependencies too: they run in CI and are part of what a contributor
+# compiles and executes.
+exclude-dev = false
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------------
+# Security advisories (RustSec)
+# ---------------------------------------------------------------------------
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Yanked crates in Cargo.lock are an error: a yanked dependency in a crypto
+# library is a release blocker, not a warning.
+yanked = "deny"
+# Every entry here must carry a comment explaining why the advisory does not
+# apply, and be revisited each release.
+ignore = [
+    # `paste` is unmaintained (no vulnerability). It reaches us only through
+    # the Plonky3 crates behind `spongefish-circuit`'s optional `p3-baby-bear`
+    # feature, and there is no drop-in replacement upstream has moved to yet.
+    # Drop this once Plonky3 stops depending on it.
+    "RUSTSEC-2024-0436",
+]
+
+# ---------------------------------------------------------------------------
+# Licenses
+# ---------------------------------------------------------------------------
+# The workspace itself is `MIT OR Apache-2.0`. The allow-list below is the set
+# of licenses actually present in the dependency graph today (permissive,
+# non-copyleft, compatible with redistributing under either of our licenses).
+# Anything not listed here fails the check, on purpose: a new license in the
+# tree should be a conscious decision.
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    # arrayref (via blake3)
+    "BSD-2-Clause",
+    # curve25519-dalek and subtle, pulled in by the examples/tests
+    "BSD-3-Clause",
+    "MIT",
+    # foldhash (via hashbrown) is Zlib-only; bytemuck offers Zlib as one option
+    "Zlib",
+    # unicode-ident is `(MIT OR Apache-2.0) AND Unicode-3.0`, so the
+    # Unicode-3.0 term is mandatory rather than an alternative.
+    "Unicode-3.0",
+]
+# Only accept a license detection we are quite sure about; anything fuzzier
+# must be resolved explicitly via `exceptions` or `clarify`.
+confidence-threshold = 0.93
+# Some allowed licenses only show up in dev-only corners of the graph, which
+# cargo-deny does not always walk; an unused entry is not a problem.
+unused-allowed-license = "allow"
+# Per-crate escape hatches. Empty: every crate in the tree satisfies the
+# allow-list above on its own.
+exceptions = []
+
+# The workspace ships both license texts at the repository root; they are not
+# attached to any single crate manifest.
+[[licenses.clarify]]
+name = "spongefish"
+expression = "MIT OR Apache-2.0"
+license-files = []
+
+# ---------------------------------------------------------------------------
+# Bans
+# ---------------------------------------------------------------------------
+[bans]
+# Duplicate major versions bloat no-std builds and make auditing harder, but
+# they are usually outside our control (a transitive dep lagging behind), so
+# surface them rather than breaking CI.
+multiple-versions = "warn"
+# Wildcard version requirements make the lockfile meaningless.
+wildcards = "deny"
+allow-wildcard-paths = false
+# Prefer the crate highest in the tree when de-duplicating.
+highlight = "all"
+# No crate is outright banned yet. Candidates for this list are crates that
+# would silently pull in std, an allocator, or non-constant-time primitives.
+deny = []
+skip = []
+skip-tree = []
+
+# ---------------------------------------------------------------------------
+# Sources
+# ---------------------------------------------------------------------------
+# Everything must come from crates.io. No git dependencies, no vendored
+# registries: a released crypto library must be reproducible from crates.io
+# alone.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

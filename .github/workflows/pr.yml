@@ -115,6 +115,54 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo +nightly doc --all-features --no-deps
 
+  # Build and test on the exact toolchains declared as `rust-version`, so the
+  # MSRV cannot drift silently. Two floors: the core crates hold the workspace
+  # floor, while `spongefish-circuit` declares a higher one for its Plonky3
+  # dependencies. Keep both in sync with the manifests.
+  msrv:
+    name: MSRV (${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - toolchain: 1.88.0
+            packages: -p spongefish -p spongefish-derive -p spongefish-pow
+          - toolchain: 1.93.0
+            packages: --workspace
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Build
+        run: cargo build ${{ matrix.packages }} --all-features --verbose
+      - name: Test
+        run: cargo test ${{ matrix.packages }} --all-features --verbose
+
+  # Build and test against the committed Cargo.lock so it stays honest: a
+  # lockfile that no longer resolves fails here instead of at release time.
+  locked:
+    name: Locked
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --workspace --all-features --locked --verbose
+      - name: Test
+        run: cargo test --workspace --all-features --locked --verbose
+
+  # Advisories, licenses, banned crates and dependency sources. See deny.toml.
+  supply-chain:
+    name: Supply chain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
   # Anchor job for branch protection. Point required status checks at this.
   # see: https://github.com/orgs/community/discussions/26822
   status-check:
@@ -126,6 +174,9 @@ jobs:
       - test
       - wasm
       - docs-rs
+      - msrv
+      - locked
+      - supply-chain
     runs-on: ubuntu-latest
     steps:
       - name: Check all job results

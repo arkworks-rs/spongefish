@@ -1,257 +1,447 @@
-use alloc::string::String;
+use alloc::format;
 
-use rand::Rng;
-use shake::digest::{ExtendableOutput, Update, XofReader};
+use shake::{ExtendableOutput, Update, XofReader};
 
-use crate::{DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError};
+use crate::{
+    derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, Narg,
+    NargDeserialize, PrivateRng, ProverState, SessionId, Transcript, VerificationError,
+    VerifierState, Witness,
+};
 
-#[test]
-fn prover_rng_emits_entropy() {
-    let instance = [42u32, 7u32];
-    let domain = crate::domain_separator!("rng test")
-        .session(crate::session!("rng session"))
-        .instance(&instance);
+fn test_session_id(tag: &[u8]) -> SessionId {
+    Narg::derive_session_id(tag)
+}
 
-    let mut prover = domain.std_prover();
-    let mut first = [0u8; 32];
-    prover.rng().fill_bytes(&mut first);
-    let mut second = [0u8; 32];
-    prover.rng().fill_bytes(&mut second);
-
-    assert_ne!(first, [0u8; 32]);
-    assert_ne!(first, second);
+/// A poisoned verifier refuses every later read, even one the bytes would
+/// satisfy, and has no unread rest to hand back.
+fn assert_poisoned(mut verifier: VerifierState<'_, DefaultHash>) {
+    assert!(verifier.prover_message::<u8>().is_err());
+    assert!(verifier.into_narg_string().is_err());
 }
 
 #[test]
-fn prover_messages_round_trip() {
-    let instance = [1u32, 2u32];
-    let domain = crate::domain_separator!("round trip")
-        .without_session()
-        .instance(&instance);
+fn witness_debug_is_redacted() {
+    assert_eq!(format!("{:?}", Witness::known("witness")), "Witness(..)");
+    assert_eq!(format!("{:?}", Witness::<&str>::unknown()), "Witness(..)");
+}
 
-    let mut prover = domain.std_prover();
-    prover.public_message(&instance[0]);
-    prover.prover_message(&instance[1]);
-    let proof = prover.narg_string().to_vec();
+#[test]
+#[should_panic(expected = "an Argument must be zero-sized")]
+fn argument_cannot_override_the_statelessness_check() {
+    #[allow(dead_code)]
+    struct Stateful(u8);
 
-    let mut verifier = domain.std_verifier(&proof);
-    verifier.public_message(&instance[0]);
-    assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[1]);
-    assert!(verifier.check_eof().is_ok());
+    impl Argument for Stateful {
+        const NO_STATE: () = ();
+
+        type Instance = u32;
+        type Witness = ();
+        type Output = ();
+
+        fn run<T: Transcript>(
+            _transcript: &mut T,
+            _instance: &Self::Instance,
+            _witness: Witness<&Self::Witness>,
+        ) -> Result<Self::Output, VerificationError> {
+            Ok(())
+        }
+    }
+
+    let session_id = test_session_id(b"stateful argument");
+    let _ = Narg::prove_with_session_id::<Stateful>(&session_id, &0, &());
+}
+
+#[test]
+fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
+    let instance = [1u32];
+    let session_id = test_session_id(b"seeded rng");
+    let seed = [7u8; 32];
+
+    let mut a = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
+    let mut b = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
+    let (mut ra, mut rb) = ([0u8; 32], [0u8; 32]);
+    a.rng().fill_bytes(&mut ra);
+    b.rng().fill_bytes(&mut rb);
+    assert_eq!(ra, rb);
+
+    let mut c = ProverState::<DefaultHash>::new_with_seed(&session_id, &instance, seed);
+    c.mix_entropy(&[9u8; 32]);
+    let mut rc = [0u8; 32];
+    c.rng().fill_bytes(&mut rc);
+    assert_ne!(ra, rc);
+}
+
+#[test]
+fn sample_vec_matches_repeated_sampling() {
+    let seed = [11u8; 32];
+    let mut vector_rng = PrivateRng::<DefaultHash>::from_seed(seed);
+    let mut repeated_rng = PrivateRng::<DefaultHash>::from_seed(seed);
+
+    let samples = vector_rng.sample_vec::<u32>(4);
+    let expected = (0..4)
+        .map(|_| repeated_rng.sample::<u32>())
+        .collect::<alloc::vec::Vec<_>>();
+
+    assert_eq!(samples, expected);
+    assert_eq!(vector_rng.sample_vec::<u32>(0), [] as [u32; 0]);
 }
 
 #[test]
 fn check_eof_reports_remaining_bytes() {
     let instance = [5u32, 6u32];
-    let domain = crate::domain_separator!("check eof")
-        .without_session()
-        .instance(&instance);
+    let session_id = test_session_id(b"check eof");
 
-    let mut prover = domain.std_prover();
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
     prover.prover_message(&instance[0]);
     let mut proof = prover.narg_string().to_vec();
     proof.extend_from_slice(&[9u8, 9, 9, 9]);
 
-    let mut verifier = domain.std_verifier(&proof);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
     assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[0]);
     assert!(verifier.check_eof().is_err());
 }
 
 #[test]
-fn verifier_challenge_matches_prover() {
-    let instance = [10u32, 11u32];
-    let domain = crate::domain_separator!("challenge sync")
-        .session(crate::session!("challenge session"))
-        .instance(&instance);
+fn into_narg_string_returns_the_unread_rest() {
+    let instance = [5u32];
+    let session_id = test_session_id(b"into narg string");
 
-    let mut prover = domain.std_prover();
-    let challenge: u32 = prover.verifier_message();
-    let proof = prover.narg_string().to_vec();
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
+    prover.prover_message(&instance[0]);
+    let mut proof = prover.into_narg_string();
 
-    let mut verifier = domain.std_verifier(&proof);
-    let reproduced: u32 = verifier.verifier_message();
-    assert_eq!(challenge, reproduced);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[0]);
+    assert_eq!(verifier.into_narg_string().unwrap(), []);
+
+    proof.extend_from_slice(&[9, 9, 9, 9]);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), instance[0]);
+    assert_eq!(verifier.into_narg_string().unwrap(), [9, 9, 9, 9]);
 }
 
+/// The verifier messages are the XOF over
+/// `session_id || zeros(136) || encode(instance) || ...`.
 #[test]
-fn domain_separator_accepts_variable_sessions() {
-    let instance = [0u8; 0];
-    let literal_session = crate::domain_separator!("variable sessions")
-        .session(crate::session!("shared session"))
-        .instance(&instance)
-        .session
-        .0;
-
-    let session_str = "shared session";
-    let from_str = crate::domain_separator!("variable sessions")
-        .session(crate::session_id_from_str(session_str))
-        .instance(&instance)
-        .session
-        .0;
-    assert_eq!(literal_session, from_str);
-
-    let session_owned = String::from("shared session");
-    let from_owned = crate::domain_separator!("variable sessions")
-        .session(crate::session_id_from_str(&session_owned))
-        .instance(&instance)
-        .session
-        .0;
-    assert_eq!(literal_session, from_owned);
-}
-
-#[test]
-fn without_session_distinct_from_real_session() {
-    let instance = [0u8; 0];
-
-    let no_sess = crate::domain_separator!("app")
-        .without_session()
-        .instance(&instance);
-    let with_sess = crate::domain_separator!("app")
-        .session(crate::session!("production"))
-        .instance(&instance);
-
-    let mut a = no_sess.std_prover();
-    let mut b = with_sess.std_prover();
-
-    let ca: u32 = a.verifier_message();
-    let cb: u32 = b.verifier_message();
-
-    assert_ne!(ca, cb);
-}
-
-#[test]
-fn different_session_values_diverge() {
-    use crate::{DomainSeparator, Encoding};
-
-    struct Ctx(u64);
-
-    impl Encoding for Ctx {
-        fn encode(&self) -> impl AsRef<[u8]> {
-            self.0.to_le_bytes()
-        }
-    }
-
-    let instance = [0u8; 0];
-    let session_1 = Ctx(1);
-    let session_2 = Ctx(2);
-    let a = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(session_1)
-        .instance(&instance);
-    let b = DomainSeparator::new(crate::protocol_id(core::format_args!("p")))
-        .session(session_2)
-        .instance(&instance);
-
-    let mut pa = a.std_prover();
-    let mut pb = b.std_prover();
-
-    let ca: u32 = pa.verifier_message();
-    let cb: u32 = pb.verifier_message();
-    assert_ne!(ca, cb);
-}
-
-#[test]
-fn borrowed_session_matches_owned_session() {
-    use alloc::string::String;
-
-    struct Ctx(String);
-
-    impl Encoding for Ctx {
-        fn encode(&self) -> impl AsRef<[u8]> {
-            self.0.as_str().encode()
-        }
-    }
-
-    let instance = [0u8; 0];
-    let borrowed_ctx = Ctx(String::from("borrowed-session"));
-    let borrowed = crate::domain_separator!("borrowed session")
-        .session(&borrowed_ctx)
-        .instance(&instance);
-    let owned = crate::domain_separator!("borrowed session")
-        .session(Ctx(String::from("borrowed-session")))
-        .instance(&instance);
-
-    let borrowed_challenge: u64 = borrowed.std_prover().verifier_message();
-    let owned_challenge: u64 = owned.std_prover().verifier_message();
-    assert_eq!(borrowed_challenge, owned_challenge);
-}
-
-#[test]
-fn protocol_id_zero_pads_ascii() {
-    let protocol_id = crate::protocol_id(core::format_args!("sigma-proofs_Shake128_P256"));
-
-    assert_eq!(&protocol_id[..26], b"sigma-proofs_Shake128_P256",);
-    assert!(protocol_id[26..].iter().all(|&byte| byte == 0));
-}
-
-#[test]
-fn session_id_matches_rfc_construction() {
-    let mut initial_block = [0u8; 168];
-    let domain = b"fiat-shamir/session-id";
-    initial_block[..domain.len()].copy_from_slice(domain);
-
-    let mut shake = shake::Shake128::default();
-    shake.update(&initial_block);
-    shake.update(b"discrete_logarithm");
-    let mut reader = shake.finalize_xof();
-    let mut expected_tail = [0u8; 32];
-    reader.read(&mut expected_tail);
-
-    let session_id = crate::session_id(core::format_args!("discrete_logarithm"));
-    assert!(session_id[..32].iter().all(|&byte| byte == 0));
-    assert_eq!(&session_id[32..], &expected_tail);
-}
-
-#[test]
-fn std_transcript_initialization_matches_manual_shake128() {
-    let protocol = crate::protocol_id(core::format_args!("sigma-proofs_Shake128_P256"));
-    let session = crate::session_id(core::format_args!("discrete_logarithm"));
+fn initialization_matches_manual_shake128() {
+    let session_id = derive_session_id::<crate::instantiations::Shake128>(b"discrete_logarithm");
     let instance = [42u32, 7u32];
 
-    let domain = crate::DomainSeparator::new(protocol)
-        .session(session)
-        .instance(&instance);
-
-    let mut prover = domain.std_prover();
+    let mut prover = ProverState::<crate::instantiations::Shake128>::new(&session_id, &instance);
     let challenge: [u8; 32] = prover.verifier_message();
 
-    let mut manual = crate::StdHash::from_protocol_id(protocol);
-    manual.absorb(&session);
-    let encoded_instance = instance.encode();
-    manual.absorb(encoded_instance.as_ref());
-    let expected = manual.squeeze_array::<32>();
+    let mut xof = shake::Shake128::default();
+    xof.update(session_id.as_bytes());
+    xof.update(&[0u8; 136]);
+    xof.update(instance.encode().as_ref());
+    let mut reader = xof.finalize_xof();
+    let mut expected = [0u8; 32];
+    reader.read(&mut expected);
 
     assert_eq!(challenge, expected);
 }
 
 #[test]
-fn verifier_prover_message_rolls_back_on_deserialize_error() {
+fn closure_codecs_correctness() {
+    struct Foreign(u64);
+
+    let instance = [9u32];
+    let session_id = test_session_id(b"closure codecs");
+
+    let value = Foreign(0xdead_beef);
+    let proof = ProverState::<DefaultHash>::new(&session_id, &instance)
+        .last_prover_message_as(&value, |v| v.0.to_le_bytes());
+
+    let read = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof)
+        .last_prover_message_as(|reader| {
+            let bytes = reader.take_array().ok_or(VerificationError)?;
+            Ok(Foreign(u64::from_le_bytes(bytes)))
+        })
+        .unwrap();
+    assert_eq!(read.0, value.0);
+}
+
+#[test]
+fn verifier_prover_message_poisons_on_deserialize_error() {
     struct BadMessage;
 
     impl NargDeserialize for BadMessage {
-        fn deserialize_from_narg(buf: &mut &[u8]) -> crate::VerificationResult<Self> {
-            *buf = &buf[1..];
+        type Error = crate::VerificationError;
+
+        fn deserialize_from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+            // Consumes input and *then* fails: the verifier must end up
+            // poisoned, not merely advanced.
+            reader.take(1).ok_or(VerificationError)?;
             Err(VerificationError)
         }
     }
 
-    impl crate::Encoding<[u8]> for BadMessage {
+    impl crate::Encoding for BadMessage {
         fn encode(&self) -> impl AsRef<[u8]> {
             []
         }
     }
 
     let proof = [7u8, 8, 9];
-    let mut verifier = crate::VerifierState::default_std(&proof);
+    let session_id = test_session_id(b"poison");
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
     assert!(verifier.prover_message::<BadMessage>().is_err());
-    assert_eq!(verifier.narg_string, &proof);
-    assert!(verifier.check_eof().is_err());
+
+    // Nothing was absorbed: the public coins match a verifier that never read.
+    let mut untouched = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
+    assert_eq!(
+        verifier.verifier_message::<[u8; 32]>(),
+        untouched.verifier_message::<[u8; 32]>()
+    );
+    assert_poisoned(verifier);
 }
 
 #[test]
-fn str_encoding_prefixes_utf8_with_le_u32_length() {
-    let encoded = "hello".encode();
-    assert_eq!(encoded.as_ref(), b"\x05\x00\x00\x00hello");
+fn a_failed_read_poisons_the_reader() {
+    struct Rejected;
 
-    let encoded_utf8 = "hé".encode();
-    assert_eq!(encoded_utf8.as_ref(), b"\x03\x00\x00\x00h\xc3\xa9");
+    impl NargDeserialize for Rejected {
+        type Error = VerificationError;
+
+        fn deserialize_from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+            Err(VerificationError)
+        }
+    }
+
+    let bytes = [1u8, 2, 3];
+
+    // A short read.
+    let mut reader = crate::NargReader::new(&bytes);
+    assert!(reader.take_array::<4>().is_none());
+    assert!(reader.is_poisoned());
+    assert!(reader.take(1).is_none());
+    assert!(reader.take_array::<1>().is_none());
+    assert!(reader.read::<u8>().is_err());
+    assert!(!reader.is_empty());
+
+    // A deserializer's own rejection, with input to spare.
+    let mut reader = crate::NargReader::new(&bytes);
+    assert!(reader.read::<Rejected>().is_err());
+    assert!(reader.is_poisoned());
+    assert!(reader.take(1).is_none());
+
+    // A rejection after the last byte: a poisoned reader is never empty.
+    let mut reader = crate::NargReader::new(&bytes);
+    assert_eq!(reader.take_array::<3>(), Some(bytes));
+    assert!(reader.is_empty());
+    assert!(reader.read::<Rejected>().is_err());
+    assert!(!reader.is_empty());
+}
+
+#[test]
+fn verifier_rejects_a_message_that_swallowed_a_failed_read() {
+    struct Lenient(u8);
+
+    impl NargDeserialize for Lenient {
+        type Error = VerificationError;
+
+        fn deserialize_from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+            // Substitutes a default for a short read instead of failing.
+            Ok(Self(reader.take_array::<8>().map_or(0, |bytes| bytes[0])))
+        }
+    }
+
+    impl crate::Encoding for Lenient {
+        fn encode(&self) -> impl AsRef<[u8]> {
+            [self.0]
+        }
+    }
+
+    let proof = [7u8, 8, 9];
+    let session_id = test_session_id(b"swallowed");
+
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
+    assert!(verifier.prover_message::<Lenient>().is_err());
+    assert_poisoned(verifier);
+
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
+    let lenient =
+        verifier.prover_message_as(|reader| Ok(reader.take_array::<8>().unwrap_or([0; 8])));
+    assert!(lenient.is_err());
+    assert_poisoned(verifier);
+}
+
+/// A tuple encodes as the concatenation of its components' encodings, at every
+/// supported arity — the same bytes the components produce on their own.
+#[test]
+fn tuple_encoding_concatenates_components() {
+    assert_eq!((1u8, 2u16).encode().as_ref(), b"\x01\x02\x00");
+    assert_eq!(
+        (1u8, 2u16, 3u32).encode().as_ref(),
+        b"\x01\x02\x00\x03\x00\x00\x00"
+    );
+
+    // The widest arity, and a nested tuple: both are just concatenation.
+    let wide = (1u8, 2u8, 3u8, 4u8, 5u8, 6u8, 7u8, 8u8);
+    assert_eq!(wide.encode().as_ref(), &[1u8, 2, 3, 4, 5, 6, 7, 8]);
+    assert_eq!(((1u8, 2u8), (3u8, 4u8)).encode().as_ref(), &[1u8, 2, 3, 4]);
+
+    // A component whose own encoding is length-prefixed keeps that prefix, so
+    // the concatenation stays prefix-free.
+    assert_eq!((1u8, "hi").encode().as_ref(), b"\x01\x02\x00\x00\x00hi");
+}
+
+mod word_sponge {
+    use crate::duplex_sponge::{DuplexSponge, Permutation};
+
+    /// Toy ARX permutation over four `u64` words. Deterministic mixing with no
+    /// security claim; it exists to exercise the generic-alphabet
+    /// (`H::U != u8`) API surface.
+    #[derive(Clone, Default)]
+    pub struct ToyPermutation;
+
+    impl Permutation<4> for ToyPermutation {
+        type U = u64;
+
+        fn permute_mut(&self, s: &mut [u64; 4]) {
+            for _ in 0..8 {
+                s[0] = s[0].wrapping_add(s[1]).rotate_left(13) ^ s[2];
+                s[1] = s[1].wrapping_add(s[2]).rotate_left(29) ^ s[3];
+                s[2] = s[2].wrapping_add(s[3]).rotate_left(43) ^ s[0];
+                s[3] = s[3].wrapping_add(s[0]).rotate_left(7) ^ s[1];
+            }
+        }
+    }
+
+    pub type WordSponge = DuplexSponge<ToyPermutation, 4, 2>;
+}
+
+#[test]
+fn closure_codecs_generic_alphabet_round_trip() {
+    struct Foreign(u64);
+
+    let encode = |v: &Foreign| [v.0];
+    let value = Foreign(0xdead_beef);
+
+    let mut session = word_sponge::WordSponge::default();
+    session.absorb(&[42, 7]);
+
+    let mut prover = ProverState::from(session.clone());
+    prover.prover_message_with(&value, encode, |v, out| {
+        out.extend_from_slice(&v.0.to_le_bytes());
+    });
+    prover.public_message_as(&3u64, |v| [*v]);
+    let prover_challenge: [u64; 2] = prover.verifier_message_as(2, |units| [units[0], units[1]]);
+    let proof = prover.into_narg_string();
+
+    let mut verifier = VerifierState::from_parts(session, &proof);
+    let read = verifier
+        .prover_message_with(|buf| u64::deserialize_from_narg(buf).map(Foreign), encode)
+        .unwrap();
+    assert_eq!(read.0, value.0);
+    verifier.public_message_as(&3u64, |v| [*v]);
+    let verifier_challenge: [u64; 2] =
+        verifier.verifier_message_as(2, |units| [units[0], units[1]]);
+    assert_eq!(prover_challenge, verifier_challenge);
+    assert!(verifier.check_eof().is_ok());
+}
+
+/// `prover_message_with` applied to a type's own trait maps must agree with
+/// the trait-based `prover_message` — the identity documented on the method.
+#[test]
+fn prover_message_with_matches_trait_path() {
+    let instance = [4u32];
+    let session_id = test_session_id(b"with matches trait");
+
+    let mut trait_path = ProverState::<DefaultHash>::new(&session_id, &instance);
+    let mut closure_path = ProverState::<DefaultHash>::new(&session_id, &instance);
+    trait_path.prover_message(&42u32);
+    closure_path.prover_message_with(
+        &42u32,
+        |x| x.to_le_bytes(),
+        |x, dst| dst.extend_from_slice(x.encode().as_ref()),
+    );
+
+    assert_eq!(trait_path.narg_string(), closure_path.narg_string());
+    let ca: u64 = trait_path.verifier_message();
+    let cb: u64 = closure_path.verifier_message();
+    assert_eq!(ca, cb);
+}
+
+#[test]
+fn verifier_prover_message_with_poisons_on_error() {
+    let proof = [7u8, 8, 9];
+    let session_id = test_session_id(b"with poison");
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
+
+    // A deserializer that consumes input and *then* fails poisons the state:
+    // nothing is absorbed, and no later read succeeds.
+    let result: Result<u64, VerificationError> = verifier.prover_message_with(
+        |reader| {
+            reader.take(1).ok_or(VerificationError)?;
+            Err(VerificationError)
+        },
+        |v: &u64| v.to_le_bytes(),
+    );
+    assert!(result.is_err());
+    assert_poisoned(verifier);
+
+    // A deserializer that consumes the whole NARG string is accepted. The
+    // `&mut &[u8]` cursor this replaced could not express it: a closure
+    // signalling "all consumed" with an empty slice failed the pointer-identity
+    // check and had its proof rejected.
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, b"instance", &proof);
+    let result: Result<u64, VerificationError> = verifier.prover_message_with(
+        |reader| {
+            while !reader.is_empty() {
+                reader.take(1).ok_or(VerificationError)?;
+            }
+            Ok(3)
+        },
+        |v: &u64| v.to_le_bytes(),
+    );
+    assert_eq!(result.unwrap(), 3);
+    assert_eq!(verifier.into_narg_string().unwrap(), []);
+}
+
+#[test]
+fn closure_batch_helpers_round_trip() {
+    let instance = [1u32];
+    let session_id = test_session_id(b"closure batch");
+    let points: [[u8; 4]; 3] = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]];
+
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
+    prover.prover_messages_as(&points, |point| *point);
+    let proof = prover.into_narg_string();
+    assert_eq!(proof, points.concat());
+
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
+    let read_back = verifier
+        .prover_messages_vec_as(points.len(), |reader| {
+            reader.take_array::<4>().ok_or(VerificationError)
+        })
+        .unwrap();
+    assert_eq!(read_back, points);
+    assert!(verifier.check_eof().is_ok());
+}
+
+#[test]
+fn terminal_helpers_match_the_non_terminal_path_and_reject_trailing_bytes() {
+    let instance = [4u32];
+    let session_id = test_session_id(b"terminal matches");
+
+    let mut open = ProverState::<DefaultHash>::new(&session_id, &instance);
+    open.prover_message(&1u32);
+    open.prover_message(&2u32);
+
+    let mut terminal = ProverState::<DefaultHash>::new(&session_id, &instance);
+    terminal.prover_message(&1u32);
+    let narg_string = terminal.last_prover_message(&2u32);
+
+    assert_eq!(open.narg_string(), narg_string);
+
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
+    assert_eq!(verifier.last_prover_message::<u32>().unwrap(), 2);
+
+    let mut with_trailing = narg_string;
+    with_trailing.push(0);
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &with_trailing);
+    assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
+    assert!(verifier.last_prover_message::<u32>().is_err());
 }

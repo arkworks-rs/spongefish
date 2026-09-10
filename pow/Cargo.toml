@@ -1,16 +1,15 @@
 [package]
 name = "spongefish-pow"
-description = "Proof-of-work challenge grinding for spongefish Fiat-Shamir transcripts"
+description = "Proof-of-work challenge grinding for spongefish."
 documentation = "https://docs.rs/spongefish-pow"
-readme = "README.md"
 authors = [
     "Giacomo Fenzi <giacomofenzi@outlook.com>",
     "Remco Bloemen <remco@wicked.ventures>",
 ]
 edition.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
 
 [package.metadata.docs.rs]
@@ -19,15 +18,14 @@ all-features = true
 [features]
 default = ["parallel", "blake3", "keccak"]
 parallel = ["dep:rayon"]
-blake3 = ["dep:blake3", "spongefish/blake3"]
-keccak = ["dep:keccak", "dep:bytemuck", "spongefish/keccak"]
+blake3 = ["dep:blake3"]
+keccak = ["dep:keccak", "dep:bytemuck"]
 
 [dependencies]
 blake3 = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-spongefish = { workspace = true }
 
 [lints]
 workspace = true

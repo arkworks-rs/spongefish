@@ -1,29 +1,63 @@
 use alloc::vec::Vec;
 use core::fmt;
 
-#[cfg(feature = "sha3")]
-use crate::StdHash;
+#[cfg(feature = "turboshake128")]
+use crate::DefaultHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, VerificationError,
-    VerificationResult,
+    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, SessionId,
+    VerificationError,
 };
 
-/// [`VerifierState`] is the verifier state.
+/// [`VerifierState`] is the verifier state in the non-interactive
+/// transformation.
+///
+/// It holds the hash function state producing the verifier's **public coins**,
+/// and a [`NargReader`] over the NARG string. A rejected prover message
+/// poisons the reader, and with it the state: every later read fails, and so
+/// does [`VerifierState::check_eof`]. Build one with
+/// [`VerifierState::new`] from a 32-byte session identifier (see
+/// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
+/// the NARG string. Most protocols should use
+/// [`Narg::verify`][crate::Narg::verify], which manages this state and always
+/// enforces end of input.
+///
+/// # Example
+///
+/// The verifier of a Schnorr signature.
 ///
 /// ```
-/// # #[cfg(feature = "sha3")]
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 /// # {
-/// use spongefish::{StdHash, VerifierState};
+/// use spongefish::{DefaultHash, Narg, VerifierState};
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"extra bytes");
-/// assert!(verifier.check_eof().is_err());
+/// let generator = 7u32;
+/// let public_key = generator.wrapping_mul(42); // the prover's witness is 42
+/// let instance = [generator, public_key];
+/// let session_id = Narg::derive_session_id(b"spongefish/docs/schnorr-u32/v1");
+/// # let narg_string = {
+/// #     let mut prover = spongefish::ProverState::<DefaultHash>::new(&session_id, &instance);
+/// #     let nonce: u32 = prover.rng().sample();
+/// #     prover.prover_message(&generator.wrapping_mul(nonce));
+/// #     let challenge: u32 = prover.verifier_message();
+/// #     prover.last_prover_message(&nonce.wrapping_add(challenge.wrapping_mul(42)))
+/// # };
 ///
-/// let verifier = VerifierState::from_parts(StdHash::default(), b"");
-/// assert!(verifier.check_eof().is_ok());
+/// // `narg_string` is the output of the `ProverState` example.
+/// let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
+/// let commitment: u32 = verifier.prover_message().unwrap();
+/// let challenge: u32 = verifier.verifier_message();
+/// let response: u32 = verifier.last_prover_message().unwrap();
+/// assert_eq!(
+///     generator.wrapping_mul(response),
+///     commitment.wrapping_add(challenge.wrapping_mul(public_key))
+/// );
 /// # }
 /// ```
-pub struct VerifierState<'a, #[cfg(feature = "sha3")] H = StdHash, #[cfg(not(feature = "sha3"))] H>
-where
+pub struct VerifierState<
+    'a,
+    #[cfg(feature = "turboshake128")] H = DefaultHash,
+    #[cfg(not(feature = "turboshake128"))] H,
+> where
     H: DuplexSpongeInterface,
 {
     /// The public coins for the protocol.
@@ -31,43 +65,50 @@ where
     pub duplex_sponge_state: H,
     #[cfg(not(feature = "yolocrypto"))]
     pub(crate) duplex_sponge_state: H,
-    /// The NARG string currently read.
-    pub(crate) narg_string: &'a [u8],
+    /// The cursor over the NARG string, poisoned by the first rejected message.
+    pub(crate) reader: NargReader<'a>,
 }
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
-    /// Reads a prover message and absorbs it into the duplex sponge state.
+    /// Reads a prover message from the NARG string and absorbs its encoding
+    /// into the duplex sponge state.
+    ///
+    /// The dual of
+    /// [`ProverState::prover_message`][crate::ProverState::prover_message]. On
+    /// failure nothing is absorbed and the state is poisoned.
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
-    ) -> VerificationResult<T> {
-        let mut narg_string = self.narg_string;
-        let message = T::deserialize_from_narg(&mut narg_string)?;
+    ) -> Result<T, VerificationError> {
+        let (message, _) = self.read_message(|reader| reader.read::<T>().map_err(Into::into))?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
-        self.narg_string = narg_string;
         Ok(message)
     }
 
-    /// Absorbs a public message without consuming the transcript.
+    /// Reads the last prover message, then enforces end of input.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let proof = [0u8; 0];
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_message"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&proof);
-    /// verifier.public_message(&123u32);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
+    /// The dual of
+    /// [`ProverState::last_prover_message`][crate::ProverState::last_prover_message]:
+    /// [`VerifierState::prover_message`] followed by
+    /// [`VerifierState::check_eof`], in one call that consumes the state, so
+    /// the trailing-bytes check cannot be forgotten.
+    ///
+    pub fn last_prover_message<T: Encoding<[H::U]> + NargDeserialize>(
+        mut self,
+    ) -> Result<T, VerificationError> {
+        let message = self.prover_message()?;
+        self.check_eof()?;
+        Ok(message)
+    }
+
+    /// Absorbs a public message without consuming the NARG string.
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Returns a verifier message `T` that is uniformly distributed and implements `Encoding<[H::U]>`.
+    /// Returns a verifier message `T` that is uniformly distributed.
+    ///
+    /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
+    #[must_use]
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -75,30 +116,25 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    #[must_use]
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Returns a vector of uniformly-distributed verifier messages `[T; N]`.
+    /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    #[must_use]
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
 
     /// Absorbs a slice of public messages.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
-    /// verifier.public_messages(&[1u32, 2u32]);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
+    /// # Security
+    ///
+    /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. See
+    /// [`ProverState::public_messages`][crate::ProverState::public_messages]).
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
@@ -107,19 +143,10 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Absorbs an iterator of public messages.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// let mut verifier = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "VerifierState::public_messages_iter"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_verifier(&[]);
-    /// verifier.public_messages_iter([1u32, 2u32]);
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
+    /// # Security
+    ///
+    /// The number of messages must be fixed by the protocol; see
+    /// [`VerifierState::public_messages`].
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
@@ -133,7 +160,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Reads a fixed-size array of prover messages `T`, each implementing `Encoding<[H::U]>`.
     pub fn prover_messages<T: Encoding<[H::U]> + NargDeserialize, const N: usize>(
         &mut self,
-    ) -> VerificationResult<[T; N]> {
+    ) -> Result<[T; N], VerificationError> {
         let result = self.prover_messages_vec::<T>(N)?;
         Ok(result.try_into().unwrap_or_else(|_| unreachable!()))
     }
@@ -142,38 +169,82 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_messages_vec<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
         len: usize,
-    ) -> VerificationResult<Vec<T>> {
+    ) -> Result<Vec<T>, VerificationError> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    /// The Fiat--Shamir transformation produces a NARG string with
-    /// **fixed, deterministic length**.
-    /// This check ensures that no trailing bytes remain in the transcript.
+    /// Reads a prover message with deserialization and encoding closures.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// # use spongefish::{StdHash, VerifierState};
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"extra");
-    /// assert!(verifier.check_eof().is_err());
+    /// On failure nothing is absorbed and the state is poisoned.
     ///
-    /// let verifier = VerifierState::from_parts(StdHash::default(), b"");
-    /// assert!(verifier.check_eof().is_ok());
-    /// # }
-    /// ```
+    /// On byte-oriented sponges (`H::U = u8`), prefer
+    /// [`VerifierState::prover_message_as`]: it absorbs exactly the bytes the
+    /// closure consumed, needing no encoding closure and leaving no room for
+    /// the two maps to disagree.
     ///
-    /// # Safety
+    /// # Codec requirements
     ///
-    /// Skipping this check can introduce a security vulnerability:
-    /// extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
-    /// leading to a proof that **lacks strong simulation extractability**.
-    /// A NARG string that fails this check should be rejected.
-    pub fn check_eof(self) -> VerificationResult<()> {
-        if self.narg_string.is_empty() {
-            Ok(())
-        } else {
-            Err(VerificationError)
-        }
+    /// `deserialize` must invert the prover's serialization map, and `encode`
+    /// must be the very map the prover absorbed with. Both are subject to the
+    /// security requirements documented on
+    /// [`ProverState::prover_message_with`][crate::ProverState::prover_message_with],
+    /// and any codec change **MUST** be reflected in the session tag
+    /// ([draft-irtf-cfrg-fiat-shamir][FS], § "Session identifiers",
+    /// requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_with<T, B: AsRef<[H::U]>>(
+        &mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        encode: impl FnOnce(&T) -> B,
+    ) -> Result<T, VerificationError> {
+        let (message, _) = self.read_message(deserialize)?;
+        self.duplex_sponge_state.absorb(encode(&message).as_ref());
+        Ok(message)
+    }
+
+    /// [`VerifierState::prover_message_with`] as a terminal
+    /// (see [`VerifierState::last_prover_message`]).
+    pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
+        mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        encode: impl FnOnce(&T) -> B,
+    ) -> Result<T, VerificationError> {
+        let message = self.prover_message_with(deserialize, encode)?;
+        self.check_eof()?;
+        Ok(message)
+    }
+
+    /// Absorb a public message using an encoding closure
+    /// (see [`ProverState::public_message_as`][crate::ProverState::public_message_as]).
+    ///
+    /// The closure must be the same encoding map the prover used, subject to
+    /// the codec requirements documented on
+    /// [`ProverState::prover_message_as`][crate::ProverState::prover_message_as].
+    pub fn public_message_as<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+    }
+
+    /// Derive a verifier message by squeezing `n` units of the sponge
+    /// alphabet and mapping them through a one-off decoding closure.
+    ///
+    /// The closure must be distribution-preserving and infallible, and must
+    /// only ever be applied to the uniform `Squeeze` output provided here;
+    /// see [`ProverState::verifier_message_as`][crate::ProverState::verifier_message_as]
+    /// for the full requirements. Prover and verifier must use identical
+    /// decoding maps, and any change **MUST** be reflected in the session tag
+    /// ([draft-irtf-cfrg-fiat-shamir][FS], § "Session identifiers",
+    /// requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[must_use]
+    pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
+        let buf = self.duplex_sponge_state.squeeze_boxed(n);
+        decode(&buf)
     }
 }
 
@@ -186,55 +257,171 @@ where
     }
 }
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Builds a verifier using the default sponge implementation.
-    #[must_use]
-    pub fn default_std(narg_string: &'a [u8]) -> Self {
-        VerifierState {
-            duplex_sponge_state: StdHash::default(),
-            narg_string,
-        }
-    }
-}
-
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
-    /// Creates a verifier state from a duplex sponge and transcript slice.
+    /// Creates a verifier state from a duplex sponge and a NARG string.
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state,
-            narg_string,
+            reader: NargReader::new(narg_string),
         }
+    }
+
+    /// Reads one message from the front of the NARG string.
+    ///
+    /// Returns the message and the bytes it occupied, and advances past them.
+    /// A parse that fails poisons the reader; one that catches a failure and
+    /// returns anyway finds it poisoned. Either is rejected.
+    fn read_message<T>(
+        &mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<(T, &'a [u8]), VerificationError> {
+        let before = self.reader.unread().ok_or(VerificationError)?;
+        let message = self.reader.read_with(deserialize)?;
+        let after = self.reader.unread().ok_or(VerificationError)?;
+        Ok((message, &before[..before.len() - after.len()]))
+    }
+
+    /// Ensures that no trailing bytes remain in the NARG string.
+    ///
+    /// An invalid reader state will return [`VerificationError`] .
+    ///
+    /// # Security
+    ///
+    /// Extra bytes at the end allow an attacker to append garbage bytes to a valid proof,
+    /// leading to a proof that **lacks strong simulation extractability**.
+    /// A NARG string that fails this check should be rejected.
+    pub fn check_eof(self) -> Result<(), VerificationError> {
+        if self.reader.is_empty() {
+            Ok(())
+        } else {
+            Err(VerificationError)
+        }
+    }
+
+    /// Consumes the state and returns the unread rest of the NARG string, or
+    /// an error if the state is poisoned.
+    ///
+    /// Empty exactly when [`VerifierState::check_eof`] would succeed. For a
+    /// proof followed by data the caller parses itself; the caller then owns
+    /// the end-of-input check (see the security note on
+    /// [`VerifierState::check_eof`]).
+    pub fn into_narg_string(self) -> Result<&'a [u8], VerificationError> {
+        self.reader.unread().ok_or(VerificationError)
     }
 }
 
 impl<'a, H> VerifierState<'a, H>
 where
-    H: DuplexSpongeInterface<U = u8> + Default,
+    H: crate::duplex_sponge::DuplexSpongeInit,
 {
-    /// Initializes a verifier state from protocol and session identifiers plus a transcript.
-    #[must_use]
-    pub fn new(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: H::default(),
-            narg_string,
-        };
-        verifier_state.public_message(protocol_id);
-        verifier_state.public_message(session_id);
-        verifier_state
+    /// The non-interactive verifier for `(session_id, instance, narg_string)`.
+    ///
+    /// Per [draft-irtf-cfrg-fiat-shamir][FS], the duplex sponge is initialized
+    /// with the 32-byte session identifier and the encoded instance is the
+    /// first value absorbed — exactly as the prover does
+    /// ([`ProverState::new`][crate::ProverState::new]). Derive the identifier
+    /// from an application tag with [`derive_session_id`][crate::derive_session_id]
+    /// before calling this constructor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty, as per [draft-irtf-cfrg-fiat-shamir][FS].
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn new<T: Encoding<[H::U]> + ?Sized>(
+        session_id: &SessionId,
+        instance: &T,
+        narg_string: &'a [u8],
+    ) -> Self {
+        let mut duplex_sponge_state = H::init(session_id.as_bytes());
+        let encoded = instance.encode();
+        assert!(
+            !encoded.as_ref().is_empty(),
+            "the encoded instance must be non-empty"
+        );
+        duplex_sponge_state.absorb(encoded.as_ref());
+        VerifierState {
+            duplex_sponge_state,
+            reader: NargReader::new(narg_string),
+        }
     }
 }
 
-#[cfg(feature = "sha3")]
-impl<'a> VerifierState<'a, StdHash> {
-    /// Initializes a verifier with `StdHash` as duplex sponge.
-    #[must_use]
-    pub fn new_std(protocol_id: &[u8; 64], session_id: &[u8; 64], narg_string: &'a [u8]) -> Self {
-        let mut verifier_state = VerifierState {
-            duplex_sponge_state: StdHash::from_protocol_id(*protocol_id),
-            narg_string,
-        };
-        verifier_state.public_message(session_id);
-        verifier_state
+impl<H> VerifierState<'_, H>
+where
+    H: DuplexSpongeInterface<U = u8>,
+{
+    /// Reads a prover message with a one-off deserialization closure,
+    /// absorbing exactly the bytes it consumed.
+    ///
+    /// The dual of
+    /// [`ProverState::prover_message_as`][crate::ProverState::prover_message_as]:
+    /// `deserialize` reads a value from the front of the unread NARG string
+    /// and advances the cursor; the consumed bytes are then absorbed
+    /// verbatim, in the same call — reading and hashing a prover message
+    /// within one function call is the implementation guidance of
+    /// [draft-irtf-cfrg-fiat-shamir][FS] (section "Implementation guidance").
+    ///
+    /// The closure reads through the state's own [`NargReader`]. On failure
+    /// nothing is absorbed and the state is poisoned.
+    ///
+    /// For sponges over a non-byte alphabet, where the absorbed units cannot
+    /// be the consumed bytes, use [`VerifierState::prover_message_with`].
+    ///
+    /// # Codec requirements
+    ///
+    /// `deserialize` must be the inverse of the prover-side encoding closure:
+    /// it **MUST** reject non-canonical serializations
+    /// ([FS], § "Deserialization"), and the NARG string must be treated as
+    /// untrusted input — validate length indicators and integer ranges before
+    /// use. The encoding it inverts must be prefix-free, with the identity
+    /// admissible only on fixed-length domains ([FS], § "Codecs"; § "Byte
+    /// strings" under "Serialization"). Any codec change **MUST** be reflected
+    /// in the session tag ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_as<T>(
+        &mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<T, VerificationError> {
+        let (message, bytes) = self.read_message(deserialize)?;
+        self.duplex_sponge_state.absorb(bytes);
+        Ok(message)
+    }
+
+    /// [`VerifierState::prover_message_as`] as a terminal
+    /// (see [`VerifierState::last_prover_message`]).
+    pub fn last_prover_message_as<T>(
+        mut self,
+        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<T, VerificationError> {
+        let message = self.prover_message_as(deserialize)?;
+        self.check_eof()?;
+        Ok(message)
+    }
+
+    /// Reads `len` prover messages into a vector through one deserialization
+    /// closure.
+    ///
+    /// Calls [`VerifierState::prover_message_as`] `len` times in order; the
+    /// closure is subject to the codec requirements documented there. This is
+    /// the reader for a batch sent with
+    /// [`ProverState::prover_messages_as`][crate::ProverState::prover_messages_as].
+    ///
+    /// On failure the state is poisoned, with nothing absorbed past the last
+    /// message read.
+    ///
+    /// # Security
+    ///
+    /// `len` must be fixed by the protocol or derived from the instance —
+    /// never from the NARG string itself.
+    pub fn prover_messages_vec_as<T>(
+        &mut self,
+        len: usize,
+        mut deserialize: impl FnMut(&mut NargReader<'_>) -> Result<T, VerificationError>,
+    ) -> Result<Vec<T>, VerificationError> {
+        (0..len)
+            .map(|_| self.prover_message_as(&mut deserialize))
+            .collect()
     }
 }

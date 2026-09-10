@@ -1,47 +1,81 @@
 use alloc::vec::Vec;
 use core::fmt;
-#[cfg(not(feature = "sha3"))]
-use core::marker::PhantomData;
 
-use rand::{CryptoRng, Rng, SeedableRng};
-#[cfg(feature = "sha3")]
-use rand::{RngExt, TryCryptoRng, TryRng};
-
-#[cfg(feature = "sha3")]
-use crate::StdHash;
-use crate::{Decoding, DuplexSpongeInterface, Encoding, NargSerialize};
-
-type StdRng = rand::rngs::StdRng;
-#[cfg(feature = "sha3")]
-type PrivateRng<R> = ReseedableRng<R>;
-#[cfg(not(feature = "sha3"))]
-type PrivateRng<R> = PhantomData<R>;
+#[cfg(feature = "turboshake128")]
+use crate::DefaultHash;
+use crate::{
+    duplex_sponge::DuplexSpongeInit, Decoding, DuplexSpongeInterface, Encoding, PrivateRng,
+    SessionId,
+};
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
 ///
-/// It provides the **secret coins** of the prover for zero-knowledge, and
-/// the hash function state for the verifier's **public coins**.
+/// It provides the **secret coins** of the prover for zero-knowledge
+/// ([`ProverState::rng`]), and the hash function state for the verifier's
+/// **public coins**.
 ///
-/// The internal random number generator is instantiated with [`shake::Shake128`],
-/// seeded via [`rand::rngs::StdRng`].
+/// Build one with [`ProverState::new`] from a 32-byte session identifier
+/// (see [`derive_session_id`][crate::derive_session_id]) and the encoded
+/// instance. Most protocols should use [`Narg::prove`][crate::Narg::prove]
+/// directly.
 ///
-/// # Safety
+/// The private RNG is a [`PrivateRng`] over `R`, independently of the sponge
+/// `H` carrying the public coins.
 ///
-/// Leaking [`ProverState`] is equivalent to leaking the prover's private coins, and therefore zero-knowledge.
-/// [`ProverState`] does not implement [`Clone`] or [`Copy`] to prevent accidental state-restoration attacks.
+/// # Example
+///
+/// The prover side of a toy Schnorr protocol over `u32` with wrapping
+/// arithmetic (illustrative, not secure): sample a private nonce, send the
+/// commitment, squeeze the challenge, and send the response as the last
+/// message. [`VerifierState`][crate::VerifierState] shows the verifier side.
+///
+/// ```
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+/// # {
+/// use spongefish::{DefaultHash, Narg, ProverState};
+///
+/// let (generator, witness) = (7u32, 42u32);
+/// let instance = [generator, generator.wrapping_mul(witness)];
+/// let session_id = Narg::derive_session_id(b"spongefish/docs/schnorr-u32/v1");
+///
+/// let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
+/// let nonce: u32 = prover.rng().sample();
+/// prover.prover_message(&generator.wrapping_mul(nonce));
+/// let challenge: u32 = prover.verifier_message();
+/// let response = nonce.wrapping_add(challenge.wrapping_mul(witness));
+/// let narg_string = prover.last_prover_message(&response);
+///
+/// // Two `u32` prover messages: the commitment and the response.
+/// assert_eq!(narg_string.len(), 8);
+/// # // The verifier side replays the same public coins from the NARG string.
+/// # use spongefish::VerifierState;
+/// # let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
+/// # assert_eq!(verifier.prover_message::<u32>().unwrap(), generator.wrapping_mul(nonce));
+/// # assert_eq!(verifier.verifier_message::<u32>(), challenge);
+/// # assert_eq!(verifier.last_prover_message::<u32>().unwrap(), response);
+/// # }
+/// ```
+///
+/// # Security
+///
+/// Leaking [`ProverState`] is equivalent to leaking the prover's private
+/// coins, and therefore to losing zero-knowledge. [`ProverState`] does not
+/// implement [`Clone`] or [`Copy`] to prevent accidental state-restoration
+/// attacks.
 pub struct ProverState<
-    #[cfg(feature = "sha3")] H = StdHash,
-    #[cfg(not(feature = "sha3"))] H,
-    R = StdRng,
+    #[cfg(feature = "turboshake128")] H = DefaultHash,
+    #[cfg(not(feature = "turboshake128"))] H,
+    #[cfg(feature = "turboshake128")] R = DefaultHash,
+    #[cfg(not(feature = "turboshake128"))] R,
 > where
     H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
+    R: DuplexSpongeInit<U = u8>,
 {
     /// The randomness state of the prover.
     pub(crate) private_rng: PrivateRng<R>,
     /// The public coins for the protocol.
     ///
-    /// # Safety
+    /// # Security
     ///
     /// Copying this object will break the soundness guarantees installed at the [`ProverState`] level.
     #[cfg(feature = "yolocrypto")]
@@ -52,94 +86,10 @@ pub struct ProverState<
     pub(crate) narg_string: Vec<u8>,
 }
 
-/// A cryptographically-secure random number generator that is bound to the proof string.
-///
-/// For most public-coin protocols it is *vital* not to have two different verifier messages for the same prover message.
-/// For this reason, we construct an RNG that absorbs whatever the verifier absorbs, and that in addition
-/// is seeded by a cryptographic random number generator.
-///
-/// Every time a challenge is being generated, the private prover sponge is ratcheted, so that it can't be inverted and the randomness recovered.
-#[derive(Default)]
-#[cfg(feature = "sha3")]
-pub struct ReseedableRng<R: Rng + CryptoRng> {
-    /// The duplex sponge that is used to generate the prover's private random coins.
-    pub(crate) duplex_sponge: StdHash,
-    /// The cryptographic random number generator that seeds the sponge.
-    pub(crate) csrng: R,
-}
-
-#[cfg(feature = "sha3")]
-impl<R: Rng + CryptoRng> From<R> for ReseedableRng<R> {
-    fn from(mut csrng: R) -> Self {
-        let mut duplex_sponge = StdHash::default();
-        let seed: [u8; 32] = csrng.random();
-        duplex_sponge.absorb(&seed);
-        Self {
-            duplex_sponge,
-            csrng,
-        }
-    }
-}
-
-#[cfg(feature = "sha3")]
-impl ReseedableRng<StdRng> {
-    /// Creates a reseedable RNG backed by `StdRng`.
-    pub fn new() -> Self {
-        let csrng: StdRng = rand::make_rng();
-        csrng.into()
-    }
-}
-
-#[cfg(feature = "sha3")]
-impl<R: Rng + CryptoRng> TryRng for ReseedableRng<R> {
-    type Error = core::convert::Infallible;
-
-    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        let mut buf = [0u8; 4];
-        self.duplex_sponge.squeeze(buf.as_mut());
-        Ok(u32::from_le_bytes(buf))
-    }
-
-    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        let mut buf = [0u8; 8];
-        self.duplex_sponge.squeeze(buf.as_mut());
-        Ok(u64::from_le_bytes(buf))
-    }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
-        // fill `dest` with the output of the sponge
-        self.duplex_sponge.squeeze(dest);
-        // xxx. for extra safety we can imagine ratcheting here so that
-        // the state of the sponge can't be reverted after
-        // erase the state from the sponge so that it can't be reverted
-        // self.duplex_sponge.ratchet();
-        Ok(())
-    }
-}
-
-#[cfg(feature = "sha3")]
-impl<R: Rng + CryptoRng> ReseedableRng<R> {
-    /// Reseeds the internal sponge with the provided bytes.
-    pub fn reseed_with(&mut self, value: &[u8]) {
-        self.duplex_sponge.ratchet();
-        self.duplex_sponge.absorb(value);
-        self.duplex_sponge.ratchet();
-    }
-
-    /// Reseeds the internal sponge with fresh entropy from the CSRNG.
-    pub fn reseed(&mut self) {
-        let seed = self.csrng.random::<[u8; 32]>();
-        self.reseed_with(&seed);
-    }
-}
-
-#[cfg(feature = "sha3")]
-impl<R: Rng + CryptoRng> TryCryptoRng for ReseedableRng<R> {}
-
 impl<H, R> fmt::Debug for ProverState<H, R>
 where
     H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
+    R: DuplexSpongeInit<U = u8>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ProverState<{}>", core::any::type_name::<H>())
@@ -148,13 +98,80 @@ where
 
 impl<H, R> ProverState<H, R>
 where
-    H: DuplexSpongeInterface,
-    R: Rng + CryptoRng,
+    H: DuplexSpongeInit,
+    R: DuplexSpongeInit<U = u8>,
 {
-    #[cfg(feature = "sha3")]
-    /// Returns the reseedable RNG bound to this transcript.
-    pub const fn rng(&mut self) -> &mut ReseedableRng<R> {
+    /// The non-interactive prover internal state.
+    ///
+    /// The duplex sponge is initialized with the 32-byte session identifier
+    /// and the encoded instance is the first value absorbed.
+    ///
+    /// Use [`derive_session_id`][crate::derive_session_id] before calling
+    /// this constructor.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty (forbidden by the draft), or if
+    /// the entropy source fails.
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[cfg(feature = "getrandom")]
+    pub fn new<T: Encoding<[H::U]> + ?Sized>(session_id: &SessionId, instance: &T) -> Self {
+        Self::from_parts(session_id, instance, PrivateRng::<R>::from_os_entropy())
+    }
+
+    /// The non-interactive prover with a **deterministic** private RNG.
+    ///
+    /// # Security
+    ///
+    /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
+    pub fn new_with_seed<T: Encoding<[H::U]> + ?Sized>(
+        session_id: &SessionId,
+        instance: &T,
+        seed: [u8; crate::private_rng::SEED_LEN],
+    ) -> Self {
+        Self::from_parts(session_id, instance, PrivateRng::<R>::from_seed(seed))
+    }
+
+    /// The non-interactive prover from an explicitly-constructed [`PrivateRng`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the encoded instance is empty (forbidden by the draft).
+    pub fn from_parts<T: Encoding<[H::U]> + ?Sized>(
+        session_id: &SessionId,
+        instance: &T,
+        private_rng: PrivateRng<R>,
+    ) -> Self {
+        let mut duplex_sponge_state = H::init(session_id.as_bytes());
+        let encoded = instance.encode();
+        assert!(
+            !encoded.as_ref().is_empty(),
+            "the encoded instance must be non-empty"
+        );
+        duplex_sponge_state.absorb(encoded.as_ref());
+        Self {
+            private_rng,
+            duplex_sponge_state,
+            narg_string: Vec::new(),
+        }
+    }
+}
+
+impl<H, R> ProverState<H, R>
+where
+    H: DuplexSpongeInterface,
+    R: DuplexSpongeInit<U = u8>,
+{
+    /// Returns the private RNG bound to this prover.
+    pub const fn rng(&mut self) -> &mut PrivateRng<R> {
         &mut self.private_rng
+    }
+
+    /// Mixes external entropy into the private RNG
+    /// (see [`PrivateRng::mix_entropy`]).
+    pub fn mix_entropy(&mut self, data: &[u8; crate::private_rng::SEED_LEN]) {
+        self.private_rng.mix_entropy(data);
     }
 
     /// Returns the current serialized NARG string.
@@ -163,87 +180,79 @@ where
         self.narg_string.as_slice()
     }
 
-    /// Input a public message to the Fiat--Shamir transformation.
+    /// Consumes the state and returns the NARG string.
+    ///
+    /// The terminal for a transcript whose last move is a verifier message or
+    /// a public message. When the last move is a prover message, send it with
+    /// [`ProverState::last_prover_message`] instead.
+    pub fn into_narg_string(self) -> Vec<u8> {
+        self.narg_string
+    }
+
+    /// Input a public message to the Fiat-Shamir transformation.
     ///
     /// A public message in this context is a message that is shared among prover and verifier
-    /// outside of the NARG, and is to be included in the Fiat--Shamir transformation but not in
+    /// outside of the NARG, and is to be included in the Fiat-Shamir transformation but not in
     /// the final NARG string.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// use spongefish::ProverState;
-    ///
-    /// let mut prover_state = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "ProverState::public_message"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_prover();
-    /// prover_state.public_message(&123u32);
-    /// assert_eq!(prover_state.narg_string(), b"");
-    /// # }
-    /// ```
     pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Input a prover message of type `T` into the Fiat--Shamir transformation.
+    /// Input a prover message of type `T` into the Fiat-Shamir transformation.
     ///
     /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
-    /// duplex sponge, and [`NargSerialize`] to be serialized into the NARG string.
+    /// duplex sponge, and [`Encoding`] to be serialized into the NARG string.
     ///
-    /// ```
-    /// # #[cfg(feature = "sha3")]
-    /// # {
-    /// use spongefish::ProverState;
+    pub fn prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(&mut self, message: &T) {
+        self.duplex_sponge_state
+            .absorb(<T as Encoding<[H::U]>>::encode(message).as_ref());
+        self.narg_string
+            .extend_from_slice(<T as Encoding>::encode(message).as_ref());
+    }
+
+    /// Input the last prover message and return the NARG string.
     ///
-    /// let mut prover_state = spongefish::domain_separator!(
-    ///     "examples";
-    ///     "ProverState::prover_message"
-    /// )
-    ///     .instance(&0u32)
-    ///     .std_prover();
-    /// prover_state.prover_message(&42u32);
-    /// let expected = 42u32.to_le_bytes();
-    /// assert_eq!(prover_state.narg_string(), expected.as_slice());
-    /// # }
-    /// ```
-    pub fn prover_message<T: Encoding<[H::U]> + NargSerialize + ?Sized>(&mut self, message: &T) {
-        self.duplex_sponge_state.absorb(message.encode().as_ref());
-        message.serialize_into_narg(&mut self.narg_string);
+    /// This function runs [`ProverState::prover_message`] consuming the prover state and
+    /// returning the NARG string ([`ProverState::narg_string`]).
+    pub fn last_prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(
+        mut self,
+        message: &T,
+    ) -> Vec<u8> {
+        self.prover_message(message);
+        self.narg_string
     }
 
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
+    #[must_use]
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
         T::decode(buf)
     }
 
-    /// Alias for [`narg_string`][ProverState::narg_string].
-    #[deprecated(note = "Please use ProverState::narg_string instead.")]
-    #[inline]
-    pub const fn transcript(&self) -> &[u8] {
-        self.narg_string()
-    }
-
-    /// Alias for [`verifier_message`][`ProverState::verifier_message`].
-    #[deprecated(note = "Please use ProverState::verifier_message instead.")]
-    pub fn challenge<T: Decoding<[H::U]>>(&mut self) -> T {
-        self.verifier_message()
-    }
-
-    /// Input to the Fiat--Shamir transformation an array of public messages.
+    /// Input to the Fiat-Shamir transformation a slice of public messages.
+    ///
+    /// # Security
+    ///
+    /// Calling this function multiple times is byte-identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
+    /// sequence instead.
     pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
         }
     }
 
-    /// Input to the Fiat--Shamir transformation an iterator of public messages.
+    /// Input to the Fiat-Shamir transformation an iterator of public messages.
+    ///
+    /// # Security
+    ///
+    /// The number of messages must be fixed by the protocol; see
+    /// [`ProverState::public_messages`].
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
@@ -254,18 +263,30 @@ where
             .for_each(|message| self.public_message(&message));
     }
 
-    /// Absorbs a list of prover messages at once.
-    pub fn prover_messages<T: Encoding<[H::U]> + NargSerialize>(&mut self, messages: &[T]) {
+    /// Input a slice of prover messages: each is absorbed into the duplex
+    /// sponge and serialized into the NARG string, in order.
+    ///
+    /// # Security
+    ///
+    /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
+    /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
+    /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
+    pub fn prover_messages<T: Encoding<[H::U]> + Encoding>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
         }
     }
 
-    /// Absorbs an iterator of prover messages.
+    /// Input an iterator of prover messages: each is absorbed into the duplex
+    /// sponge and serialized into the NARG string, in order.
+    ///
+    /// # Security
+    ///
+    /// The number of messages must be fixed by the protocol; see [`ProverState::prover_messages`].
     pub fn prover_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
-        J::Item: Encoding<[H::U]> + NargSerialize,
+        J::Item: Encoding<[H::U]> + Encoding,
     {
         messages
             .into_iter()
@@ -273,47 +294,195 @@ where
     }
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    #[must_use]
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Returns a vector of uniformly-distributed verifier messages `[T; N]`.
+    /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    #[must_use]
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
+
+    /// Input a prover message using encoding and serialization closures.
+    ///
+    /// On byte-oriented sponges (`H::U = u8`), prefer [`ProverState::prover_message_as`].
+    ///
+    /// # Codec requirements
+    ///
+    /// `encode` **MUST** output a prefix-free string, with an efficiently
+    /// computable left inverse ([draft-irtf-cfrg-fiat-shamir][FS], § "Codecs").
+    /// Any change to either map **MUST** be reflected in the session tag
+    /// ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+        serialize(message, &mut self.narg_string);
+    }
+
+    /// [`ProverState::prover_message_with`] as a terminal
+    /// (see [`ProverState::last_prover_message`]).
+    pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
+    ) -> Vec<u8> {
+        self.prover_message_with(message, encode, serialize);
+        self.narg_string
+    }
+
+    /// Absorb a public message using an encoding closure.
+    ///
+    /// Like [`ProverState::prover_message_with`] without the serialization
+    /// half: a public message is shared between prover and verifier outside of
+    /// the NARG string, so its encoding is only absorbed. The closure must
+    /// satisfy the codec requirements documented on
+    /// [`ProverState::prover_message_as`], and the verifier must absorb the
+    /// same message with the same map.
+    pub fn public_message_as<'a, T: ?Sized, B: AsRef<[H::U]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        self.duplex_sponge_state.absorb(encode(message).as_ref());
+    }
+
+    /// Derive a verifier message by squeezing `n` units of the sponge
+    /// alphabet and mapping them through a one-off decoding closure.
+    ///
+    /// The closure is one round's decoding map `decode[i]` of
+    /// [draft-irtf-cfrg-fiat-shamir][FS] (§ "Decoding from byte strings"):
+    ///
+    /// - It **MUST** be distribution-preserving: for a uniformly random
+    ///   input, the output must be (statistically close to) uniform over the
+    ///   verifier message type. How large `n` must be for that to hold is
+    ///   documented on [`Decoding`][crate::Decoding].
+    /// - It is infallible
+    /// - Its input must be uniform
+    /// - Any change to the decoding (e.g. sampling verifier messages differently)
+    ///   **MUST** be reflected in the session tag ([FS], § "Session identifiers", requirement 2).
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[must_use]
+    pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
+        let buf = self.duplex_sponge_state.squeeze_boxed(n);
+        decode(&buf)
+    }
 }
 
-/// Creates a new [`ProverState`] seeded using [`rand::make_rng`].
-///
-/// [`Default`] provides alternative initialization methods than the one via
-/// [`DomainSeparator`][`crate::DomainSeparator`].
-/// [`ProverState::default`] is only available with the `yolocrypto` feature and its support in
-/// future releases is not guaranteed.
-#[cfg(feature = "yolocrypto")]
-impl<H: DuplexSpongeInterface + Default, R: Rng + CryptoRng + SeedableRng> Default
-    for ProverState<H, R>
+impl<H, R> ProverState<H, R>
+where
+    H: DuplexSpongeInterface<U = u8>,
+    R: DuplexSpongeInit<U = u8>,
 {
+    /// Input a prover message using an encoding closure.
+    ///
+    /// The bytes returned by `encode` are absorbed into the duplex sponge
+    /// **and** appended to the NARG string in the same call.
+    /// Hashing a prover message and serializing it is done within one function call,
+    /// so that messages cannot be skipped, reordered, or absorbed without being serialized.
+    ///
+    /// For sponges over a non-byte alphabet, where absorbed units
+    /// and NARG bytes are necessarily distinct maps, use
+    /// [`ProverState::prover_message_with`].
+    ///
+    /// # Security
+    ///
+    /// Following [FS], the security requirements of `encode` are:
+    ///
+    /// - It **MUST** be prefix-free on the message's domain ([FS], § "Codecs").
+    ///   The identity encoding (`SerializeBytes`) is admissible **only** on
+    ///   fixed-length domains, where prover and verifier agree on the byte
+    ///   length before parsing ([FS], § "Byte strings" under "Serialization").
+    /// - The security analysis additionally requires an efficiently
+    ///   computable left inverse: the knowledge-soundness extractor inverts
+    ///   the encoding to recover prover messages from the absorbed bytes
+    ///   ([FS], § "Codecs" under "Security considerations"). In practice, make
+    ///   the encoding injective and decodable.
+    /// - Any change to the codec **MUST** be reflected in the session tag
+    ///   ([FS], § "Session identifiers", requirement 2): two implementations
+    ///   encoding messages differently must not share a session identifier.
+    ///
+    /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    pub fn prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
+        &mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) {
+        let bytes = encode(message);
+        self.duplex_sponge_state.absorb(bytes.as_ref());
+        self.narg_string.extend_from_slice(bytes.as_ref());
+    }
+
+    /// [`ProverState::prover_message_as`] as a terminal
+    /// (see [`ProverState::last_prover_message`]).
+    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
+        mut self,
+        message: &'a T,
+        encode: impl FnOnce(&'a T) -> B,
+    ) -> Vec<u8> {
+        let bytes = encode(message);
+        self.narg_string.extend_from_slice(bytes.as_ref());
+        self.narg_string
+    }
+
+    /// Input a slice of prover messages through a closure.
+    ///
+    /// Calls [`ProverState::prover_message_as`] on each element in order; the
+    /// closure is subject to the codec requirements documented there. The
+    /// verifier reads the batch back with
+    /// [`VerifierState::prover_messages_vec_as`][crate::VerifierState::prover_messages_vec_as].
+    ///
+    /// # Security
+    ///
+    /// The number of messages must be fixed by the protocol or derived from the instance.
+    /// See [`ProverState::prover_messages`].
+    pub fn prover_messages_as<'a, T, B: AsRef<[u8]>>(
+        &mut self,
+        messages: &'a [T],
+        mut encode: impl FnMut(&'a T) -> B,
+    ) {
+        for message in messages {
+            self.prover_message_as(message, &mut encode);
+        }
+    }
+}
+
+/// Creates a new [`ProverState`] with an OS-entropy-seeded RNG and an
+/// **unseeded** sponge state.
+///
+/// [`ProverState::default`] is only available with the `yolocrypto` feature and
+/// its support in future releases is not guaranteed.
+#[cfg(all(
+    feature = "yolocrypto",
+    feature = "getrandom",
+    feature = "turboshake128"
+))]
+impl<H: DuplexSpongeInterface + Default> Default for ProverState<H> {
     fn default() -> Self {
         Self {
             duplex_sponge_state: H::default(),
-            #[cfg(feature = "sha3")]
-            private_rng: rand::make_rng::<R>().into(),
-            #[cfg(not(feature = "sha3"))]
-            private_rng: PhantomData,
+            private_rng: PrivateRng::from_os_entropy(),
             narg_string: Vec::new(),
         }
     }
 }
 
 /// Creates a new [`ProverState`] using the given duplex sponge interface.
-impl<H: DuplexSpongeInterface, R: Rng + CryptoRng + SeedableRng> From<H> for ProverState<H, R> {
+#[cfg(all(feature = "getrandom", feature = "turboshake128"))]
+impl<H: DuplexSpongeInterface> From<H> for ProverState<H> {
     fn from(value: H) -> Self {
         Self {
             duplex_sponge_state: value,
-            #[cfg(feature = "sha3")]
-            private_rng: rand::make_rng::<R>().into(),
-            #[cfg(not(feature = "sha3"))]
-            private_rng: PhantomData,
+            private_rng: PrivateRng::from_os_entropy(),
             narg_string: Vec::new(),
         }
     }

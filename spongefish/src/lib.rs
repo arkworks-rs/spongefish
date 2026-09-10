@@ -1,183 +1,169 @@
-//! The Fiat--Shamir transformation for public-coin protocols.
+//! # Duplex Sponge Fiat-Shamir
 //!
-//! Implements the DSFS transformation from [[CO25]], wire-compatible with [draft-irtf-cfrg-fiat-shamir].
+//! Spongefish implements the duplex-sponge Fiat–Shamir transformation for
+//! public-coin interactive arguments. This crate is spec-compatible with
+//! [draft-irtf-cfrg-fiat-shamir], and the generic duplex construction follows
+//! [[CO25]].
 //!
-//! # Examples
+//! The main feature of this library is to let users write an interactive
+//! [`Argument`] and automatically compile it into a NARG that can be generated
+//! with [`Narg::prove`] and verified with [`Narg::verify`].
 //!
-//! A [`ProverState`] and a [`VerifierState`] can be built via a [`DomainSeparator`], which
-//! is composed of a protocol identifier, a mandatory session identifier, and the public instance.
-//! The snippets below illustrate three typical situations.
+//! It also offers a "transcript-like" API via [`ProverState`] or [`VerifierState`] directly.
+//!
+//! ## Usage
+//!
+//! A minimal (cryptographically unsound) example is:
 //!
 //! ```
-//! # #[cfg(feature = "sha3")]
+//! # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
 //! # {
-//! use spongefish::domain_separator;
+//! use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
 //!
-//! // In this example, we prove knowledge of x such that 2^x mod M31 is Y
-//! const P: u64 = (1 << 31) - 1;
-//! fn language(x: u32) -> u32 { (2u64.pow(x) % P) as u32 }
-//! let witness = 42;
-//! let instance = [2, language(witness)];
+//! struct Equality;
 //!
-//! let domsep = domain_separator!("simplest proof system mod {{P}}"; "{{module_path!()}}")
-//!              .instance(&instance);
+//! impl Argument for Equality {
+//!     type Instance = u32;
+//!     type Witness = u32;
+//!     type Output = ();
 //!
-//! // non-interactive prover
-//! let mut prover_state = domsep.std_prover();
-//! prover_state.prover_message(&witness);
-//! let nizk = prover_state.narg_string();
-//! assert!(nizk.len() > 0);
+//!     fn run<T: Transcript>(
+//!         transcript: &mut T,
+//!         instance: &u32,
+//!         witness: Witness<&u32>,
+//!     ) -> Result<(), VerificationError> {
+//!         let value = transcript.prover_message(witness.map(|value| *value))?;
+//!         transcript.check(|| value == *instance)
+//!     }
+//! }
 //!
-//! // non-interactive verifier
-//! let mut verifier_state = domsep.std_verifier(nizk);
-//! let claimed_witness = verifier_state.prover_message::<u32>().expect("unable to read a u32");
-//! assert_eq!(language(claimed_witness), language(witness));
-//! // a proof is malleable if we don't check we read everything
-//! assert!(verifier_state.check_eof().is_ok())
-//! # }
-//! ```
-//! The above code will fail to compile if no instance is given.
-//! The implementor has full responsibility in providing the correct instance of the proof system.
-//!
-//! ## Building on external libraries
-//!
-//! Spongefish only depends on [`digest`] and [`rand`].
-//! Support for common SNARK libraries is available optional feature flags.
-//! For instance  `p3-koala-bear` provides allows to encode/decode [`p3_koala_bear::KoalaBear`]
-//! field elements, and can be used to build a sumcheck round. For other algebraic types, see below.
-//! ```
-//! # #[cfg(all(feature = "p3-koala-bear", feature = "sha3"))]
-//! # {
-//! // Requires the `p3-baby-bear` feature.
-//! use p3_koala_bear::KoalaBear;
-//! use p3_field::PrimeCharacteristicRing;
-//! use spongefish::{VerificationError, VerificationResult};
-//!
-//! let witness = [KoalaBear::new(5), KoalaBear::new(9)];
-//!
-//! let domain = spongefish::domain_separator!("sumcheck"; "{{module_path!()}}").instance(&witness);
-//! let mut prover = domain.std_prover();
-//! let challenge = prover.verifier_message::<KoalaBear>();
-//! let response = witness[0] * challenge + witness[1];
-//! prover.prover_message(&response);
-//! let narg_string = prover.narg_string();
-//!
-//! let mut verifier = domain.std_verifier(narg_string);
-//! let challenge = verifier.verifier_message::<KoalaBear>();
-//! let response = verifier.prover_message::<KoalaBear>().unwrap();
-//! assert_eq!(response, witness[0] * challenge + witness[1]);
-//! // a proof is malleable if we don't check we read everything
-//! assert!(verifier.check_eof().is_ok())
+//! let tag = b"spongefish/docs/equality/v1";
+//! let (narg, ()) = Narg::prove::<Equality>(tag, &7, &7).unwrap();
+//! Narg::verify::<Equality>(tag, &7, &narg).unwrap();
 //! # }
 //! ```
 //!
-//! ## Deriving your own encoding and decoding
+//! See the [README quick start] for a multi-round example.
 //!
-//! A prover message must implement:
-//! - [`Encoding<T>`], where `T` is the relative hash domain (by default `[u8]`). The encoding must be injective and prefix-free;
-//! - [`NargSerialize`], to serialize the message in a NARG string.
-//! - [`NargDeserialize`], to read from a NARG string.
+//! ## Security requirements
 //!
-//! A verifier message must implement [`Decoding`] to allow for sampling of uniformly random elements from a hash output.
+//! Spongefish implements a transformation; it does not make an insecure
+//! interactive protocol secure. The interactive protocol must be public coin, and
+//! implementors must follow the security considerations of
+//! [draft-irtf-cfrg-fiat-shamir]. In particular:
 //!
+//! - Every application tag must uniquely pin the **non-interactive** NARG, its
+//!   codecs, and the application context where it is being used. Reusing a tag
+//!   can invalidate soundness and domain separation.
+//!   [`Narg`] derives the typed [`SessionId`] from this tag.
+//! - Encodings absorbed into the random oracle must satisfy the
+//!   prefix-freeness requirements documented by [`Encoding`], and verifier
+//!   messages must be decoded from a squeezed unit string wide enough to leave a
+//!   negligible bias. Codec changes, a change of width included, require a new
+//!   application tag.
+//! - Verification must consume the complete NARG. [`Narg::verify`] performs
+//!   this check; low-level users must call [`VerifierState::check_eof`].
+//! - Prover randomness must be secret, unpredictable, and never reused.
+//!   Deterministic constructors are for tests and test vectors only.
 //!
-//! The interface [`Codec`] is a shorthand for all of the above.
-//! ```
-//! # #[cfg(all(feature = "derive", feature = "curve25519-dalek", feature = "sha3"))]
-//! # {
-//! // Requires the `derive` and `curve25519-dalek` features.
-//! use spongefish::{Codec, domain_separator};
-//! use curve25519_dalek::{RistrettoPoint, Scalar};
+//! The current codebase should be treated as unaudited. Earlier revisions were
+//! reviewed by Radically Open Security and OpenZeppelin; see the repository's
+//! [security policy] for scope, versions, and private reporting instructions.
 //!
-//! #[derive(Clone, Copy, Codec)]
-//! struct PublicKey(RistrettoPoint);
+//! ## Messages and codecs
 //!
-//! let generator = curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
-//! let domain = spongefish::domain_separator!("challenge-response"; "example")
-//!              .instance(&generator);
+//! A duplex sponge works over an alphabet, the [`Unit`] type `U` of its
+//! [`DuplexSpongeInterface`]: bytes for every instantiation in this crate, a
+//! prime field for the algebraic permutations of `spongefish-circuit`. A
+//! prover message has two destinations, and a codec is the pair of maps that
+//! take it there:
 //!
-//! let pk = PublicKey(generator * Scalar::from(42u64));
-//! let mut prover = domain.std_prover();
-//! prover.public_message(&pk);
-//! assert_ne!(prover.verifier_message::<[u8; 32]>(), [0; 32]);
+//! - [`Encoding<[U]>`][Encoding] maps the message into the sponge alphabet.
+//!   Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
+//! - [`Encoding`], the default `Encoding<[u8]>`, is the byte serialization
+//!   written to the NARG string, and the map that [`NargDeserialize`] inverts
+//!   on the verifier's side.
 //!
-//! # }
-//! ```
-//! # Supported types
+//! Both must be prefix-free; see [`Encoding`].
 //!
-//! Unsigned integers and byte arrays have codecs attached to them.
-//! Popular algebraic types are also implemented:
+//! On a byte sponge the two coincide: `Encoding<[u8]>` is one trait bound
+//! spelled two ways, a single implementation does both jobs, and the bytes
+//! absorbed are exactly the bytes written. The verifier relies on this to read
+//! and absorb a message in one operation, on the very bytes read
+//! ([`VerifierState::prover_message_as`]). The [`Argument`] API is defined
+//! over byte sponges, so the distinction never surfaces there.
 //!
-//! 1. arkworks field elements (including `Fp` and extension `Fp2`, `Fp3`, `Fp4`, `Fp6`, `Fp12`)
-//! are available via the `ark-ff` feature flag;
-//! 2. arkworks elliptic curve elements are available via the `ark-ec` feature flag;
-//! 3. Ristretto points of curve25519_dalek are available via the `curve25519-dalek` feature flag;
-//! 4. Plonky3's `BabyBear`, `KoalaBear`, and `Mersenne31` field elements
-//! are available via (respectively) `p3-baby-bear`, `p3-koala-bear`, `p3-mersenne-31` feature flags.
-//! 3. p256 field and elliptic curve elements are available via the `p256` feature flag.
+//! On a sponge over a field `F`, a message type carries two implementations,
+//! `Encoding<[F]>` for the sponge and `Encoding` for the NARG string. They need
+//! not resemble each other, but each must be prefix-free over its own
+//! alphabet. The verifier deserializes the bytes and then absorbs the
+//! message's `Encoding<[F]>` ([`VerifierState::prover_message`]). The instance
+//! and public messages are absorbed but never written, so they need only
+//! `Encoding<[U]>`.
 //!
+//! Verifier messages go the other way: [`Decoding<[U]>`][Decoding] maps a
+//! squeezed string over the alphabet, [`Decoding::Repr`], to a verifier
+//! message (the map `ψ` of [[CO25]]). It must carry the uniform distribution
+//! on `Repr` to one close to uniform on the message, and the width of `Repr`
+//! is what makes that true; the rule is documented on [`Decoding`].
 //!
-//! # Supported hash functions
+//! [`Codec`] is the combined shorthand, and the optional `derive` feature
+//! supplies derive macros for these traits.
 //!
-//! All hash functions are available in [`instantiations`]:
+//! Fixed-width integers, byte arrays, and tuples have built-in codecs.
+//! Variable-length sequences must use [`LengthPrefixed`] (or an equally
+//! unambiguous custom encoding); concatenating variable-length encodings
+//! without framing is unsafe.
 //!
-//! 1. [`Keccak`][instantiations::Keccak], the duplex sponge construction [[CO25], Section 3.3] for the
-//! [`keccak::Keccak::with_f1600`] permutation [Keccak-f].
-//! Available with the `keccak` feature flag;
-//! 2. [`Ascon12`][instantiations::Ascon12], the duplex sponge construction [[CO25], Section 3.3] for the
-//! [`ascon`] permutation [Ascon], used in overwrite mode.
-//! Available with the `ascon` feature flag;
-//! 3. [`Shake128`][instantiations::Shake128], based on the extensible output function [shake::Shake128].
-//! Available with the `sha3` feature flag (enabled by default);
-//! 4. [`Blake3`][instantiations::Blake3], based on the extensible output function [blake3::Hasher].
-//! Available with the `sha3` feature flag (enabled by default);
-//! 5. [`SHA256`][instantiations::SHA256], based on [`sha2::Sha256`] used as a stateful hash object.
-//! Available with the `sha2` feature flag;
-//! 6. [`SHA512`][instantiations::SHA512], based on [`sha2::Sha512`] used as a stateful hash object.
-//! Available with the `sha2` feature flag.
+//! The low-level [`ProverState::prover_message_with`] and
+//! [`VerifierState::prover_message_with`] methods accept these maps as
+//! closures when implementing traits is inconvenient.
 //!
-//! # Implementing your own hash functions
+//! ## Prover randomness
 //!
-//! The duplex sponge construction [`DuplexSponge`] is described
-//! in [[CO25], Section 3.3].
+//! With the default `getrandom` feature, the NARG prover will also have access to a
+//! cryptographically secure pseudorandom number generator ([`PrivateRng`])
+//! seeded by the operating system.
 //!
-//! The extensible output function [`instantiations::XOF`]
-//! wraps an object implementing [`digest::ExtendableOutput`] and implements
-//! the duplex sponge interface with little-to-no code. This covers digest-based
-//! XOFs such as SHAKE, KangarooTwelve, and BLAKE3.
+//! [`ProverState::mix_entropy`] can mix an additional fixed-width seed.
+//! [`ProverState::new_with_seed`] is deterministic and must
+//! not be used for production proofs.
 //!
-//! The hash bridge [`Hash`][crate::instantiations::Hash] wraps an object implementing
-//! the [`digest::Digest`] trait, and implements the [`DuplexSpongeInterface`]
+//! ## Suites and low-level APIs
 //!
-//! ## Security considerations
+//! The [`instantiations`] module provides:
 //!
-//! Only Constructions (1) and (2) are proven secure, in the ideal permutation model;
-//! all other constructions are built using heuristics.
+//! - `Shake128` and `TurboShake128`, the suites specified by
+//!   [draft-irtf-cfrg-fiat-shamir]. `TurboShake128` is [`DefaultHash`] and backs
+//!   [`Narg`] when the default `turboshake128` feature is enabled.
+//! - `Keccak` and `Ascon12`, overwrite-mode duplex sponges available through
+//!   their respective feature flags. These are not the draft's SHAKE suites.
+//! - [`instantiations::XOF`] and [`instantiations::Hash`], bridges for the
+//!   RustCrypto `digest` traits. Constructions outside the draft or the ideal-
+//!   permutation analysis of [[CO25]] should be treated as heuristic.
 //!
-//! Previous version of this library were audited by [Radically Open Security].
+//! [`FiatShamir`] selects a non-default sponge. [`DuplexSponge`] and
+//! [`DuplexSpongeInterface`] expose the underlying construction for specialist
+//! use. The `yolocrypto` feature exposes additional internal state and should
+//! not be enabled by ordinary applications.
 //!
-//! The user has full responsibility in instantiating [`DomainSeparator`] in a secure way,
-//! but the library requiring three elements on initialization:
-//! - a mandatory 64-bytes protocol identifier,
-//!   uniquely identifying the non-interactive protocol being built.
-//! - a 64-bytes session identifier,
-//!   corresponding to session and sub-session identifiers in universal composability lingo.
-//! - a mandatory instance that will be used in the proof system.
+//! This crate is `no_std`.
 //!
-//! The developer is in charge of making sure they are chosen appropriately.
-//! In particular, the instance encoding function prefix-free.
-//!
-//! [SHA2]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.180-4.pdf
-//! [Keccak-f]: https://keccak.team/keccak_specs_summary.html
-//! [Ascon]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-232.pdf
+//! [README quick start]: https://github.com/arkworks-rs/spongefish#example
+//! [security policy]: https://github.com/arkworks-rs/spongefish/blob/main/SECURITY.md
 //! [CO25]: https://eprint.iacr.org/2025/536.pdf
-//! [Radically Open Security]: https://www.radicallyopensecurity.com/
 //! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
+
+// Keep the README's canonical quick start compiled without duplicating it in
+// the rendered crate documentation.
+#[cfg(all(doctest, feature = "turboshake128", feature = "getrandom"))]
+#[doc = include_str!("../../README.md")]
+pub mod readme_doctests {}
 
 #[cfg(target_endian = "big")]
 compile_error!(
@@ -195,103 +181,136 @@ pub mod instantiations;
 /// The NARG prover state.
 mod narg_prover;
 
+/// The prover's private randomness source.
+mod private_rng;
+
 /// The NARG verifier state.
 mod narg_verifier;
 
-/// Trait implementation for common ZKP libraries.
-mod drivers;
-
 /// Utilities for serializing prover messages and de-serializing NARG strings.
-pub(crate) mod io;
+pub(crate) mod narg_string;
 
-/// Codecs are functions for encoding prover messages into [`Unit`]s  and producing verifier messages.
+/// Codecs are functions for encoding prover messages into [`Unit`]s and producing verifier messages.
 pub(crate) mod codecs;
 
 /// Defines [`VerificationError`].
 pub(crate) mod error;
 
-/// Heuristics for building misuse-resistant protocol identifiers.
-mod domain_separator;
+/// Writing a public-coin interactive argument once, and running it as both
+/// sides of the Fiat-Shamir transformation.
+mod argument;
 
 // Re-export the core interfaces for building the FS transformation.
+#[cfg(feature = "turboshake128")]
+pub use argument::Narg;
+pub use argument::{Argument, FiatShamir, Transcript, Witness};
 #[doc(hidden)]
 pub use codecs::ByteArray;
-pub use codecs::{Codec, Decoding, Encoding};
-#[doc(hidden)]
-pub use domain_separator::protocol_id;
-#[cfg(feature = "sha3")]
-#[doc(hidden)]
-pub use domain_separator::{session_id, session_id_from_str};
-pub use domain_separator::{
-    DomainSeparator, NoSession, WithInstance, WithSession, WithoutInstance, WithoutSession,
+pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
+pub use duplex_sponge::{
+    DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, EncodedSessionId, Permutation, Unit,
 };
-pub use duplex_sponge::{DuplexSponge, DuplexSpongeInterface, Permutation, Unit};
-pub use error::{VerificationError, VerificationResult};
-pub use io::{NargDeserialize, NargSerialize};
+pub use error::VerificationError;
 pub use narg_prover::ProverState;
+pub use narg_string::{NargDeserialize, NargReader};
 pub use narg_verifier::VerifierState;
+pub use private_rng::PrivateRng;
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
 
-/// The default hash function provided by the library.
-#[cfg(feature = "sha3")]
-pub type StdHash = instantiations::Shake128;
+/// The default hash function provided by the library: the TurboSHAKE128
+/// duplex sponge of draft-irtf-cfrg-fiat-shamir.
+#[cfg(feature = "turboshake128")]
+pub type DefaultHash = instantiations::TurboShake128;
 
-/// Build a [`DomainSeparator`] from a protocol identifier string.
+/// The 32-byte session identifier of draft-irtf-cfrg-fiat-shamir, as produced
+/// by [`derive_session_id`] from an application tag.
 ///
-/// Chain `.session(..)` or `.without_session()` before `.instance(..)`.
+/// It is a newtype rather than a bare `[u8; 32]` so that a tag and an
+/// identifier cannot be confused for one another: a 32-byte tag literal is
+/// itself a `&[u8; 32]`, and would otherwise seed a transcript directly
+/// wherever an identifier is expected — silently skipping the derivation.
 ///
 /// ```
-/// # #[cfg(feature = "sha3")]
+/// # #[cfg(feature = "turboshake128")]
 /// # {
-/// let domsep = spongefish::domain_separator!("spongefish")
-///     .session(spongefish::session!("DomainSeparator"))
-///     .instance(b"trivial");
-/// let _prover = domsep.std_prover();
+/// use spongefish::Narg;
+///
+/// let session_id = Narg::derive_session_id(b"example-v00");
+/// assert_eq!(session_id.as_bytes().len(), 32);
 /// # }
 /// ```
-#[cfg(feature = "sha3")]
-#[macro_export]
-macro_rules! domain_separator {
-    ($protocol_fmt:literal $(, $protocol_arg:expr)* ; $session_fmt:literal $(, $session_arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!(
-            $protocol_fmt $(, $protocol_arg)*
-        )))
-        .session($crate::session!($session_fmt $(, $session_arg)*))
-    }};
-    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
-    }};
+///
+/// Transcript constructors accept only `&SessionId`, so passing either a tag
+/// or the identifier's raw bytes does not compile:
+///
+/// ```compile_fail,E0308
+/// use spongefish::{Narg, ProverState};
+///
+/// let session_id = Narg::derive_session_id(b"example-v00");
+/// ProverState::new(session_id.as_bytes(), b"instance");
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SessionId([u8; 32]);
+
+impl SessionId {
+    /// Wraps 32 bytes already derived elsewhere — a vendored test vector, or
+    /// an identifier carried across a protocol boundary. Deriving from a tag
+    /// with [`derive_session_id`] is the ordinary route.
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
-#[cfg(not(feature = "sha3"))]
-#[macro_export]
-macro_rules! domain_separator {
-    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::DomainSeparator::new($crate::protocol_id(core::format_args!($fmt $(, $arg)*)))
-    }};
+impl From<[u8; 32]> for SessionId {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
-/// Attaches a 64-byte session identifier to the domain separator.
+impl AsRef<[u8]> for SessionId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// The draft's `DeriveSessionID(tag)`: derive a 32-byte session identifier
+/// from an application-chosen tag, using the duplex sponge `H`.
+///
+/// This is `Init("irtf-cfrg-fiat-shamir/session-id"); Absorb(tag);
+/// Squeeze(32)`. Instantiated with the draft suites it matches the draft's
+/// construction exactly; other duplex sponges seed through their own
+/// [`DuplexSpongeInit`] convention. For the default suite,
+/// [`Narg::derive_session_id`][crate::Narg::derive_session_id] is the same
+/// derivation without the type argument.
 ///
 /// ```
-/// # #[cfg(feature = "sha3")]
+/// # #[cfg(feature = "turboshake128")]
 /// # {
-/// # use spongefish::{DomainSeparator, session};
+/// use spongefish::{derive_session_id, DefaultHash, Narg};
 ///
-/// DomainSeparator::new([0u8; 64])
-///     .session(session!("example at L{{line!()}}"))
-///     .instance(b"empty");
+/// let session_id = derive_session_id::<DefaultHash>(b"EXAMPLE-V01-DSFS");
+/// assert_eq!(session_id, Narg::derive_session_id(b"EXAMPLE-V01-DSFS"));
 /// # }
 /// ```
-#[cfg(feature = "sha3")]
-#[macro_export]
-macro_rules! session {
-    ($fmt:literal $(, $arg:expr)* $(,)?) => {{
-        $crate::session_id(core::format_args!($fmt $(, $arg)*))
-    }};
+pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> SessionId {
+    let mut sponge = H::init(b"irtf-cfrg-fiat-shamir/session-id");
+    sponge.absorb(tag);
+    let mut out = [0u8; 32];
+    sponge.squeeze(&mut out);
+    SessionId(out)
+}
+
+/// Implementation details used by the derive macros. Not public API.
+#[doc(hidden)]
+pub mod __private {
+    pub use alloc::vec::Vec;
 }
 
 /// Unit-tests.
-#[cfg(all(test, feature = "sha3"))]
+#[cfg(all(test, feature = "turboshake128", feature = "getrandom"))]
 mod tests;

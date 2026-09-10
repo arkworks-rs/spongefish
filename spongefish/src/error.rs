@@ -4,9 +4,6 @@ use core::fmt::Display;
 #[derive(Debug, Copy, Clone, Default)]
 pub struct VerificationError;
 
-/// A [`Result`] wrapper that can either return `T` or a [`VerificationError`].
-pub type VerificationResult<T> = Result<T, VerificationError>;
-
 impl Display for VerificationError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "Invalid proof")
@@ -14,15 +11,11 @@ impl Display for VerificationError {
 }
 
 impl core::ops::Deref for VerificationError {
-    type Target = VerificationResult<()>;
+    type Target = Result<(), Self>;
 
     fn deref(&self) -> &Self::Target {
         &Err(Self)
     }
 }
 
-#[cfg(feature = "std")]
-extern crate std;
-
-#[cfg(feature = "std")]
-impl std::error::Error for VerificationError {}
+impl core::error::Error for VerificationError {}

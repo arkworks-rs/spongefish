@@ -1,13 +1,13 @@
 [package]
 name = "spongefish"
 authors = ["Michele Orrù <m@orru.net>", "Giacomo Fenzi <giacomofenzi@outlook.com>"]
-description = "An implementation of the Fiat--Shamir transformation from Duplex Sponges."
+description = "A Fiat-Shamir transformation using Duplex Sponges."
 documentation = "https://docs.rs/spongefish"
 edition.workspace = true
 readme.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
 
 [package.metadata.docs.rs]
@@ -15,88 +15,36 @@ all-features = true
 rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
-default = ["sha3", "zeroize"]
+default = ["turboshake128", "getrandom", "zeroize"]
 # feature flag for hazardous features
 yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
-zeroize = ["dep:zeroize"]
-# Cryptographic hash function features
-sha2 = ["dep:sha2"]
-sha3 = ["dep:shake"]
-blake2 = ["dep:blake2"]
-blake3 = ["dep:blake3"]
-k12 = ["dep:k12"]
+zeroize = ["dep:zeroize", "shake?/zeroize", "turboshake?/zeroize"]
+# The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and DefaultHash.
+turboshake128 = ["dep:shake", "dep:turboshake"]
+# Prover randomness: OS entropy for the private RNG (default), and an optional
+# rand_core adapter so the RNG can be passed to ecosystem samplers.
+getrandom = ["dep:getrandom"]
+rand = ["dep:rand_core"]
+# Additional permutation functions
 keccak = ["dep:keccak"]
 ascon = ["dep:ascon"]
-# arkworks
-ark-ff = ["dep:ark-ff", "dep:ark-serialize"]
-ark-ec = ["ark-ff", "dep:ark-ec"]
-# zkcrypto
-bls12_381 = ["dep:bls12_381"]
-curve25519-dalek = ["dep:curve25519-dalek"]
-k256 = ["dep:k256"]
-p256 = ["dep:p256"]
-# plonky3
-p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
-p3-mersenne-31 = ["dep:p3-mersenne-31", "dep:p3-field"]
-p3-koala-bear = ["dep:p3-koala-bear", "dep:p3-field"]
-# Performance features
-asm = ["ark-ff?/asm"]
-std = ["ark-ff?/std", "ark-ec?/std", "ark-serialize?/std"]
-# risc0-zkp
-risc0-zkp = ["dep:risc0-zkp"]
 
 [dependencies]
-ark-ec = { workspace = true, optional = true }
-
-# arkworks-rs
-ark-ff = { workspace = true, optional = true }
-ark-serialize = { workspace = true, optional = true }
 ascon = { version = "^0.5.0", optional = true }
-blake2 = { workspace = true, optional = true }
-blake3 = { workspace = true, optional = true }
-
-# zkcrypto/group
-bls12_381 = { workspace = true, optional = true }
-curve25519-dalek = { workspace = true, optional = true }
 digest = { workspace = true }
-
-# Optional hash functions
-k12 = { workspace = true, optional = true }
-k256 = { workspace = true, optional = true, features = ["arithmetic"] }
+getrandom = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
-p256 = { workspace = true, optional = true, features = ["arithmetic"] }
-p3-baby-bear = { workspace = true, optional = true }
-
-# plonky3
-p3-field = { workspace = true, optional = true }
-p3-koala-bear = { workspace = true, optional = true }
-p3-mersenne-31 = { workspace = true, optional = true }
-rand = { workspace = true, features = ["sys_rng"] }
-risc0-zkp = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
+rand_core = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
+turboshake = { workspace = true, optional = true }
 zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
 
-[target.'cfg(doc)'.dependencies]
-p3-koala-bear = { workspace = true }
-sha2 = { workspace = true }
-
 [dev-dependencies]
-ark-bls12-381 = { workspace = true }
-ark-curve25519 = { workspace = true }
-ark-pallas = { workspace = true }
-ark-secp256k1 = { workspace = true }
-ark-secp256r1 = { workspace = true }
-ark-std = { workspace = true }
-ark-vesta = { workspace = true }
-blake2 = { workspace = true }
-bls12_381 = { workspace = true }
 curve25519-dalek = { workspace = true }
 hex = { workspace = true }
-libtest-mimic = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -104,10 +52,14 @@ sha2 = { workspace = true }
 [lints]
 workspace = true
 
-[[example]]
-name = "schnorr"
-required-features = ["ark-ec", "sha3"]
+[[test]]
+name = "noncanonical"
+required-features = ["getrandom", "turboshake128"]
 
-[[example]]
-name = "bulletproof"
-required-features = ["curve25519-dalek", "curve25519-dalek/rand_core"]
+[[test]]
+name = "schnorr"
+required-features = ["getrandom", "turboshake128"]
+
+[[test]]
+name = "sumcheck"
+required-features = ["getrandom", "turboshake128"]
