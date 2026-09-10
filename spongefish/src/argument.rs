@@ -8,8 +8,6 @@ use crate::{
     VerificationError, VerifierState,
 };
 
-/// A witness value.
-///
 /// A marker indicating a witness value.
 ///
 /// Values marked `Witness` may be transformed and combined without exposing their
