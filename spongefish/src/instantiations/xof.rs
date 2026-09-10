@@ -108,10 +108,10 @@ where
     /// input starts on a fresh block boundary.
     fn init(session_id: &[u8; 32]) -> Self {
         const { assert!(Self::rate() >= 32 && Self::rate() <= ZERO_BLOCK.len()) }
-        let mut sponge = Self::default();
-        sponge.absorb(session_id);
-        sponge.absorb(&ZERO_BLOCK[..Self::rate() - 32]);
-        sponge
+        let mut xof = Self::default();
+        xof.absorb(session_id);
+        xof.absorb(&ZERO_BLOCK[..Self::rate() - 32]);
+        xof
     }
 
     /// Zero-pads each mix until the absorb position reaches a full rate block.
@@ -191,9 +191,9 @@ mod tests {
         for input_len in [0usize, 1, 135, 136, 137, 167, 168, 335, 400, 1000] {
             let input: alloc::vec::Vec<u8> = (0..input_len).map(|i| i as u8).collect();
 
-            let mut sponge = Shake128::init(&session_id);
+            let mut dsxof = Shake128::init(&session_id);
             let mut got = alloc::vec![0u8; 333];
-            sponge.absorb(&input).squeeze(&mut got);
+            dsxof.absorb(&input).squeeze(&mut got);
 
             let mut xof = shake::Shake128::default();
             xof.update(&session_id);
@@ -267,17 +267,17 @@ mod tests {
         H: digest::ExtendableOutput + Clone + Default + super::XofRate,
         H::Reader: Clone,
     {
-        let mut sponge = XOF::<H>::default();
-        sponge.absorb(b"spongefish clone test");
+        let mut dsxof = XOF::<H>::default();
+        dsxof.absorb(b"spongefish clone test");
 
         let mut prefix = [0u8; 13];
-        sponge.squeeze(&mut prefix);
+        dsxof.squeeze(&mut prefix);
 
-        let mut cloned = sponge.clone();
+        let mut cloned = dsxof.clone();
         let mut original_tail = [0u8; 64];
         let mut cloned_tail = [0u8; 64];
 
-        sponge.squeeze(&mut original_tail);
+        dsxof.squeeze(&mut original_tail);
         cloned.squeeze(&mut cloned_tail);
 
         assert_eq!(original_tail, cloned_tail);
