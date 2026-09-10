@@ -181,7 +181,7 @@ pub use argument::{Argument, FiatShamir, Transcript, Witness};
 pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
 pub use duplex_sponge::{
-    DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, Permutation, Unit, UnitFromBytes,
+    DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, EncodedSessionId, Permutation, Unit,
 };
 pub use error::VerificationError;
 pub use narg_prover::ProverState;

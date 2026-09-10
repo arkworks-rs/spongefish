@@ -46,14 +46,14 @@ pub trait Unit: Clone + Sized {
 /// prefix them itself.
 ///
 /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
-pub trait UnitFromBytes: Unit {
+pub trait EncodedSessionId: Unit {
     /// Reads `bytes` as a string of units.
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]>;
 }
 
 /// Over bytes the embedding is the identity, and borrows rather than
 /// allocating: a byte sponge pays nothing for this indirection.
-impl UnitFromBytes for u8 {
+impl EncodedSessionId for u8 {
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]> {
         bytes
     }
@@ -304,7 +304,7 @@ where
 /// draft derives it from an application tag with a byte-oriented hash, and it
 /// is the caller who supplies it. A sponge over a non-byte alphabet therefore
 /// needs one more thing — a way to read those 32 bytes as units — which is
-/// [`UnitFromBytes`]. See the blanket implementation on [`DuplexSponge`]
+/// [`EncodedSessionId`]. See the blanket implementation on [`DuplexSponge`]
 /// below.
 pub trait DuplexSpongeInit: DuplexSpongeInterface {
     /// Create a new duplex sponge state, seeded by the 32-byte `session_id`.
@@ -322,7 +322,7 @@ pub trait DuplexSpongeInit: DuplexSpongeInterface {
 
 /// The overwrite-mode duplex sponge is seeded over **any** alphabet that a
 /// byte string embeds into: the session identifier is absorbed as ordinary
-/// input, through [`UnitFromBytes`].
+/// input, through [`EncodedSessionId`].
 ///
 /// Over bytes that embedding is the identity and borrows rather than
 /// allocating, so this is the plain `absorb(session_id)` it replaces — same
@@ -331,7 +331,7 @@ pub trait DuplexSpongeInit: DuplexSpongeInterface {
 impl<P, const WIDTH: usize, const RATE: usize> DuplexSpongeInit for DuplexSponge<P, WIDTH, RATE>
 where
     P: Permutation<WIDTH> + Default,
-    P::U: UnitFromBytes,
+    P::U: EncodedSessionId,
 {
     /// Absorbs the session identifier as ordinary input (overwrite-mode
     /// convention; not the draft's `Init`).

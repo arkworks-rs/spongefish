@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 use p3_baby_bear::BabyBear;
 use p3_field::{integers::QuotientMap, PrimeCharacteristicRing};
-use spongefish::{Unit, UnitFromBytes};
+use spongefish::{EncodedSessionId, Unit};
 
 /// Transparent [`Unit`] wrapper around [`BabyBear`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -51,7 +51,7 @@ impl From<BabyBearUnit> for BabyBear {
 /// admissible where the byte length is fixed by the protocol — a session
 /// identifier is always 32 bytes — and a variable-length byte string must be
 /// length-prefixed by the caller.
-impl UnitFromBytes for BabyBearUnit {
+impl EncodedSessionId for BabyBearUnit {
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]> {
         bytes
             .iter()
