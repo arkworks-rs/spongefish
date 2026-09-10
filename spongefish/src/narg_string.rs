@@ -97,7 +97,7 @@ impl<'a> NargReader<'a> {
 
 /// Trait for reading an object from a NARG string.
 ///
-/// # Security requirements
+/// # Security
 ///
 /// The input of [`NargDeserialize::deserialize_from_narg`] is attacker-controlled.
 /// An implementation **MUST**:
@@ -150,12 +150,10 @@ pub trait NargDeserialize: Sized {
     ) -> Result<[Self; N], VerificationError> {
         let mut failed = false;
 
-        // Parsed in place rather than through a `Vec<T>` + `try_into`: the
-        // vector cost one heap allocation per array on the verifier's hot
-        // path, and `[T; N]` needs no allocation at all. The intermediate is
-        // `[Result<T, VerificationError>; N]` because `array::from_fn` must yield a
-        // value for every slot and there is nothing to yield once parsing has
-        // failed; `try_from_fn` would say this directly but is unstable.
+        // Parsed in place.
+        // The type of parsed is a `Result` since `array::from_fn` must yield a value for every slot
+        // and there is nothing to yield once parsing has failed; `try_from_fn` would say this directly
+        // but is unstable.
         let parsed: [Result<Self, VerificationError>; N] = core::array::from_fn(|_| {
             if failed {
                 // Short-circuit, matching the `collect::<Result<_, _>>()` this
