@@ -28,7 +28,6 @@ pub struct NargReader<'a> {
 
 impl<'a> NargReader<'a> {
     /// Creates a reader positioned at the start of `narg_string`.
-    #[must_use]
     pub const fn new(narg_string: &'a [u8]) -> Self {
         Self {
             unread: Some(narg_string),
@@ -38,7 +37,6 @@ impl<'a> NargReader<'a> {
     /// Whether the whole NARG string has been consumed.
     ///
     /// A reader in an invalid state will return `false`.
-    #[must_use]
     pub const fn is_empty(&self) -> bool {
         match self.unread {
             Some(unread) => unread.is_empty(),
@@ -47,7 +45,6 @@ impl<'a> NargReader<'a> {
     }
 
     /// Return `true` if the reader is in an invalid state, `false` otherwise.
-    #[must_use]
     pub const fn is_poisoned(&self) -> bool {
         self.unread.is_none()
     }
@@ -104,6 +101,7 @@ impl<'a> NargReader<'a> {
     /// so a truncated NARG string can never make a parser read past its end.
     /// `len` may come from the NARG string itself: an over-long length prefix
     /// fails here rather than being trusted.
+    #[must_use = "A `None` result may indicate a verification error"]
     pub fn take(&mut self, len: usize) -> Option<&'a [u8]> {
         self.advance(|unread| unread.split_at_checked(len))
     }
@@ -113,6 +111,7 @@ impl<'a> NargReader<'a> {
     /// The fixed-length read that carries most prover messages: a compressed
     /// group element, a canonical scalar, a digest. A short NARG string fails
     /// as in [`NargReader::take`].
+    #[must_use = "A `None` result may indicate a verification error"]
     pub fn take_array<const N: usize>(&mut self) -> Option<[u8; N]> {
         self.advance(|unread| unread.split_first_chunk::<N>())
             .copied()

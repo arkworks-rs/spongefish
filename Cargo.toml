@@ -40,9 +40,11 @@ too_long_first_doc_paragraph = "allow"
 doc_lazy_continuation = "allow"
 tuple_array_conversions = "allow"
 naive_bytecount = "allow"
+must_use_candidate = "allow"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unused_must_use = "deny"
 
 [workspace.dependencies]
 blake3 = { version = "^1.8.4", features = ["traits-preview", "zeroize"] }

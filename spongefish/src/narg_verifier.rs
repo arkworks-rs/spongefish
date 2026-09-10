@@ -75,6 +75,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
+    #[must_use]
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -82,11 +83,13 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    #[must_use]
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    #[must_use]
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
@@ -205,6 +208,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// requirement 2).
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[must_use]
     pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
         let buf = self.duplex_sponge_state.squeeze_boxed(n);
         decode(&buf)
@@ -291,7 +295,6 @@ where
     /// Panics if the encoded instance is empty, as per [draft-irtf-cfrg-fiat-shamir][FS].
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
-    #[must_use]
     pub fn new<T: Encoding<[H::U]> + ?Sized>(
         session_id: &SessionId,
         instance: &T,

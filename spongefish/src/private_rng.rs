@@ -57,7 +57,6 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     ///
     /// Panics if the operating system's entropy source fails.
     #[cfg(feature = "getrandom")]
-    #[must_use]
     pub fn from_os_entropy() -> Self {
         let mut seed = [0u8; SEED_LEN];
         getrandom::fill(&mut seed).expect("operating system entropy source failed");
@@ -72,7 +71,6 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     ///
     /// This function is meant to be used for test vectors and reproducible tests only.
     /// Proving with a fixed or reused seed compromises zero-knowledge.
-    #[must_use]
     pub fn from_seed(mut seed: [u8; SEED_LEN]) -> Self {
         let rng = Self {
             sponge: H::init(&seed),

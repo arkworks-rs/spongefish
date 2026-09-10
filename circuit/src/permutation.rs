@@ -25,7 +25,6 @@ pub struct LinearEquation<T, U> {
 }
 
 impl<T, U> LinearEquation<T, U> {
-    #[must_use]
     pub fn new(linear_combination: impl IntoIterator<Item = (U, T)>, image: U) -> Self {
         Self {
             linear_combination: linear_combination.into_iter().collect(),
@@ -69,7 +68,6 @@ pub struct QueryAnswerPair<T, const WIDTH: usize> {
 }
 
 impl<T, const WIDTH: usize> QueryAnswerPair<T, WIDTH> {
-    #[must_use]
     pub const fn new(input: [T; WIDTH], output: [T; WIDTH]) -> Self {
         Self { input, output }
     }
@@ -93,17 +91,14 @@ pub struct PermutationInstance<T, const WIDTH: usize> {
 }
 
 impl<T, const WIDTH: usize> PermutationInstance<T, WIDTH> {
-    #[must_use]
     pub fn constraints(&self) -> impl AsRef<[QueryAnswerPair<FieldVar, WIDTH>]> + '_ {
         &self.query_answers
     }
 
-    #[must_use]
     pub const fn linear_constraints(&self) -> &LinearConstraints<FieldVar, T> {
         &self.linear_constraints
     }
 
-    #[must_use]
     pub fn public_vars(&self) -> &[(FieldVar, T)] {
         &self.public_values
     }
@@ -117,12 +112,10 @@ pub struct PermutationWitness<T, const WIDTH: usize> {
 }
 
 impl<T, const WIDTH: usize> PermutationWitness<T, WIDTH> {
-    #[must_use]
     pub fn trace(&self) -> impl AsRef<[QueryAnswerPair<T, WIDTH>]> + '_ {
         &self.trace
     }
 
-    #[must_use]
     pub const fn linear_constraints(&self) -> &LinearConstraints<T, T> {
         &self.linear_constraints
     }
@@ -165,7 +158,6 @@ impl<T: Clone + Unit, const WIDTH: usize> Default for PermutationInstanceBuilder
 }
 
 impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
-    #[must_use]
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
             allocator,
@@ -174,17 +166,14 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         }
     }
 
-    #[must_use]
     pub fn new() -> Self {
         Self::with_allocator(VarAllocator::new())
     }
 
-    #[must_use]
     pub const fn allocator(&self) -> &VarAllocator<T> {
         &self.allocator
     }
 
-    #[must_use]
     pub fn allocate_permutation(&self, &input: &[FieldVar; WIDTH]) -> [FieldVar; WIDTH] {
         let output = self.allocator.allocate_vars();
         self.add_permutation(input, output);
@@ -230,22 +219,18 @@ impl<T: Clone + Unit, const WIDTH: usize> PermutationInstanceBuilder<T, WIDTH> {
         self.linear_constraints.write().equations.push(equation);
     }
 
-    #[must_use]
     pub fn constraints(&self) -> impl AsRef<[QueryAnswerPair<FieldVar, WIDTH>]> {
         self.query_answers.read().clone()
     }
 
-    #[must_use]
     pub fn linear_constraints(&self) -> LinearConstraints<FieldVar, T> {
         self.linear_constraints.read().clone()
     }
 
-    #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         self.allocator.public_vars()
     }
 
-    #[must_use]
     pub fn snapshot(&self) -> PermutationInstance<T, WIDTH> {
         PermutationInstance {
             vars_count: self.allocator.vars_count(),
@@ -263,7 +248,6 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> From<P> for PermutationWitnessBu
 }
 
 impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WIDTH> {
-    #[must_use]
     pub fn new(permutation: P) -> Self {
         Self {
             permutation,
@@ -272,7 +256,6 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
         }
     }
 
-    #[must_use]
     pub fn allocate_permutation(&self, input: &[P::U; WIDTH]) -> [P::U; WIDTH] {
         let output = self.permutation.permute(input);
         self.add_permutation(input, &output);
@@ -289,17 +272,14 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
         self.linear_constraints.write().equations.push(equation);
     }
 
-    #[must_use]
     pub fn trace(&self) -> impl AsRef<[QueryAnswerPair<P::U, WIDTH>]> {
         self.trace.read().clone()
     }
 
-    #[must_use]
     pub fn linear_constraints(&self) -> LinearConstraints<P::U, P::U> {
         self.linear_constraints.read().clone()
     }
 
-    #[must_use]
     pub fn snapshot(&self) -> PermutationWitness<P::U, WIDTH> {
         PermutationWitness {
             trace: self.trace().as_ref().to_vec(),

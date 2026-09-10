@@ -230,12 +230,10 @@ impl SessionId {
     /// Wraps 32 bytes already derived elsewhere — a vendored test vector, or
     /// an identifier carried across a protocol boundary. Deriving from a tag
     /// with [`derive_session_id`] is the ordinary route.
-    #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
-    #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
@@ -267,7 +265,6 @@ impl AsRef<[u8]> for SessionId {
 /// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"EXAMPLE-V01-DSFS");
 /// # }
 /// ```
-#[must_use]
 pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> SessionId {
     let mut sponge = H::init(b"irtf-cfrg-fiat-shamir/session-id");
     sponge.absorb(tag);

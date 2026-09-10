@@ -83,7 +83,6 @@ impl<T> Witness<T> {
         Witness(self.0.zip(other.0))
     }
 
-    #[must_use]
     pub const fn as_ref(&self) -> Witness<&T> {
         Witness(self.0.as_ref())
     }
@@ -126,6 +125,57 @@ pub trait Transcript {
         T: Encoding + NargDeserialize;
 
     /// A verifier message, sent by the verifier to the prover.
+    ///
+    /// Both parties derive it from the transcript so far, so the prover cannot
+    /// foresee it. A random challenge folds two equations into one check,
+    /// which a wrong pair passes for at most one challenge value:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+    /// # {
+    /// # use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
+    /// fn pair_equals<T: Transcript>(
+    ///     transcript: &mut T,
+    ///     instance: &[u32; 2],
+    ///     witness: Witness<[u32; 2]>,
+    /// ) -> Result<(), VerificationError> {
+    ///     let first = transcript.prover_message(witness.map(|w| w[0]))?;
+    ///     let second = transcript.prover_message(witness.map(|w| w[1]))?;
+    ///     let challenge: u32 = transcript.verifier_message();
+    ///     let fold = |x: u32, y: u32| u64::from(x) + u64::from(challenge) * u64::from(y);
+    ///     transcript.check(|| fold(first, second) == fold(instance[0], instance[1]))
+    /// }
+    /// #
+    /// # struct PairEquals;
+    /// # impl Argument for PairEquals {
+    /// #     type Instance = [u32; 2];
+    /// #     type Witness = [u32; 2];
+    /// #     type Output = ();
+    /// #     fn run<T: Transcript>(
+    /// #         transcript: &mut T,
+    /// #         instance: &[u32; 2],
+    /// #         witness: Witness<&[u32; 2]>,
+    /// #     ) -> Result<(), VerificationError> {
+    /// #         pair_equals(transcript, instance, witness.map(|w| *w))
+    /// #     }
+    /// # }
+    /// # let tag = b"examples/pair-equals";
+    /// # let (proof, ()) = Narg::prove::<PairEquals>(tag, &[1, 2], &[1, 2]).unwrap();
+    /// # Narg::verify::<PairEquals>(tag, &[1, 2], &proof).unwrap();
+    /// # assert!(Narg::verify::<PairEquals>(tag, &[2, 1], &proof).is_err());
+    /// # }
+    /// ```
+    ///
+    /// An unused challenge constrains nothing, so it may not be dropped:
+    ///
+    /// ```compile_fail
+    /// #![deny(unused_must_use)]
+    /// # use spongefish::Transcript;
+    /// fn round<T: Transcript>(transcript: &mut T) {
+    ///     transcript.verifier_message::<u64>();
+    /// }
+    /// ```
+    #[must_use]
     fn verifier_message<T: Decoding>(&mut self) -> T;
 
     /// A "public" prover message from the prover to the verifier.
@@ -343,7 +393,6 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
     ///
     /// For the default [`Narg`] transformation, this is the ergonomic
     /// counterpart to [`crate::derive_session_id`].
-    #[must_use]
     pub fn derive_session_id(tag: &[u8]) -> crate::SessionId {
         crate::derive_session_id::<H>(tag)
     }

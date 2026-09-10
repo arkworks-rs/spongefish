@@ -26,7 +26,6 @@ impl<S: PowStrategy> PoWGrinder<S> {
     /// # Arguments
     /// * `challenge` - A 32-byte challenge array
     /// * `bits` - The difficulty in bits (logarithm of expected work)
-    #[must_use]
     pub fn new(challenge: [u8; 32], bits: f64) -> Self {
         Self {
             strategy: S::new(challenge, bits),
@@ -42,6 +41,7 @@ impl<S: PowStrategy> PoWGrinder<S> {
     }
 
     /// Verifies that a given nonce satisfies the proof-of-work requirement.
+    #[must_use = "unchecked proof of work verification"]
     pub fn verify(&mut self, nonce: u64) -> bool {
         self.strategy.check(nonce)
     }
@@ -59,14 +59,13 @@ pub mod convenience {
     /// Performs proof-of-work on a challenge and returns the solution.
     ///
     /// This is a simple wrapper that creates a grinder and immediately grinds.
-    #[must_use]
     pub fn grind_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64) -> Option<PoWSolution> {
         let mut grinder = PoWGrinder::<S>::new(challenge, bits);
         grinder.grind()
     }
 
     /// Verifies a proof-of-work nonce.
-    #[must_use]
+    #[must_use = "unchecked proof of work verification"]
     pub fn verify_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64, nonce: u64) -> bool {
         let mut grinder = PoWGrinder::<S>::new(challenge, bits);
         grinder.verify(nonce)
@@ -81,6 +80,7 @@ pub trait PowStrategy: Clone + Sync {
     fn new(challenge: [u8; 32], bits: f64) -> Self;
 
     /// Check if the `nonce` satisfies the challenge.
+    #[must_use = "unchecked proof of work verification"]
     fn check(&mut self, nonce: u64) -> bool;
 
     /// Builds a solution given the input nonce.

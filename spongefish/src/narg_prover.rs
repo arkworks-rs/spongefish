@@ -82,7 +82,6 @@ where
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[cfg(feature = "getrandom")]
-    #[must_use]
     pub fn new<T: Encoding<[H::U]> + ?Sized>(session_id: &SessionId, instance: &T) -> Self {
         Self::from_parts(session_id, instance, PrivateRng::<R>::from_os_entropy())
     }
@@ -92,7 +91,6 @@ where
     /// # Security
     ///
     /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
-    #[must_use]
     pub fn new_with_seed<T: Encoding<[H::U]> + ?Sized>(
         session_id: &SessionId,
         instance: &T,
@@ -106,7 +104,6 @@ where
     /// # Panics
     ///
     /// Panics if the encoded instance is empty (forbidden by the draft).
-    #[must_use]
     pub fn from_parts<T: Encoding<[H::U]> + ?Sized>(
         session_id: &SessionId,
         instance: &T,
@@ -154,7 +151,6 @@ where
     /// The terminal for a transcript whose last move is a verifier message or
     /// a public message. When the last move is a prover message, send it with
     /// [`ProverState::last_prover_message`] instead.
-    #[must_use]
     pub fn into_narg_string(self) -> Vec<u8> {
         self.narg_string
     }
@@ -185,7 +181,6 @@ where
     ///
     /// This function runs [`ProverState::prover_message`] consuming the prover state and
     /// returning the NARG string ([`ProverState::narg_string`]).
-    #[must_use]
     pub fn last_prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(
         mut self,
         message: &T,
@@ -197,6 +192,7 @@ where
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
+    #[must_use]
     pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
@@ -264,11 +260,13 @@ where
     }
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    #[must_use]
     pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    #[must_use]
     pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
@@ -297,7 +295,6 @@ where
 
     /// [`ProverState::prover_message_with`] as a terminal
     /// (see [`ProverState::last_prover_message`]).
-    #[must_use]
     pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
         mut self,
         message: &'a T,
@@ -339,6 +336,7 @@ where
     ///   **MUST** be reflected in the session tag ([FS], § "Session identifiers", requirement 2).
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
+    #[must_use]
     pub fn verifier_message_as<T>(&mut self, n: usize, decode: impl FnOnce(&[H::U]) -> T) -> T {
         let buf = self.duplex_sponge_state.squeeze_boxed(n);
         decode(&buf)
@@ -391,7 +389,6 @@ where
 
     /// [`ProverState::prover_message_as`] as a terminal
     /// (see [`ProverState::last_prover_message`]).
-    #[must_use]
     pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
         mut self,
         message: &'a T,
