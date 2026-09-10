@@ -1,21 +1,11 @@
-//! A NARG string must have exactly one accepting form.
+//! A NARG string shouldn't be malleable.
 //!
-//! The verifier can absorb a message two ways: the bytes it actually read, or
-//! a re-encoding of the value it parsed out of them. Those agree only when
-//! deserialization is canonical — and a deserializer that *reduces* rather than
-//! *rejects* is an easy thing to write. The crate's own crate-level example
-//! used to have one.
-//!
-//! Under re-encoding, a prover can maul a message into a second byte string
-//! that parses to the same value: the sponge sees the canonical form either
-//! way, derives the same challenge, and accepts both. That is malleability
-//! inside a message rather than after it, so `check_eof` does not see it and
-//! neither does a bit-flip sweep — every flip that survives parsing lands on a
-//! different value, not on a different encoding of the same one.
-
+//! If a prover can maul a message into a second byte string that parses to the same value,
+//! we lose a soundness property called simulation extractability (as well as universal composability).
+//! This file provides one such exmaple that **should NOT** be reproduced.
 use spongefish::{
-    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
-    NargReader, Transcript, VerificationError, Witness,
+    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
+    VerificationError, Witness,
 };
 
 /// A prime small enough that `a` and `a + P` both fit in `u64`.
@@ -79,7 +69,7 @@ impl Argument for Toy {
 
 #[test]
 fn a_second_encoding_of_the_same_message_is_rejected() {
-    let sid = derive_session_id::<DefaultHash>(b"noncanonical-witness");
+    let sid = Narg::derive_session_id(b"noncanonical-witness");
     let w = Elem(5);
     let instance = Claim(w);
 

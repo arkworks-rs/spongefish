@@ -4,8 +4,8 @@
 //! over the field of size `P = 2^31-1`.
 
 use spongefish::{
-    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
-    NargReader, Transcript, VerificationError, Witness,
+    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
+    VerificationError, Witness,
 };
 
 const P: u32 = (1 << 31) - 1;
@@ -136,7 +136,7 @@ fn hex(s: &str) -> Vec<u8> {
 
 fn setup() -> (spongefish::SessionId, Claim, Vec<M31>) {
     (
-        derive_session_id::<DefaultHash>(TAG),
+        Narg::derive_session_id(TAG),
         Claim {
             num_variables: 4,
             claimed_sum: M31(0xffff),

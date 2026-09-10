@@ -20,6 +20,39 @@ use crate::{
 /// the NARG string. Most protocols should use
 /// [`Narg::verify`][crate::Narg::verify], which manages this state and always
 /// enforces end of input.
+///
+/// # Example
+///
+/// The verifier of a Schnorr signature.
+///
+/// ```
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+/// # {
+/// use spongefish::{DefaultHash, Narg, VerifierState};
+///
+/// let generator = 7u32;
+/// let public_key = generator.wrapping_mul(42); // the prover's witness is 42
+/// let instance = [generator, public_key];
+/// let session_id = Narg::derive_session_id(b"spongefish/docs/schnorr-u32/v1");
+/// # let narg_string = {
+/// #     let mut prover = spongefish::ProverState::<DefaultHash>::new(&session_id, &instance);
+/// #     let nonce: u32 = prover.rng().sample();
+/// #     prover.prover_message(&generator.wrapping_mul(nonce));
+/// #     let challenge: u32 = prover.verifier_message();
+/// #     prover.last_prover_message(&nonce.wrapping_add(challenge.wrapping_mul(42)))
+/// # };
+///
+/// // `narg_string` is the output of the `ProverState` example.
+/// let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
+/// let commitment: u32 = verifier.prover_message().unwrap();
+/// let challenge: u32 = verifier.verifier_message();
+/// let response: u32 = verifier.last_prover_message().unwrap();
+/// assert_eq!(
+///     generator.wrapping_mul(response),
+///     commitment.wrapping_add(challenge.wrapping_mul(public_key))
+/// );
+/// # }
+/// ```
 pub struct VerifierState<
     'a,
     #[cfg(feature = "turboshake128")] H = DefaultHash,
@@ -250,7 +283,7 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
 
     /// Ensures that no trailing bytes remain in the NARG string.
     ///
-    /// A poisoned state never passes.
+    /// An invalid reader state will return [`VerificationError`] .
     ///
     /// # Security
     ///

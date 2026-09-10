@@ -22,6 +22,40 @@ use crate::{
 /// The private RNG is a [`PrivateRng`] over `R`, independently of the sponge
 /// `H` carrying the public coins.
 ///
+/// # Example
+///
+/// The prover side of a toy Schnorr protocol over `u32` with wrapping
+/// arithmetic (illustrative, not secure): sample a private nonce, send the
+/// commitment, squeeze the challenge, and send the response as the last
+/// message. [`VerifierState`][crate::VerifierState] shows the verifier side.
+///
+/// ```
+/// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
+/// # {
+/// use spongefish::{DefaultHash, Narg, ProverState};
+///
+/// let (generator, witness) = (7u32, 42u32);
+/// let instance = [generator, generator.wrapping_mul(witness)];
+/// let session_id = Narg::derive_session_id(b"spongefish/docs/schnorr-u32/v1");
+///
+/// let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
+/// let nonce: u32 = prover.rng().sample();
+/// prover.prover_message(&generator.wrapping_mul(nonce));
+/// let challenge: u32 = prover.verifier_message();
+/// let response = nonce.wrapping_add(challenge.wrapping_mul(witness));
+/// let narg_string = prover.last_prover_message(&response);
+///
+/// // Two `u32` prover messages: the commitment and the response.
+/// assert_eq!(narg_string.len(), 8);
+/// # // The verifier side replays the same public coins from the NARG string.
+/// # use spongefish::VerifierState;
+/// # let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &narg_string);
+/// # assert_eq!(verifier.prover_message::<u32>().unwrap(), generator.wrapping_mul(nonce));
+/// # assert_eq!(verifier.verifier_message::<u32>(), challenge);
+/// # assert_eq!(verifier.last_prover_message::<u32>().unwrap(), response);
+/// # }
+/// ```
+///
 /// # Security
 ///
 /// Leaking [`ProverState`] is equivalent to leaking the prover's private
@@ -329,7 +363,8 @@ where
     ///
     /// - It **MUST** be distribution-preserving: for a uniformly random
     ///   input, the output must be (statistically close to) uniform over the
-    ///   verifier message type.
+    ///   verifier message type. How large `n` must be for that to hold is
+    ///   documented on [`Decoding`][crate::Decoding].
     /// - It is infallible
     /// - Its input must be uniform
     /// - Any change to the decoding (e.g. sampling verifier messages differently)

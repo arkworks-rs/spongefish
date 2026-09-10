@@ -136,14 +136,12 @@ pub trait Permutation<const WIDTH: usize>: Clone {
     }
 }
 
-/// The duplex sponge construction from [[CO25], Construction 3.3].
+/// The duplex sponge construction from [[CO25], Construction 3.3], with minor changes.
 ///
 /// Based on a [`Permutation`] for `WIDTH` elements, with rate `RATE`.
-///
-/// # Instantiation
-///
 /// The rate segment is written in the first `RATE` units of the sponge;
 /// the capacity segment is written in the last `WIDTH`-`RATE` units of the sponge.
+/// Absorb and squeeze on empty/zero input are both NOP operations.
 ///
 /// # Panics
 ///
@@ -399,9 +397,9 @@ mod tests {
         assert_eq!(split.squeeze_array::<32>(), joined.squeeze_array::<32>());
     }
 
-    /// Squeezing is iterative: one rate block per iteration, not per stack
-    /// frame. A recursive implementation overflows well before this size on a
-    /// default test-thread stack.
+    /// Streess-test squeezing.
+    /// The current implementation is iterative, since the previous recursive implementation
+    /// would overflow on a default test-thread stack.
     #[test]
     fn large_squeeze_does_not_recurse() {
         let mut sponge = Sponge::default();

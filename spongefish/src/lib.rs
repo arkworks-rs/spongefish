@@ -57,8 +57,10 @@
 //!   can invalidate soundness and domain separation.
 //!   [`Narg`] derives the typed [`SessionId`] from this tag.
 //! - Encodings absorbed into the random oracle must satisfy the
-//!   prefix-freeness requirements documented by [`Encoding`]. Codec changes
-//!   require a new application tag.
+//!   prefix-freeness requirements documented by [`Encoding`], and verifier
+//!   messages must be decoded from a squeezed unit string wide enough to leave a
+//!   negligible bias. Codec changes, a change of width included, require a new
+//!   application tag.
 //! - Verification must consume the complete NARG. [`Narg::verify`] performs
 //!   this check; low-level users must call [`VerifierState::check_eof`].
 //! - Prover randomness must be secret, unpredictable, and never reused.
@@ -70,25 +72,50 @@
 //!
 //! ## Messages and codecs
 //!
-//! Conversions to/from the hash function are handled by the traits:
+//! A duplex sponge works over an alphabet, the [`Unit`] type `U` of its
+//! [`DuplexSpongeInterface`]: bytes for every instantiation in this crate, a
+//! prime field for the algebraic permutations of `spongefish-circuit`. A
+//! prover message has two destinations, and a codec is the pair of maps that
+//! take it there:
 //!
-//! - [`Encoding`], which is a prefix-free serialization map.
-//!   [`Encoding<[u8]>`] is used for serialization as well.
-//! - [`Decoding`], which is a uniform-distribution-preserving map.
+//! - [`Encoding<[U]>`][Encoding] maps the message into the sponge alphabet.
+//!   Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
+//! - [`Encoding`], the default `Encoding<[u8]>`, is the byte serialization
+//!   written to the NARG string, and the map that [`NargDeserialize`] inverts
+//!   on the verifier's side.
 //!
-//! To deserialize objects from the NARG string, use [`NargDeserialize`].
-//! [`Codec`] is the combined shorthand, and the optional `derive` feature supplies derive
-//! macros for these traits.
+//! Both must be prefix-free; see [`Encoding`].
+//!
+//! On a byte sponge the two coincide: `Encoding<[u8]>` is one trait bound
+//! spelled two ways, a single implementation does both jobs, and the bytes
+//! absorbed are exactly the bytes written. The verifier relies on this to read
+//! and absorb a message in one operation, on the very bytes read
+//! ([`VerifierState::prover_message_as`]). The [`Argument`] API is defined
+//! over byte sponges, so the distinction never surfaces there.
+//!
+//! On a sponge over a field `F`, a message type carries two implementations,
+//! `Encoding<[F]>` for the sponge and `Encoding` for the NARG string. They need
+//! not resemble each other, but each must be prefix-free over its own
+//! alphabet. The verifier deserializes the bytes and then absorbs the
+//! message's `Encoding<[F]>` ([`VerifierState::prover_message`]). The instance
+//! and public messages are absorbed but never written, so they need only
+//! `Encoding<[U]>`.
+//!
+//! Verifier messages go the other way: [`Decoding<[U]>`][Decoding] maps a
+//! squeezed string over the alphabet, [`Decoding::Repr`], to a verifier
+//! message (the map `ψ` of [[CO25]]). It must carry the uniform distribution
+//! on `Repr` to one close to uniform on the message, and the width of `Repr`
+//! is what makes that true; the rule is documented on [`Decoding`].
+//!
+//! [`Codec`] is the combined shorthand, and the optional `derive` feature
+//! supplies derive macros for these traits.
 //!
 //! Fixed-width integers, byte arrays, and tuples have built-in codecs.
 //! Variable-length sequences must use [`LengthPrefixed`] (or an equally
 //! unambiguous custom encoding); concatenating variable-length encodings
 //! without framing is unsafe.
 //!
-//! For a sponge over another alphabet `U`, [`Encoding<[U]>`] is the map
-//! absorbed into the oracle, while [`Encoding`] remains the byte serialization
-//! written to the NARG. The low-level
-//! [`ProverState::prover_message_with`] and
+//! The low-level [`ProverState::prover_message_with`] and
 //! [`VerifierState::prover_message_with`] methods accept these maps as
 //! closures when implementing traits is inconvenient.
 //!
@@ -257,12 +284,17 @@ impl AsRef<[u8]> for SessionId {
 /// This is `Init("irtf-cfrg-fiat-shamir/session-id"); Absorb(tag);
 /// Squeeze(32)`. Instantiated with the draft suites it matches the draft's
 /// construction exactly; other duplex sponges seed through their own
-/// [`DuplexSpongeInit`] convention.
+/// [`DuplexSpongeInit`] convention. For the default suite,
+/// [`Narg::derive_session_id`][crate::Narg::derive_session_id] is the same
+/// derivation without the type argument.
 ///
 /// ```
 /// # #[cfg(feature = "turboshake128")]
 /// # {
-/// let session_id = spongefish::derive_session_id::<spongefish::DefaultHash>(b"EXAMPLE-V01-DSFS");
+/// use spongefish::{derive_session_id, DefaultHash, Narg};
+///
+/// let session_id = derive_session_id::<DefaultHash>(b"EXAMPLE-V01-DSFS");
+/// assert_eq!(session_id, Narg::derive_session_id(b"EXAMPLE-V01-DSFS"));
 /// # }
 /// ```
 pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> SessionId {

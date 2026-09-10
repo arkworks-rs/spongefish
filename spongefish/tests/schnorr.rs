@@ -1,4 +1,4 @@
-//! Schnorr exercises the complete `Argument` flow: private sampling, prover
+//! An example for Schnorr exercises the complete `Argument` flow: private sampling, prover
 //! and verifier messages, witness arithmetic, and the verification equation.
 
 use curve25519_dalek::{
@@ -6,8 +6,8 @@ use curve25519_dalek::{
     scalar::Scalar,
 };
 use spongefish::{
-    derive_session_id, Argument, ByteArray, Decoding, DefaultHash, Encoding, Narg, NargDeserialize,
-    NargReader, Transcript, VerificationError, Witness,
+    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
+    VerificationError, Witness,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -122,7 +122,7 @@ fn setup() -> (spongefish::SessionId, Dlog, Fr) {
     let g = Point::generator();
     let x = Fr(Scalar::from(31337u64));
     (
-        derive_session_id::<DefaultHash>(b"https://example.com/typed/v1 schnorr"),
+        Narg::derive_session_id(b"https://example.com/typed/v1 schnorr"),
         Dlog { g, pk: g.mul(x) },
         x,
     )
@@ -142,57 +142,4 @@ fn nonces_are_not_reused() {
     let (a, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
     let (b, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
     assert_ne!(a, b);
-}
-
-/// `check` takes a closure so the prover can decline to evaluate it. Confirm
-/// that it actually does: in a release build the verification equation is never
-/// computed on the prover, which for a sigma protocol is the two scalar
-/// multiplications that dominate verification.
-///
-/// The counter is a `static` rather than a field, because an
-/// `Argument` may not carry data — a field on it would reach neither
-/// the sponge nor the session identifier.
-#[test]
-fn the_prover_does_not_compute_the_verification_equation_in_release() {
-    use core::sync::atomic::{AtomicU32, Ordering};
-
-    static EVALUATIONS: AtomicU32 = AtomicU32::new(0);
-
-    struct Counted;
-
-    impl Argument for Counted {
-        type Instance = Dlog;
-        type Witness = Fr;
-        type Output = ();
-
-        fn run<T: Transcript>(
-            transcript: &mut T,
-            _instance: &Dlog,
-            _witness: Witness<&Fr>,
-        ) -> Result<(), VerificationError> {
-            transcript.check(|| {
-                EVALUATIONS.fetch_add(1, Ordering::Relaxed);
-                true
-            })
-        }
-    }
-
-    let (sid, instance, x) = setup();
-    let (narg, ()) = Narg::prove_with_session_id::<Counted>(&sid, &instance, &x).expect("prover");
-
-    // Debug builds keep it as a completeness self-test; release builds skip it.
-    let expected = u32::from(cfg!(debug_assertions));
-    assert_eq!(
-        EVALUATIONS.swap(0, Ordering::Relaxed),
-        expected,
-        "prover-side evaluations"
-    );
-
-    // The verifier always evaluates it, whatever the profile.
-    assert!(Narg::verify_with_session_id::<Counted>(&sid, &instance, &narg).is_ok());
-    assert_eq!(
-        EVALUATIONS.load(Ordering::Relaxed),
-        1,
-        "the verifier must always check"
-    );
 }

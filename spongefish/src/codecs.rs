@@ -41,10 +41,14 @@ where
 {
 }
 
-/// Interface for turning a type into a duplex sponge input.
+/// A prefix-free map from a type into strings over a sponge alphabet.
 ///
-/// [`Encoding<T>`] defines an encoding into a type `T`.
-/// By default `T = [u8]` in order to serve encoding for byte-oriented hash functions.
+/// The parameter `U` is the target alphabet, as a slice type. `Encoding<[U]>`
+/// maps into a random oracle that operates over a [`Unit`][crate::Unit] `U`.
+/// Its output is what will be absorbed. The default unit, `Encoding<[u8]>`, is
+/// also the serialization written to the NARG string.
+/// A type used with a sponge over another alphabet implements the trait once per alphabet;
+/// see [Messages and codecs](crate#messages-and-codecs).
 ///
 /// # Security
 ///
@@ -52,11 +56,14 @@ where
 /// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of the
 /// encoding of any other instance of the same type.
 ///
-/// More information on the theoretical requirements is in [[CO25], Theorem 6.2].
+/// Changing the encoding function requires changing the session identifier too.
+///
+///  More information on the theoretical requirements is in [[CO25], Theorem 6.2].
 ///
 /// # Encoding conventions
 ///
-/// For byte sequences, encoding must be the identity function.
+/// Byte arrays `[u8; N]` encode as themselves; a bare `[u8]` has no encoding,
+/// as it is not prefix-free (use [`LengthPrefixed`]).
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
 /// Integers are encoded as their fixed-width little-endian bytes.
 ///
@@ -71,12 +78,62 @@ where
     fn encode(&self) -> impl AsRef<T>;
 }
 
-/// The interface for all types that can be turned into verifier messages.
+/// A distribution-preserving map from squeezed sponge output to a verifier
+/// message.
+///
+/// The parameter `T` is the sponge alphabet as a slice type, as for
+/// [`Encoding`]: `Decoding<[U]>` reads a string over the alphabet of a sponge
+/// whose [`Unit`][crate::Unit] is `U`, and the default `Decoding<[u8]>` serves
+/// byte sponges. This is the map `ψ` of [[CO25], Definition 4.1]: the sponge
+/// squeezes a uniformly random [`Decoding::Repr`], and
+/// [`decode`][Decoding::decode] turns it into the message. The same map draws
+/// the prover's private randomness
+/// ([`PrivateRng::sample`][crate::PrivateRng::sample]), where a bias is worse
+/// than a soundness loss: biased nonces leak the witness.
+///
+/// # Security
+///
+/// [`decode`][Decoding::decode] need not be injective, but it **must**
+/// preserve the uniform distribution: for a uniform `Repr`, its output must
+/// be uniform over the message type, or statistically close to it. [[CO25]]
+/// calls that statistical distance the bias of the decoding map, and this distance
+/// is part of the soundness and zero-knowledge bounds as an additive error term, so it
+/// has to be negligible.
+///
+/// The width of `Repr` can help make the decoding bias negligible:
+///
+/// - A type with a power-of-two number of values, an integer `uN` or a byte
+///   array, is decoded from a `Repr` of exactly its own width: the map is a
+///   bijection and the bias is zero. The built-in codecs do this for [u8],
+///   [u16], [u32], [u64], and [u128].
+/// - An integer modulo `p`, a field element or a scalar, is decoded by
+///   reducing a uniform `m`-bit integer modulo `p`. The bias of that
+///   reduction is at most `2^-λ` once `m ≥ ⌈log₂ p⌉ + λ`
+///   ([[CO25], Appendix C, Lemma C.1]), so squeeze `λ` bits more than `p`
+///   occupies and reduce the whole string. This is `DecodeUint` of
+///   draft-irtf-cfrg-fiat-shamir, whose `Ns + 16` bytes are `λ = 128`.
+///   Reducing only as many bytes as `p` occupies is not safe in general: the
+///   same lemma puts the bias at `2r(p − r) / (p · 2^m)` with `r = 2^m mod p`,
+///   which is negligible only when `2^m` lies within a negligible fraction of
+///   a multiple of `p`. It is about `2^-31` for the P-256 group order, and
+///   about `0.15`, a constant, for the BLS12-381 scalar field.
+///
+/// On a byte sponge, `ByteArray<N>` is the `N`-byte `Repr`. The width is part
+/// of the codec: prover and verifier must squeeze the same `Repr`, and a change
+/// of width changes the transcript, so it must be reflected in the application
+/// tag.
+///
+/// Changing the decoding function requires changing the session identifier too.
+///
+/// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub trait Decoding<T = [u8]>
 where
     T: ?Sized,
 {
     /// The output type (and length) expected by the duplex sponge.
+    ///
+    /// The squeezed string over the alphabet, sized as described in the
+    /// [security section](Decoding#security).
     ///
     /// # Example
     ///

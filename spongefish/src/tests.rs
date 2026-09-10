@@ -9,7 +9,7 @@ use crate::{
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
-    derive_session_id::<DefaultHash>(tag)
+    Narg::derive_session_id(tag)
 }
 
 /// A poisoned verifier refuses every later read, even one the bytes would
