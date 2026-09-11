@@ -142,6 +142,11 @@ where
     /// let repr: ByteArray<4> = Default::default();
     /// assert_eq!(repr.as_ref(), &[0u8; 4]);
     /// ```
+    ///
+    /// Private sampling transfers this buffer into `decode`. [`ByteArray`]
+    /// wipes itself on drop, including during unwinding. Custom representations
+    /// used for private sampling must provide their own erasure; copies made by
+    /// a decoder and the decoded value remain the decoder/caller's responsibility.
     type Repr: Default + AsMut<T>;
 
     /// The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
@@ -203,7 +208,7 @@ macro_rules! impl_int_encoding {
             type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
 
             fn decode(buf: Self::Repr) -> Self {
-                <$type>::from_le_bytes(Decoding::decode(buf))
+                <$type>::from_le_bytes(buf.0)
             }
         }
     )*};
@@ -211,8 +216,20 @@ macro_rules! impl_int_encoding {
 
 impl_int_encoding!(u8, u16, u32, u64, u128);
 
-#[derive(Debug, Clone)]
+/// A fixed-width decoding buffer, wiped on drop even without the `zeroize`
+/// feature. That feature controls sponge-state erasure, not these buffers.
+///
+/// The buffer moves into [`Decoding::decode`], so its owner wipes it when
+/// decoding returns or unwinds. Decoders should borrow through [`AsRef`]
+/// rather than copying the preimage into an unprotected temporary.
+#[derive(Clone, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct ByteArray<const N: usize>([u8; N]);
+
+impl<const N: usize> core::fmt::Debug for ByteArray<N> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("ByteArray(..)")
+    }
+}
 
 impl<const N: usize> Default for ByteArray<N> {
     fn default() -> Self {
@@ -399,8 +416,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Encoding, LengthPrefixed, Vec};
+    use super::{ByteArray, Encoding, LengthPrefixed, Vec};
     use crate::NargDeserialize;
+
+    /// The representation keeps its exact width for derived codecs, but now
+    /// carries an erasing destructor even in a no-default-features build.
+    #[test]
+    fn decoding_buffers_are_wipeable_and_redacted() {
+        use zeroize::{Zeroize, ZeroizeOnDrop};
+
+        fn assert_wipes_on_drop<T: ZeroizeOnDrop>() {}
+        assert_wipes_on_drop::<ByteArray<64>>();
+        assert!(core::mem::needs_drop::<ByteArray<64>>());
+        assert_eq!(size_of::<ByteArray<64>>(), 64);
+        let mut buffer = ByteArray::<64>::default();
+        buffer.as_mut().fill(0xa5);
+        assert_eq!(alloc::format!("{buffer:?}"), "ByteArray(..)");
+        buffer.zeroize();
+        assert_eq!(buffer.as_ref(), &[0; 64]);
+    }
 
     /// The `str` codec spans the inline/heap boundary as the string grows; the
     /// bytes must stay `u32` length prefix followed by UTF-8, throughout.

@@ -1,20 +1,14 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+use zeroize::Zeroizing;
+
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{duplex_sponge::DuplexSpongeInit, Decoding};
 
 /// The byte length of a [`PrivateRng`] seed.
 pub const SEED_LEN: usize = 32;
-
-/// Best-effort seed wiping; a guarantee only with the `zeroize` feature.
-fn wipe_seed(seed: &mut [u8; SEED_LEN]) {
-    #[cfg(feature = "zeroize")]
-    zeroize::Zeroize::zeroize(seed);
-    #[cfg(not(feature = "zeroize"))]
-    seed.fill(0);
-}
 
 /// The prover's private randomness.
 ///
@@ -58,11 +52,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     /// Panics if the operating system's entropy source fails.
     #[cfg(feature = "getrandom")]
     pub fn from_os_entropy() -> Self {
-        let mut seed = [0u8; SEED_LEN];
-        getrandom::fill(&mut seed).expect("operating system entropy source failed");
-        let rng = Self::from_seed(seed);
-        wipe_seed(&mut seed);
-        rng
+        let mut seed = Zeroizing::new([0u8; SEED_LEN]);
+        getrandom::fill(seed.as_mut()).expect("operating system entropy source failed");
+        Self {
+            sponge: H::init(&seed),
+        }
     }
 
     /// Builds a **deterministic** CSRNG from a seed.
@@ -71,12 +65,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     ///
     /// This function is meant to be used for test vectors and reproducible tests only.
     /// Proving with a fixed or reused seed compromises zero-knowledge.
-    pub fn from_seed(mut seed: [u8; SEED_LEN]) -> Self {
-        let rng = Self {
+    pub fn from_seed(seed: [u8; SEED_LEN]) -> Self {
+        let seed = Zeroizing::new(seed);
+        Self {
             sponge: H::init(&seed),
-        };
-        wipe_seed(&mut seed);
-        rng
+        }
     }
 
     /// Mixes additional entropy into the RNG state.
@@ -93,6 +86,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
 
     /// Samples a value through its [`Decoding`] codec — the same
     /// distribution-preserving path used for verifier messages.
+    ///
+    /// The standard [`crate::ByteArray`] representation wipes itself after
+    /// decoding, even if decoding unwinds. A custom representation must erase
+    /// its own storage; this method cannot wipe a buffer after transferring
+    /// ownership to the decoder. The returned sample is owned by the caller.
     pub fn sample<T: Decoding>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
@@ -116,15 +114,11 @@ impl<H: DuplexSpongeInit<U = u8>> rand_core::TryRng for PrivateRng<H> {
     type Error = core::convert::Infallible;
 
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-        let mut buf = [0u8; 4];
-        self.fill_bytes(&mut buf);
-        Ok(u32::from_le_bytes(buf))
+        Ok(self.sample())
     }
 
     fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-        let mut buf = [0u8; 8];
-        self.fill_bytes(&mut buf);
-        Ok(u64::from_le_bytes(buf))
+        Ok(self.sample())
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {

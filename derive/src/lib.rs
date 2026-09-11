@@ -192,7 +192,9 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
     } else {
         quote! {
-            let bytes = *buf.as_ref();
+            // Keep the preimage in its wiping owner instead of copying it
+            // into an unprotected array on the stack.
+            let bytes = buf.as_ref();
             let mut offset = 0usize;
             let value = Self { #(#field_inits)* };
             assert_eq!(

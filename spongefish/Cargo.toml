@@ -20,7 +20,7 @@ default = ["turboshake128", "getrandom", "zeroize"]
 yolocrypto = []
 # Core features
 derive = ["dep:spongefish-derive"]
-zeroize = ["dep:zeroize", "shake?/zeroize", "turboshake?/zeroize"]
+zeroize = ["shake?/zeroize", "turboshake?/zeroize"]
 # The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and DefaultHash.
 turboshake128 = ["dep:shake", "dep:turboshake"]
 # Prover randomness: OS entropy for the private RNG (default), and an optional
@@ -40,7 +40,7 @@ rand_core = { workspace = true, optional = true }
 shake = { workspace = true, optional = true }
 spongefish-derive = { workspace = true, optional = true }
 turboshake = { workspace = true, optional = true }
-zeroize = { workspace = true, features = ["zeroize_derive"], optional = true }
+zeroize = { workspace = true, features = ["zeroize_derive"] }
 
 [dev-dependencies]
 curve25519-dalek = { workspace = true }

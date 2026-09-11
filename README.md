@@ -65,7 +65,7 @@ Narg::verify::<Schnorr>(tag, &instance, &narg).unwrap();
 | --- | :-: | --- |
 | `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `DefaultHash`, `Narg`, and `ProverState` |
 | `getrandom` | ✓ | Enables OS-seeded `ProverState::new`; with `turboshake128`, also enables `Narg::prove` |
-| `zeroize` | ✓ | Wipes sponge and RNG state on drop |
+| `zeroize` | ✓ | Enables sponge-state wiping where supported by the backend; standard decoding buffers and RNG seed buffers are always wiped on drop |
 | `derive` | | `#[derive(Codec)]` and friends via `spongefish-derive` |
 | `rand` | | `rand_core` trait adapters for `PrivateRng` |
 | `keccak` | | Overwrite-mode duplex sponge over Keccak-f\[1600\] |
