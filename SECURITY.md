@@ -1,5 +1,8 @@
 # Security Policy
 
+See [the threat model](docs/threat-model.md) for trust boundaries, caller
+obligations, secret-erasure guarantees, and the scope of the assurance checks.
+
 ## Reporting a vulnerability
 
 **Please do not open a public issue for a security problem.**

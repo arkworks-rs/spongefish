@@ -74,6 +74,9 @@ Narg::verify::<Schnorr>(tag, &instance, &narg).unwrap();
 
 ## More information
 
+See the [threat model](docs/threat-model.md) for security guarantees, caller
+responsibilities, and assurance limits.
+
 See the [crate documentation](https://arkworks.rs/spongefish/), the
 [Ristretto Schnorr integration test](https://github.com/arkworks-rs/spongefish/blob/main/spongefish/tests/interactive_schnorr.rs),
 and the [sumcheck integration test](https://github.com/arkworks-rs/spongefish/blob/main/spongefish/tests/interactive_sumcheck.rs).
