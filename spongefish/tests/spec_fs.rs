@@ -2,9 +2,8 @@
 //! TurboSHAKE128 duplex sponges ([`spongefish::instantiations`]).
 //!
 //! The JSON files under `tests/spec/vectors/` are vendored verbatim from the
-//! specification repository (`poc/vectors/`); `vendored_vectors_are_fresh`
-//! fails if they drift from the spec copy when the spec repo is checked out
-//! alongside this one.
+//! specification repository (`poc/vectors/`). CI verifies their bytes against
+//! the immutable revision and SHA-256 digests in `spec/provenance.json`.
 
 #![cfg(feature = "turboshake128")]
 
@@ -115,27 +114,4 @@ fn shake128_spec_vectors() {
 #[test]
 fn turboshake128_spec_vectors() {
     run_vectors::<TurboShake128>(TURBOSHAKE128_VECTORS);
-}
-
-/// When the specification repository is checked out next to this one, the
-/// vendored vector files must be byte-identical to its copies.
-#[test]
-fn vendored_vectors_are_fresh() {
-    let spec_vectors = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../draft-irtf-cfrg-sigma-protocols/poc/vectors");
-    if !spec_vectors.is_dir() {
-        eprintln!("spec repo not present; skipping freshness check");
-        return;
-    }
-    for (vendored, name) in [
-        (SHAKE128_VECTORS, "fiatShamirShake128Vectors.json"),
-        (TURBOSHAKE128_VECTORS, "fiatShamirTurboShake128Vectors.json"),
-    ] {
-        let spec_copy = std::fs::read_to_string(spec_vectors.join(name))
-            .unwrap_or_else(|e| panic!("cannot read spec copy of {name}: {e}"));
-        assert_eq!(
-            vendored, spec_copy,
-            "{name} drifted from the spec repository; re-vendor it"
-        );
-    }
 }
