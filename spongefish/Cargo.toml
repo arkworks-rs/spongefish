@@ -45,6 +45,7 @@ zeroize = { workspace = true, features = ["zeroize_derive"] }
 [dev-dependencies]
 curve25519-dalek = { workspace = true }
 hex = { workspace = true }
+proptest = { version = "1.8", default-features = false, features = ["std"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -55,6 +56,10 @@ workspace = true
 [[test]]
 name = "noncanonical"
 required-features = ["getrandom", "turboshake128"]
+
+[[test]]
+name = "property"
+required-features = ["turboshake128"]
 
 [[test]]
 name = "schnorr"
