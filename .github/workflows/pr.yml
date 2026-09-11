@@ -156,6 +156,16 @@ jobs:
       - name: Test
         run: cargo test --workspace --all-features --locked --verbose
 
+  hardened:
+    name: Overflow-checked release tests
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: '-C overflow-checks=on -C debug-assertions=on'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace --locked --all-features --release --no-fail-fast
+
   # Advisories, licenses, banned crates and dependency sources. See deny.toml.
   supply-chain:
     name: Supply chain
@@ -179,6 +189,7 @@ jobs:
       - docs-rs
       - msrv
       - locked
+      - hardened
       - supply-chain
       - vector-provenance
     runs-on: ubuntu-latest
