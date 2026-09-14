@@ -114,10 +114,12 @@ where
         xof
     }
 
-    /// Zero-pads each mix until the absorb position reaches a full rate block.
+    /// Absorb the input, then zero-fills to a rate boundary.
     ///
-    /// The input is **not** padded: this means that absorbing `input` is equivalent to
-    /// absorbing `input || 0 ..`, for any `0` up to the remaining units to fill the block.
+    /// No padding is added. Therefore:
+    ///
+    /// 1. The input may share a block with previously absorbed data.
+    /// 2. Appending zero bytes to the input, up to the same boundary, produces the same state.
     fn absorb_block(&mut self, input: &[u8]) {
         self.absorb(input);
         let rem = self.absorb_position;

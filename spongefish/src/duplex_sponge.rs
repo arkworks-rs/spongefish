@@ -310,9 +310,11 @@ pub trait DuplexSpongeInit: DuplexSpongeInterface {
 
     /// Absorb auxiliary input such as RNG entropy mixes.
     ///
-    /// Constructions with a block structure (the XOF suites) zero-pad the
-    /// input to the next rate boundary so it is permuted before any further
-    /// operation.
+    /// The default implementation delegates to [`DuplexSpongeInterface::absorb`]
+    /// without padding or alignment.
+    ///
+    /// The XOF suites append the input at the current absorb position, then zero-fill
+    /// the rate segment.
     fn absorb_block(&mut self, input: &[Self::U]) {
         self.absorb(input);
     }

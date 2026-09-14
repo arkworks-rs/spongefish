@@ -19,8 +19,15 @@ pub const SEED_LEN: usize = 32;
 /// # Compartmentalization
 ///
 /// The seed is absorbed via the construction's `Init` convention.
-/// Entropy mixed in later via ([`PrivateRng::mix_entropy`]) in its own block,
-/// via [`DuplexSpongeInit::absorb_block`].
+/// Additional entropy may be absorbed via [`DuplexSpongeInit::absorb_block`], whose
+/// behavior depends on the construction; its default implementation simply
+/// calls `absorb`.
+///
+/// With the provided SHAKE128 and TurboSHAKE128 suites, initialization ends
+/// at a rate boundary, squeezing leaves the absorb position unchanged, and
+/// each entropy mix is zero-filled to a rate boundary. Each 32-byte mix
+/// therefore occupies its own rate block in this RNG. This is not a generic
+/// guarantee of [`DuplexSpongeInit`].
 ///
 /// # Interoperability with `rand`
 ///
@@ -74,7 +81,10 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
 
     /// Mixes additional entropy into the RNG state.
     ///
-    /// The input `data` is a fixed-width seed zero-padded to fill the hash block.
+    /// The fixed-width seed is passed to [`DuplexSpongeInit::absorb_block`].
+    /// The provided SHAKE128 and TurboSHAKE128 suites zero-fill each mix to
+    /// its own rate block in this RNG; other constructions use their own
+    /// absorption conventions.
     pub fn mix_entropy(&mut self, data: &[u8; SEED_LEN]) {
         self.sponge.absorb_block(data);
     }
@@ -129,3 +139,51 @@ impl<H: DuplexSpongeInit<U = u8>> rand_core::TryRng for PrivateRng<H> {
 
 #[cfg(feature = "rand")]
 impl<H: DuplexSpongeInit<U = u8>> rand_core::TryCryptoRng for PrivateRng<H> {}
+
+#[cfg(all(test, feature = "turboshake128"))]
+mod tests {
+    use digest::{ExtendableOutput, Update, XofReader};
+
+    use super::{PrivateRng, SEED_LEN};
+    use crate::instantiations::{XofRate, XOF};
+
+    #[test]
+    fn xof_entropy_mixes_occupy_separate_blocks_across_squeezes() {
+        fn check<H: ExtendableOutput + Clone + Default + XofRate>()
+        where
+            H::Reader: Clone,
+        {
+            let seed = [7; SEED_LEN];
+            let mut rng = PrivateRng::<XOF<H>>::from_seed(seed);
+            // Independent reference: hash explicit full blocks for the seed
+            // and every mix, without using XOF::init or absorb_block.
+            let padding = alloc::vec![0; H::RATE - SEED_LEN];
+            let mut reference = H::default();
+            Update::update(&mut reference, &seed);
+            Update::update(&mut reference, &padding);
+
+            // Consecutive mixes, empty squeezes, and squeezes across rate
+            // boundaries must all preserve alignment for the next mix.
+            for (round, lengths) in [[0, 0], [0, 0], [1, 32], [167, 2], [168, 169], [337, 1]]
+                .into_iter()
+                .enumerate()
+            {
+                let entropy = [round as u8; SEED_LEN];
+                rng.mix_entropy(&entropy);
+                Update::update(&mut reference, &entropy);
+                Update::update(&mut reference, &padding);
+                let mut expected_stream = reference.clone().finalize_xof();
+                for length in lengths {
+                    let mut got = alloc::vec![0; length];
+                    let mut expected = alloc::vec![0; length];
+                    rng.fill_bytes(&mut got);
+                    expected_stream.read(&mut expected);
+                    assert_eq!(got, expected, "mix {round}, squeeze length {length}");
+                }
+            }
+        }
+
+        check::<shake::Shake128>();
+        check::<turboshake::TurboShake128>();
+    }
+}
