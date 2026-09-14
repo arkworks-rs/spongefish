@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/mmaker/draft-irtf-cfrg-sigma-protocols",
+  "revision": "19af52728ff982bb91571a8fdfc1843627c928b0",
+  "directory": "poc/vectors",
+  "files": {
+    "fiatShamirShake128Vectors.json": "f04cdf455b60239d20392813ffd5dd8d079fb1c0d5b0e07de3e50899bd6f6502",
+    "fiatShamirTurboShake128Vectors.json": "c6fbf9a018c88c7c32b60dd37dab912f135a051ddb1673454286f25f9e0c6e09"
+  }
+}

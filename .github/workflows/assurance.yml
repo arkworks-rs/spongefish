@@ -1,0 +1,100 @@
+name: Assurance
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/assurance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assurance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  miri:
+    name: Miri (${{ matrix.features }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        features: [default, no-default]
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+      # Default-feature tests exercise the OS entropy constructor.
+      MIRIFLAGS: -Zmiri-disable-isolation
+      # Interpret portable SHA-2 and Keccak. This lane does not validate their
+      # architecture-specific intrinsics; native tests retain backend dispatch.
+      RUSTFLAGS: '--cfg sha2_backend="soft" --cfg keccak_backend="soft"'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - name: Check core library memory behavior
+        # Megabyte stress tests are exercised natively on each PR. Interpreting
+        # them adds cost without a new code path; retain all other unit tests.
+        run: |
+          case "${{ matrix.features }}" in
+            default) cargo miri test --locked -p spongefish --lib --features derive -- --skip large_squeeze_does_not_recurse ;;
+            no-default) cargo miri test --locked -p spongefish --lib --no-default-features -- --skip large_squeeze_does_not_recurse ;;
+          esac
+
+  property:
+    name: Extended property tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROPTEST_CASES: '100000'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked -p spongefish --all-features --release --test property
+      - name: Preserve shrunk counterexamples
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proptest-regressions
+          path: |
+            **/proptest-regressions/**
+            **/*.proptest-regressions
+          if-no-files-found: ignore
+
+  coverage:
+    name: Core coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Enforce the core library coverage floor
+        # Measured at 83.3% when introduced. Keep a little platform margin;
+        # raise the floor as coverage improves, never lower it to hide a failure.
+        # This deliberately measures the core crate, not experimental crates.
+        run: |
+          cargo llvm-cov --locked -p spongefish --all-features \
+            --ignore-filename-regex '(tests/|benches/|examples/)' \
+            --fail-under-lines 80 --lcov --output-path lcov.info
+      - name: Coverage summary
+        if: always()
+        run: |
+          cargo llvm-cov report -p spongefish --summary-only \
+            --ignore-filename-regex '(tests/|benches/|examples/)' \
+            >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-coverage
+          path: lcov.info
