@@ -6,9 +6,11 @@ use crate::VerificationError;
 ///
 /// # Failure
 ///
-/// A failed read poisons the reader: every later read fails, it is never
-/// empty, and the NARG verifier rejects the message even if the failure was
-/// caught. Drop the reader and report the error.
+/// Failed byte reads and errors returned through [`NargReader::read`] or
+/// [`NargReader::read_with`] will poison the reader.
+///
+/// Once the reader is poisoned, every subsequent read will return [`VerificationError`],
+/// including zero-length reads. Parsers will not be invoked on a poisoned reader.
 ///
 /// ```
 /// use spongefish::NargReader;
@@ -49,6 +51,11 @@ impl<'a> NargReader<'a> {
         self.unread.is_none()
     }
 
+    /// Marks the reader invalid, including after the last byte was consumed.
+    const fn poison(&mut self) {
+        self.unread = None;
+    }
+
     /// The bytes not yet consumed; `None` once the reader is poisoned.
     pub(crate) const fn unread(&self) -> Option<&'a [u8]> {
         self.unread
@@ -56,38 +63,67 @@ impl<'a> NargReader<'a> {
 
     /// Reads one value from the front of the NARG string.
     ///
-    /// A failure poisons the reader.
-    pub fn read<T: NargDeserialize>(&mut self) -> Result<T, T::Error> {
+    /// Returns [`VerificationError`] and poisons the reader on any parsing
+    /// failure. A poisoned reader rejects the read without invoking the decoder.
+    pub fn read<T: NargDeserialize>(&mut self) -> Result<T, VerificationError> {
         self.read_with(T::deserialize_from_narg)
     }
 
-    /// Runs `parse` on the reader; a failure poisons it.
-    pub(crate) fn read_with<T, E>(
+    /// Runs a parser, returning [`VerificationError`] on any parsing failure.
+    ///
+    /// A returned error will poison the reader.
+    /// Use this for closure-based codecs and [`Self::read`] for types implementing
+    /// [`NargDeserialize`].
+    ///
+    /// ```
+    /// use spongefish::{NargReader, VerificationError};
+    ///
+    /// let mut reader = NargReader::new(&[255]);
+    /// let result = reader.read_with(|reader| {
+    ///     let [value] = reader.take_array::<1>()?;
+    ///     if value > 1 {
+    ///         return Err(VerificationError);
+    ///     }
+    ///     Ok(value != 0)
+    /// });
+    /// assert!(result.is_err());
+    /// assert!(reader.is_poisoned());
+    /// assert!(!reader.is_empty());
+    /// ```
+    pub fn read_with<T>(
         &mut self,
-        parse: impl FnOnce(&mut Self) -> Result<T, E>,
-    ) -> Result<T, E> {
-        let result = parse(self);
-        if result.is_err() {
-            self.unread = None;
+        parse: impl FnOnce(&mut Self) -> Result<T, VerificationError>,
+    ) -> Result<T, VerificationError> {
+        if self.is_poisoned() {
+            return Err(VerificationError);
         }
-        result
+        match parse(self) {
+            Ok(value) if !self.is_poisoned() => Ok(value),
+            _ => {
+                self.poison();
+                Err(VerificationError)
+            }
+        }
     }
 
     /// Reads `count` values in sequence.
     ///
-    /// `count` is untrusted: allocation is capped, and an element that
+    /// `count` is untrusted: initial allocation is capped, and an element that
     /// consumes no input is rejected, so a large count cannot spin without
     /// consuming the NARG string.
     pub fn read_vec<T: NargDeserialize>(
         &mut self,
         count: usize,
     ) -> Result<Vec<T>, VerificationError> {
+        if self.is_poisoned() {
+            return Err(VerificationError);
+        }
         let mut elements = Vec::with_capacity(count.min(64));
         for _ in 0..count {
             let before = self.unread.map(<[u8]>::len);
-            let element = self.read::<T>().map_err(Into::into)?;
+            let element = self.read::<T>()?;
             if self.unread.map(<[u8]>::len) == before {
-                self.unread = None;
+                self.poison();
                 return Err(VerificationError);
             }
             elements.push(element);
@@ -97,12 +133,11 @@ impl<'a> NargReader<'a> {
 
     /// Consumes the next `len` bytes.
     ///
-    /// Returns `None` and poisons the reader if fewer than `len` bytes remain,
+    /// Returns [`VerificationError`] and poisons the reader if fewer than `len` bytes remain,
     /// so a truncated NARG string can never make a parser read past its end.
     /// `len` may come from the NARG string itself: an over-long length prefix
     /// fails here rather than being trusted.
-    #[must_use = "A `None` result may indicate a verification error"]
-    pub fn take(&mut self, len: usize) -> Option<&'a [u8]> {
+    pub fn take(&mut self, len: usize) -> Result<&'a [u8], VerificationError> {
         self.advance(|unread| unread.split_at_checked(len))
     }
 
@@ -111,23 +146,24 @@ impl<'a> NargReader<'a> {
     /// The fixed-length read that carries most prover messages: a compressed
     /// group element, a canonical scalar, a digest. A short NARG string fails
     /// as in [`NargReader::take`].
-    #[must_use = "A `None` result may indicate a verification error"]
-    pub fn take_array<const N: usize>(&mut self) -> Option<[u8; N]> {
+    pub fn take_array<const N: usize>(&mut self) -> Result<[u8; N], VerificationError> {
         self.advance(|unread| unread.split_first_chunk::<N>())
             .copied()
     }
 
     /// Splits a head off the unread tail and advances past it.
     ///
-    /// A poisoned reader yields nothing, and a `split` that yields nothing
-    /// poisons the reader.
-    fn advance<T>(&mut self, split: impl FnOnce(&'a [u8]) -> Option<(T, &'a [u8])>) -> Option<T> {
+    /// A poisoned reader returns an error; a failed split poisons the reader.
+    fn advance<T>(
+        &mut self,
+        split: impl FnOnce(&'a [u8]) -> Option<(T, &'a [u8])>,
+    ) -> Result<T, VerificationError> {
         let Some((head, tail)) = self.unread.and_then(split) else {
-            self.unread = None;
-            return None;
+            self.poison();
+            return Err(VerificationError);
         };
         self.unread = Some(tail);
-        Some(head)
+        Ok(head)
     }
 }
 
@@ -153,6 +189,10 @@ impl<'a> NargReader<'a> {
 /// - It must not panic on invalid input, read beyond the input, or silently substitute a default value.
 ///   Implementations that allocate based on attacker-controlled input should impose an appropriate bound before
 ///   allocating.
+/// - Return an error on validation failure and propagate errors from nested
+///   parsers. Invoke nested parsers through [`NargReader::read`] or
+///   [`NargReader::read_with`] so their returned errors automatically poison
+///   the reader, even if subsequently caught.
 ///
 /// The implementation need not consume the entire reader.
 /// However, the caller must reject trailing bytes after the complete NARG has been parsed.
@@ -164,36 +204,37 @@ impl<'a> NargReader<'a> {
 ///
 /// [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 pub trait NargDeserialize: Sized {
-    /// What a failed parse reports.
-    ///
-    /// The NARG verifier reports [`VerificationError`] and nothing more, so
-    /// that is what this converts into; an implementation is free to carry more
-    /// detail for its own callers. `Debug` makes a read result unwrappable.
-    type Error: Into<VerificationError> + core::fmt::Debug;
-
     /// This map must compute the inverse of [`Encoding::encode`](crate::Encoding::encode),
     /// or return an error if a pre-image does not exist.
     ///
-    /// Implementations read through [`NargReader`].
+    /// This is an implementation hook. Call [`NargReader::read`] to parse a
+    /// value with automatic poisoning on error.
     ///
     /// # Security
     ///
-    /// A failure poisons the reader: later reads fail, and the message is
-    /// rejected even if the error is caught. Propagate it.
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error>;
+    /// Implementations return `Err` for invalid input; the reader handles
+    /// poisoning when the error reaches [`NargReader::read`] or
+    /// [`NargReader::read_with`]. Use those entry points for nested parsers
+    /// and propagate their errors. Calling this hook directly bypasses the
+    /// wrapper and does not guarantee poisoning on a returned error.
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError>;
 
     /// Reads `N` consecutive values: the body of `[Self; N]`'s implementation.
     ///
     /// The batch deserialization method, so that a whole array of prover message can be read at once.
+    /// Call `reader.read::<[T; N]>()` to parse an array with automatic poisoning.
     ///
     /// # Security
     ///
     /// An override **MUST** accept exactly the inputs that `N` calls to
     /// [`NargDeserialize::deserialize_from_narg`] accept. It **MUST** consume
-    /// exactly the same bytes they consume.
+    /// exactly the same bytes they consume. Return errors to the reader and
+    /// use [`NargReader::read`] or [`NargReader::read_with`] for nested parsers.
+    /// As with the single-value hook, calling an override directly bypasses
+    /// automatic poisoning of its returned errors.
     fn deserialize_array_from_narg<const N: usize>(
         reader: &mut NargReader<'_>,
-    ) -> Result<[Self; N], Self::Error> {
+    ) -> Result<[Self; N], VerificationError> {
         // `array::from_fn` must yield a value for every slot, and there is
         // nothing to yield once parsing has failed, so the error is set aside
         // and the slots hold `Option`s; `try_from_fn` would say this directly
@@ -203,7 +244,7 @@ pub trait NargDeserialize: Sized {
             if failure.is_some() {
                 return None;
             }
-            match Self::deserialize_from_narg(reader) {
+            match reader.read::<Self>() {
                 Ok(element) => Some(element),
                 Err(error) => {
                     failure = Some(error);
@@ -220,9 +261,7 @@ pub trait NargDeserialize: Sized {
 }
 
 impl<const N: usize, T: NargDeserialize> NargDeserialize for [T; N] {
-    type Error = T::Error;
-
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         T::deserialize_array_from_narg::<N>(reader)
     }
 }
@@ -231,14 +270,9 @@ macro_rules! impl_int_deserialize {
     ($($type:ty),*) => {$(
         /// Little-endian, matching the [`Encoding`](crate::Encoding) convention for integers.
         impl NargDeserialize for $type {
-            type Error = VerificationError;
-
-            fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+            fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
                 const LEN: usize = core::mem::size_of::<$type>();
-                reader
-                    .take_array::<LEN>()
-                    .map(Self::from_le_bytes)
-                    .ok_or(VerificationError)
+                reader.take_array::<LEN>().map(Self::from_le_bytes)
             }
         }
     )*};
@@ -249,20 +283,159 @@ impl_int_deserialize!(u16, u32, u64, u128);
 /// A byte deserializes to itself, so `[u8; N]` is one fixed-size read rather
 /// than `N` single-byte parses.
 impl NargDeserialize for u8 {
-    type Error = VerificationError;
-
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
-        reader
-            .take_array::<1>()
-            .map(|[byte]| byte)
-            .ok_or(VerificationError)
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        reader.take_array::<1>().map(|[byte]| byte)
     }
 
     /// Exactly the `N` single-byte reads it replaces: the same bytes consumed,
     /// the same rejection of a short NARG string, one bounds check.
     fn deserialize_array_from_narg<const N: usize>(
         reader: &mut NargReader<'_>,
-    ) -> Result<[Self; N], Self::Error> {
-        reader.take_array::<N>().ok_or(VerificationError)
+    ) -> Result<[Self; N], VerificationError> {
+        reader.take_array::<N>()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NargDeserialize, NargReader, VerificationError};
+
+    #[test]
+    fn failures_at_any_position_reject_all_later_reads() {
+        struct MustNotRun;
+
+        impl NargDeserialize for MustNotRun {
+            fn deserialize_from_narg(_: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+                panic!("a poisoned reader must not invoke the decoder");
+            }
+        }
+
+        let bytes = [1, 2, 3];
+        for consumed in [0, 1, bytes.len()] {
+            let mut reader = NargReader::new(&bytes);
+            let rejected = reader.read_with(|reader| {
+                reader.take(consumed)?;
+                Err::<(), _>(VerificationError)
+            });
+            assert!(rejected.is_err());
+            assert!(reader.is_poisoned());
+            assert!(!reader.is_empty());
+            assert!(reader.take(0).is_err());
+            assert!(reader.take(1).is_err());
+            assert!(reader.take_array::<0>().is_err());
+            assert!(reader.take_array::<1>().is_err());
+            assert!(reader.read::<MustNotRun>().is_err());
+            assert!(reader.read::<[MustNotRun; 0]>().is_err());
+            assert!(reader.read_vec::<MustNotRun>(0).is_err());
+            assert!(reader.read_vec::<MustNotRun>(usize::MAX).is_err());
+            assert!(reader
+                .read_with::<()>(|_| panic!("parser must not run"))
+                .is_err());
+        }
+    }
+
+    #[test]
+    fn empty_reads_succeed_on_a_valid_reader() {
+        let mut reader = NargReader::new(&[]);
+        assert_eq!(reader.take(0).unwrap(), []);
+        assert_eq!(reader.take_array::<0>().unwrap(), []);
+        assert_eq!(reader.read::<[u16; 0]>().unwrap(), []);
+        assert!(reader.read_vec::<u8>(0).unwrap().is_empty());
+        assert!(reader.read_with(|_| Ok(())).is_ok());
+        assert!(reader.is_empty());
+        assert!(!reader.is_poisoned());
+    }
+
+    #[test]
+    fn catching_an_inner_parser_error_cannot_return_success() {
+        let mut reader = NargReader::new(&[1]);
+        let result = reader.read_with(|reader| {
+            let rejected = reader.read_with(|reader| {
+                assert_eq!(reader.take_array::<1>()?, [1]);
+                Err::<(), _>(VerificationError)
+            });
+            assert!(rejected.is_err());
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert!(reader.is_poisoned());
+        assert!(!reader.is_empty());
+    }
+
+    #[test]
+    fn a_decoder_cannot_swallow_a_failed_byte_read() {
+        struct Lenient;
+
+        impl NargDeserialize for Lenient {
+            fn deserialize_from_narg(
+                reader: &mut NargReader<'_>,
+            ) -> Result<Self, VerificationError> {
+                let _ = reader.take(2);
+                Ok(Self)
+            }
+        }
+
+        let mut reader = NargReader::new(&[1]);
+        assert!(reader.read::<Lenient>().is_err());
+        assert!(reader.is_poisoned());
+        assert!(!reader.is_empty());
+    }
+
+    #[test]
+    fn default_array_stops_on_an_element_error() {
+        #[derive(Debug, PartialEq)]
+        struct Byte(u8);
+
+        impl NargDeserialize for Byte {
+            fn deserialize_from_narg(
+                reader: &mut NargReader<'_>,
+            ) -> Result<Self, VerificationError> {
+                // No element may be parsed after a failure.
+                assert!(!reader.is_poisoned());
+                let [byte] = reader.take_array()?;
+                if byte == 255 {
+                    return Err(VerificationError);
+                }
+                Ok(Self(byte))
+            }
+        }
+
+        let mut reader = NargReader::new(&[1, 2, 3]);
+        assert_eq!(reader.read::<[Byte; 2]>().unwrap(), [Byte(1), Byte(2)]);
+        assert_eq!(reader.take(1).unwrap(), [3]);
+
+        for bytes in [&[1, 255][..], &[1, 255, 3][..]] {
+            let mut reader = NargReader::new(bytes);
+            assert!(reader.read::<[Byte; 3]>().is_err());
+            assert!(reader.is_poisoned());
+            assert!(!reader.is_empty());
+            assert!(reader.take(1).is_err());
+        }
+    }
+
+    #[test]
+    fn reader_observes_array_override_errors() {
+        struct Rejected;
+
+        impl NargDeserialize for Rejected {
+            fn deserialize_from_narg(_: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+                panic!("the array override must be used");
+            }
+
+            fn deserialize_array_from_narg<const N: usize>(
+                reader: &mut NargReader<'_>,
+            ) -> Result<[Self; N], VerificationError> {
+                reader.take(N)?;
+                Err(VerificationError)
+            }
+        }
+
+        for bytes in [&[1, 2][..], &[1, 2, 3][..]] {
+            let mut reader = NargReader::new(bytes);
+            assert!(reader.read::<[Rejected; 2]>().is_err());
+            assert!(reader.is_poisoned());
+            assert!(!reader.is_empty());
+            assert!(reader.take(1).is_err());
+        }
     }
 }

@@ -10,12 +10,4 @@ impl Display for VerificationError {
     }
 }
 
-impl core::ops::Deref for VerificationError {
-    type Target = Result<(), Self>;
-
-    fn deref(&self) -> &Self::Target {
-        &Err(Self)
-    }
-}
-
 impl core::error::Error for VerificationError {}

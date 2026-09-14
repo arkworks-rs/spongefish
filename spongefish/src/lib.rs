@@ -86,6 +86,14 @@
 //!
 //! Both must be prefix-free; see [`Encoding`].
 //!
+//! Parse values through [`NargReader::read`] and custom parsing closures through
+//! [`NargReader::read_with`]. All reads use [`VerificationError`]; byte
+//! reads with `take` and `take_array` can use `?` directly. A failure poisons the
+//! reader: subsequent reads fail, including empty reads, and catching a nested
+//! error cannot turn the outer read into a success. The deserialization trait
+//! methods are implementation hooks; calling them directly bypasses these
+//! checks. Custom codecs should use reader methods for nested parsing too.
+//!
 //! On a byte sponge the two coincide: `Encoding<[u8]>` is one trait bound
 //! spelled two ways, a single implementation does both jobs, and the bytes
 //! absorbed are exactly the bytes written. The verifier relies on this to read

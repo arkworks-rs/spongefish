@@ -42,10 +42,8 @@ impl Encoding for Point {
     }
 }
 impl NargDeserialize for Point {
-    type Error = VerificationError;
-
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, Self::Error> {
-        CompressedRistretto(r.take_array::<32>().ok_or(VerificationError)?)
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        CompressedRistretto(r.take_array::<32>()?)
             .decompress()
             .map(Point)
             .ok_or(VerificationError)
@@ -64,10 +62,8 @@ impl Encoding for Fr {
     }
 }
 impl NargDeserialize for Fr {
-    type Error = VerificationError;
-
-    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, Self::Error> {
-        let bytes = r.take_array::<32>().ok_or(VerificationError)?;
+    fn deserialize_from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        let bytes = r.take_array::<32>()?;
         Option::<Scalar>::from(Scalar::from_canonical_bytes(bytes))
             .map(Fr)
             .ok_or(VerificationError)
@@ -142,4 +138,23 @@ fn nonces_are_not_reused() {
     let (a, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
     let (b, ()) = Narg::prove_with_session_id::<Schnorr>(&sid, &instance, &x).unwrap();
     assert_ne!(a, b);
+}
+
+#[test]
+fn schnorr_validation_failures_automatically_poison_the_reader() {
+    fn check<T: NargDeserialize>() {
+        // Not a canonical scalar or compressed Ristretto point; also test
+        // rejection with unread input following the invalid encoding.
+        for length in [32, 33] {
+            let bytes = vec![0xff; length];
+            let mut reader = NargReader::new(&bytes);
+            assert!(reader.read::<T>().is_err());
+            assert!(reader.is_poisoned());
+            assert!(!reader.is_empty());
+            assert!(reader.read::<u8>().is_err());
+        }
+    }
+
+    check::<Point>();
+    check::<Fr>();
 }

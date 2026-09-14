@@ -82,9 +82,7 @@ fn binding<H: DuplexSpongeInit<U = u8>>(
 struct NoProgress;
 
 impl NargDeserialize for NoProgress {
-    type Error = VerificationError;
-
-    fn deserialize_from_narg(_reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
+    fn deserialize_from_narg(_reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Ok(Self)
     }
 }
@@ -107,7 +105,7 @@ proptest! {
                 offset += length;
                 Some(&bytes[start..offset])
             };
-            prop_assert_eq!(reader.take(length), expected);
+            prop_assert_eq!(reader.take(length).ok(), expected);
             prop_assert_eq!(reader.is_poisoned(), poisoned);
             prop_assert_eq!(reader.is_empty(), !poisoned && offset == bytes.len());
         }
@@ -125,14 +123,14 @@ proptest! {
         if u64::from(count) > (payload.len() / 4) as u64 {
             prop_assert!(result.is_err());
             prop_assert!(reader.is_poisoned());
-            prop_assert!(reader.take(0).is_none());
+            prop_assert!(reader.take(0).is_err());
         } else {
             let values = result.unwrap().into_inner();
             let count = count as usize;
             let expected: Vec<u32> = payload[..count * 4].chunks_exact(4)
                 .map(|b| u32::from_le_bytes(b.try_into().unwrap())).collect();
             prop_assert_eq!(values, expected);
-            prop_assert_eq!(reader.take(payload.len() - count * 4), Some(&payload[count * 4..]));
+            prop_assert_eq!(reader.take(payload.len() - count * 4).unwrap(), &payload[count * 4..]);
             prop_assert!(reader.is_empty());
         }
     }
@@ -187,7 +185,7 @@ proptest! {
         let session = derive_session_id::<TurboShake128>(b"property/poison");
         let mut verifier = VerifierState::<TurboShake128>::new(&session, &1u32, &proof);
         let result = verifier.prover_message_as(|reader| {
-            reader.take(prefix.len()).ok_or(VerificationError)?;
+            reader.take(prefix.len())?;
             // Fail despite a possibly readable suffix, then return success.
             let _ = reader.take(suffix.len() + 1);
             Ok(())

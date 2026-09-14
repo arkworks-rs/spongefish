@@ -32,10 +32,8 @@ impl Encoding for M31 {
 }
 
 impl NargDeserialize for M31 {
-    type Error = VerificationError;
-
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, Self::Error> {
-        let bytes = reader.take_array::<4>().ok_or(VerificationError)?;
+    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        let bytes = reader.take_array::<4>()?;
         let v = u32::from_le_bytes(bytes);
         if v >= P {
             return Err(VerificationError);
@@ -165,4 +163,50 @@ fn rejects_trailing_bytes() {
     let mut narg = hex(NARG);
     narg.push(0);
     assert!(Narg::verify_with_session_id::<Sumcheck>(&sid, &instance, &narg).is_err());
+}
+
+#[test]
+fn m31_validation_failure_automatically_poisons_the_reader() {
+    let valid = (P - 1).to_le_bytes();
+    let mut reader = NargReader::new(&valid);
+    assert_eq!(reader.read::<M31>().unwrap(), M31(P - 1));
+    assert!(reader.is_empty());
+
+    for invalid in [P, u32::MAX] {
+        for suffix in [0, 1] {
+            let mut bytes = invalid.to_le_bytes().to_vec();
+            bytes.extend_from_slice(&[7][..suffix]);
+            let mut reader = NargReader::new(&bytes);
+            assert!(reader.read::<M31>().is_err());
+            assert!(reader.is_poisoned());
+            assert!(!reader.is_empty());
+            assert!(reader.read::<u8>().is_err());
+        }
+    }
+}
+
+#[test]
+fn verifier_rejects_a_caught_m31_validation_error() {
+    use spongefish::{DefaultHash, VerifierState};
+
+    let (sid, instance, _) = setup();
+    for suffix in [0, 1] {
+        let mut bytes = P.to_le_bytes().to_vec();
+        bytes.extend_from_slice(&[7][..suffix]);
+        let mut verifier = VerifierState::<DefaultHash>::new(&sid, &instance, &bytes);
+        let mut untouched = VerifierState::<DefaultHash>::new(&sid, &instance, &bytes);
+        let result = verifier.prover_message_as(|reader| {
+            // The decoder only returns Err. The reader poisons automatically,
+            // even if a surrounding parser catches it and substitutes a value.
+            assert!(reader.read::<M31>().is_err());
+            Ok(M31(0))
+        });
+        assert!(result.is_err());
+        assert_eq!(
+            verifier.verifier_message::<[u8; 32]>(),
+            untouched.verifier_message::<[u8; 32]>()
+        );
+        assert!(verifier.prover_message::<u8>().is_err());
+        assert!(verifier.check_eof().is_err());
+    }
 }

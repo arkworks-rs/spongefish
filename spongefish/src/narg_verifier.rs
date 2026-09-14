@@ -79,7 +79,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn prover_message<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
     ) -> Result<T, VerificationError> {
-        let (message, _) = self.read_message(|reader| reader.read::<T>().map_err(Into::into))?;
+        let (message, _) = self.read_message(T::deserialize_from_narg)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         Ok(message)
     }
@@ -166,10 +166,14 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Reads `len` prover messages `T` into a vector, each implementing `Encoding<[H::U]>`.
+    /// A poisoned state rejects even an empty batch.
     pub fn prover_messages_vec<T: Encoding<[H::U]> + NargDeserialize>(
         &mut self,
         len: usize,
     ) -> Result<Vec<T>, VerificationError> {
+        if self.reader.is_poisoned() {
+            return Err(VerificationError);
+        }
         (0..len).map(|_| self.prover_message()).collect()
     }
 
@@ -420,6 +424,9 @@ where
         len: usize,
         mut deserialize: impl FnMut(&mut NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<Vec<T>, VerificationError> {
+        if self.reader.is_poisoned() {
+            return Err(VerificationError);
+        }
         (0..len)
             .map(|_| self.prover_message_as(&mut deserialize))
             .collect()

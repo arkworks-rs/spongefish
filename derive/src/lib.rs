@@ -233,8 +233,7 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
         let field_type = field.ty;
         quote! {
-            #member: ::spongefish::NargReader::read::<#field_type>(reader)
-                .map_err(::core::convert::Into::<::spongefish::VerificationError>::into)?,
+            #member: ::spongefish::NargReader::read::<#field_type>(reader)?,
         }
     });
 
@@ -244,8 +243,6 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &trait_path,
         &bounded,
         &quote! {
-            type Error = ::spongefish::VerificationError;
-
             fn deserialize_from_narg(
                 reader: &mut ::spongefish::NargReader<'_>,
             ) -> ::core::result::Result<Self, ::spongefish::VerificationError> {
@@ -335,6 +332,8 @@ pub fn derive_decoding(input: TokenStream) -> TokenStream {
 ///
 /// Generates an implementation that deserializes struct fields sequentially from a byte buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
+/// Parsing returns `VerificationError` on failure; use `NargReader::read` to
+/// reject poisoned readers and automatically record nested field errors.
 #[proc_macro_derive(NargDeserialize, attributes(spongefish))]
 pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

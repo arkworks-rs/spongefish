@@ -13,7 +13,8 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 ### Added
 
 - Closure-based codecs (`prover_message_as` / `verifier_message_as`, and the alphabet-generic `prover_message_with` / `verifier_message_with`).
-- `NargReader`, the forward-only cursor used to read the NARG string (without relying on `std`), and `NargReader::read`, the shorthand for reading one value through it. A failed read poisons the reader: every later read fails, it is never empty, and the verifier rejects a message whose deserializer caught the failure and returned a value anyway.
+- `NargReader`, the forward-only cursor used to read the NARG string (without relying on `std`), and `NargReader::read`, the shorthand for reading one value through it. Every read returns `VerificationError` on failure. A failed read automatically poisons the reader: all later reads fail, including empty reads, and it is never empty.
+- Public `NargReader::read_with` runs custom parsers. `read` and `read_with` refuse to invoke parsers on a poisoned reader and reject `Ok` if a nested read failed. Deserializers only return errors; nested parsing uses `read` / `read_with`. Direct calls to `NargDeserialize` implementation hooks bypass this guarantee.
 - `PrivateRng` is now generic over the duplex sponge.
 - The `LengthPrefixed` combinator for prefix-free encoding of variable-length sequences.
 - `Encoding` for tuples up to arity 8; previously only pairs and triples were covered.
@@ -34,8 +35,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - **Breaking:** `rand` is now an optional dependency, and `getrandom`-seeded private RNG are the default for prover randomness.
 - **Breaking:** `LengthPrefixed` provides a shorthand for prefix-free encodings, and replaces `Vec<T>`'s `Encoding` implementation.
 - **Breaking:** deserialization reads through `&mut NargReader<'_>` instead of `&mut &[u8]`.
-- **Breaking:** `NargDeserialize` carries an associated `Error: Into<VerificationError>` which is then used by `NargReader::read`, to allow for more flexibility in picking the deserialization error. Old implementations can just set `type Error = VerificationError;`, which is what the `NargDeserialize` and `Codec` derives generate.
-- **Breaking:** `NargReader::take` and `NargReader::take_array` return `Option` rather than `Result<_, VerificationError>`. Now that `NargDeserialize::Error` is the implementation's to pick, the reader cannot pick it for them.
+- **Breaking:** removed the implicit `Deref` conversion from `VerificationError` to `Result<(), VerificationError>`; construct `Err(VerificationError)` explicitly.
 - **Breaking:** `VerifierState` owns its `NargReader`. A rejected prover message poisons the state rather than leaving the cursor where it was: every later read fails, `check_eof` fails, and `into_narg_string` returns an error.
 - **Breaking:** A more clean approach at duplex sponge initialization. `DuplexSpongeInit` is for generic units, and `EncodedSessionId` takes care of algebraic sponges. Byte transcripts are unchanged.
 - **Breaking:** the instance passed to `ProverState::{new, new_with_seed, from_parts}` and `VerifierState::new` is encoded into the sponge's alphabet (`Encoding<[H::U]>`) rather than into bytes. Identical for byte sponges.
@@ -45,6 +45,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Fixed
 
+- Reader and verifier batch methods reject empty reads after poisoning. Parsers returning `Ok` after a caught nested read failure are rejected at the reader boundary.
 - Rejected zero-width elements in `LengthPrefixed`.
 - More careful zeroize for the `DuplexSponge` state.
 - `prover_message_as` and `prover_message_with` accept a closure that consumes the whole remaining NARG string. The pointer-identity check they used to validate the caller's cursor with rejected an empty remainder, failing verification for an otherwise valid proof.

@@ -16,6 +16,11 @@ fn test_session_id(tag: &[u8]) -> SessionId {
 /// satisfy, and has no unread rest to hand back.
 fn assert_poisoned(mut verifier: VerifierState<'_, DefaultHash>) {
     assert!(verifier.prover_message::<u8>().is_err());
+    assert!(verifier.prover_messages::<u8, 0>().is_err());
+    assert!(verifier.prover_messages_vec::<u8>(0).is_err());
+    assert!(verifier
+        .prover_messages_vec_as::<u8>(0, |_| panic!("empty batch must not invoke its parser"))
+        .is_err());
     assert!(verifier.into_narg_string().is_err());
 }
 
@@ -154,7 +159,7 @@ fn closure_codecs_correctness() {
 
     let read = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof)
         .last_prover_message_as(|reader| {
-            let bytes = reader.take_array().ok_or(VerificationError)?;
+            let bytes = reader.take_array()?;
             Ok(Foreign(u64::from_le_bytes(bytes)))
         })
         .unwrap();
@@ -166,12 +171,12 @@ fn verifier_prover_message_poisons_on_deserialize_error() {
     struct BadMessage;
 
     impl NargDeserialize for BadMessage {
-        type Error = crate::VerificationError;
-
-        fn deserialize_from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+        fn deserialize_from_narg(
+            reader: &mut crate::NargReader<'_>,
+        ) -> Result<Self, VerificationError> {
             // Consumes input and *then* fails: the verifier must end up
             // poisoned, not merely advanced.
-            reader.take(1).ok_or(VerificationError)?;
+            reader.take(1)?;
             Err(VerificationError)
         }
     }
@@ -201,9 +206,7 @@ fn a_failed_read_poisons_the_reader() {
     struct Rejected;
 
     impl NargDeserialize for Rejected {
-        type Error = VerificationError;
-
-        fn deserialize_from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+        fn deserialize_from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
             Err(VerificationError)
         }
     }
@@ -212,10 +215,10 @@ fn a_failed_read_poisons_the_reader() {
 
     // A short read.
     let mut reader = crate::NargReader::new(&bytes);
-    assert!(reader.take_array::<4>().is_none());
+    assert!(reader.take_array::<4>().is_err());
     assert!(reader.is_poisoned());
-    assert!(reader.take(1).is_none());
-    assert!(reader.take_array::<1>().is_none());
+    assert!(reader.take(1).is_err());
+    assert!(reader.take_array::<1>().is_err());
     assert!(reader.read::<u8>().is_err());
     assert!(!reader.is_empty());
 
@@ -223,11 +226,11 @@ fn a_failed_read_poisons_the_reader() {
     let mut reader = crate::NargReader::new(&bytes);
     assert!(reader.read::<Rejected>().is_err());
     assert!(reader.is_poisoned());
-    assert!(reader.take(1).is_none());
+    assert!(reader.take(1).is_err());
 
     // A rejection after the last byte: a poisoned reader is never empty.
     let mut reader = crate::NargReader::new(&bytes);
-    assert_eq!(reader.take_array::<3>(), Some(bytes));
+    assert_eq!(reader.take_array::<3>().unwrap(), bytes);
     assert!(reader.is_empty());
     assert!(reader.read::<Rejected>().is_err());
     assert!(!reader.is_empty());
@@ -238,9 +241,9 @@ fn verifier_rejects_a_message_that_swallowed_a_failed_read() {
     struct Lenient(u8);
 
     impl NargDeserialize for Lenient {
-        type Error = VerificationError;
-
-        fn deserialize_from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, Self::Error> {
+        fn deserialize_from_narg(
+            reader: &mut crate::NargReader<'_>,
+        ) -> Result<Self, VerificationError> {
             // Substitutes a default for a short read instead of failing.
             Ok(Self(reader.take_array::<8>().map_or(0, |bytes| bytes[0])))
         }
@@ -331,7 +334,7 @@ fn closure_codecs_generic_alphabet_round_trip() {
 
     let mut verifier = VerifierState::from_parts(session, &proof);
     let read = verifier
-        .prover_message_with(|buf| u64::deserialize_from_narg(buf).map(Foreign), encode)
+        .prover_message_with(|buf| buf.read::<u64>().map(Foreign), encode)
         .unwrap();
     assert_eq!(read.0, value.0);
     verifier.public_message_as(&3u64, |v| [*v]);
@@ -373,7 +376,7 @@ fn verifier_prover_message_with_poisons_on_error() {
     // nothing is absorbed, and no later read succeeds.
     let result: Result<u64, VerificationError> = verifier.prover_message_with(
         |reader| {
-            reader.take(1).ok_or(VerificationError)?;
+            reader.take(1)?;
             Err(VerificationError)
         },
         |v: &u64| v.to_le_bytes(),
@@ -389,7 +392,7 @@ fn verifier_prover_message_with_poisons_on_error() {
     let result: Result<u64, VerificationError> = verifier.prover_message_with(
         |reader| {
             while !reader.is_empty() {
-                reader.take(1).ok_or(VerificationError)?;
+                reader.take(1)?;
             }
             Ok(3)
         },
@@ -411,12 +414,19 @@ fn closure_batch_helpers_round_trip() {
     assert_eq!(proof, points.concat());
 
     let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
+    // A method item fixes the reader's inner lifetime; this closure must work
+    // for both lifetimes required by the parser callback.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let read_back = verifier
-        .prover_messages_vec_as(points.len(), |reader| {
-            reader.take_array::<4>().ok_or(VerificationError)
-        })
+        .prover_messages_vec_as(points.len(), |reader| reader.take_array::<4>())
         .unwrap();
     assert_eq!(read_back, points);
+    assert!(verifier.prover_messages::<u8, 0>().unwrap().is_empty());
+    assert!(verifier.prover_messages_vec::<u8>(0).unwrap().is_empty());
+    assert!(verifier
+        .prover_messages_vec_as::<u8>(0, |_| panic!("empty batch must not invoke its parser"))
+        .unwrap()
+        .is_empty());
     assert!(verifier.check_eof().is_ok());
 }
 
