@@ -187,6 +187,17 @@ pub trait Transcript {
     /// shorter proofs, but it will be part of the non-interactive Fiat-Shamir transformation.
     fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
 
+    /// Computes a prover-only value from public inputs without sampling randomness.
+    ///
+    /// The prover evaluates `compute` and wraps its result as a witness, or
+    /// propagates its error. The verifier skips the computation and returns an
+    /// unknown witness. Use [`Witness::map`] for computations on existing
+    /// witness values.
+    fn prover_only<T>(
+        &self,
+        compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError>;
+
     /// Samples a random element using the prover's private randomness.
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
@@ -317,6 +328,13 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Self::public_message(self, value);
     }
 
+    fn prover_only<T>(
+        &self,
+        compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError> {
+        compute().map(Witness::known)
+    }
+
     fn sample<T: Decoding>(&mut self) -> Witness<T> {
         Witness::known(self.rng().sample())
     }
@@ -352,6 +370,13 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
 
     fn public_message<T: Encoding + ?Sized>(&mut self, value: &T) {
         Self::public_message(self, value);
+    }
+
+    fn prover_only<T>(
+        &self,
+        _compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError> {
+        Ok(Witness::unknown())
     }
 
     fn sample<T: Decoding>(&mut self) -> Witness<T> {
