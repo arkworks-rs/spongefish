@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(reader.take(0).unwrap(), []);
         assert_eq!(reader.take_array::<0>().unwrap(), []);
         assert_eq!(reader.read::<[u16; 0]>().unwrap(), []);
-        assert!(reader.read_vec::<u8>(0).unwrap().is_empty());
+        assert_eq!(reader.read_vec::<u8>(0).unwrap(), []);
         assert!(reader.read_with(|_| Ok(())).is_ok());
         assert!(reader.is_empty());
         assert!(!reader.is_poisoned());

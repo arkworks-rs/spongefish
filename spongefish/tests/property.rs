@@ -127,8 +127,8 @@ proptest! {
         } else {
             let values = result.unwrap().into_inner();
             let count = count as usize;
-            let expected: Vec<u32> = payload[..count * 4].chunks_exact(4)
-                .map(|b| u32::from_le_bytes(b.try_into().unwrap())).collect();
+            let expected: Vec<u32> = payload[..count * 4].as_chunks::<4>().0.iter().copied()
+                .map(u32::from_le_bytes).collect();
             prop_assert_eq!(values, expected);
             prop_assert_eq!(reader.take(payload.len() - count * 4).unwrap(), &payload[count * 4..]);
             prop_assert!(reader.is_empty());

@@ -421,12 +421,14 @@ fn closure_batch_helpers_round_trip() {
         .prover_messages_vec_as(points.len(), |reader| reader.take_array::<4>())
         .unwrap();
     assert_eq!(read_back, points);
-    assert!(verifier.prover_messages::<u8, 0>().unwrap().is_empty());
-    assert!(verifier.prover_messages_vec::<u8>(0).unwrap().is_empty());
-    assert!(verifier
-        .prover_messages_vec_as::<u8>(0, |_| panic!("empty batch must not invoke its parser"))
-        .unwrap()
-        .is_empty());
+    assert_eq!(verifier.prover_messages::<u8, 0>().unwrap(), []);
+    assert_eq!(verifier.prover_messages_vec::<u8>(0).unwrap(), []);
+    assert_eq!(
+        verifier
+            .prover_messages_vec_as::<u8>(0, |_| panic!("empty batch must not invoke its parser"))
+            .unwrap(),
+        []
+    );
     assert!(verifier.check_eof().is_ok());
 }
 
