@@ -198,6 +198,12 @@ pub trait Transcript {
 
     /// The interactive verifier checks.
     ///
+    /// A failed check permanently rejects the verifier's transcript. Later
+    /// checks and prover-message reads must fail even if the error is caught;
+    /// a failed transcript cannot pass the final end-of-input check. Once
+    /// rejected, the verifier must not invoke `holds` again. A caught failure
+    /// in a nested check also causes the enclosing check to fail.
+    ///
     /// The closure `holds` is called also by the prover in `debug` builds.
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
 }
@@ -363,11 +369,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
     }
 
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
-        if holds() {
-            Ok(())
-        } else {
-            Err(VerificationError)
-        }
+        self.reader.check(holds)
     }
 }
 

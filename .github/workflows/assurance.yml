@@ -61,7 +61,7 @@ jobs:
       - run: cargo test --locked -p spongefish --all-features --release --test property
       - name: Preserve shrunk counterexamples
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: proptest-regressions
           path: |
@@ -93,7 +93,7 @@ jobs:
           cargo llvm-cov report -p spongefish --summary-only \
             --ignore-filename-regex '(tests/|benches/|examples/)' \
             >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: core-coverage
