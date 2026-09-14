@@ -13,6 +13,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 ### Added
 
 - `spongefish-pow::DecodingPow::verifier_message_pow`, which binds a proof-of-work nonce to a byte transcript before returning a verifier message. Invalid or truncated nonces automatically poison the verifier.
+- `Transcript::prover_only` computes a witness value on the prover without sampling randomness; the verifier skips the computation.
 - Closure-based codecs (`prover_message_as` / `verifier_message_as`, and the alphabet-generic `prover_message_with` / `verifier_message_with`).
 - `NargReader`, the forward-only cursor used to read the NARG string (without relying on `std`), and `NargReader::read`, the shorthand for reading one value through it. Every read returns `VerificationError` on failure. A failed read automatically poisons the reader: all later reads fail, including empty reads, and it is never empty.
 - Public `NargReader::read_with` runs custom parsers. `read` and `read_with` refuse to invoke parsers on a poisoned reader and reject `Ok` if a nested read failed. Deserializers only return errors; nested parsing uses `read` / `read_with`. Direct calls to `NargDeserialize` implementation hooks bypass this guarantee.
@@ -27,6 +28,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
+- **Breaking:** `Transcript` implementations must provide the new `prover_only` hook.
 - **Breaking:** `NargReader` and `VerifierState` are no longer `Sync`. The reader stores its state in a `Cell` so verification checks can poison it while preserving `Transcript::check(&self, ...)`.
 - **Breaking:** `StdHash` is renamed `DefaultHash`, so it is not mistaken for `std::hash::Hash`.
 - **Breaking:** the `VerificationResult<T>` alias is gone; the signatures spell out `Result<T, VerificationError>`.
