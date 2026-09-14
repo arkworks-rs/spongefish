@@ -26,6 +26,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
+- **Breaking:** `NargReader` and `VerifierState` are no longer `Sync`. The reader stores its state in a `Cell` so verification checks can poison it while preserving `Transcript::check(&self, ...)`.
 - **Breaking:** `StdHash` is renamed `DefaultHash`, so it is not mistaken for `std::hash::Hash`.
 - **Breaking:** the `VerificationResult<T>` alias is gone; the signatures spell out `Result<T, VerificationError>`.
 - **Breaking:** the library aligns with the latest `draft-irtf-cfrg-fiat-shamir`: session identifiers replace `DomainSeparator`, and the SHAKE128 and TurboSHAKE128 suites are the draft's constructions.
@@ -45,6 +46,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Fixed
 
+- Failed `Transcript::check` calls permanently reject the verifier: subsequent checks, message reads, `check_eof`, and `into_narg_string` fail even if the original error is caught. A caught failure in a nested check also rejects the enclosing check.
 - Reader and verifier batch methods reject empty reads after poisoning. Parsers returning `Ok` after a caught nested read failure are rejected at the reader boundary.
 - Rejected zero-width elements in `LengthPrefixed`.
 - More careful zeroize for the `DuplexSponge` state.

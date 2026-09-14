@@ -31,6 +31,87 @@ fn witness_debug_is_redacted() {
 }
 
 #[test]
+fn transcript_checks_preserve_rejection_after_caught_errors() {
+    let session = test_session_id(b"failed transcript check");
+    for consumed in [false, true] {
+        let mut verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[1]);
+        if consumed {
+            assert_eq!(verifier.prover_message::<u8>().unwrap(), 1);
+        }
+        let shared = &verifier;
+        assert!(shared.check(|| false).is_err());
+        assert!(shared
+            .check(|| panic!("check must not run after rejection"))
+            .is_err());
+        assert_poisoned(verifier);
+    }
+
+    let verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[]);
+    assert!(verifier.check(|| false).is_err());
+    assert!(verifier.check_eof().is_err());
+
+    let mut verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[]);
+    assert!(verifier.prover_message::<u8>().is_err());
+    assert!(verifier
+        .check(|| panic!("check must not run after a failed read"))
+        .is_err());
+    assert!(verifier.check_eof().is_err());
+}
+
+#[test]
+fn successful_transcript_checks_preserve_messages_and_challenges() {
+    let session = test_session_id(b"successful transcript check");
+    let mut verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[7]);
+    let mut reference = VerifierState::<DefaultHash>::new(&session, &0u32, &[7]);
+    let shared = &verifier;
+    assert!(shared.check(|| shared.check(|| true).is_ok()).is_ok());
+    assert_eq!(verifier.prover_message::<u8>().unwrap(), 7);
+    assert_eq!(reference.prover_message::<u8>().unwrap(), 7);
+    assert!(verifier.check(|| true).is_ok());
+    assert_eq!(
+        verifier.verifier_message::<[u8; 32]>(),
+        reference.verifier_message::<[u8; 32]>()
+    );
+    assert!(verifier.check_eof().is_ok());
+}
+
+#[test]
+fn transcript_checks_reject_caught_nested_failures() {
+    let session = test_session_id(b"nested transcript check");
+    let verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[]);
+    assert!(verifier
+        .check(|| {
+            assert!(verifier.check(|| false).is_err());
+            true
+        })
+        .is_err());
+    assert!(verifier
+        .check(|| panic!("check must not run after nested rejection"))
+        .is_err());
+    assert!(verifier.check_eof().is_err());
+}
+
+#[test]
+fn argument_cannot_accept_a_caught_verification_failure() {
+    struct SwallowsFailure;
+    impl Argument for SwallowsFailure {
+        type Instance = u32;
+        type Witness = ();
+        type Output = ();
+
+        fn run<T: Transcript>(
+            transcript: &mut T,
+            _instance: &u32,
+            _witness: Witness<&()>,
+        ) -> Result<(), VerificationError> {
+            let _ = transcript.check(|| false);
+            Ok(())
+        }
+    }
+    assert!(Narg::verify::<SwallowsFailure>(b"caught check failure", &0, &[]).is_err());
+}
+
+#[test]
 #[should_panic(expected = "an Argument must be zero-sized")]
 fn argument_cannot_override_the_statelessness_check() {
     #[allow(dead_code)]
