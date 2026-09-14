@@ -11,9 +11,9 @@ This crate doesn't support big-endian targets.
 pub mod blake3;
 #[cfg(feature = "keccak")]
 pub mod keccak;
-mod transcript;
+mod protocol;
 
-pub use transcript::DecodingPow;
+pub use protocol::PowTranscriptExt;
 
 /// Standalone proof-of-work grinder that can work with any byte challenge.
 ///

@@ -11,15 +11,15 @@ It has not been reviewed, and should be considered a proof-of-concept example th
 
 ## Wiring into a NARG
 
-The `DecodingPow` extension connects proof of work to byte-oriented `ProverState` and `VerifierState` transcripts. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
+The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
 
-The prover squeezes a 32-byte grinding challenge, grinds and sends a nonce, then squeezes the protected verifier message. The verifier checks the nonce before absorbing it or returning that message. A rejected or truncated nonce poisons the verifier, so subsequent reads and the end-of-input check also fail.
+Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier, so later checks, message reads, and the end-of-input check fail even if the error is caught.
 
 Use the default features of `spongefish` and `spongefish-pow` for this example:
 
 ```rust
 use spongefish::{DefaultHash, Narg, ProverState, VerificationError, VerifierState};
-use spongefish_pow::{blake3::Blake3PoW, DecodingPow};
+use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
 
 // Fixed by the protocol, never read from the proof.
 const POW_BITS: f64 = 8.0;
@@ -29,13 +29,35 @@ fn main() -> Result<(), VerificationError> {
     let instance = 0u32;
 
     let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
-    let challenge = prover.verifier_message_pow::<u32, Blake3PoW>(POW_BITS);
+    let challenge = prover.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
     let proof = prover.into_narg_string();
 
     let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
     let replay = verifier.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
     assert_eq!(challenge, replay);
     verifier.check_eof()
+}
+```
+
+The same method is available with only a `Transcript` bound, so an interactive argument can use it directly:
+
+```rust
+use spongefish::{Argument, Transcript, VerificationError, Witness};
+use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
+
+struct PowRound;
+impl Argument for PowRound {
+    type Instance = u32;
+    type Witness = ();
+    type Output = u32;
+
+    fn run<T: Transcript>(
+        transcript: &mut T,
+        _instance: &u32,
+        _witness: Witness<&()>,
+    ) -> Result<u32, VerificationError> {
+        transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
+    }
 }
 ```
 

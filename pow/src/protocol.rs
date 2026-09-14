@@ -1,31 +1,31 @@
-//! Proof-of-work-protected verifier messages for byte-oriented transcripts.
+//! An interactive proof-of-work step shared by every transcript implementation.
 
-use spongefish::{
-    Decoding, DuplexSpongeInit, DuplexSpongeInterface, ProverState, VerificationError,
-    VerifierState,
-};
+use spongefish::{Decoding, Transcript, VerificationError};
 
 use crate::{PoWGrinder, PowStrategy};
 
-/// Length in bytes of the challenge squeezed for the proof-of-work grind.
-const POW_CHALLENGE_BYTES: usize = 32;
-
-/// Extension trait adding a proof-of-work-protected verifier message to a
-/// Fiat-Shamir transcript over bytes (`H::U = u8`).
+/// Proof-of-work-protected verifier messages for interactive transcripts.
 ///
-/// The prover squeezes a 32-byte grinding challenge, grinds and sends a `u64`
-/// nonce, then squeezes the returned challenge `T`. The verifier repeats those
-/// steps, checking the nonce before absorbing it or producing `T`.
+/// This extension is available on every [`Transcript`], including concrete
+/// [`ProverState`](spongefish::ProverState) and
+/// [`VerifierState`](spongefish::VerifierState) values and the generic transcript
+/// passed to [`Argument::run`](spongefish::Argument::run).
 ///
-/// The nonce uses Spongefish's little-endian `u64` encoding. A rejected or
-/// truncated nonce poisons the verifier, so catching the error cannot turn the
-/// proof into an accepted one.
+/// Both parties run the same protocol: obtain a 32-byte grinding challenge,
+/// exchange a little-endian `u64` nonce, check it, then obtain the protected
+/// verifier message. Grinding is a prover-only computation; the verifier checks
+/// the received nonce without running the search.
+///
+/// A rejected nonce fails [`Transcript::check`], permanently rejecting the
+/// verifier's transcript even if the error is caught. The protected message is
+/// produced only after a successful check. Truncated nonces fail during the
+/// prover-message read.
 ///
 /// # Protocol parameters
 ///
-/// The PoW strategy, difficulty, position of this step, and decoding of `T`
-/// must be fixed by the protocol and accounted for in its session tag. The
-/// difficulty must not be chosen by reading an untrusted value from the proof.
+/// The PoW strategy, difficulty, position of this step, and decoding of the
+/// protected message must be fixed by the protocol and accounted for in its
+/// session tag. The difficulty must not come from an untrusted proof value.
 /// Any soundness benefit depends on the surrounding protocol and PoW strategy.
 ///
 /// # Example
@@ -33,109 +33,78 @@ const POW_CHALLENGE_BYTES: usize = 32;
 /// ```
 /// # #[cfg(feature = "blake3")]
 /// # {
-/// use spongefish::{DefaultHash, Narg, ProverState, VerifierState};
-/// use spongefish_pow::{blake3::Blake3PoW, DecodingPow};
+/// use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
+/// use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
 ///
-/// let session_id = Narg::derive_session_id(b"example/v1/blake3-pow-8/u32");
-/// let instance = 0u32;
-/// let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
-/// let challenge: u32 = prover.verifier_message_pow::<u32, Blake3PoW>(8.0);
-/// let proof = prover.into_narg_string();
+/// struct PowRound;
+/// impl Argument for PowRound {
+///     type Instance = u32;
+///     type Witness = ();
+///     type Output = u32;
 ///
-/// let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
-/// let replay = verifier.verifier_message_pow::<u32, Blake3PoW>(8.0)?;
+///     fn run<T: Transcript>(
+///         transcript: &mut T,
+///         _instance: &u32,
+///         _witness: Witness<&()>,
+///     ) -> Result<u32, VerificationError> {
+///         transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
+///     }
+/// }
+///
+/// let tag = b"example/v1/blake3-pow-8/u32";
+/// let (proof, challenge) = Narg::prove::<PowRound>(tag, &0, &())?;
+/// let replay = Narg::verify::<PowRound>(tag, &0, &proof)?;
 /// assert_eq!(challenge, replay);
-/// verifier.check_eof()?;
 /// # }
 /// # Ok::<(), spongefish::VerificationError>(())
 /// ```
-pub trait DecodingPow {
-    /// `T` for the prover, and `Result<T, VerificationError>` for the verifier.
-    type Output<T>;
-
-    /// Squeeze a verifier message after a proof-of-work step using `S`.
+pub trait PowTranscriptExt: Transcript {
+    /// Obtain a verifier message after a proof-of-work step using `S`.
     ///
+    /// Both the prover and verifier return `Result<T, VerificationError>`.
     /// `bits` is the binary logarithm of the expected work, subject to the
     /// chosen strategy's supported range.
     ///
     /// # Errors
     ///
-    /// The verifier returns [`VerificationError`] if the nonce is invalid,
-    /// the proof is truncated, or an earlier read has poisoned the verifier.
+    /// The prover returns [`VerificationError`] if grinding exhausts the nonce
+    /// space. The verifier returns it if the nonce is invalid, the proof is
+    /// truncated, or an earlier read or check rejected the transcript.
     ///
     /// # Panics
     ///
-    /// The prover panics if grinding exhausts the nonce space. Either side
-    /// may panic if the strategy rejects an unsupported difficulty.
-    #[must_use]
-    fn verifier_message_pow<T, S>(&mut self, bits: f64) -> Self::Output<T>
-    where
-        T: Decoding<[u8]>,
-        S: PowStrategy;
-}
-
-impl<H, R> DecodingPow for ProverState<H, R>
-where
-    H: DuplexSpongeInterface<U = u8>,
-    R: DuplexSpongeInit<U = u8>,
-{
-    type Output<T> = T;
-
-    fn verifier_message_pow<T, S>(&mut self, bits: f64) -> T
-    where
-        T: Decoding<[u8]>,
-        S: PowStrategy,
-    {
-        let challenge: [u8; POW_CHALLENGE_BYTES] = self.verifier_message();
-        let solution = PoWGrinder::<S>::new(challenge, bits)
-            .grind()
-            .expect("proof-of-work grinding exhausted the nonce space");
-        self.prover_message(&solution.nonce);
-        self.verifier_message()
-    }
-}
-
-impl<H> DecodingPow for VerifierState<'_, H>
-where
-    H: DuplexSpongeInterface<U = u8>,
-{
-    type Output<T> = Result<T, VerificationError>;
-
+    /// Either side may panic if the strategy rejects an unsupported difficulty.
     fn verifier_message_pow<T, S>(&mut self, bits: f64) -> Result<T, VerificationError>
     where
-        T: Decoding<[u8]>,
+        T: Decoding,
         S: PowStrategy,
     {
-        let challenge: [u8; POW_CHALLENGE_BYTES] = self.verifier_message();
-        let mut grinder = PoWGrinder::<S>::new(challenge, bits);
-        // Validate inside the reader boundary: failure poisons the reader and
-        // prevents the rejected nonce from being absorbed into the transcript.
-        self.prover_message_with(
-            |reader| {
-                let nonce = reader.read::<u64>()?;
-                grinder
-                    .verify(nonce)
-                    .then_some(nonce)
-                    .ok_or(VerificationError)
-            },
-            |nonce| nonce.to_le_bytes(),
-        )?;
+        let challenge = self.verifier_message::<[u8; 32]>();
+        let nonce = self.prover_only(|| {
+            PoWGrinder::<S>::new(challenge, bits)
+                .grind()
+                .map(|solution| solution.nonce)
+                .ok_or(VerificationError)
+        })?;
+        let nonce = self.prover_message(nonce)?;
+        self.check(|| PoWGrinder::<S>::new(challenge, bits).verify(nonce))?;
         Ok(self.verifier_message())
     }
 }
+
+impl<T: Transcript + ?Sized> PowTranscriptExt for T {}
 
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc};
 
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
     use spongefish::{
         instantiations::{Shake128, TurboShake128},
-        Narg, ProverState,
+        Argument, DuplexSpongeInterface, Narg, ProverState, Transcript, VerificationError,
+        VerifierState, Witness,
     };
-    use spongefish::{DuplexSpongeInterface, VerifierState};
 
-    use super::DecodingPow;
+    use super::PowTranscriptExt;
     #[cfg(feature = "blake3")]
     use crate::PoWGrinder;
     use crate::{PoWSolution, PowStrategy};
@@ -144,7 +113,6 @@ mod tests {
     const BITS: f64 = 8.0;
 
     // Use different public/private sponges to exercise the refactored RNG bound.
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
     fn prover() -> ProverState<TurboShake128, Shake128> {
         let session_id = Narg::derive_session_id(b"pow/tests/v1");
         ProverState::new_with_seed(&session_id, &0u32, [7; 32])
@@ -160,9 +128,9 @@ mod tests {
     fn round_trip<S: PowStrategy>() {
         let mut prover = prover();
         prover.prover_message(&123u32);
-        let first: u64 = prover.verifier_message_pow::<u64, S>(BITS);
+        let first: u64 = prover.verifier_message_pow::<u64, S>(BITS).unwrap();
         prover.prover_message(&456u32);
-        let second: [u8; 32] = prover.verifier_message_pow::<[u8; 32], S>(BITS);
+        let second: [u8; 32] = prover.verifier_message_pow::<[u8; 32], S>(BITS).unwrap();
         let proof = prover.into_narg_string();
         assert_eq!(proof.len(), 4 + 8 + 4 + 8);
 
@@ -194,6 +162,47 @@ mod tests {
 
     #[cfg(feature = "blake3")]
     #[test]
+    fn argument_and_direct_state_apis_produce_the_same_proof_and_challenge() {
+        use crate::blake3::Blake3PoW;
+
+        struct PowRound;
+        impl Argument for PowRound {
+            type Instance = u32;
+            type Witness = ();
+            type Output = u64;
+
+            fn run<T: Transcript>(
+                transcript: &mut T,
+                _instance: &u32,
+                _witness: Witness<&()>,
+            ) -> Result<u64, VerificationError> {
+                transcript.verifier_message_pow::<u64, Blake3PoW>(BITS)
+            }
+        }
+
+        let tag = b"pow/tests/v1";
+        let (proof, challenge) = Narg::prove::<PowRound>(tag, &0, &()).unwrap();
+        assert_eq!(
+            Narg::verify::<PowRound>(tag, &0, &proof).unwrap(),
+            challenge
+        );
+
+        let mut direct = prover();
+        assert_eq!(
+            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
+            challenge
+        );
+        assert_eq!(direct.into_narg_string(), proof);
+        let mut direct = verifier(&proof);
+        assert_eq!(
+            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
+            challenge
+        );
+        assert!(direct.check_eof().is_ok());
+    }
+
+    #[cfg(feature = "blake3")]
+    #[test]
     fn matches_manual_transcript_and_nonce_encoding() {
         use crate::blake3::Blake3PoW;
 
@@ -207,7 +216,9 @@ mod tests {
 
         let mut bundled = prover();
         assert_eq!(
-            bundled.verifier_message_pow::<u64, Blake3PoW>(BITS),
+            bundled
+                .verifier_message_pow::<u64, Blake3PoW>(BITS)
+                .unwrap(),
             expected
         );
         assert_eq!(bundled.into_narg_string(), solution.nonce.to_le_bytes());
@@ -284,18 +295,58 @@ mod tests {
                 nonce,
             }
         }
+
+        fn solve(&mut self) -> Option<PoWSolution> {
+            assert!(!ACCEPT, "verifier must not run the nonce search");
+            None
+        }
     }
 
     #[test]
-    fn rejected_nonce_is_not_absorbed_and_poisoning_survives_caught_errors() {
+    fn exhausted_grinding_returns_an_error_without_sending_a_nonce() {
+        let mut prover = prover();
+        assert!(prover
+            .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
+            .is_err());
+        assert_eq!(prover.into_narg_string(), []);
+    }
+
+    #[test]
+    fn argument_cannot_accept_a_caught_pow_failure() {
+        struct SwallowsFailure;
+        impl Argument for SwallowsFailure {
+            type Instance = u32;
+            type Witness = ();
+            type Output = ();
+
+            fn run<T: Transcript>(
+                transcript: &mut T,
+                _instance: &u32,
+                _witness: Witness<&()>,
+            ) -> Result<(), VerificationError> {
+                let _ = transcript.verifier_message_pow::<u64, FixedPredicate<false>>(8.0);
+                Ok(())
+            }
+        }
+        assert!(Narg::verify::<SwallowsFailure>(b"caught PoW failure", &0, &[0; 8]).is_err());
+    }
+
+    #[test]
+    fn rejected_nonce_produces_no_challenge_and_poisoning_survives_caught_errors() {
         let events = Rc::new(RefCell::new(Vec::new()));
         let mut verifier = VerifierState::from_parts(RecordingSponge(events.clone()), &[0; 8]);
         assert!(verifier
             .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
             .is_err());
-        // Only the grinding challenge was squeezed: no nonce absorption and
-        // no protected challenge, even though all proof bytes were consumed.
-        assert_eq!(*events.borrow(), [Event::Squeeze(32)]);
+        // The nonce is an ordinary prover message. Its failed check prevents
+        // the protected challenge, even though all proof bytes were consumed.
+        assert_eq!(
+            *events.borrow(),
+            [Event::Squeeze(32), Event::Absorb(vec![0; 8])]
+        );
+        assert!(verifier
+            .check(|| panic!("a failed check must not run again"))
+            .is_err());
         assert!(verifier.prover_message::<u8>().is_err());
         assert!(verifier.prover_messages_vec::<u8>(0).is_err());
         assert!(verifier
