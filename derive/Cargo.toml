@@ -4,9 +4,9 @@ description = "Derive macros for the spongefish Fiat-Shamir library"
 documentation = "https://docs.rs/spongefish-derive"
 edition.workspace = true
 readme.workspace = true
-homepage.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 version.workspace = true
 
 [package.metadata.docs.rs]
@@ -18,7 +18,10 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "2.0", features = ["derive"] }
+syn = { version = "3.0", features = ["derive"] }
 
 [dev-dependencies]
-spongefish = { path = "../spongefish", default-features = false, features = ["sha3"] }
+spongefish = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

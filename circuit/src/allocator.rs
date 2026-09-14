@@ -8,7 +8,7 @@ use itertools::Itertools;
 use spin::RwLock;
 use spongefish::Unit;
 
-/// A symbolic wire over which we perform out computation.
+/// A symbolic wire over which we perform our computation.
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct FieldVar(usize);
 
@@ -19,13 +19,11 @@ impl FieldVar {
     pub const ZERO: Self = Self(0);
 
     /// Return the variable index.
-    #[must_use]
     pub const fn index(self) -> usize {
         self.0
     }
 
     /// Construct a variable from an index when it is within the supported range.
-    #[must_use]
     pub const fn try_from_index(index: usize) -> Option<Self> {
         if index < Self::MAX_COUNT {
             Some(Self(index))
@@ -48,7 +46,7 @@ impl core::fmt::Debug for FieldVar {
 /// Allocator for field variables.
 ///
 /// Creates a new wire identifier when requested,
-/// and keeps tracks of the wires that have been declared as public.
+/// and keeps track of the wires that have been declared as public.
 #[derive(Clone)]
 pub struct VarAllocator<T> {
     state: Arc<RwLock<AllocatorState<T>>>,
@@ -66,7 +64,6 @@ impl<T: Clone + Unit> Default for VarAllocator<T> {
 }
 
 impl<T: Clone + Unit> VarAllocator<T> {
-    #[must_use]
     pub fn new() -> Self {
         let zero_var = FieldVar::ZERO;
         let mut public_values = HashMap::new();
@@ -79,7 +76,6 @@ impl<T: Clone + Unit> VarAllocator<T> {
         }
     }
 
-    #[must_use]
     pub fn new_field_var(&self) -> FieldVar {
         let mut state = self.state.write();
         assert!(
@@ -92,7 +88,6 @@ impl<T: Clone + Unit> VarAllocator<T> {
         var
     }
 
-    #[must_use]
     pub fn allocate_vars<const N: usize>(&self) -> [FieldVar; N] {
         let mut buf = [FieldVar::default(); N];
         for x in &mut buf {
@@ -101,7 +96,6 @@ impl<T: Clone + Unit> VarAllocator<T> {
         buf
     }
 
-    #[must_use]
     pub fn allocate_vars_vec(&self, count: usize) -> Vec<FieldVar> {
         {
             let state = self.state.read();
@@ -130,19 +124,17 @@ impl<T: Clone + Unit> VarAllocator<T> {
         vars
     }
 
-    #[must_use]
     pub fn vars_count(&self) -> usize {
         self.state.read().vars_count
     }
 
-    #[must_use]
     pub fn is_allocated(&self, var: FieldVar) -> bool {
         var.index() < self.vars_count()
     }
 
     /// Assigns the wire variable `var` to `val`.
     ///
-    /// If the wire was already present, it is over-written.
+    /// If the wire was already present, it is overwritten.
     pub fn set_public_var(&self, var: FieldVar, val: T) {
         self.state.write().public_values.insert(var, val);
     }
@@ -154,7 +146,7 @@ impl<T: Clone + Unit> VarAllocator<T> {
     ///
     /// # Panics
     ///
-    /// If the iterators have different length, this function will panic.
+    /// If the iterators have different lengths, this function will panic.
     pub fn set_public_vars<Val, Var>(
         &self,
         vars: impl IntoIterator<Item = Var>,
@@ -170,7 +162,6 @@ impl<T: Clone + Unit> VarAllocator<T> {
         );
     }
 
-    #[must_use]
     pub fn public_vars(&self) -> Vec<(FieldVar, T)> {
         let mut public_values = self
             .state
