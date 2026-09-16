@@ -3,28 +3,63 @@
 use p3_baby_bear::BabyBear;
 use spongefish::{DuplexSponge, DuplexSpongeInterface, Permutation};
 use spongefish_circuit::{
-    allocator::FieldVar,
-    baby_bear::BabyBearUnit,
-    permutation::{LinearEquation, PermutationInstanceBuilder, PermutationWitnessBuilder},
+    baby_bear::BabyBearUnit, FieldVar, PermutationRelation, PermutationWitness,
+    PermutationWitnessBuilder,
 };
 
 const fn bb(value: u32) -> BabyBearUnit {
     BabyBearUnit(BabyBear::new(value))
 }
 
-type TestInstanceBuilder = PermutationInstanceBuilder<BabyBearUnit, 16>;
+type Relation = PermutationRelation<BabyBearUnit, 16>;
 
+/// A toy bijection, enough to exercise the bookkeeping.
 #[derive(Clone, Default)]
-struct DummyPermutation;
+struct Rotate;
 
-impl Permutation<16> for DummyPermutation {
+impl Permutation<16> for Rotate {
     type U = BabyBearUnit;
 
-    fn permute_mut(&self, _state: &mut [Self::U; 16]) {}
+    fn permute_mut(&self, state: &mut [BabyBearUnit; 16]) {
+        *state = core::array::from_fn(|i| {
+            let (x, y) = (state[i].0, state[(i + 1) % 16].0);
+            BabyBearUnit(x * x * x + y)
+        });
+    }
 }
 
-fn instance_builder() -> TestInstanceBuilder {
-    PermutationInstanceBuilder::new()
+/// Written once, run over wires and over values.
+fn hash<S: DuplexSpongeInterface>(sponge: &mut S, public: &[S::U], secret: &[S::U]) -> [S::U; 4] {
+    sponge.absorb(public).absorb(secret).squeeze_array()
+}
+
+const PUBLIC: [BabyBearUnit; 3] = [bb(1), bb(2), bb(3)];
+const SECRET: [BabyBearUnit; 13] = [bb(7); 13];
+
+/// The relation and the honest witness for `hash(PUBLIC, SECRET)`.
+fn relation_and_witness() -> (
+    Relation,
+    PermutationWitness<BabyBearUnit, 16>,
+    [BabyBearUnit; 4],
+) {
+    let tracer = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate);
+    let digest = hash(
+        &mut DuplexSponge::<_, 16, 8>::from(tracer.clone()),
+        &PUBLIC,
+        &SECRET,
+    );
+
+    let relation = Relation::new();
+    let public = relation.allocate_vars_with(&PUBLIC);
+    let secret = relation.allocate_vars::<13>();
+    let output = hash(
+        &mut DuplexSponge::<_, 16, 8>::from(relation.clone()),
+        &public,
+        &secret,
+    );
+    relation.set_vars(output, digest);
+
+    (relation, tracer.snapshot(), digest)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,89 +79,170 @@ fn assert_panics_with(expected: &str, f: impl FnOnce()) {
 }
 
 #[test]
-pub fn test_xof() {
-    // Create a new dummy permutation.
-    // The permutation contains internally a "FieldVar" allocator, which is simply a `usize`
-    // representing a field variable.
-    let inst_builder = instance_builder();
+fn sponge_over_wires_records_one_query_per_permutation_call() {
+    let (relation, _, _) = relation_and_witness();
+    let instance = relation.compile().expect("valid relation");
 
-    // You can access the allocator with .allocator()..
-    // .. and allocate new variables (in this case 13) that are private ..
-    let secret = inst_builder.allocator().allocate_vars::<13>();
-    // .. or public variables for which the value is known.
-    let public = inst_builder
-        .allocator()
-        .allocate_public(&[bb(1), bb(2), bb(3)]);
-
-    // Build the duplex sponge construction over this "permutation" with parameters:
-    // WIDTH = 16
-    // RATE = 8 (so the sponge capacity is 8)
-    // `inst_builder` is reference-counted.
-    let mut sponge = DuplexSponge::<_, 16, 8>::from(inst_builder.clone());
-
-    // Use the sponge as an xof and get 4 field elements as outputs.
-    // This is common when you want to hash a secret and do domain separation.
-    // This could also have been a separate function working over a generic DuplexSponge<P: Permutation>
-    // running native code.
-    let xof_output = sponge.absorb(&public).absorb(&secret).squeeze_boxed(4);
-
-    // Let's assume the output is public (that's the case in Fiat-Shamir or in encryption)
-    inst_builder
-        .allocator()
-        .set_public_vars(&xof_output, [bb(42); 4]);
-
-    // Since rate = 8 and |public + secret| = 16
-    // we have invoked the permutation function twice.
-    assert_eq!(xof_output.len(), 4);
-    assert_eq!(inst_builder.constraints().as_ref().len(), 2);
-
-    // the instance is a set of:
-    println!(
-        "input/otutput vars: {:?}",
-        inst_builder.constraints().as_ref()
-    );
-    println!("public vars: {:?}", inst_builder.allocator().public_vars());
+    // Sixteen units absorbed at rate eight: two permutation calls.
+    assert_eq!(instance.queries().len(), 2);
+    assert_eq!(instance.vars_count(), relation.allocator().vars_count());
+    // ZERO, the three public inputs, and the four outputs.
+    assert_eq!(instance.public_vars().len(), 1 + 3 + 4);
+    assert_eq!(instance.value(FieldVar::ZERO), Some(&bb(0)));
 }
 
 #[test]
-pub fn test_linear_equations() {
-    let inst_builder = instance_builder();
-    let vars = inst_builder.allocator().allocate_vars::<16>();
+fn honest_trace_is_a_valid_witness() {
+    let (relation, witness, _) = relation_and_witness();
+    let instance = relation.compile().unwrap();
+    assert!(instance.is_witness_valid(&Rotate, &witness));
+}
+
+#[test]
+fn wrong_public_output_is_rejected() {
+    let (_, witness, digest) = relation_and_witness();
+    // Same wiring, but the relation claims a different digest.
+    let mut wrong = digest;
+    wrong[0] = bb(0);
+
+    let claimed = Relation::new();
+    let public = claimed.allocate_vars_with(&PUBLIC);
+    let secret = claimed.allocate_vars::<13>();
+    let output = hash(
+        &mut DuplexSponge::<_, 16, 8>::from(claimed.clone()),
+        &public,
+        &secret,
+    );
+    claimed.set_vars(output, wrong);
+
+    assert!(!claimed
+        .compile()
+        .unwrap()
+        .is_witness_valid(&Rotate, &witness));
+}
+
+#[test]
+fn tampered_trace_is_rejected() {
+    let (relation, _, _) = relation_and_witness();
+    let instance = relation.compile().unwrap();
+
+    let tracer = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate);
+    let honest = tracer.trace();
+    // Rebuild the trace with a step that is not an evaluation of `Rotate`.
+    let mut sponge = DuplexSponge::<_, 16, 8>::from(tracer.clone());
+    let _ = hash(&mut sponge, &PUBLIC, &SECRET);
+    let steps = tracer.trace();
+    assert_eq!(honest.len(), 0);
+    assert_eq!(steps.len(), 2);
+
+    let forged = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate);
+    forged.add_permutation(&steps[0].input, &steps[0].output);
+    forged.add_permutation(&steps[1].input, &[bb(9); 16]);
+    assert!(!instance.is_witness_valid(&Rotate, &forged.snapshot()));
+
+    let short = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate);
+    short.add_permutation(&steps[0].input, &steps[0].output);
+    assert!(!instance.is_witness_valid(&Rotate, &short.snapshot()));
+}
+
+#[test]
+fn linear_equations_are_built_with_operators() {
+    let relation = Relation::new();
+    let vars = relation.allocate_vars::<16>();
     let [a, b, c] = [vars[0], vars[1], vars[2]];
-    inst_builder.add_permutation(vars, vars);
-    inst_builder.add_equation(LinearEquation::new(
-        [(bb(1), a), (bb(1), b), (bb(1), c)],
-        bb(0),
-    ));
-    inst_builder.add_equation(LinearEquation::new([(bb(2), c), (bb(3), a)], bb(7)));
+    relation.add_permutation(vars, vars);
+    relation.add_equation(a * bb(1) + b + c, bb(0));
+    relation.add_equation(c * bb(2) + a * bb(3), bb(7));
 
-    let equations = inst_builder.linear_constraints();
-    assert_eq!(equations.as_ref().len(), 2);
-    assert_eq!(
-        equations.as_ref()[0].linear_combination,
-        vec![(bb(1), a), (bb(1), b), (bb(1), c),]
+    let equations = relation.equations();
+    assert_eq!(equations.len(), 2);
+    assert_eq!(equations[0].terms.terms().len(), 3);
+    assert_eq!(equations[0].terms.terms()[1].var, b);
+    assert_eq!(equations[0].terms.terms()[1].weight, bb(1));
+    assert_eq!(equations[0].image, bb(0));
+    assert_eq!(equations[1].terms.terms()[0].weight, bb(2));
+    assert_eq!(equations[1].image, bb(7));
+    relation
+        .compile()
+        .expect("every wire is bound by the query");
+}
+
+#[test]
+fn equations_are_checked_against_the_witness() {
+    let (relation, witness, digest) = relation_and_witness();
+    let [d0, d1, ..] = witness.trace()[1].output;
+    assert_eq!(d0, digest[0]);
+
+    // Which wires carry the digest: the first RATE outputs of the last query.
+    let last = relation.queries()[1].clone();
+    let (w0, w1) = (last.output[0], last.output[1]);
+
+    relation.add_equation(w0 + w1 * bb(1), BabyBearUnit(d0.0 + d1.0));
+    assert!(relation
+        .compile()
+        .unwrap()
+        .is_witness_valid(&Rotate, &witness));
+
+    relation.add_equation(w0 * bb(2), BabyBearUnit(d0.0 + d0.0 + BabyBear::new(1)));
+    assert!(!relation
+        .compile()
+        .unwrap()
+        .is_witness_valid(&Rotate, &witness));
+}
+
+#[test]
+fn compile_rejects_weighted_unbound_wires_and_accepts_zero_weights() {
+    let relation = Relation::new();
+    let bound = relation.allocate_vars::<16>();
+    let unbound = relation.allocate_var();
+    relation.add_permutation(bound, bound);
+
+    relation.add_equation(unbound * bb(0), bb(0));
+    relation
+        .compile()
+        .expect("a zero weight constrains nothing");
+
+    relation.add_equation(unbound * bb(1), bb(0));
+    let error = relation
+        .compile()
+        .expect_err("unbound wire with nonzero weight");
+    assert!(
+        error
+            .message()
+            .contains("which no query or assignment binds"),
+        "{error}"
     );
-    assert_eq!(equations.as_ref()[0].image, bb(0));
-    assert_eq!(equations.as_ref()[1].image, bb(7));
 }
 
 #[test]
-pub fn test_witness_linear_equations() {
-    let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
-    witness.add_equation(LinearEquation::new(
-        [(bb(2), bb(3)), (bb(4), bb(5)), (bb(6), bb(8))],
-        bb(9),
-    ));
+fn compile_accepts_weighted_public_wires() {
+    let relation = Relation::new();
+    let public = relation.allocate_var_with(bb(5));
+    relation.add_equation(public * bb(2), bb(10));
+    let instance = relation.compile().unwrap();
 
-    let equations = witness.linear_constraints();
-    assert_eq!(equations.as_ref().len(), 1);
-    assert_eq!(equations.as_ref()[0].linear_combination.len(), 3);
-    assert_eq!(equations.as_ref()[0].linear_combination[2], (bb(6), bb(8)));
-    assert_eq!(equations.as_ref()[0].image, bb(9));
+    let empty = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate).snapshot();
+    assert!(instance.is_witness_valid(&Rotate, &empty));
 }
 
 #[test]
-pub fn field_var_indices_are_bounded() {
+fn compile_rejects_unallocated_wires() {
+    let relation = Relation::new();
+    let vars = relation.allocate_vars::<16>();
+    let foreign = FieldVar::try_from_index(1000).unwrap();
+    let mut input = vars;
+    input[3] = foreign;
+    relation.add_permutation(input, vars);
+
+    let error = relation.compile().expect_err("unallocated wire in a query");
+    assert!(
+        error.message().contains("unallocated variable 1000"),
+        "{error}"
+    );
+}
+
+#[test]
+fn field_var_indices_are_bounded() {
     assert_eq!(
         FieldVar::try_from_index(FieldVar::MAX_COUNT - 1)
             .expect("last valid variable")
@@ -137,72 +253,77 @@ pub fn field_var_indices_are_bounded() {
 }
 
 #[test]
-pub fn public_vars_are_returned_by_variable_index() {
-    let inst_builder = instance_builder();
-    let [first, second] = inst_builder.allocator().allocate_vars();
+fn public_vars_are_returned_by_variable_index() {
+    let relation = Relation::new();
+    let [first, second] = relation.allocate_vars();
 
-    inst_builder.allocator().set_public_var(second, bb(2));
-    inst_builder.allocator().set_public_var(first, bb(1));
+    relation.set_var(second, bb(2));
+    relation.set_var(first, bb(1));
 
     assert_eq!(
-        inst_builder.allocator().public_vars(),
-        vec![(FieldVar::ZERO, bb(0)), (first, bb(1)), (second, bb(2)),]
+        relation.public_vars(),
+        vec![(FieldVar::ZERO, bb(0)), (first, bb(1)), (second, bb(2))]
     );
+    assert_eq!(relation.allocator().value(second), Some(bb(2)));
+    assert_eq!(relation.allocator().value(relation.allocate_var()), None);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-pub fn linear_equation_terms_must_be_bound_unless_zero() {
-    let inst_builder = instance_builder();
-    let bound_vars = inst_builder.allocator().allocate_vars::<16>();
-    let [unbound_var] = inst_builder.allocator().allocate_vars();
-    inst_builder.add_permutation(bound_vars, bound_vars);
-
-    assert_panics_with(
-        "nonzero linear terms must reference a permutation input or output variable",
-        || {
-            inst_builder.add_equation(LinearEquation::new([(bb(1), unbound_var)], bb(0)));
-        },
-    );
-
-    inst_builder.add_equation(LinearEquation::new([(bb(0), unbound_var)], bb(0)));
-
-    assert_eq!(inst_builder.linear_constraints().as_ref().len(), 1);
+fn conflicting_assignments_panic() {
+    let relation = Relation::new();
+    let var = relation.allocate_var_with(bb(1));
+    relation.set_var(var, bb(1));
+    assert_panics_with("conflicting assignment", || relation.set_var(var, bb(2)));
+    assert_panics_with("unallocated variable", || {
+        relation.set_var(FieldVar::try_from_index(99).unwrap(), bb(2));
+    });
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
-pub fn allocate_vars_vec_overflow_does_not_mutate_allocator() {
-    let inst_builder = instance_builder();
-    let allocator = inst_builder.allocator();
-    let vars_count = allocator.vars_count();
+fn allocate_vars_vec_overflow_does_not_mutate_allocator() {
+    let relation = Relation::new();
+    let vars_count = relation.allocator().vars_count();
 
     assert_panics_with("variable count overflow", || {
-        let _ = allocator.allocate_vars_vec(usize::MAX);
+        let _ = relation.allocate_vars_vec(usize::MAX);
     });
 
-    assert_eq!(allocator.vars_count(), vars_count);
+    assert_eq!(relation.allocator().vars_count(), vars_count);
 }
 
 #[test]
-pub fn snapshots_are_immutable_after_builder_mutation() {
-    let inst_builder = instance_builder();
-    let first_vars = inst_builder.allocator().allocate_vars::<16>();
-    let _ = inst_builder.allocate_permutation(&first_vars);
-    let instance_snapshot = inst_builder.snapshot();
+fn compiled_instances_are_immutable_after_relation_mutation() {
+    let relation = Relation::new();
+    let first = relation.allocate_vars::<16>();
+    let _ = relation.allocate_permutation(&first);
+    let instance = relation.compile().unwrap();
 
-    let second_vars = inst_builder.allocator().allocate_vars::<16>();
-    let _ = inst_builder.allocate_permutation(&second_vars);
+    let second = relation.allocate_vars::<16>();
+    let _ = relation.allocate_permutation(&second);
 
-    assert_eq!(instance_snapshot.constraints().as_ref().len(), 1);
-    assert_eq!(inst_builder.constraints().as_ref().len(), 2);
+    assert_eq!(instance.queries().len(), 1);
+    assert_eq!(relation.queries().len(), 2);
 
-    let witness = PermutationWitnessBuilder::<DummyPermutation, 16>::new(DummyPermutation);
+    let tracer = PermutationWitnessBuilder::<Rotate, 16>::new(Rotate);
     let input = [bb(1); 16];
-    let _ = witness.allocate_permutation(&input);
-    let witness_snapshot = witness.snapshot();
-    let _ = witness.allocate_permutation(&input);
+    let _ = tracer.allocate_permutation(&input);
+    let witness = tracer.snapshot();
+    let _ = tracer.allocate_permutation(&input);
 
-    assert_eq!(witness_snapshot.trace().as_ref().len(), 1);
-    assert_eq!(witness.trace().as_ref().len(), 2);
+    assert_eq!(witness.trace().len(), 1);
+    assert_eq!(tracer.trace().len(), 2);
+}
+
+#[test]
+fn relations_can_share_an_allocator() {
+    let wide = Relation::new();
+    let narrow = PermutationRelation::<BabyBearUnit, 4>::with_allocator(wide.allocator().clone());
+    let shared = wide.allocate_var_with(bb(3));
+    let input = [shared, FieldVar::ZERO, FieldVar::ZERO, FieldVar::ZERO];
+    let _ = narrow.allocate_permutation(&input);
+
+    assert!(wide.allocator().is_allocated(narrow.queries()[0].output[3]));
+    narrow.compile().expect("the shared wire is allocated");
 }

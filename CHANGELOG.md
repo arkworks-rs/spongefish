@@ -23,6 +23,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - A typed, single-body API for writing a public-coin argument once and a compiler into a non-interactive argument.
 - Consuming terminal-message helpers that return the prover's NARG string and make the verifier's end-of-input check mandatory.
 - `VerifierState::into_narg_string`, which consumes the verifier and returns the unread rest of the NARG string, for a proof followed by data the caller parses itself.
+- `spongefish-circuit`: `PermutationRelation::compile` validates a relation into a `PermutationInstance`, `PermutationInstance::is_witness_valid` checks a recorded trace against it, linear equations are written with operators on wires (`x * a + y * b + z`), and the relation forwards the allocator's methods.
 
 ### Changed
 
@@ -40,6 +41,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - **Breaking:** A more clean approach at duplex sponge initialization. `DuplexSpongeInit` is for generic units, and `EncodedSessionId` takes care of algebraic sponges. Byte transcripts are unchanged.
 - **Breaking:** the instance passed to `ProverState::{new, new_with_seed, from_parts}` and `VerifierState::new` is encoded into the sponge's alphabet (`Encoding<[H::U]>`) rather than into bytes. Identical for byte sponges.
 - **Breaking:** `Permutation` requires `permute_mut` and provides `permute`, rather than the other way round. Every real permutation mixes the state in place, so implementations no longer have to write the by-value map as a wrapper around the in-place one.
+- **Breaking:** `spongefish-circuit` is reworked after `sigma-proofs`' `LinearRelation`. `PermutationInstanceBuilder` is `PermutationRelation` and its `snapshot` is a validating `compile` returning `Result`, `LinearEquation` holds a `Sum` of `Weighted` terms, instance and witness fields are private behind slice accessors, the witness is the trace alone, and allocation methods follow `sigma-proofs` names (`allocate_var`, `allocate_vars_with`, `set_var`). Assigning a wire twice with different values is a panic instead of a silent overwrite, and the `hashbrown` and `itertools` dependencies are gone.
 - `NargDeserialize` gained a provided `deserialize_array_from_narg`, which `[T; N]` delegates to. `u8` overrides it with a single bounds-checked copy, so `[u8; 32]` — the shape carrying compressed points, scalars and digests — is one fixed-size read instead of 32 element parses: 57.7ns to 1.1ns, and 122ns to 4.7ns for a derived struct of two such fields. End to end this makes verification about twice as fast (a 32-round transcript goes from 7.8µs to 4.0µs). The NARG string is byte-identical.
 - Updated `ascon` to 0.5, along with routine dependency updates.
 
