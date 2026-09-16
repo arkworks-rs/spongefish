@@ -11,48 +11,54 @@ It has not been reviewed, and should be considered a proof-of-concept example th
 
 ## Wiring into a NARG
 
-This crate grinds and verifies nonces over a 32-byte challenge and knows nothing about sponges. 
-The caller is responsible for connecting it to the Fiat–Shamir transformation, and the pattern below is the one to follow.
+The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
 
-The prover squeezes a challenge from its state, grinds a nonce for it, and then sends that nonce as an ordinary prover message. The verifier squeezes the same challenge, reads the nonce from the proof, and re-checks it.
+Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier, so later checks, message reads, and the end-of-input check fail even if the error is caught.
 
-```rust,ignore
-use spongefish::{Narg, ProverState, VerifierState};
-use spongefish_pow::{
-    blake3::Blake3PoW,
-    convenience::{grind_pow, verify_pow},
-};
+Use the default features of `spongefish` and `spongefish-pow` for this example:
+
+```rust
+use spongefish::{DefaultHash, Narg, ProverState, VerificationError, VerifierState};
+use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
 
 // Fixed by the protocol, never read from the proof.
-const POW_BITS: f64 = 20.0;
+const POW_BITS: f64 = 8.0;
 
-let session_id = Narg::derive_session_id(b"example-v00/grinding");
+fn main() -> Result<(), VerificationError> {
+    let session_id = Narg::derive_session_id(b"example/v1/blake3-pow-8/u32");
+    let instance = 0u32;
 
-// Prover.
-let mut prover = ProverState::new(&session_id, &instance);
-// ... earlier prover messages go here ...
+    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
+    let challenge = prover.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
+    let proof = prover.into_narg_string();
 
-// Squeeze the 32-byte grinding challenge.
-let challenge = prover.verifier_message::<[u8; 32]>();
-let solution = grind_pow::<Blake3PoW>(challenge, POW_BITS).expect("no nonce found");
-
-// The nonce is a prover message: it MUST be absorbed.
-prover.prover_message(&solution.nonce);
-
-// ... the rest of the protocol continues from the post-nonce state ...
-let narg_string = prover.narg_string();
-
-// Verifier.
-let mut verifier = VerifierState::new(&session_id, &instance, narg_string);
-// ... read the earlier prover messages in the same order ...
-
-// Same squeeze, same challenge.
-let challenge = verifier.verifier_message::<[u8; 32]>();
-
-// Reading the nonce absorbs it, keeping both in lockstep.
-let nonce = verifier.prover_message::<u64>().expect("unable to read the nonce");
-
-assert!(verify_pow::<Blake3PoW>(challenge, POW_BITS, nonce));
+    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
+    let replay = verifier.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
+    assert_eq!(challenge, replay);
+    verifier.check_eof()
+}
 ```
 
-Note that the nonce is absorbed as a prover message. The difficulty must be set by the protocol.
+The same method is available with only a `Transcript` bound, so an interactive argument can use it directly:
+
+```rust
+use spongefish::{Argument, Transcript, VerificationError, Witness};
+use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
+
+struct PowRound;
+impl Argument for PowRound {
+    type Instance = u32;
+    type Witness = ();
+    type Output = u32;
+
+    fn run<T: Transcript>(
+        transcript: &mut T,
+        _instance: &u32,
+        _witness: Witness<&()>,
+    ) -> Result<u32, VerificationError> {
+        transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
+    }
+}
+```
+
+The nonce is encoded as a little-endian `u64`. The PoW strategy, difficulty, placement of the step, and returned message type must be fixed by the protocol and accounted for in its session tag. The example uses a cheap difficulty for demonstration; the appropriate work factor and soundness benefit depend on the protocol.

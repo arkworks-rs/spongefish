@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use core::cell::Cell;
 
 use crate::VerificationError;
 
@@ -12,6 +13,9 @@ use crate::VerificationError;
 /// Once the reader is poisoned, every subsequent read will return [`VerificationError`],
 /// including zero-length reads. Parsers will not be invoked on a poisoned reader.
 ///
+/// This reader is not [`Sync`]: verification checks can poison it through
+/// shared references. Reading bytes still requires exclusive access.
+///
 /// ```
 /// use spongefish::NargReader;
 ///
@@ -24,15 +28,15 @@ use crate::VerificationError;
 #[derive(Debug)]
 pub struct NargReader<'a> {
     /// The bytes not yet consumed, shortened by every `take`; `None` once a
-    /// read has failed.
-    unread: Option<&'a [u8]>,
+    /// read or verification check has failed.
+    unread: Cell<Option<&'a [u8]>>,
 }
 
 impl<'a> NargReader<'a> {
     /// Creates a reader positioned at the start of `narg_string`.
     pub const fn new(narg_string: &'a [u8]) -> Self {
         Self {
-            unread: Some(narg_string),
+            unread: Cell::new(Some(narg_string)),
         }
     }
 
@@ -40,7 +44,7 @@ impl<'a> NargReader<'a> {
     ///
     /// A reader in an invalid state will return `false`.
     pub const fn is_empty(&self) -> bool {
-        match self.unread {
+        match self.unread.get() {
             Some(unread) => unread.is_empty(),
             None => false,
         }
@@ -48,17 +52,31 @@ impl<'a> NargReader<'a> {
 
     /// Return `true` if the reader is in an invalid state, `false` otherwise.
     pub const fn is_poisoned(&self) -> bool {
-        self.unread.is_none()
+        self.unread.get().is_none()
     }
 
     /// Marks the reader invalid, including after the last byte was consumed.
-    const fn poison(&mut self) {
-        self.unread = None;
+    fn poison(&self) {
+        self.unread.set(None);
+    }
+
+    /// Runs a verification check, retaining failures even if they are caught.
+    pub(crate) fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
+        if self.is_poisoned() {
+            return Err(VerificationError);
+        }
+        // A nested check can poison the reader through another shared reference.
+        if holds() && !self.is_poisoned() {
+            Ok(())
+        } else {
+            self.poison();
+            Err(VerificationError)
+        }
     }
 
     /// The bytes not yet consumed; `None` once the reader is poisoned.
     pub(crate) const fn unread(&self) -> Option<&'a [u8]> {
-        self.unread
+        self.unread.get()
     }
 
     /// Reads one value from the front of the NARG string.
@@ -120,9 +138,9 @@ impl<'a> NargReader<'a> {
         }
         let mut elements = Vec::with_capacity(count.min(64));
         for _ in 0..count {
-            let before = self.unread.map(<[u8]>::len);
+            let before = self.unread.get().map(<[u8]>::len);
             let element = self.read::<T>()?;
-            if self.unread.map(<[u8]>::len) == before {
+            if self.unread.get().map(<[u8]>::len) == before {
                 self.poison();
                 return Err(VerificationError);
             }
@@ -158,11 +176,11 @@ impl<'a> NargReader<'a> {
         &mut self,
         split: impl FnOnce(&'a [u8]) -> Option<(T, &'a [u8])>,
     ) -> Result<T, VerificationError> {
-        let Some((head, tail)) = self.unread.and_then(split) else {
+        let Some((head, tail)) = self.unread.get().and_then(split) else {
             self.poison();
             return Err(VerificationError);
         };
-        self.unread = Some(tail);
+        *self.unread.get_mut() = Some(tail);
         Ok(head)
     }
 }

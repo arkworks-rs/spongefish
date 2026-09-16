@@ -808,6 +808,7 @@ dependencies = [
  "bytemuck",
  "keccak",
  "rayon",
+ "spongefish",
 ]
 
 [[package]]

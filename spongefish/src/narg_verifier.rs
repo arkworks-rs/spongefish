@@ -12,14 +12,18 @@ use crate::{
 /// transformation.
 ///
 /// It holds the hash function state producing the verifier's **public coins**,
-/// and a [`NargReader`] over the NARG string. A rejected prover message
-/// poisons the reader, and with it the state: every later read fails, and so
+/// and a [`NargReader`] over the NARG string. A rejected prover message or
+/// [`Transcript::check`][crate::Transcript::check] poisons the reader, and with
+/// it the state: every later read or check fails, and so
 /// does [`VerifierState::check_eof`]. Build one with
 /// [`VerifierState::new`] from a 32-byte session identifier (see
 /// [`derive_session_id`][crate::derive_session_id]), the encoded instance and
 /// the NARG string. Most protocols should use
 /// [`Narg::verify`][crate::Narg::verify], which manages this state and always
 /// enforces end of input.
+///
+/// This state is not [`Sync`]: verification checks can poison it through
+/// shared references.
 ///
 /// # Example
 ///
@@ -65,7 +69,7 @@ pub struct VerifierState<
     pub duplex_sponge_state: H,
     #[cfg(not(feature = "yolocrypto"))]
     pub(crate) duplex_sponge_state: H,
-    /// The cursor over the NARG string, poisoned by the first rejected message.
+    /// The cursor over the NARG string, poisoned by a rejected message or check.
     pub(crate) reader: NargReader<'a>,
 }
 
