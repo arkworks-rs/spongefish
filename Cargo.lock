@@ -764,6 +764,7 @@ dependencies = [
  "p3-field",
  "spin",
  "spongefish",
+ "spongefish-pow",
 ]
 
 [[package]]

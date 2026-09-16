@@ -28,8 +28,11 @@ spongefish = { workspace = true, default-features = true, features = ["derive"] 
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
-# The README doctests run the byte examples over Keccak-f[1600].
+# The README doctests run the byte examples over Keccak-f[1600] and the
+# proof-of-work example over `spongefish-pow`; see `readme_doctests` in
+# `src/lib.rs`.
 spongefish = { workspace = true, default-features = true, features = ["derive", "keccak"] }
+spongefish-pow = { path = "../pow" }
 
 [lints]
 workspace = true

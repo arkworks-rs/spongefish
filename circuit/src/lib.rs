@@ -17,3 +17,11 @@ pub use permutation::{
     LinearEquation, PermutationInstance, PermutationRelation, PermutationWitness,
     PermutationWitnessBuilder, QueryAnswerPair,
 };
+
+// The README's examples are compiled here rather than in `spongefish`: this
+// crate reaches everything they use, `spongefish` with `derive`, BabyBear,
+// the builders, and `spongefish-pow` as a dev-dependency. They are not
+// repeated in the rendered documentation.
+#[cfg(all(doctest, feature = "p3-baby-bear"))]
+#[doc = include_str!("../../README.md")]
+pub mod readme_doctests {}

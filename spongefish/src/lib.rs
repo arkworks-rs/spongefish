@@ -157,7 +157,7 @@
 //!
 //! This crate is `no_std`.
 //!
-//! [README quick start]: https://github.com/arkworks-rs/spongefish#example
+//! [README quick start]: https://github.com/arkworks-rs/spongefish#quickstart
 //! [security policy]: https://github.com/arkworks-rs/spongefish/blob/main/SECURITY.md
 //! [CO25]: https://eprint.iacr.org/2025/536.pdf
 //! [draft-irtf-cfrg-fiat-shamir]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
@@ -166,12 +166,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
-
-// Keep the README's canonical quick start compiled without duplicating it in
-// the rendered crate documentation.
-#[cfg(all(doctest, feature = "turboshake128", feature = "getrandom"))]
-#[doc = include_str!("../../README.md")]
-pub mod readme_doctests {}
 
 #[cfg(target_endian = "big")]
 compile_error!(
