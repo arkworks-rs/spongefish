@@ -32,7 +32,7 @@ p3-baby-bear = { workspace = true }
 # proof-of-work example over `spongefish-pow`; see `readme_doctests` in
 # `src/lib.rs`.
 spongefish = { workspace = true, default-features = true, features = ["derive", "keccak"] }
-spongefish-pow = { path = "../pow" }
+spongefish-pow = { workspace = true }
 
 [lints]
 workspace = true
