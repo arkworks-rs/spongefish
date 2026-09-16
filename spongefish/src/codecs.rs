@@ -2,6 +2,8 @@
 
 use alloc::vec::Vec;
 
+use crate::Unit;
+
 /// Marker trait for types that have encoding and decoding maps.
 ///
 /// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
@@ -35,18 +37,17 @@ use alloc::vec::Vec;
 /// leaves a zero-length encoding, under which all values of the struct are
 /// indistinguishable; that is injective, and so admissible, only for a type
 /// with a single inhabitant.
-pub trait Codec<T = [u8]>: crate::NargDeserialize + Encoding + Encoding<T> + Decoding<T>
-where
-    T: ?Sized,
+pub trait Codec<U: Unit = u8>:
+    crate::NargDeserialize + Encoding + Encoding<U> + Decoding<U>
 {
 }
 
 /// A prefix-free map from a type into strings over a sponge alphabet.
 ///
-/// The parameter `U` is the target alphabet, as a slice type. `Encoding<[U]>`
-/// maps into a random oracle that operates over a [`Unit`][crate::Unit] `U`.
-/// Its output is what will be absorbed. The default unit, `Encoding<[u8]>`, is
-/// also the serialization written to the NARG string.
+/// The parameter `U` is the target alphabet: `Encoding<U>` maps into strings
+/// over the [`Unit`] `U` of the sponge, and its output is what will be absorbed.
+/// The default alphabet, `Encoding<u8>`, is also the serialization written to
+/// the NARG string.
 /// A type used with a sponge over another alphabet implements the trait once per alphabet;
 /// see [Messages and codecs](crate#messages-and-codecs).
 ///
@@ -68,26 +69,22 @@ where
 /// Integers are encoded as their fixed-width little-endian bytes.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
-pub trait Encoding<T = [u8]>
-where
-    T: ?Sized,
-{
+pub trait Encoding<U: Unit = u8> {
     /// The function encoding prover messages into inputs to be absorbed by the duplex sponge.
     ///
     /// This map must be injective. The computation of the pre-image of this map will affect the extraction time.
-    fn encode(&self) -> impl AsRef<T>;
+    fn encode(&self) -> impl AsRef<[U]>;
 }
 
 /// A distribution-preserving map from squeezed sponge output to a verifier
 /// message.
 ///
-/// The parameter `T` is the sponge alphabet as a slice type, as for
-/// [`Encoding`]: `Decoding<[U]>` reads a string over the alphabet of a sponge
-/// whose [`Unit`][crate::Unit] is `U`, and the default `Decoding<[u8]>` serves
-/// byte sponges. This is the map `ψ` of [[CO25], Definition 4.1]: the sponge
-/// squeezes a uniformly random [`Decoding::Repr`], and
-/// [`decode`][Decoding::decode] turns it into the message. The same map draws
-/// the prover's private randomness
+/// The parameter `U` is the sponge alphabet, as for [`Encoding`]:
+/// `Decoding<U>` reads a string over the [`Unit`] `U` of the sponge, and the
+/// default `Decoding<u8>` serves byte sponges. This is the map `ψ` of
+/// [[CO25], Definition 4.1]: the sponge squeezes a uniformly random
+/// [`Decoding::Repr`], and [`decode`][Decoding::decode] turns it into the
+/// message. The same map draws the prover's private randomness
 /// ([`PrivateRng::sample`][crate::PrivateRng::sample]), where a bias is worse
 /// than a soundness loss: biased nonces leak the witness.
 ///
@@ -126,10 +123,7 @@ where
 /// Changing the decoding function requires changing the session identifier too.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
-pub trait Decoding<T = [u8]>
-where
-    T: ?Sized,
-{
+pub trait Decoding<U: Unit = u8> {
     /// The output type (and length) expected by the duplex sponge.
     ///
     /// The squeezed string over the alphabet, sized as described in the
@@ -147,7 +141,7 @@ where
     /// wipes itself on drop, including during unwinding. Custom representations
     /// used for private sampling must provide their own erasure; copies made by
     /// a decoder and the decoded value remain the decoder/caller's responsibility.
-    type Repr: Default + AsMut<T>;
+    type Repr: Default + AsMut<[U]>;
 
     /// The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
     ///
@@ -156,12 +150,8 @@ where
     fn decode(buf: Self::Repr) -> Self;
 }
 
-impl<U, T> Encoding<U> for &T
-where
-    U: ?Sized,
-    T: Encoding<U> + ?Sized,
-{
-    fn encode(&self) -> impl AsRef<U> {
+impl<U: Unit, T: Encoding<U> + ?Sized> Encoding<U> for &T {
+    fn encode(&self) -> impl AsRef<[U]> {
         (*self).encode()
     }
 }
@@ -174,7 +164,7 @@ where
 /// number of elements can never be chosen by the prover; for a length chosen at
 /// run time, use [`LengthPrefixed`] instead. Each element's encoding must be
 /// prefix-free on its own domain, which [`Encoding`] already requires.
-impl<U: Clone, T: Encoding<[U]>, const N: usize> Encoding<[U]> for [T; N] {
+impl<U: Unit, T: Encoding<U>, const N: usize> Encoding<U> for [T; N] {
     fn encode(&self) -> impl AsRef<[U]> {
         let mut output = Vec::new();
         if let Some(first) = self.first() {
@@ -408,10 +398,8 @@ impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<Vec<T>
 
 /// Blanket implementation of [`Codec`] for all types implementing
 /// [`NargDeserialize`][`crate::NargDeserialize`], [`Encoding`], and [`Decoding`].
-impl<T, E> Codec<T> for E
-where
-    T: ?Sized,
-    E: crate::NargDeserialize + Encoding + Encoding<T> + Decoding<T>,
+impl<U: Unit, E> Codec<U> for E where
+    E: crate::NargDeserialize + Encoding + Encoding<U> + Decoding<U>
 {
 }
 
@@ -444,7 +432,7 @@ mod tests {
         for len in [0usize, 1, 100, 123, 124, 125, 200, 1000] {
             let text = "x".repeat(len);
             let text = text.as_str();
-            let encoded = Encoding::<[u8]>::encode(&text);
+            let encoded = Encoding::<u8>::encode(&text);
             let mut expected = Vec::new();
             expected.extend_from_slice(&(len as u32).to_le_bytes());
             expected.extend_from_slice(text.as_bytes());
@@ -476,12 +464,12 @@ mod tests {
     /// transcripts. A 32-bit CI lane (see the `wasm` job) runs this for real.
     #[test]
     fn str_length_prefix_is_fixed_width_u32_le() {
-        let encoded = Encoding::<[u8]>::encode(&"abc");
+        let encoded = Encoding::<u8>::encode(&"abc");
         // 4-byte LE length (== 3) followed by the UTF-8 bytes — never 8 bytes.
         assert_eq!(encoded.as_ref(), &[3, 0, 0, 0, b'a', b'b', b'c']);
 
         // Empty string is just the four length bytes.
-        let empty = Encoding::<[u8]>::encode(&"");
+        let empty = Encoding::<u8>::encode(&"");
         assert_eq!(empty.as_ref(), &[0, 0, 0, 0]);
     }
 
@@ -593,7 +581,7 @@ mod tests {
             for element in case {
                 expected.extend_from_slice(element.encode().as_ref());
             }
-            let encoded = Encoding::<[u8]>::encode(case);
+            let encoded = Encoding::<u8>::encode(case);
             assert_eq!(
                 encoded.as_ref(),
                 &expected[..],
@@ -604,7 +592,7 @@ mod tests {
 
         // The empty array encodes to nothing, on either path.
         let empty: [VariableWidth; 0] = [];
-        assert_eq!(Encoding::<[u8]>::encode(&empty).as_ref(), b"");
+        assert_eq!(Encoding::<u8>::encode(&empty).as_ref(), b"");
     }
 
     /// An element type whose deserializer consumes no input at all — the

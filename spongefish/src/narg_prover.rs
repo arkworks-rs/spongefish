@@ -116,7 +116,7 @@ where
     ///
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     #[cfg(feature = "getrandom")]
-    pub fn new<T: Encoding<[H::U]> + ?Sized>(session_id: &SessionId, instance: &T) -> Self {
+    pub fn new<T: Encoding<H::U> + ?Sized>(session_id: &SessionId, instance: &T) -> Self {
         Self::from_parts(session_id, instance, PrivateRng::<R>::from_os_entropy())
     }
 
@@ -125,7 +125,7 @@ where
     /// # Security
     ///
     /// For test vectors and reproducible tests only; see [`PrivateRng::from_seed`].
-    pub fn new_with_seed<T: Encoding<[H::U]> + ?Sized>(
+    pub fn new_with_seed<T: Encoding<H::U> + ?Sized>(
         session_id: &SessionId,
         instance: &T,
         seed: [u8; crate::private_rng::SEED_LEN],
@@ -138,7 +138,7 @@ where
     /// # Panics
     ///
     /// Panics if the encoded instance is empty (forbidden by the draft).
-    pub fn from_parts<T: Encoding<[H::U]> + ?Sized>(
+    pub fn from_parts<T: Encoding<H::U> + ?Sized>(
         session_id: &SessionId,
         instance: &T,
         private_rng: PrivateRng<R>,
@@ -195,18 +195,18 @@ where
     /// outside of the NARG, and is to be included in the Fiat-Shamir transformation but not in
     /// the final NARG string.
     ///
-    pub fn public_message<T: Encoding<[H::U]> + ?Sized>(&mut self, message: &T) {
+    pub fn public_message<T: Encoding<H::U> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
     /// Input a prover message of type `T` into the Fiat-Shamir transformation.
     ///
-    /// `T` must implement [`Encoding<[H::U]>`][`Encoding`] to be encoded in the domain of the
+    /// `T` must implement [`Encoding<H::U>`][`Encoding`] to be encoded in the domain of the
     /// duplex sponge, and [`Encoding`] to be serialized into the NARG string.
     ///
-    pub fn prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(&mut self, message: &T) {
+    pub fn prover_message<T: Encoding<H::U> + Encoding + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state
-            .absorb(<T as Encoding<[H::U]>>::encode(message).as_ref());
+            .absorb(<T as Encoding<H::U>>::encode(message).as_ref());
         self.narg_string
             .extend_from_slice(<T as Encoding>::encode(message).as_ref());
     }
@@ -215,7 +215,7 @@ where
     ///
     /// This function runs [`ProverState::prover_message`] consuming the prover state and
     /// returning the NARG string ([`ProverState::narg_string`]).
-    pub fn last_prover_message<T: Encoding<[H::U]> + Encoding + ?Sized>(
+    pub fn last_prover_message<T: Encoding<H::U> + Encoding + ?Sized>(
         mut self,
         message: &T,
     ) -> Vec<u8> {
@@ -225,9 +225,9 @@ where
 
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
-    /// `T` must implement [`Decoding<[H::U]>`][`Decoding`].
+    /// `T` must implement [`Decoding<H::U>`][`Decoding`].
     #[must_use]
-    pub fn verifier_message<T: Decoding<[H::U]>>(&mut self) -> T {
+    pub fn verifier_message<T: Decoding<H::U>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
         T::decode(buf)
@@ -241,7 +241,7 @@ where
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
     /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
     /// sequence instead.
-    pub fn public_messages<T: Encoding<[H::U]>>(&mut self, messages: &[T]) {
+    pub fn public_messages<T: Encoding<H::U>>(&mut self, messages: &[T]) {
         for message in messages {
             self.public_message(message);
         }
@@ -256,7 +256,7 @@ where
     pub fn public_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
-        J::Item: Encoding<[H::U]>,
+        J::Item: Encoding<H::U>,
     {
         messages
             .into_iter()
@@ -271,7 +271,7 @@ where
     /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
     /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
-    pub fn prover_messages<T: Encoding<[H::U]> + Encoding>(&mut self, messages: &[T]) {
+    pub fn prover_messages<T: Encoding<H::U> + Encoding>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
         }
@@ -286,7 +286,7 @@ where
     pub fn prover_messages_iter<J>(&mut self, messages: J)
     where
         J: IntoIterator,
-        J::Item: Encoding<[H::U]> + Encoding,
+        J::Item: Encoding<H::U> + Encoding,
     {
         messages
             .into_iter()
@@ -295,13 +295,13 @@ where
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     #[must_use]
-    pub fn verifier_messages<T: Decoding<[H::U]>, const N: usize>(&mut self) -> [T; N] {
+    pub fn verifier_messages<T: Decoding<H::U>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
     #[must_use]
-    pub fn verifier_messages_vec<T: Decoding<[H::U]>>(&mut self, len: usize) -> Vec<T> {
+    pub fn verifier_messages_vec<T: Decoding<H::U>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
 

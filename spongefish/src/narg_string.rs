@@ -192,7 +192,7 @@ impl<'a> NargReader<'a> {
 /// The input of [`NargDeserialize::deserialize_from_narg`] is attacker-controlled.
 /// An implementation **MUST**:
 ///
-/// - be the inverse of the corresponding [`Encoding<[u8]>`] implementation:
+/// - be the inverse of the corresponding [`Encoding<u8>`][crate::Encoding] implementation:
 ///   every value produced by `Encoding::encode` must deserialize to that value,
 ///   and there must be at most one valid value for each possible input.
 ///   Accepting multiple encodings for the same value can make a proof malleable.

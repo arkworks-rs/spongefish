@@ -78,9 +78,9 @@
 //! prover message has two destinations, and a codec is the pair of maps that
 //! take it there:
 //!
-//! - [`Encoding<[U]>`][Encoding] maps the message into the sponge alphabet.
+//! - [`Encoding<U>`][Encoding] maps the message into the sponge alphabet.
 //!   Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
-//! - [`Encoding`], the default `Encoding<[u8]>`, is the byte serialization
+//! - [`Encoding`], the default `Encoding<u8>`, is the byte serialization
 //!   written to the NARG string, and the map that [`NargDeserialize`] inverts
 //!   on the verifier's side.
 //!
@@ -94,7 +94,7 @@
 //! methods are implementation hooks; calling them directly bypasses these
 //! checks. Custom codecs should use reader methods for nested parsing too.
 //!
-//! On a byte sponge the two coincide: `Encoding<[u8]>` is one trait bound
+//! On a byte sponge the two coincide: `Encoding<u8>` is one trait bound
 //! spelled two ways, a single implementation does both jobs, and the bytes
 //! absorbed are exactly the bytes written. The verifier relies on this to read
 //! and absorb a message in one operation, on the very bytes read
@@ -102,14 +102,14 @@
 //! over byte sponges, so the distinction never surfaces there.
 //!
 //! On a sponge over a field `F`, a message type carries two implementations,
-//! `Encoding<[F]>` for the sponge and `Encoding` for the NARG string. They need
+//! `Encoding<F>` for the sponge and `Encoding` for the NARG string. They need
 //! not resemble each other, but each must be prefix-free over its own
 //! alphabet. The verifier deserializes the bytes and then absorbs the
-//! message's `Encoding<[F]>` ([`VerifierState::prover_message`]). The instance
+//! message's `Encoding<F>` ([`VerifierState::prover_message`]). The instance
 //! and public messages are absorbed but never written, so they need only
-//! `Encoding<[U]>`.
+//! `Encoding<U>`.
 //!
-//! Verifier messages go the other way: [`Decoding<[U]>`][Decoding] maps a
+//! Verifier messages go the other way: [`Decoding<U>`][Decoding] maps a
 //! squeezed string over the alphabet, [`Decoding::Repr`], to a verifier
 //! message (the map `ψ` of [[CO25]]). It must carry the uniform distribution
 //! on `Repr` to one close to uniform on the message, and the width of `Repr`
