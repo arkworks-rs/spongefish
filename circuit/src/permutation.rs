@@ -9,7 +9,7 @@
 //! [`DuplexSpongeInterface`][spongefish::DuplexSpongeInterface] runs over
 //! either.
 
-use alloc::{format, sync::Arc, vec::Vec};
+use alloc::{format, string::String, sync::Arc, vec::Vec};
 
 use spin::RwLock;
 use spongefish::{Permutation, Unit};
@@ -75,6 +75,7 @@ impl<T> LinearEquation<T> {
 /// assert_eq!(instance.queries().len(), 2);
 /// ```
 pub struct PermutationRelation<T, const WIDTH: usize> {
+    label: String,
     allocator: VarAllocator<T>,
     queries: Arc<RwLock<Vec<QueryAnswerPair<FieldVar, WIDTH>>>>,
     equations: Arc<RwLock<Vec<LinearEquation<T>>>>,
@@ -83,6 +84,7 @@ pub struct PermutationRelation<T, const WIDTH: usize> {
 impl<T, const WIDTH: usize> Clone for PermutationRelation<T, WIDTH> {
     fn clone(&self) -> Self {
         Self {
+            label: self.label.clone(),
             allocator: self.allocator.clone(),
             queries: Arc::clone(&self.queries),
             equations: Arc::clone(&self.equations),
@@ -97,18 +99,35 @@ impl<T: Unit, const WIDTH: usize> Default for PermutationRelation<T, WIDTH> {
 }
 
 impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
-    /// A relation over a fresh [`VarAllocator`].
+    /// An unlabeled relation over a fresh [`VarAllocator`].
     pub fn new() -> Self {
         Self::with_allocator(VarAllocator::new())
+    }
+
+    /// A relation naming its permutation, such as `keccak-f[1600]`.
+    ///
+    /// The label travels with the compiled instance and its byte encoding,
+    /// so a proof system can check it is being handed the permutation it
+    /// implements. It is free text; the relation does not interpret it.
+    pub fn labeled(label: impl Into<String>) -> Self {
+        let mut relation = Self::new();
+        relation.label = label.into();
+        relation
     }
 
     /// A relation sharing `allocator` with other relations.
     pub fn with_allocator(allocator: VarAllocator<T>) -> Self {
         Self {
+            label: String::new(),
             allocator,
             queries: Arc::default(),
             equations: Arc::default(),
         }
+    }
+
+    /// The permutation's label, empty unless set by [`Self::labeled`].
+    pub fn label(&self) -> &str {
+        &self.label
     }
 
     /// The allocator, for sharing wires with another relation.
@@ -232,10 +251,46 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
     {
         let values = self.allocator.values();
         let vars_count = values.len();
-        let queries = self.queries();
-        let equations = self.equations();
+        let public_values = values
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, value)| Some((FieldVar::try_from_index(index)?, value?)))
+            .collect();
+        PermutationInstance::validated(
+            self.label.clone(),
+            vars_count,
+            public_values,
+            self.queries(),
+            self.equations(),
+        )
+    }
+}
 
-        let mut bound: Vec<bool> = values.iter().map(Option::is_some).collect();
+impl<T: Unit, const WIDTH: usize> PermutationInstance<T, WIDTH> {
+    /// Checks the parts of a relation and assembles the instance; the gate
+    /// behind [`PermutationRelation::compile`] and the byte decoder.
+    pub(crate) fn validated(
+        label: String,
+        vars_count: usize,
+        public_values: Vec<(FieldVar, T)>,
+        queries: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
+        equations: Vec<LinearEquation<T>>,
+    ) -> Result<Self, InvalidRelation>
+    where
+        T: PartialEq,
+    {
+        let mut bound = alloc::vec![false; vars_count];
+        for (var, _) in &public_values {
+            match bound.get_mut(var.index()) {
+                Some(slot) => *slot = true,
+                None => {
+                    return Err(InvalidRelation::new(format!(
+                        "public variable {} is unallocated",
+                        var.index()
+                    )))
+                }
+            }
+        }
         for (index, query) in queries.iter().enumerate() {
             for var in query.input.iter().chain(&query.output) {
                 let Some(slot) = bound.get_mut(var.index()) else {
@@ -269,13 +324,8 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
             }
         }
 
-        let public_values = values
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, value)| Some((FieldVar::try_from_index(index)?, value?)))
-            .collect();
-
-        Ok(PermutationInstance {
+        Ok(Self {
+            label,
             vars_count,
             public_values,
             queries,
@@ -304,13 +354,19 @@ impl<T: Unit, const WIDTH: usize> Permutation<WIDTH> for PermutationRelation<T, 
 /// checked.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PermutationInstance<T, const WIDTH: usize> {
-    vars_count: usize,
-    public_values: Vec<(FieldVar, T)>,
-    queries: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
-    equations: Vec<LinearEquation<T>>,
+    pub(crate) label: String,
+    pub(crate) vars_count: usize,
+    pub(crate) public_values: Vec<(FieldVar, T)>,
+    pub(crate) queries: Vec<QueryAnswerPair<FieldVar, WIDTH>>,
+    pub(crate) equations: Vec<LinearEquation<T>>,
 }
 
 impl<T, const WIDTH: usize> PermutationInstance<T, WIDTH> {
+    /// The permutation's label; see [`PermutationRelation::labeled`].
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
     /// The number of wires, [`FieldVar::ZERO`] included.
     pub const fn vars_count(&self) -> usize {
         self.vars_count
@@ -481,7 +537,7 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> Permutation<WIDTH>
 /// The trace of a permutation: the witness for a [`PermutationInstance`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PermutationWitness<T, const WIDTH: usize> {
-    trace: Vec<QueryAnswerPair<T, WIDTH>>,
+    pub(crate) trace: Vec<QueryAnswerPair<T, WIDTH>>,
 }
 
 impl<T, const WIDTH: usize> PermutationWitness<T, WIDTH> {

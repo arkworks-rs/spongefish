@@ -5,6 +5,7 @@ extern crate alloc;
 pub mod allocator;
 #[cfg(feature = "p3-baby-bear")]
 pub mod baby_bear;
+pub mod encoding;
 mod error;
 pub mod expr;
 pub mod permutation;
