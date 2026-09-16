@@ -10,25 +10,40 @@ use crate::allocator::FieldVar;
 /// The arithmetic a value type needs to appear in a linear equation.
 ///
 /// [`Unit`] supplies zero and cloning; this adds one, addition, and
-/// multiplication, which is what evaluating `Σ weight_i · value_i` and
-/// giving a bare wire the weight one require.
-pub trait Ring: Unit + PartialEq + Add<Output = Self> + Mul<Output = Self> {
+/// multiplication, which is what evaluating `Σ weight_i · value_i` and giving
+/// a bare wire the weight one require.
+///
+/// The integer units form the Boolean ring: addition is XOR, multiplication
+/// is AND, and one is all ones. A weight is then a bit mask and an equation
+/// is an XOR relation between masked wires, which is what a statement about
+/// a byte-oriented permutation needs. A field unit uses its field arithmetic.
+#[allow(clippy::return_self_not_must_use)]
+pub trait Ring: Unit + PartialEq {
     /// The multiplicative identity.
     const ONE: Self;
+
+    fn add(self, other: Self) -> Self;
+
+    fn mul(self, other: Self) -> Self;
 }
 
-macro_rules! impl_integer_ring {
+macro_rules! impl_boolean_ring {
     ($($t:ty),*) => {$(
         impl Ring for $t {
-            const ONE: Self = 1;
+            const ONE: Self = !0;
+
+            fn add(self, other: Self) -> Self {
+                self ^ other
+            }
+
+            fn mul(self, other: Self) -> Self {
+                self & other
+            }
         }
     )*};
 }
 
-// Wrapping arithmetic would be the ring `Z/2^n`; the integer units in
-// `spongefish` use plain operators, which panic on overflow in debug builds.
-// They are here for tests and toy relations, not for a real circuit.
-impl_integer_ring!(u8, u32, u64, u128);
+impl_boolean_ring!(u8, u32, u64, u128);
 
 /// A wire scaled by a constant: `weight · var`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,7 +118,7 @@ impl<T: Ring> Mul<T> for Weighted<T> {
     fn mul(self, rhs: T) -> Self {
         Self {
             var: self.var,
-            weight: self.weight * rhs,
+            weight: Ring::mul(self.weight, rhs),
         }
     }
 }

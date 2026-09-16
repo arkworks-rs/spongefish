@@ -23,7 +23,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - A typed, single-body API for writing a public-coin argument once and a compiler into a non-interactive argument.
 - Consuming terminal-message helpers that return the prover's NARG string and make the verifier's end-of-input check mandatory.
 - `VerifierState::into_narg_string`, which consumes the verifier and returns the unread rest of the NARG string, for a proof followed by data the caller parses itself.
-- `spongefish-circuit`: `PermutationRelation::compile` validates a relation into a `PermutationInstance`, `PermutationInstance::is_witness_valid` checks a recorded trace against it, linear equations are written with operators on wires (`x * a + y * b + z`), and the relation forwards the allocator's methods.
+- `spongefish-circuit`: `PermutationRelation::compile` validates a relation into a `PermutationInstance`, `PermutationInstance::is_witness_valid` checks a recorded trace against it, linear equations are written with operators on wires (`x * a + y * b + z`), over the Boolean ring for integer units (a weight is a bit mask, an equation an XOR relation), and the relation forwards the allocator's methods.
 
 ### Changed
 

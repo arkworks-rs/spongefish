@@ -447,7 +447,7 @@ impl<T, const WIDTH: usize> PermutationInstance<T, WIDTH> {
                 let Some(Some(value)) = values.get(term.var.index()) else {
                     return false;
                 };
-                sum = sum + term.weight.clone() * value.clone();
+                sum = Ring::add(sum, Ring::mul(term.weight.clone(), value.clone()));
             }
             sum == equation.image
         })

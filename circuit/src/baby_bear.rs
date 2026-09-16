@@ -22,6 +22,14 @@ impl Unit for BabyBearUnit {
 
 impl Ring for BabyBearUnit {
     const ONE: Self = Self(BabyBear::ONE);
+
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+
+    fn mul(self, other: Self) -> Self {
+        self * other
+    }
 }
 
 impl core::ops::Add for BabyBearUnit {

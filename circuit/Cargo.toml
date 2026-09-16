@@ -28,6 +28,8 @@ spongefish = { workspace = true, default-features = true, features = ["derive"] 
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
+# The README doctests run the byte examples over Keccak-f[1600].
+spongefish = { workspace = true, default-features = true, features = ["derive", "keccak"] }
 
 [lints]
 workspace = true

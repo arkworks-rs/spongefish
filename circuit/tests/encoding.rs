@@ -27,7 +27,7 @@ fn fixture() -> (PermutationInstance<u8, 4>, PermutationWitness<u8, 4>) {
     let mut sponge = DuplexSponge::<_, 4, 2>::from(relation.clone());
     let [out] = sponge.absorb(&public).absorb(&secret).squeeze_array();
     relation.set_var(out, digest);
-    relation.add_equation(out * 1 + FieldVar::ZERO * 0, digest);
+    relation.add_equation(out * 0xFF + FieldVar::ZERO * 0, digest);
 
     (relation.compile().unwrap(), tracer.snapshot())
 }
