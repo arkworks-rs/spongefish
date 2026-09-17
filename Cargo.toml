@@ -52,13 +52,7 @@ bytemuck = "^1.22"
 curve25519-dalek = "^5.0"
 digest = "0.11.2"
 getrandom = "^0.4"
-hashbrown = { version = "0.17.0", default-features = false, features = [
-    "allocator-api2",
-    "default-hasher",
-    "inline-more",
-] }
 hex = "0.4.3"
-itertools = { version = "0.15.0", features = ["use_alloc"], default-features = false }
 keccak = "^0.2.0"
 p3-baby-bear = "0.6"
 p3-field = "0.6"
@@ -72,5 +66,6 @@ spin = { version = "0.12", default-features = false, features = ["rwlock"] }
 # Intra-workspace dependencies
 spongefish = { version = "0.7.4", path = "spongefish", default-features = false }
 spongefish-derive = { version = "0.7.4", path = "derive" }
+spongefish-pow = { version = "0.7.4", path = "pow" }
 turboshake = "0.7.1"
 zeroize = "^1.8.1"

@@ -20,8 +20,6 @@ default = ["p3-baby-bear"]
 p3-baby-bear = ["dep:p3-baby-bear", "dep:p3-field"]
 
 [dependencies]
-hashbrown = { workspace = true }
-itertools = { workspace = true }
 # Optional Plonky3/BabyBear support
 p3-baby-bear = { workspace = true, optional = true }
 p3-field = { workspace = true, optional = true }
@@ -30,6 +28,11 @@ spongefish = { workspace = true, default-features = true, features = ["derive"] 
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
+# The README doctests run the byte examples over Keccak-f[1600] and the
+# proof-of-work example over `spongefish-pow`; see `readme_doctests` in
+# `src/lib.rs`.
+spongefish = { workspace = true, default-features = true, features = ["derive", "keccak"] }
+spongefish-pow = { workspace = true }
 
 [lints]
 workspace = true

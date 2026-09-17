@@ -9,6 +9,8 @@ use p3_baby_bear::BabyBear;
 use p3_field::{integers::QuotientMap, PrimeCharacteristicRing};
 use spongefish::{EncodedSessionId, Unit};
 
+use crate::expr::Ring;
+
 /// Transparent [`Unit`] wrapper around [`BabyBear`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
@@ -16,6 +18,34 @@ pub struct BabyBearUnit(pub BabyBear);
 
 impl Unit for BabyBearUnit {
     const ZERO: Self = Self(BabyBear::ZERO);
+}
+
+impl Ring for BabyBearUnit {
+    const ONE: Self = Self(BabyBear::ONE);
+
+    fn add(self, other: Self) -> Self {
+        self + other
+    }
+
+    fn mul(self, other: Self) -> Self {
+        self * other
+    }
+}
+
+impl core::ops::Add for BabyBearUnit {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl core::ops::Mul for BabyBearUnit {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self {
+        Self(self.0 * rhs.0)
+    }
 }
 
 impl From<BabyBear> for BabyBearUnit {
