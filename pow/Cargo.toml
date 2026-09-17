@@ -26,6 +26,10 @@ blake3 = { workspace = true, optional = true }
 bytemuck = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
+spongefish = { workspace = true }
+
+[dev-dependencies]
+spongefish = { workspace = true, default-features = true }
 
 [lints]
 workspace = true

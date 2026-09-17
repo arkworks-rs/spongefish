@@ -187,6 +187,17 @@ pub trait Transcript {
     /// shorter proofs, but it will be part of the non-interactive Fiat-Shamir transformation.
     fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
 
+    /// Computes a prover-only value from public inputs without sampling randomness.
+    ///
+    /// The prover evaluates `compute` and wraps its result as a witness, or
+    /// propagates its error. The verifier skips the computation and returns an
+    /// unknown witness. Use [`Witness::map`] for computations on existing
+    /// witness values.
+    fn prover_only<T>(
+        &self,
+        compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError>;
+
     /// Samples a random element using the prover's private randomness.
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
@@ -197,6 +208,12 @@ pub trait Transcript {
     fn sample_vec<T: Decoding>(&mut self, n: usize) -> Witness<Vec<T>>;
 
     /// The interactive verifier checks.
+    ///
+    /// A failed check permanently rejects the verifier's transcript. Later
+    /// checks and prover-message reads must fail even if the error is caught;
+    /// a failed transcript cannot pass the final end-of-input check. Once
+    /// rejected, the verifier must not invoke `holds` again. A caught failure
+    /// in a nested check also causes the enclosing check to fail.
     ///
     /// The closure `holds` is called also by the prover in `debug` builds.
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError>;
@@ -317,6 +334,13 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Self::public_message(self, value);
     }
 
+    fn prover_only<T>(
+        &self,
+        compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError> {
+        compute().map(Witness::known)
+    }
+
     fn sample<T: Decoding>(&mut self) -> Witness<T> {
         Witness::known(self.rng().sample())
     }
@@ -354,6 +378,13 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Self::public_message(self, value);
     }
 
+    fn prover_only<T>(
+        &self,
+        _compute: impl FnOnce() -> Result<T, VerificationError>,
+    ) -> Result<Witness<T>, VerificationError> {
+        Ok(Witness::unknown())
+    }
+
     fn sample<T: Decoding>(&mut self) -> Witness<T> {
         Witness::unknown()
     }
@@ -363,11 +394,7 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
     }
 
     fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
-        if holds() {
-            Ok(())
-        } else {
-            Err(VerificationError)
-        }
+        self.reader.check(holds)
     }
 }
 
