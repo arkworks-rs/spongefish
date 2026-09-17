@@ -6,8 +6,8 @@ use curve25519_dalek::{
     scalar::Scalar,
 };
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
-    VerificationError, Witness,
+    hybrid_array::ArrayN, Argument, Decoding, Encoding, Narg, NargDeserialize, NargReader,
+    Transcript, VerificationError, Witness,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -50,9 +50,9 @@ impl NargDeserialize for Point {
     }
 }
 impl Decoding for Point {
-    type Repr = ByteArray<64>;
-    fn decode(b: ByteArray<64>) -> Self {
-        Self(RistrettoPoint::from_uniform_bytes(b.as_ref()))
+    type Repr = ArrayN<u8, 64>;
+    fn decode(b: ArrayN<u8, 64>) -> Self {
+        Self(RistrettoPoint::from_uniform_bytes(&b.0))
     }
 }
 
@@ -70,9 +70,9 @@ impl NargDeserialize for Fr {
     }
 }
 impl Decoding for Fr {
-    type Repr = ByteArray<64>;
-    fn decode(b: ByteArray<64>) -> Self {
-        Self(Scalar::from_bytes_mod_order_wide(b.as_ref()))
+    type Repr = ArrayN<u8, 64>;
+    fn decode(b: ArrayN<u8, 64>) -> Self {
+        Self(Scalar::from_bytes_mod_order_wide(&b.0))
     }
 }
 

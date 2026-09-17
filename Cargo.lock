@@ -261,6 +261,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17"
 dependencies = [
  "typenum",
+ "zeroize",
 ]
 
 [[package]]
@@ -766,6 +767,7 @@ dependencies = [
  "digest",
  "getrandom 0.4.3",
  "hex",
+ "hybrid-array",
  "keccak",
  "proptest",
  "rand_core 0.10.1",

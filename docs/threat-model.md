@@ -56,13 +56,13 @@ marked `skip` are intentionally not bound by the transcript
 
 ## Secret lifetime and side channels
 
-`PrivateRng` seed buffers use `Zeroizing`. Standard `ByteArray` decoding buffers
-implement `ZeroizeOnDrop` and redact `Debug`, regardless of the `zeroize` feature.
-Ownership transfers into decoding, so ordinary return and unwinding run their
-destructors. Generated decoders borrow the outer preimage instead of creating an
-extra unprotected array; standard field representations also wipe on drop
-(`spongefish/src/private_rng.rs:54`, `spongefish/src/private_rng.rs:68`,
-`spongefish/src/codecs.rs:219`, `derive/src/lib.rs:195`).
+`PrivateRng` seed buffers use `Zeroizing`. Decoding buffers are plain
+`hybrid_array` arrays: they move into the decoder and are not wiped on drop,
+so erasing a privately sampled value, and any copy a decoder makes, is the
+caller's and the decoder's responsibility. Generated decoders borrow the outer
+preimage instead of copying it into a second array
+(`spongefish/src/private_rng.rs:63`, `spongefish/src/private_rng.rs:77`,
+`spongefish/src/codecs.rs:150`, `derive/src/lib.rs:183`).
 
 The default-enabled `zeroize` feature separately enables supported sponge-state
 erasure. It is not a blanket guarantee for custom backends. The XOF wrapper's

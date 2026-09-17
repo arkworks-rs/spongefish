@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 
-use spongefish::{Codec, Decoding, Encoding, NargReader};
+use spongefish::{hybrid_array::AsArrayMut, Codec, Decoding, Encoding, NargReader};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Codec)]
 struct TaggedValue<T, const N: usize> {
@@ -46,55 +46,10 @@ struct Header {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Codec)]
 struct Pair(u16, u8, #[spongefish(skip)] u32);
 
-/// A `Repr` whose `AsMut<[u8]>` slice is narrower than its `size_of` — the
-/// padding case that used to make the derive silently slice the wrong bytes.
-#[derive(Default)]
-struct PaddedRepr {
-    data: [u8; 2],
-    _padding: u64,
-}
-
-impl AsMut<[u8]> for PaddedRepr {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.data.as_mut()
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct Padded(u16);
-
-impl Encoding for Padded {
-    fn encode(&self) -> impl AsRef<[u8]> {
-        self.0.to_le_bytes()
-    }
-}
-
-impl Decoding for Padded {
-    type Repr = PaddedRepr;
-
-    fn decode(buf: Self::Repr) -> Self {
-        Self(u16::from_le_bytes(buf.data))
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Decoding)]
-struct HasPaddedField {
-    first: Padded,
-    second: u8,
-}
-
-/// A `Repr` whose slice width disagrees with `size_of::<Repr>()` must panic.
-#[test]
-#[should_panic(expected = "`Decoding` derive")]
-fn decoding_derive_rejects_inconsistent_repr_width() {
-    let buffer = <HasPaddedField as Decoding>::Repr::default();
-    let _ = HasPaddedField::decode(buffer);
-}
-
 /// Builds a `Decoding::Repr` out of raw bytes, the way the sponge fills it.
 fn repr<T: Decoding>(bytes: &[u8]) -> T::Repr {
     let mut buffer = T::Repr::default();
-    buffer.as_mut().copy_from_slice(bytes);
+    buffer.as_array_mut().copy_from_slice(bytes);
     buffer
 }
 

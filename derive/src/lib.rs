@@ -88,40 +88,28 @@ fn impl_block(
     }
 }
 
-/// The compile-time width reserved for a field inside the derived `Repr`.
+/// The width of a field's `Repr`, as a constant expression.
 ///
-/// `Decoding` exposes no associated constant for the length of its `Repr`, and
-/// `AsMut::as_mut(..).len()` — the width the sponge actually fills — is not a
-/// const expression, so the buffer size must be spelled with `size_of`. The
-/// generated `decode` checks at run time that the two agree (see
-/// [`decode_field_expr`]).
+/// `Decoding::Repr` is a `hybrid_array` array, so its length is the
+/// `typenum` constant of its size: the same number sizes the derived buffer
+/// and advances the decoding cursor.
 fn field_repr_size(field_type: &Type) -> TokenStream2 {
     quote! {
-        ::core::mem::size_of::<<#field_type as ::spongefish::Decoding>::Repr>()
+        <<<#field_type as ::spongefish::Decoding>::Repr
+            as ::spongefish::hybrid_array::AssocArraySize>::Size
+            as ::spongefish::hybrid_array::typenum::Unsigned>::USIZE
     }
 }
 
 /// Decodes one field out of `bytes`, advancing the shared `offset` cursor.
-///
-/// The width comes from `AsMut::<[u8]>::as_mut(..).len()`.
-///
-/// # Panics
-///
-/// The bounds check will panic if `Repr` is a slice whose length disagrees with its `size_of`.
 fn decode_field_expr(field_type: &Type) -> TokenStream2 {
+    let field_size = field_repr_size(field_type);
     quote! {
         {
             let mut field_buf = <#field_type as ::spongefish::Decoding>::Repr::default();
-            let field_size = ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf).len();
-            let start = offset;
-            let end = start + field_size;
-            assert!(
-                end <= bytes.len(),
-                "`Decoding` derive: field representation is wider than the derived buffer; \
-                 `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
-            );
-            ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf)
-                .copy_from_slice(&bytes[start..end]);
+            let end = offset + #field_size;
+            ::spongefish::hybrid_array::AsArrayMut::as_array_mut(&mut field_buf)
+                .copy_from_slice(&bytes[offset..end]);
             offset = end;
             <#field_type as ::spongefish::Decoding>::decode(field_buf)
         }
@@ -182,9 +170,9 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         quote!(#(#size_components)+*)
     };
 
-    // Fields are decoded in declaration order from a single `offset` cursor, so
-    // the offsets and the buffer size can never drift apart silently: the final
-    // check pins the total to the buffer length.
+    // Fields are decoded in declaration order from a single `offset` cursor.
+    // The buffer is sized by the same constants that advance the cursor, so
+    // the fields cover it exactly.
     let decode_body = if bounded.is_empty() {
         quote! {
             let _ = buf;
@@ -192,18 +180,9 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
     } else {
         quote! {
-            // Keep the preimage in its wiping owner instead of copying it
-            // into an unprotected array on the stack.
-            let bytes = buf.as_ref();
+            let bytes = ::spongefish::hybrid_array::AsArrayRef::as_array_ref(&buf);
             let mut offset = 0usize;
-            let value = Self { #(#field_inits)* };
-            assert_eq!(
-                offset,
-                bytes.len(),
-                "`Decoding` derive: field representations do not cover the derived buffer; \
-                 every `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
-            );
-            value
+            Self { #(#field_inits)* }
         }
     };
 
@@ -213,7 +192,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &trait_path,
         &bounded,
         &quote! {
-            type Repr = ::spongefish::ByteArray<{ #size_calc }>;
+            type Repr = ::spongefish::hybrid_array::ArrayN<u8, { #size_calc }>;
 
             fn decode(buf: Self::Repr) -> Self {
                 #decode_body
@@ -322,6 +301,10 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
 ///
 /// Generates an implementation that decodes struct fields sequentially from a fixed-size buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
+///
+/// The buffer is `hybrid_array::ArrayN<u8, N>` with `N` the sum of the fields'
+/// widths, so `N` must be a size that crate supports: every width up to 512,
+/// and the larger ones listed in its `sizes` module.
 #[proc_macro_derive(Decoding, attributes(spongefish))]
 pub fn derive_decoding(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

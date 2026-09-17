@@ -3,6 +3,7 @@
 use alloc::vec::Vec;
 
 use crate::Unit;
+use hybrid_array::{Array, ArrayN, ArraySize, AssocArraySize};
 
 /// Marker trait for types that have encoding and decoding maps.
 ///
@@ -115,10 +116,10 @@ pub trait Encoding<U: Unit = u8> {
 ///   a multiple of `p`. It is about `2^-31` for the P-256 group order, and
 ///   about `0.15`, a constant, for the BLS12-381 scalar field.
 ///
-/// On a byte sponge, `ByteArray<N>` is the `N`-byte `Repr`. The width is part
-/// of the codec: prover and verifier must squeeze the same `Repr`, and a change
-/// of width changes the transcript, so it must be reflected in the application
-/// tag.
+/// On a byte sponge, [`ArrayN<u8, N>`][hybrid_array::ArrayN] is the `N`-byte
+/// `Repr`. The width is part of the codec: prover and verifier must squeeze
+/// the same `Repr`, and a change of width changes the transcript, so it must
+/// be reflected in the application tag.
 ///
 /// Changing the decoding function requires changing the session identifier too.
 ///
@@ -127,21 +128,39 @@ pub trait Decoding<U: Unit = u8> {
     /// The output type (and length) expected by the duplex sponge.
     ///
     /// The squeezed string over the alphabet, sized as described in the
-    /// [security section](Decoding#security).
+    /// [security section](Decoding#security). The bound makes it a fixed-width
+    /// array, [`hybrid_array::Array`]: its length is a type-level constant, so
+    /// a representation can never be empty or resized, which a slice bound
+    /// would have allowed (a `Vec` `Repr` would decode every message from
+    /// zero bytes). Widths up to 512, and the larger ones listed in
+    /// [`hybrid_array::sizes`], are supported.
     ///
     /// # Example
     ///
     /// ```
-    /// # use spongefish::{Decoding, ByteArray};
-    /// let repr: ByteArray<4> = Default::default();
-    /// assert_eq!(repr.as_ref(), &[0u8; 4]);
+    /// # use spongefish::{hybrid_array::ArrayN, Decoding};
+    /// let repr: <u32 as Decoding>::Repr = Default::default();
+    /// let repr: ArrayN<u8, 4> = repr;
+    /// assert_eq!(repr, [0u8; 4]);
     /// ```
     ///
-    /// Private sampling transfers this buffer into `decode`. [`ByteArray`]
-    /// wipes itself on drop, including during unwinding. Custom representations
-    /// used for private sampling must provide their own erasure; copies made by
-    /// a decoder and the decoded value remain the decoder/caller's responsibility.
-    type Repr: Default + AsMut<[U]>;
+    /// A growable buffer is not an array, so it is rejected:
+    ///
+    /// ```compile_fail
+    /// # use spongefish::Decoding;
+    /// struct Bad;
+    /// impl Decoding for Bad {
+    ///     type Repr = Vec<u8>;
+    ///     fn decode(_: Vec<u8>) -> Self {
+    ///         Bad
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Private sampling transfers this buffer into `decode`; the array is not
+    /// wiped afterwards. Erasing it, copies made by a decoder, and the decoded
+    /// value are the decoder's and the caller's responsibility.
+    type Repr: Default + hybrid_array::AsArrayMut<U>;
 
     /// The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
     ///
@@ -195,7 +214,7 @@ macro_rules! impl_int_encoding {
         }
 
         impl Decoding for $type {
-            type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
+            type Repr = ArrayN<u8, { core::mem::size_of::<$type>() }>;
 
             fn decode(buf: Self::Repr) -> Self {
                 <$type>::from_le_bytes(buf.0)
@@ -206,40 +225,13 @@ macro_rules! impl_int_encoding {
 
 impl_int_encoding!(u8, u16, u32, u64, u128);
 
-/// A fixed-width decoding buffer, wiped on drop even without the `zeroize`
-/// feature. That feature controls sponge-state erasure, not these buffers.
-///
-/// The buffer moves into [`Decoding::decode`], so its owner wipes it when
-/// decoding returns or unwinds. Decoders should borrow through [`AsRef`]
-/// rather than copying the preimage into an unprotected temporary.
-#[derive(Clone, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
-pub struct ByteArray<const N: usize>([u8; N]);
-
-impl<const N: usize> core::fmt::Debug for ByteArray<N> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("ByteArray(..)")
-    }
-}
-
-impl<const N: usize> Default for ByteArray<N> {
-    fn default() -> Self {
-        Self([0; N])
-    }
-}
-impl<const N: usize> AsRef<[u8; N]> for ByteArray<N> {
-    fn as_ref(&self) -> &[u8; N] {
-        &self.0
-    }
-}
-
-impl<const N: usize> AsMut<[u8]> for ByteArray<N> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.0.as_mut()
-    }
-}
-
-impl<const N: usize> Decoding for [u8; N] {
-    type Repr = ByteArray<N>;
+/// Byte arrays decode as themselves, for every width `hybrid_array` supports.
+impl<S, const N: usize> Decoding for [u8; N]
+where
+    Self: AssocArraySize<Size = S>,
+    S: ArraySize<ArrayType<u8> = Self>,
+{
+    type Repr = Array<u8, S>;
 
     fn decode(buf: Self::Repr) -> Self {
         buf.0
@@ -405,24 +397,25 @@ impl<U: Unit, E> Codec<U> for E where
 
 #[cfg(test)]
 mod tests {
-    use super::{ByteArray, Encoding, LengthPrefixed, Vec};
+    use hybrid_array::{typenum::Unsigned, AssocArraySize};
+
+    use super::{Decoding, Encoding, LengthPrefixed, Vec};
     use crate::NargDeserialize;
 
-    /// The representation keeps its exact width for derived codecs, but now
-    /// carries an erasing destructor even in a no-default-features build.
+    /// The width of a built-in `Repr` is a type-level constant equal to the
+    /// width of the decoded value, with no padding.
     #[test]
-    fn decoding_buffers_are_wipeable_and_redacted() {
-        use zeroize::{Zeroize, ZeroizeOnDrop};
-
-        fn assert_wipes_on_drop<T: ZeroizeOnDrop>() {}
-        assert_wipes_on_drop::<ByteArray<64>>();
-        assert!(core::mem::needs_drop::<ByteArray<64>>());
-        assert_eq!(size_of::<ByteArray<64>>(), 64);
-        let mut buffer = ByteArray::<64>::default();
-        buffer.as_mut().fill(0xa5);
-        assert_eq!(alloc::format!("{buffer:?}"), "ByteArray(..)");
-        buffer.zeroize();
-        assert_eq!(buffer.as_ref(), &[0; 64]);
+    fn builtin_reprs_have_exact_width() {
+        fn width<T: Decoding>() -> usize {
+            <<T::Repr as AssocArraySize>::Size as Unsigned>::USIZE
+        }
+        assert_eq!(width::<u8>(), 1);
+        assert_eq!(width::<u16>(), 2);
+        assert_eq!(width::<u32>(), 4);
+        assert_eq!(width::<u64>(), 8);
+        assert_eq!(width::<u128>(), 16);
+        assert_eq!(width::<[u8; 64]>(), 64);
+        assert_eq!(size_of::<<[u8; 64] as Decoding>::Repr>(), 64);
     }
 
     /// The `str` codec spans the inline/heap boundary as the string grows; the
