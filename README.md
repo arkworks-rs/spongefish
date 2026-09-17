@@ -1,16 +1,12 @@
 # spongefish: a duplex sponge Fiat–Shamir library 🧽🐟
 
-Sponge FiSh (duplex **sponge** **Fi**at–**Sh**amir) is a permutation-agnostic Fiat–Shamir library that believes in random oracles.
+Sponge FiSh (duplex **sponge** **Fi**at–**Sh**amir) is a permutation-agnostic Fiat–Shamir library that believes in random oracles. 
 
-It implements [draft-irtf-cfrg-fiat-shamir](https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/)
-over a duplex sponge, for any alphabet the sponge speaks: bytes, or the
-elements of a prime field. A public-coin interactive protocol is written once
-as an `Argument`, and the same body runs as the prover or the verifier of the
-non-interactive argument (NARG).
+It implements duplex sponges for bytes (or prime fields) spec-compatible with [draft-irtf-cfrg-fiat-shamir](https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/).
 
 ## Quickstart
 
-Implement the dialogue generic over `Transcript`, then compile it with `Narg`:
+The simplest way to start is defining an interactive `Argument`, and then compile it with `Narg`:
 
 ```rust
 use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
@@ -53,23 +49,23 @@ let (narg, ()) = Narg::prove::<Schnorr>(tag, &instance, &witness).unwrap();
 Narg::verify::<Schnorr>(tag, &instance, &narg).unwrap();
 ```
 
-`Witness` values exist only on the prover; `prover_message` sends them and
-returns the plain value on both sides. `verifier_message` squeezes a challenge
-neither party can foresee, `sample` draws the prover's private randomness,
-and `check` runs the verification equation. The session identifier is derived
-from the tag, the verifier must consume the whole NARG string, and an unused
-challenge is a compile error. Messages are typed: integers, byte arrays and
-tuples have built-in codecs, `LengthPrefixed` frames variable-length
-sequences, and `#[derive(Codec)]` handles structs.
+`Witness` values exist only for the prover; `prover_message` turns witness values into plain values that can be used both by prover and verifier. `verifier_message` squeezes a challenge, and `sample` draws a uniformly random value using the prover's private randomness. `check` runs the verification equation. 
+
+The session identifier is automatically derived from the tag, the verifier must consume the whole NARG string. An unused challenge is a compile error. 
+
+Each prover and verifier messages, as well as the instance, must have associated codecs. See `LengthPrefixed` and `#[derive(Codec)]` for helpers in defining new codecs.
+
+
+## Crates
+
+- `spongefish`: the core library implementing draft-irtf-cfrg-fiat-shamir, together with the duplex sponge API.
+- `spongefish-circuit`: constraint builders for permutation-based relations.
+- `spongefish-derive`: derive macros for codecs and related traits.
+- `spongefish-pow`: proof‑of‑work helpers for deriving Fiat–Shamir challenges via grinding.
 
 ## Duplex sponge
 
-Under the transcript is a duplex sponge: absorb and squeeze over an alphabet,
-bytes here. Anything a sponge can do is written once against
-`DuplexSpongeInterface` and runs over whichever sponge it is handed. Two
-examples, an extendable-output function and a duplex cipher whose keystream
-is the squeezed rate and which absorbs the plaintext back, so that the tag
-squeezed afterwards authenticates it:
+The duplex sponge construction allows absorb and squeeze over an alphabet implementing `Unit`. This is abstracted as `DuplexSpongeInterface`.
 
 ```rust
 use spongefish::{instantiations::Keccak, DuplexSpongeInterface};
@@ -98,12 +94,12 @@ assert_eq!(plaintext, b"attack at dawn");
 assert_eq!(sponge.absorb(&plaintext).squeeze_array::<16>(), tag);
 ```
 
-The same code runs over `spongefish-circuit`. Its `PermutationRelation` is a
-`Permutation` over wires: every call it receives becomes a query, the pair of
-input and output wires, so the sponge walk yields the constraints proving
-it, and a `PermutationWitnessBuilder` around the real permutation records
-the matching trace. What the sponge does not see, the XORs of the cipher,
-is added as equations over bytes, where a weight is a bit mask:
+## Hash statements
+
+Hash preimage statements can be built via `spongefish-circuit`. 
+
+A `PermutationRelation` yields the constraints proving correct evaluations of query-answers for a permutation oracle.
+It is additionally possible to constrain the evaluations on algebraic relations: 
 
 ```rust
 use spongefish::{instantiations::KeccakF1600, DuplexSponge, DuplexSpongeInterface};
@@ -143,53 +139,39 @@ assert_eq!(instance.queries().len(), 3);
 assert!(instance.is_witness_valid(&KeccakF1600, &tracer.snapshot()));
 ```
 
-Both the instance and the witness have a canonical byte encoding, `to_bytes`,
-and the instance a 32-byte `digest`: the form in which a proof system in any
-language reads the statement, and in which a transcript binds it.
+## Arguments with grinding
 
-## Arguments
-
-An `Argument` is a public-coin protocol written once, as in the quickstart,
-and any round can be reused across arguments. A grinding round is one: the
-verifier squeezes a challenge, the prover searches for a nonce, and the nonce
-is the only thing that reaches the NARG string. `spongefish-pow` does the
-search, here with BLAKE3:
+It is possible to augment the bits of soundnes with a proof of work using `spongefish-pow`:
 
 ```rust
 use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
-use spongefish_pow::{blake3::Blake3PoW, PoWGrinder};
+use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
 
+/// A challenge the prover pays `BITS` bits of work for.
 struct Grind<const BITS: u32>;
 
 impl<const BITS: u32> Argument for Grind<BITS> {
     type Instance = [u8; 32]; // whatever the work is bound to
     type Witness = ();
-    type Output = ();
+    type Output = u64;
 
     fn run<T: Transcript>(
         transcript: &mut T,
         _instance: &[u8; 32],
-        witness: Witness<&()>,
-    ) -> Result<(), VerificationError> {
-        let challenge: [u8; 32] = transcript.verifier_message();
-        let mut grinder = PoWGrinder::<Blake3PoW>::new(challenge, f64::from(BITS));
-        // Only the prover grinds; the verifier reads the nonce and checks it.
-        let nonce = transcript
-            .prover_message(witness.map(|()| grinder.grind().expect("no solution").nonce))?;
-        transcript.check(|| grinder.verify(nonce))
+        _witness: Witness<&()>,
+    ) -> Result<u64, VerificationError> {
+        transcript.verifier_message_pow::<u64, Blake3PoW>(f64::from(BITS))
     }
 }
 
 let tag = b"example-v00/grind-16";
 let instance = [7u8; 32];
-let (narg, ()) = Narg::prove::<Grind<16>>(tag, &instance, &()).unwrap();
+let (narg, challenge) = Narg::prove::<Grind<16>>(tag, &instance, &()).unwrap();
 assert_eq!(narg.len(), 8); // one u64 nonce
-Narg::verify::<Grind<16>>(tag, &instance, &narg).unwrap();
+assert_eq!(Narg::verify::<Grind<16>>(tag, &instance, &narg).unwrap(), challenge);
 ```
 
-Each bit of work doubles the cost of grinding the preceding challenge, while
-the verifier pays one hash. A Keccak strategy is available too, and the
-`parallel` feature spreads the search across threads.
+`verifier_message_pow` internally squeezes a grinding seed, has the prover search for a nonce solving the grinding problem, then sends the nonce as a prover message, and returns a new verifier message. A Keccak strategy is available too, and the `parallel` feature will use multi-threading the search across threads.
 
 ## Also in the box
 
@@ -207,13 +189,6 @@ the verifier pays one hash. A Keccak strategy is available too, and the
   `Permutation` on field elements, such as Poseidon2, runs the whole
   transcript natively in the field, seeded through `EncodedSessionId`.
 
-## Crates
-
-- `spongefish`: the core library implementing draft-irtf-cfrg-fiat-shamir, together with the duplex sponge API.
-- `spongefish-circuit`: constraint builders for permutation-based relations.
-- `spongefish-derive`: derive macros for codecs and related traits.
-- `spongefish-pow`: proof‑of‑work helpers for deriving Fiat–Shamir challenges via grinding.
-
 ## Feature flags
 
 | Feature | Default | Description |
@@ -229,21 +204,12 @@ the verifier pays one hash. A Keccak strategy is available too, and the
 
 ## Status
 
-The current codebase is unaudited and the API is being redesigned; expect
-breaking changes until the next release. Earlier revisions were reviewed by
-Radically Open Security and OpenZeppelin. See [SECURITY.md](SECURITY.md) for
-scope and private reporting, and the [threat model](docs/threat-model.md) for
-security guarantees, caller responsibilities, and assurance limits.
+The current codebase is unaudited and the API is being redesigned; expect breaking changes until the next release. Earlier revisions were reviewed by Radically Open Security and OpenZeppelin. See [SECURITY.md](SECURITY.md) for scope and private reporting, and the [threat model](docs/threat-model.md) for security guarantees, caller responsibilities, and assurance limits.
 
 ## More information
 
-See the [crate documentation](https://arkworks.rs/spongefish/), the
-[Ristretto Schnorr integration test](spongefish/tests/schnorr.rs), and the
-[sumcheck integration test](spongefish/tests/sumcheck.rs).
+See the [crate documentation](https://arkworks.rs/spongefish/), the [Ristretto Schnorr integration test](spongefish/tests/schnorr.rs), and the [sumcheck integration test](spongefish/tests/sumcheck.rs).
 
 ## Funding
 
 This project was funded through [NGI0 Entrust](https://nlnet.nl/entrust), a fund established by [NLnet](https://nlnet.nl) with financial support from the European Commission's [Next Generation Internet](https://ngi.eu) program. Learn more at the [NLnet project page](https://nlnet.nl/project/sigmaprotocols).
-
-[<img src="https://nlnet.nl/logo/banner.png" alt="NLnet foundation logo" width="20%" />](https://nlnet.nl)
-[<img src="https://nlnet.nl/image/logos/NGI0_tag.svg" alt="NGI Zero Logo" width="20%" />](https://nlnet.nl/entrust)
