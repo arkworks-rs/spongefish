@@ -90,9 +90,7 @@ fn impl_block(
 
 /// The width of a field's `Repr`, as a constant expression.
 ///
-/// `Decoding::Repr` is a `hybrid_array` array, so its length is the
-/// `typenum` constant of its size: the same number sizes the derived buffer
-/// and advances the decoding cursor.
+/// `Decoding::Repr` is a `hybrid_array` array of size its `typenum` constant.
 fn field_repr_size(field_type: &Type) -> TokenStream2 {
     quote! {
         <<<#field_type as ::spongefish::Decoding>::Repr
@@ -134,12 +132,8 @@ fn generate_encoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &bounded,
         &quote! {
             fn encode(&self) -> impl AsRef<[u8]> {
-                // Sized up front from the struct's own width. That is only a
-                // hint — a field whose encoding is wider or narrower than
-                // its in-memory size just makes the vector grow or over-
-                // reserve — but for the fixed-width codecs that carry
-                // prover messages it is exact, which turns several
-                // reallocations per message into one allocation.
+                // Use the struct width as a hint for the encoded length.
+                // For fields, this length is exact.
                 let mut output = ::spongefish::__private::Vec::with_capacity(
                     ::core::mem::size_of::<Self>(),
                 );
@@ -170,9 +164,7 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         quote!(#(#size_components)+*)
     };
 
-    // Fields are decoded in declaration order from a single `offset` cursor.
-    // The buffer is sized by the same constants that advance the cursor, so
-    // the fields cover it exactly.
+    // Fields are decoded in declaration order.
     let decode_body = if bounded.is_empty() {
         quote! {
             let _ = buf;
