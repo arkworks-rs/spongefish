@@ -95,13 +95,13 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         self.sponge.squeeze(dest);
     }
 
-    /// Samples a value through its [`Decoding`] codec — the same
-    /// distribution-preserving path used for verifier messages.
+    /// Samples a value through its [`Decoding`] codec.
     ///
-    /// The squeezed [`Repr`][Decoding::Repr] is a plain array that moves into
-    /// the decoder; this method cannot wipe it after transferring ownership,
-    /// and neither it nor the returned sample is erased on drop. A caller
-    /// sampling a secret zeroizes the value it keeps, and a decoder its copies.
+    /// Squeezes a [`Repr`][Decoding::Repr] from the sponge, then decodes it with
+    /// the distribution-preserving map.
+    ///
+    /// The squeezed bytes are **not** wiped before the value is returned.
+    /// The [`Decoding`] implementation must wipe the `Repr` and any intermediate value.
     pub fn sample<T: Decoding>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_array_mut());
