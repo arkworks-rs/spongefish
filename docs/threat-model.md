@@ -19,7 +19,8 @@ The low-level `ProverState` and `VerifierState` interfaces expose each operation
 
 ## Security claims and their limits
 
-For an `Argument` implementation that is state-restoration sound, `Narg::verify` accepts only NARG strings for which the statement holds. This is a claim in the random oracle model.
+For an `Argument` implementation that is state-restoration sound, `Narg::verify` accepts only NARG strings for which the statement holds. This claim holds in the random oracle model.
+Diagonalization attacks on the Fiat-Shamir transformation ([KRS25], [Fen26]) are outside the protections of this crate, which cannot detect them. Applications that need such protection must argue the security of their construction separately.
 
 If the `Argument` is zero-knowledge, the NARG string resulting from `Narg::prove` leaks no information about the witness.
 
