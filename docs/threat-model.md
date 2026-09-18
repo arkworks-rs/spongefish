@@ -26,7 +26,6 @@ If the `Argument` is zero-knowledge, the NARG string resulting from `Narg::prove
 
 The overwrite-mode Keccak/Ascon constructions are to be considered interchangeable with the draft's SHAKE/TurboSHAKE suites.
 
-
 [KRS25]: https://eprint.iacr.org/2025/118 "Khovratovich, Rothblum, Soukhanov. How to Prove False Statements: Practical Attacks on Fiat-Shamir."
 [Fen26]: https://eprint.iacr.org/2026/1838 "Fenzi. How to prove more false statements: Fiat-Shamir limitations on (generated) R1CS."
 
@@ -37,8 +36,7 @@ Specification conformance and test-vector provenance are checked automatically i
 ## Attacker capabilities and trust boundaries
 
 An application may let an adversary choose instance contents or request sizes. Submitting a NARG string does not give the adversary code execution, or access to the prover's RNG state or the witness unless explicitly sent.
-
- The caller has the responsibility to check the instance sizes and validity. In particular, the prover will NOT check that the witness is valid for the given instance.
+The caller has the responsibility to check the instance sizes and validity. In particular, the prover will NOT check that the witness is valid for the given instance.
 
 For conforming codecs, verification of every NARG string should terminate with either acceptance or `VerificationError`, never a panic.
 
