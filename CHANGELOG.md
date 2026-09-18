@@ -29,6 +29,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
+- **Breaking:** `Encoding`, `Decoding`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
 - **Breaking:** `Transcript` implementations must provide the new `prover_only` hook.
 - **Breaking:** `NargReader` and `VerifierState` are no longer `Sync`. The reader stores its state in a `Cell` so verification checks can poison it while preserving `Transcript::check(&self, ...)`.
 - **Breaking:** `StdHash` is renamed `DefaultHash`, so it is not mistaken for `std::hash::Hash`.
@@ -43,7 +44,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - **Breaking:** removed the implicit `Deref` conversion from `VerificationError` to `Result<(), VerificationError>`; construct `Err(VerificationError)` explicitly.
 - **Breaking:** `VerifierState` owns its `NargReader`. A rejected prover message poisons the state rather than leaving the cursor where it was: every later read fails, `check_eof` fails, and `into_narg_string` returns an error.
 - **Breaking:** A more clean approach at duplex sponge initialization. `DuplexSpongeInit` is for generic units, and `EncodedSessionId` takes care of algebraic sponges. Byte transcripts are unchanged.
-- **Breaking:** the instance passed to `ProverState::{new, new_with_seed, from_parts}` and `VerifierState::new` is encoded into the sponge's alphabet (`Encoding<[H::U]>`) rather than into bytes. Identical for byte sponges.
+- **Breaking:** the instance passed to `ProverState::{new, new_with_seed, from_parts}` and `VerifierState::new` is encoded into the sponge's alphabet (`Encoding<H::U>`) rather than into bytes. Identical for byte sponges.
 - **Breaking:** `Permutation` requires `permute_mut` and provides `permute`, rather than the other way round. Every real permutation mixes the state in place, so implementations no longer have to write the by-value map as a wrapper around the in-place one.
 - **Breaking:** `spongefish-circuit` is reworked after `sigma-proofs`' `LinearRelation`. `PermutationInstanceBuilder` is `PermutationRelation` and its `snapshot` is a validating `compile` returning `Result`, `LinearEquation` holds a `Sum` of `Weighted` terms, instance and witness fields are private behind slice accessors, the witness is the trace alone, and allocation methods follow `sigma-proofs` names (`allocate_var`, `allocate_vars_with`, `set_var`). Assigning a wire twice with different values is a panic instead of a silent overwrite, and the `hashbrown` and `itertools` dependencies are gone.
 - `NargDeserialize` gained a provided `deserialize_array_from_narg`, which `[T; N]` delegates to. `u8` overrides it with a single bounds-checked copy, so `[u8; 32]` — the shape carrying compressed points, scalars and digests — is one fixed-size read instead of 32 element parses: 57.7ns to 1.1ns, and 122ns to 4.7ns for a derived struct of two such fields. End to end this makes verification about twice as fast (a 32-round transcript goes from 7.8µs to 4.0µs). The NARG string is byte-identical.
