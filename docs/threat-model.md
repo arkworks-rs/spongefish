@@ -25,7 +25,6 @@ If the `Argument` is zero-knowledge, the NARG string resulting from `Narg::prove
 
 The overwrite-mode Keccak/Ascon constructions are to be considered interchangeable with the draft's SHAKE/TurboSHAKE suites.
 
-Diagonalization attacks on the Fiat-Shamir transformation ([KRS25], [Fen26]) are outside the protections of this crate, which cannot detect them. Applications that need such protection must argue the security of their construction separately.
 
 [KRS25]: https://eprint.iacr.org/2025/118 "Khovratovich, Rothblum, Soukhanov. How to Prove False Statements: Practical Attacks on Fiat-Shamir."
 [Fen26]: https://eprint.iacr.org/2026/1838 "Fenzi. How to prove more false statements: Fiat-Shamir limitations on (generated) R1CS."
