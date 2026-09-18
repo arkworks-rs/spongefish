@@ -36,7 +36,9 @@ Specification conformance and test-vector provenance are checked automatically i
 
 ## Attacker capabilities and trust boundaries
 
-An application may let an adversary choose instance contents or request sizes. Submitting a NARG string does not give the adversary code execution in the verifier or access to the prover's RNG state. The caller must validate the instance and bound the sizes it reads.
+An application may let an adversary choose instance contents or request sizes. Submitting a NARG string does not give the adversary code execution, or access to the prover's RNG state or the witness unless explicitly sent.
+
+ The caller has the responsibility to check the instance sizes and validity. In particular, the prover will NOT check that the witness is valid for the given instance.
 
 For conforming codecs, verification of every NARG string should terminate with either acceptance or `VerificationError`, never a panic.
 
