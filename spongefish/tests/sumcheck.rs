@@ -4,8 +4,8 @@
 //! over the field of size `P = 2^31-1`.
 
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
-    VerificationError, Witness,
+    hybrid_array::ArrayN, Argument, Decoding, Encoding, Narg, NargDeserialize, NargReader,
+    Transcript, VerificationError, Witness,
 };
 
 const P: u32 = (1 << 31) - 1;
@@ -43,9 +43,9 @@ impl NargDeserialize for M31 {
 }
 
 impl Decoding for M31 {
-    type Repr = ByteArray<4>;
-    fn decode(buf: ByteArray<4>) -> Self {
-        Self(u32::from_le_bytes(*buf.as_ref()) % P)
+    type Repr = ArrayN<u8, 4>;
+    fn decode(buf: ArrayN<u8, 4>) -> Self {
+        Self(u32::from_le_bytes(buf.0) % P)
     }
 }
 

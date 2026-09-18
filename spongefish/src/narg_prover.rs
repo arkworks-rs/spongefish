@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+use hybrid_array::AsArrayMut;
+
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{
@@ -229,7 +231,7 @@ where
     #[must_use]
     pub fn verifier_message<T: Decoding<H::U>>(&mut self) -> T {
         let mut buf = T::Repr::default();
-        self.duplex_sponge_state.squeeze(buf.as_mut());
+        self.duplex_sponge_state.squeeze(buf.as_array_mut());
         T::decode(buf)
     }
 

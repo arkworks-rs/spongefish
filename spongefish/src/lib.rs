@@ -212,13 +212,15 @@ mod argument;
 #[cfg(feature = "turboshake128")]
 pub use argument::Narg;
 pub use argument::{Argument, FiatShamir, Transcript, Witness};
-#[doc(hidden)]
-pub use codecs::ByteArray;
 pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
 pub use duplex_sponge::{
     DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, EncodedSessionId, Permutation, Unit,
 };
 pub use error::VerificationError;
+/// The array crate behind [`Decoding::Repr`]: a decoder names its
+/// representation as `hybrid_array::ArrayN<U, N>` (or `Array<U, S>` with a
+/// `typenum` size) without depending on the crate itself.
+pub use hybrid_array;
 pub use narg_prover::ProverState;
 pub use narg_string::{NargDeserialize, NargReader};
 pub use narg_verifier::VerifierState;

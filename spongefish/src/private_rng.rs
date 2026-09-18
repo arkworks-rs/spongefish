@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+use hybrid_array::AsArrayMut;
 use zeroize::Zeroizing;
 
 #[cfg(feature = "turboshake128")]
@@ -94,16 +95,16 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         self.sponge.squeeze(dest);
     }
 
-    /// Samples a value through its [`Decoding`] codec — the same
-    /// distribution-preserving path used for verifier messages.
+    /// Samples a value through its [`Decoding`] codec.
     ///
-    /// The standard [`crate::ByteArray`] representation wipes itself after
-    /// decoding, even if decoding unwinds. A custom representation must erase
-    /// its own storage; this method cannot wipe a buffer after transferring
-    /// ownership to the decoder. The returned sample is owned by the caller.
+    /// Squeezes a [`Repr`][Decoding::Repr] from the sponge, then decodes it with
+    /// the distribution-preserving map.
+    ///
+    /// The squeezed bytes are **not** wiped before the value is returned.
+    /// The [`Decoding`] implementation must wipe the `Repr` and any intermediate value.
     pub fn sample<T: Decoding>(&mut self) -> T {
         let mut buf = T::Repr::default();
-        self.fill_bytes(buf.as_mut());
+        self.fill_bytes(buf.as_array_mut());
         T::decode(buf)
     }
 

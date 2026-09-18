@@ -58,6 +58,7 @@ hashbrown = { version = "0.17.0", default-features = false, features = [
     "inline-more",
 ] }
 hex = "0.4.3"
+hybrid-array = { version = "0.4.15", features = ["zeroize"] }
 itertools = { version = "0.15.0", features = ["use_alloc"], default-features = false }
 keccak = "^0.2.0"
 p3-baby-bear = "0.6"

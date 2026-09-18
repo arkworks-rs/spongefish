@@ -4,8 +4,8 @@
 //! we lose a soundness property called simulation extractability (as well as universal composability).
 //! This file provides one such example that **should NOT** be reproduced.
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
-    VerificationError, Witness,
+    hybrid_array::ArrayN, Argument, Decoding, Encoding, Narg, NargDeserialize, NargReader,
+    Transcript, VerificationError, Witness,
 };
 
 /// A prime small enough that `a` and `a + P` both fit in `u64`.
@@ -31,9 +31,9 @@ impl NargDeserialize for Elem {
 }
 
 impl Decoding for Elem {
-    type Repr = ByteArray<8>;
-    fn decode(buf: ByteArray<8>) -> Self {
-        Self(u64::from_le_bytes(*buf.as_ref()) % P)
+    type Repr = ArrayN<u8, 8>;
+    fn decode(buf: ArrayN<u8, 8>) -> Self {
+        Self(u64::from_le_bytes(buf.0) % P)
     }
 }
 
