@@ -80,12 +80,14 @@ pub trait PowTranscriptExt: Transcript {
         S: PowStrategy,
     {
         let challenge = self.verifier_message::<[u8; 32]>();
-        let nonce = self.prover_only(|| {
-            PoWGrinder::<S>::new(challenge, bits)
-                .grind()
-                .map(|solution| solution.nonce)
-                .ok_or(VerificationError)
-        })?;
+        let nonce = self
+            .prover_only(|| {
+                PoWGrinder::<S>::new(challenge, bits)
+                    .grind()
+                    .map(|solution| solution.nonce)
+                    .ok_or(VerificationError)
+            })
+            .transpose()?;
         let nonce = self.prover_message(nonce)?;
         self.check(|| PoWGrinder::<S>::new(challenge, bits).verify(nonce))?;
         Ok(self.verifier_message())
