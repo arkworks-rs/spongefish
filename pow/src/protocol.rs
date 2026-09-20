@@ -1,6 +1,6 @@
 //! An interactive proof-of-work step shared by every transcript implementation.
 
-use spongefish::{Decoding, Transcript, VerificationError};
+use spongefish::{FromUniform, Transcript, VerificationError};
 
 use crate::{PoWGrinder, PowStrategy};
 
@@ -23,7 +23,7 @@ use crate::{PoWGrinder, PowStrategy};
 ///
 /// # Protocol parameters
 ///
-/// The PoW strategy, difficulty, position of this step, and decoding of the
+/// The PoW strategy, difficulty, position of this step, and the codec of the
 /// protected message must be fixed by the protocol and accounted for in its
 /// session tag. The difficulty must not come from an untrusted proof value.
 /// Any soundness benefit depends on the surrounding protocol and PoW strategy.
@@ -76,7 +76,7 @@ pub trait PowTranscriptExt: Transcript {
     /// Either side may panic if the strategy rejects an unsupported difficulty.
     fn verifier_message_pow<T, S>(&mut self, bits: f64) -> Result<T, VerificationError>
     where
-        T: Decoding,
+        T: FromUniform,
         S: PowStrategy,
     {
         let challenge = self.verifier_message::<[u8; 32]>();

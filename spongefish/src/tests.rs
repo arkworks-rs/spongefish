@@ -3,9 +3,8 @@ use alloc::format;
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, Narg,
-    NargDeserialize, PrivateRng, ProverState, SessionId, Transcript, VerificationError,
-    VerifierState, Witness,
+    derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, FromNarg, Narg,
+    PrivateRng, ProverState, SessionId, Transcript, VerificationError, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
@@ -251,10 +250,8 @@ fn closure_codecs_correctness() {
 fn verifier_prover_message_poisons_on_deserialize_error() {
     struct BadMessage;
 
-    impl NargDeserialize for BadMessage {
-        fn deserialize_from_narg(
-            reader: &mut crate::NargReader<'_>,
-        ) -> Result<Self, VerificationError> {
+    impl FromNarg for BadMessage {
+        fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
             // Consumes input and *then* fails: the verifier must end up
             // poisoned, not merely advanced.
             reader.take(1)?;
@@ -286,8 +283,8 @@ fn verifier_prover_message_poisons_on_deserialize_error() {
 fn a_failed_read_poisons_the_reader() {
     struct Rejected;
 
-    impl NargDeserialize for Rejected {
-        fn deserialize_from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
+    impl FromNarg for Rejected {
+        fn from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
             Err(VerificationError)
         }
     }
@@ -321,10 +318,8 @@ fn a_failed_read_poisons_the_reader() {
 fn verifier_rejects_a_message_that_swallowed_a_failed_read() {
     struct Lenient(u8);
 
-    impl NargDeserialize for Lenient {
-        fn deserialize_from_narg(
-            reader: &mut crate::NargReader<'_>,
-        ) -> Result<Self, VerificationError> {
+    impl FromNarg for Lenient {
+        fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
             // Substitutes a default for a short read instead of failing.
             Ok(Self(reader.take_array::<8>().map_or(0, |bytes| bytes[0])))
         }

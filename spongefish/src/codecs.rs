@@ -1,13 +1,13 @@
-//! Maps for encoding prover messages and decoding verifier messages.
+//! Maps for encoding prover messages and sampling verifier messages.
 
 use alloc::vec::Vec;
 
 use crate::Unit;
 
-/// Marker trait for types that have encoding and decoding maps.
+/// Marker trait for types that have all three codec maps.
 ///
-/// A type is a [`Codec`] if it implements [`Encoding`], [`Decoding`],
-/// and [`NargDeserialize`][crate::NargDeserialize].
+/// A type is a [`Codec`] if it implements [`Encoding`], [`FromUniform`],
+/// and [`FromNarg`][crate::FromNarg].
 ///
 /// # Derive Macros
 ///
@@ -28,7 +28,7 @@ use crate::Unit;
 /// # }
 /// ```
 ///
-/// Equivalent to deriving `Encoding`, `Decoding`, and `NargDeserialize`. Fields marked with
+/// Equivalent to deriving `Encoding`, `FromUniform`, and `FromNarg`. Fields marked with
 /// `#[spongefish(skip)]` are initialized via `Default`; any other
 /// `#[spongefish(..)]` form is a compile error.
 ///
@@ -37,10 +37,7 @@ use crate::Unit;
 /// leaves a zero-length encoding, under which all values of the struct are
 /// indistinguishable; that is injective, and so admissible, only for a type
 /// with a single inhabitant.
-pub trait Codec<U: Unit = u8>:
-    crate::NargDeserialize + Encoding + Encoding<U> + Decoding<U>
-{
-}
+pub trait Codec<U: Unit = u8>: Encoding + Encoding<U> + FromUniform<U> + crate::FromNarg {}
 
 /// A prefix-free map from a type into strings over a sponge alphabet.
 ///
@@ -80,30 +77,30 @@ pub trait Encoding<U: Unit = u8> {
 /// message.
 ///
 /// The parameter `U` is the sponge alphabet, as for [`Encoding`]:
-/// `Decoding<U>` reads a string over the [`Unit`] `U` of the sponge, and the
-/// default `Decoding<u8>` serves byte sponges. This is the map `ψ` of
+/// `FromUniform<U>` takes a uniform string over the [`Unit`] `U` of the sponge, and the
+/// default `FromUniform<u8>` serves byte sponges. This is the map `ψ` of
 /// [[CO25], Definition 4.1]: the sponge squeezes a uniformly random
-/// [`Decoding::Repr`], and [`decode`][Decoding::decode] turns it into the
+/// [`FromUniform::Repr`], and [`from_uniform`][FromUniform::from_uniform] turns it into the
 /// message. The same map draws the prover's private randomness
 /// ([`PrivateRng::sample`][crate::PrivateRng::sample]), where a bias is worse
 /// than a soundness loss: biased nonces leak the witness.
 ///
 /// # Security
 ///
-/// [`decode`][Decoding::decode] need not be injective, but it **must**
+/// [`from_uniform`][FromUniform::from_uniform] need not be injective, but it **must**
 /// preserve the uniform distribution: for a uniform `Repr`, its output must
 /// be uniform over the message type, or statistically close to it. [[CO25]]
 /// calls that statistical distance the bias of the decoding map, and this distance
 /// is part of the soundness and zero-knowledge bounds as an additive error term, so it
 /// has to be negligible.
 ///
-/// The width of `Repr` can help make the decoding bias negligible:
+/// The width of `Repr` can help make the bias negligible:
 ///
 /// - A type with a power-of-two number of values, an integer `uN` or a byte
-///   array, is decoded from a `Repr` of exactly its own width: the map is a
+///   array, is drawn from a `Repr` of exactly its own width: the map is a
 ///   bijection and the bias is zero. The built-in codecs do this for [u8],
 ///   [u16], [u32], [u64], and [u128].
-/// - An integer modulo `p`, a field element or a scalar, is decoded by
+/// - An integer modulo `p`, a field element or a scalar, is drawn by
 ///   reducing a uniform `m`-bit integer modulo `p`. The bias of that
 ///   reduction is at most `2^-λ` once `m ≥ ⌈log₂ p⌉ + λ`
 ///   ([[CO25], Appendix C, Lemma C.1]), so squeeze `λ` bits more than `p`
@@ -120,34 +117,34 @@ pub trait Encoding<U: Unit = u8> {
 /// of width changes the transcript, so it must be reflected in the application
 /// tag.
 ///
-/// Changing the decoding function requires changing the session identifier too.
+/// Changing this map requires changing the session identifier too.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
-pub trait Decoding<U: Unit = u8> {
+pub trait FromUniform<U: Unit = u8> {
     /// The output type (and length) expected by the duplex sponge.
     ///
     /// The squeezed string over the alphabet, sized as described in the
-    /// [security section](Decoding#security).
+    /// [security section](FromUniform#security).
     ///
     /// # Example
     ///
     /// ```
-    /// # use spongefish::{Decoding, ByteArray};
+    /// # use spongefish::{FromUniform, ByteArray};
     /// let repr: ByteArray<4> = Default::default();
     /// assert_eq!(repr.as_ref(), &[0u8; 4]);
     /// ```
     ///
-    /// Private sampling transfers this buffer into `decode`. [`ByteArray`]
+    /// Private sampling transfers this buffer into `from_uniform`. [`ByteArray`]
     /// wipes itself on drop, including during unwinding. Custom representations
     /// used for private sampling must provide their own erasure; copies made by
-    /// a decoder and the decoded value remain the decoder/caller's responsibility.
+    /// an implementation and the returned value remain the implementation's and the caller's responsibility.
     type Repr: Default + AsMut<[U]>;
 
-    /// The distribution-preserving map, that re-maps a squeezed output [`Decoding::Repr`] into a verifier message.
+    /// The distribution-preserving map from a squeezed [`FromUniform::Repr`] to a verifier message.
     ///
-    /// This map is not exactly a decoding function (e.g., it need not be injective). What is demanded from this function is that
-    /// it preserves the uniform distribution: if [`Decoding::Repr`] is distributed uniformly at random, then so is the output of [`decode`][Decoding::decode].
-    fn decode(buf: Self::Repr) -> Self;
+    /// It need not be injective, and it inverts nothing. What is demanded is that
+    /// it preserves the uniform distribution: if [`FromUniform::Repr`] is uniformly distributed, then so is the output of [`from_uniform`][FromUniform::from_uniform].
+    fn from_uniform(buf: Self::Repr) -> Self;
 }
 
 impl<U: Unit, T: Encoding<U> + ?Sized> Encoding<U> for &T {
@@ -194,10 +191,10 @@ macro_rules! impl_int_encoding {
             }
         }
 
-        impl Decoding for $type {
+        impl FromUniform for $type {
             type Repr = ByteArray<{ core::mem::size_of::<$type>() }>;
 
-            fn decode(buf: Self::Repr) -> Self {
+            fn from_uniform(buf: Self::Repr) -> Self {
                 <$type>::from_le_bytes(buf.0)
             }
         }
@@ -206,11 +203,11 @@ macro_rules! impl_int_encoding {
 
 impl_int_encoding!(u8, u16, u32, u64, u128);
 
-/// A fixed-width decoding buffer, wiped on drop even without the `zeroize`
+/// A fixed-width squeeze buffer, wiped on drop even without the `zeroize`
 /// feature. That feature controls sponge-state erasure, not these buffers.
 ///
-/// The buffer moves into [`Decoding::decode`], so its owner wipes it when
-/// decoding returns or unwinds. Decoders should borrow through [`AsRef`]
+/// The buffer moves into [`FromUniform::from_uniform`], so its owner wipes it when
+/// the map returns or unwinds. Implementations should borrow through [`AsRef`]
 /// rather than copying the preimage into an unprotected temporary.
 #[derive(Clone, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct ByteArray<const N: usize>([u8; N]);
@@ -238,10 +235,10 @@ impl<const N: usize> AsMut<[u8]> for ByteArray<N> {
     }
 }
 
-impl<const N: usize> Decoding for [u8; N] {
+impl<const N: usize> FromUniform for [u8; N] {
     type Repr = ByteArray<N>;
 
-    fn decode(buf: Self::Repr) -> Self {
+    fn from_uniform(buf: Self::Repr) -> Self {
         buf.0
     }
 }
@@ -383,35 +380,30 @@ impl<T: Encoding> Encoding for LengthPrefixed<Vec<T>> {
     }
 }
 
-impl<T: crate::NargDeserialize> crate::NargDeserialize for LengthPrefixed<Vec<T>> {
+impl<T: crate::FromNarg> crate::FromNarg for LengthPrefixed<Vec<T>> {
     /// The deserialization function for a length-prefixed deserializable vector.
     ///
     /// Rejects truncated counts, invalid elements, and elements that consume
     /// no input with [`VerificationError`][crate::VerificationError].
-    fn deserialize_from_narg(
-        reader: &mut crate::NargReader<'_>,
-    ) -> Result<Self, crate::VerificationError> {
+    fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, crate::VerificationError> {
         let len = reader.read::<u32>()? as usize;
         reader.read_vec(len).map(Self)
     }
 }
 
 /// Blanket implementation of [`Codec`] for all types implementing
-/// [`NargDeserialize`][`crate::NargDeserialize`], [`Encoding`], and [`Decoding`].
-impl<U: Unit, E> Codec<U> for E where
-    E: crate::NargDeserialize + Encoding + Encoding<U> + Decoding<U>
-{
-}
+/// [`FromNarg`][`crate::FromNarg`], [`Encoding`], and [`FromUniform`].
+impl<U: Unit, E> Codec<U> for E where E: Encoding + Encoding<U> + FromUniform<U> + crate::FromNarg {}
 
 #[cfg(test)]
 mod tests {
     use super::{ByteArray, Encoding, LengthPrefixed, Vec};
-    use crate::NargDeserialize;
+    use crate::FromNarg;
 
     /// The representation keeps its exact width for derived codecs, but now
     /// carries an erasing destructor even in a no-default-features build.
     #[test]
-    fn decoding_buffers_are_wipeable_and_redacted() {
+    fn repr_buffers_are_wipeable_and_redacted() {
         use zeroize::{Zeroize, ZeroizeOnDrop};
 
         fn assert_wipes_on_drop<T: ZeroizeOnDrop>() {}
@@ -600,8 +592,8 @@ mod tests {
     #[derive(Debug)]
     struct ZeroWidth;
 
-    impl NargDeserialize for ZeroWidth {
-        fn deserialize_from_narg(
+    impl FromNarg for ZeroWidth {
+        fn from_narg(
             _reader: &mut crate::NargReader<'_>,
         ) -> Result<Self, crate::VerificationError> {
             Ok(Self)

@@ -58,7 +58,7 @@
 //!   [`Narg`] derives the typed [`SessionId`] from this tag.
 //! - Encodings absorbed into the random oracle must satisfy the
 //!   prefix-freeness requirements documented by [`Encoding`], and verifier
-//!   messages must be decoded from a squeezed unit string wide enough to leave a
+//!   messages must be sampled from a squeezed unit string wide enough to leave a
 //!   negligible bias. Codec changes, a change of width included, require a new
 //!   application tag.
 //! - Verification must consume the complete NARG. [`Narg::verify`] performs
@@ -81,7 +81,7 @@
 //! - [`Encoding<U>`][Encoding] maps the message into the sponge alphabet.
 //!   Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
 //! - [`Encoding`], the default `Encoding<u8>`, is the byte serialization
-//!   written to the NARG string, and the map that [`NargDeserialize`] inverts
+//!   written to the NARG string, and the map that [`FromNarg`] inverts
 //!   on the verifier's side.
 //!
 //! Both must be prefix-free; see [`Encoding`].
@@ -109,11 +109,15 @@
 //! and public messages are absorbed but never written, so they need only
 //! `Encoding<U>`.
 //!
-//! Verifier messages go the other way: [`Decoding<U>`][Decoding] maps a
-//! squeezed string over the alphabet, [`Decoding::Repr`], to a verifier
+//! Verifier messages go the other way: [`FromUniform<U>`][FromUniform] maps a
+//! uniform squeezed string over the alphabet, [`FromUniform::Repr`], to a verifier
 //! message (the map `ψ` of [[CO25]]). It must carry the uniform distribution
 //! on `Repr` to one close to uniform on the message, and the width of `Repr`
-//! is what makes that true; the rule is documented on [`Decoding`].
+//! is what makes that true; the rule is documented on [`FromUniform`].
+//!
+//! The two maps out of a string are named by the string they take:
+//! [`FromNarg`] parses an encoding and may fail, [`FromUniform`] takes a
+//! uniform string and may not.
 //!
 //! [`Codec`] is the combined shorthand, and the optional `derive` feature
 //! supplies derive macros for these traits.
@@ -208,17 +212,17 @@ pub use argument::Narg;
 pub use argument::{Argument, FiatShamir, Transcript, Witness};
 #[doc(hidden)]
 pub use codecs::ByteArray;
-pub use codecs::{Codec, Decoding, Encoding, LengthPrefixed};
+pub use codecs::{Codec, Encoding, FromUniform, LengthPrefixed};
 pub use duplex_sponge::{
     DuplexSponge, DuplexSpongeInit, DuplexSpongeInterface, EncodedSessionId, Permutation, Unit,
 };
 pub use error::VerificationError;
 pub use narg_prover::ProverState;
-pub use narg_string::{NargDeserialize, NargReader};
+pub use narg_string::{FromNarg, NargReader};
 pub use narg_verifier::VerifierState;
 pub use private_rng::PrivateRng;
 #[cfg(feature = "derive")]
-pub use spongefish_derive::{Codec, Decoding, Encoding, NargDeserialize, Unit};
+pub use spongefish_derive::{Codec, Encoding, FromNarg, FromUniform, Unit};
 
 /// The default hash function provided by the library: the TurboSHAKE128
 /// duplex sponge of draft-irtf-cfrg-fiat-shamir.
