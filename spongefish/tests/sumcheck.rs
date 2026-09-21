@@ -100,7 +100,7 @@ impl Argument for Sumcheck {
     ) -> Result<M31, VerificationError> {
         // The prover's witness, folded across rounds.
         // The verifier will not know what `table` is.
-        let mut table: Witness<Vec<M31>> = witness.map(Clone::clone);
+        let mut table: Witness<Vec<M31>> = witness.cloned();
         let mut claim = instance.claimed_sum;
 
         for _ in 0..instance.num_variables {

@@ -32,7 +32,7 @@
 //!         instance: &u32,
 //!         witness: Witness<&u32>,
 //!     ) -> Result<(), VerificationError> {
-//!         let value = transcript.prover_message(witness.map(|value| *value))?;
+//!         let value = transcript.prover_message(witness.copied())?;
 //!         transcript.check(|| value == *instance)
 //!     }
 //! }

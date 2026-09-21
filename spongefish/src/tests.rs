@@ -533,3 +533,82 @@ fn terminal_helpers_match_the_non_terminal_path_and_reject_trailing_bytes() {
     assert_eq!(verifier.prover_message::<u32>().unwrap(), 1);
     assert!(verifier.last_prover_message::<u32>().is_err());
 }
+
+#[test]
+fn witness_transpose_moves_the_error_out_on_the_prover_only() {
+    let ok: Witness<Result<u8, VerificationError>> = Witness::known(Ok(7));
+    assert_eq!(ok.transpose().unwrap().into_known(), Some(7));
+
+    let err: Witness<Result<u8, VerificationError>> = Witness::known(Err(VerificationError));
+    assert!(err.transpose().is_err());
+
+    let unknown: Witness<Result<u8, VerificationError>> = Witness::unknown();
+    assert_eq!(unknown.transpose().unwrap().into_known(), None);
+}
+
+#[test]
+fn witness_copied_and_cloned_follow_option() {
+    let value = alloc::vec![1u8, 2];
+    let borrowed = Witness::known(&value);
+    assert_eq!(borrowed.cloned().into_known(), Some(value.clone()));
+    assert_eq!(Witness::known(&3u8).copied().into_known(), Some(3));
+    assert_eq!(Witness::<&u8>::unknown().copied().into_known(), None);
+}
+
+#[test]
+fn prover_only_runs_on_the_prover_and_is_skipped_by_the_verifier() {
+    /// Returns a prover-side value the caller recovers from the output, the
+    /// shape of a reduction of knowledge.
+    struct PublicSquare;
+    impl Argument for PublicSquare {
+        type Instance = u32;
+        type Witness = ();
+        type Output = Witness<u64>;
+
+        fn run<T: Transcript>(
+            transcript: &mut T,
+            instance: &u32,
+            _witness: Witness<&()>,
+        ) -> Result<Witness<u64>, VerificationError> {
+            let square = transcript.prover_only(|| u64::from(*instance).pow(2));
+            let sent = transcript.prover_message(square)?;
+            transcript.check(|| sent == u64::from(*instance).pow(2))?;
+            Ok(square.map(|s| s + 1))
+        }
+    }
+
+    let tag = b"prover-only";
+    let (proof, output) = Narg::prove::<PublicSquare>(tag, &6, &()).unwrap();
+    assert_eq!(output.into_known(), Some(37));
+    let output = Narg::verify::<PublicSquare>(tag, &6, &proof).unwrap();
+    assert_eq!(output.into_known(), None);
+    assert!(Narg::verify::<PublicSquare>(tag, &7, &proof).is_err());
+
+    let session = test_session_id(tag);
+    let verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &[]);
+    let skipped: Witness<u8> = verifier.prover_only(|| panic!("the verifier must not compute"));
+    assert_eq!(skipped.into_known(), None);
+}
+
+#[test]
+fn a_failed_prover_only_computation_fails_the_prover() {
+    struct Exhausted;
+    impl Argument for Exhausted {
+        type Instance = u32;
+        type Witness = ();
+        type Output = ();
+
+        fn run<T: Transcript>(
+            transcript: &mut T,
+            _instance: &u32,
+            _witness: Witness<&()>,
+        ) -> Result<(), VerificationError> {
+            let nonce = transcript
+                .prover_only(|| Err::<u32, _>(VerificationError))
+                .transpose()?;
+            transcript.prover_message(nonce).map(|_| ())
+        }
+    }
+
+    assert!(Narg::prove::<Exhausted>(b"exhausted", &0, &()).is_err());
+}
