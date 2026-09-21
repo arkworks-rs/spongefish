@@ -19,13 +19,12 @@ The low-level `ProverState` and `VerifierState` interfaces expose each operation
 
 ## Security claims and their limits
 
-For an `Argument` implementation that is state-restoration sound, `Narg::verify` accepts only NARG strings for which the statement holds. This is a claim in the random oracle model.
+For an `Argument` implementation that is state-restoration sound, `Narg::verify` accepts only NARG strings for which the statement holds. This claim holds in the random oracle model.
+Diagonalization attacks on the Fiat-Shamir transformation ([KRS25], [Fen26]) are outside the protections of this crate, which cannot detect them. Applications that need such protection must argue the security of their construction separately.
 
 If the `Argument` is zero-knowledge, the NARG string resulting from `Narg::prove` leaks no information about the witness.
 
 The overwrite-mode Keccak/Ascon constructions are to be considered interchangeable with the draft's SHAKE/TurboSHAKE suites.
-
-Diagonalization attacks on the Fiat-Shamir transformation ([KRS25], [Fen26]) are outside the protections of this crate, which cannot detect them. Applications that need such protection must argue the security of their construction separately.
 
 [KRS25]: https://eprint.iacr.org/2025/118 "Khovratovich, Rothblum, Soukhanov. How to Prove False Statements: Practical Attacks on Fiat-Shamir."
 [Fen26]: https://eprint.iacr.org/2026/1838 "Fenzi. How to prove more false statements: Fiat-Shamir limitations on (generated) R1CS."
@@ -36,7 +35,8 @@ Specification conformance and test-vector provenance are checked automatically i
 
 ## Attacker capabilities and trust boundaries
 
-An application may let an adversary choose instance contents or request sizes. Submitting a NARG string does not give the adversary code execution in the verifier or access to the prover's RNG state. The caller must validate the instance and bound the sizes it reads.
+An application may let an adversary choose instance contents or request sizes. Submitting a NARG string does not give the adversary code execution, or access to the prover's RNG state or the witness unless explicitly sent.
+The caller has the responsibility to check the instance sizes and validity. In particular, the prover will NOT check that the witness is valid for the given instance.
 
 For conforming codecs, verification of every NARG string should terminate with either acceptance or `VerificationError`, never a panic.
 
