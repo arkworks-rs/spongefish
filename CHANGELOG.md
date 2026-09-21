@@ -16,7 +16,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - New traits: `Argument`, used to define an interactive argument, with type parameters `Instance`, `Witness` and `Output` that define the interactive protocol. The function `Argument::run` is the interactive protocol itself, and relies on a new trait `Transcript` to declare prover / verifier messages and the verifier checks. The trait `Transcript` is implemented by `ProverState` and `VerifierState`.
 - Closure-based codecs (`prover_message_as` / `verifier_message_as`, and the alphabet-generic `prover_message_with` / `verifier_message_with`).
 - `NargReader`, the forward-only cursor used to read the NARG string (without relying on `std`), and `NargReader::read`, the shorthand for reading one value through it. Every read returns `VerificationError` on failure. A failed read automatically poisons the reader: all later reads fail, including empty reads, and it is never empty.
-- Public `NargReader::read_with` runs custom parsers. `read` and `read_with` refuse to invoke parsers on a poisoned reader and reject `Ok` if a nested read failed. Deserializers only return errors; nested parsing uses `read` / `read_with`. Direct calls to `NargDeserialize` implementation hooks bypass this guarantee.
+- Public `NargReader::read_with` runs custom parsers. `read` and `read_with` refuse to invoke parsers on a poisoned reader and reject `Ok` if a nested read failed. Deserializers only return errors; nested parsing uses `read` / `read_with`. Direct calls to `FromNarg` implementation hooks bypass this guarantee.
 - `PrivateRng` is now generic over the duplex sponge.
 - The `LengthPrefixed` combinator for prefix-free encoding of variable-length sequences.
 - `Encoding` for tuples up to arity 8; previously only pairs and triples were covered.
@@ -29,7 +29,9 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
-- **Breaking:** `Encoding`, `Decoding`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
+- **Breaking:** `Decoding` is renamed `FromUniform`, with `decode` renamed `from_uniform`, and `NargDeserialize` is renamed `FromNarg`, with `deserialize_from_narg` renamed `from_narg`. The two maps out of a string are named by the string they take: `FromNarg` parses an encoding and may fail, `FromUniform` takes a uniform squeezed string and may not. `NargSerialize` is gone: `Encoding<u8>` is the NARG serialization.
+- **Breaking:** `Encoding`, `FromUniform`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
+- **Breaking:** `Transcript` implementations must provide the new `prover_only` hook.
 - **Breaking:** `NargReader` and `VerifierState` are no longer `Sync`. The reader stores its state in a `Cell` so verification checks can poison it while preserving `Transcript::check(&self, ...)`.
 - **Breaking:** `StdHash` is renamed `DefaultHash`, so it is not mistaken for `std::hash::Hash`.
 - **Breaking:** the `VerificationResult<T>` alias is gone; the signatures spell out `Result<T, VerificationError>`.
@@ -46,7 +48,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - **Breaking:** the instance passed to `ProverState::{new, new_with_seed, from_parts}` and `VerifierState::new` is encoded into the sponge's alphabet (`Encoding<H::U>`) rather than into bytes. Identical for byte sponges.
 - **Breaking:** `Permutation` requires `permute_mut` and provides `permute`, rather than the other way round. Every real permutation mixes the state in place, so implementations no longer have to write the by-value map as a wrapper around the in-place one.
 - **Breaking:** `spongefish-circuit` is reworked after `sigma-proofs`' `LinearRelation`. `PermutationInstanceBuilder` is `PermutationRelation` and its `snapshot` is a validating `compile` returning `Result`, `LinearEquation` holds a `Sum` of `Weighted` terms, instance and witness fields are private behind slice accessors, the witness is the trace alone, and allocation methods follow `sigma-proofs` names (`allocate_var`, `allocate_vars_with`, `set_var`). Assigning a wire twice with different values is a panic instead of a silent overwrite, and the `hashbrown` and `itertools` dependencies are gone.
-- `NargDeserialize` gained a provided `deserialize_array_from_narg`, which `[T; N]` delegates to. `u8` overrides it with a single bounds-checked copy, so `[u8; 32]` — the shape carrying compressed points, scalars and digests — is one fixed-size read instead of 32 element parses: 57.7ns to 1.1ns, and 122ns to 4.7ns for a derived struct of two such fields. End to end this makes verification about twice as fast (a 32-round transcript goes from 7.8µs to 4.0µs). The NARG string is byte-identical.
+- `FromNarg` gained a provided `from_narg_array`, which `[T; N]` delegates to. `u8` overrides it with a single bounds-checked copy, so `[u8; 32]` — the shape carrying compressed points, scalars and digests — is one fixed-size read instead of 32 element parses: 57.7ns to 1.1ns, and 122ns to 4.7ns for a derived struct of two such fields. End to end this makes verification about twice as fast (a 32-round transcript goes from 7.8µs to 4.0µs). The NARG string is byte-identical.
 - **Breaking:** `spongefish-circuit` moves to Plonky3 0.7 (`p3-baby-bear`, `p3-field`), so `BabyBearUnit` wraps the 0.7 `BabyBear`.
 - Updated `ascon` to 0.5, along with routine dependency updates.
 
@@ -57,7 +59,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - Rejected zero-width elements in `LengthPrefixed`.
 - More careful zeroize for the `DuplexSponge` state.
 - `prover_message_as` and `prover_message_with` accept a closure that consumes the whole remaining NARG string. The pointer-identity check they used to validate the caller's cursor with rejected an empty remainder, failing verification for an otherwise valid proof.
-- `spongefish-derive`: the generated code is usable from `no_std` crates, and the `Decoding` derive now single-sources the field width. Malformed input is reported as a `compile_error!` on the offending span instead of aborting the macro with a panic.
+- `spongefish-derive`: the generated code is usable from `no_std` crates, and the `FromUniform` derive now single-sources the field width. Malformed input is reported as a `compile_error!` on the offending span instead of aborting the macro with a panic.
 - `spongefish-pow`: guarded the difficulty parameter and the endianness of the ground nonce. Dropped an unused dependency.
 
 ### Security

@@ -4,7 +4,7 @@
 //! we lose a soundness property called simulation extractability (as well as universal composability).
 //! This file provides one such example that **should NOT** be reproduced.
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
+    Argument, ByteArray, Encoding, FromNarg, FromUniform, Narg, NargReader, Transcript,
     VerificationError, Witness,
 };
 
@@ -22,17 +22,17 @@ impl Encoding for Elem {
     }
 }
 
-impl NargDeserialize for Elem {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+impl FromNarg for Elem {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         // The bug, stated plainly. A canonical codec would reject `v >= P`.
         let bytes = reader.take_array::<8>()?;
         Ok(Self(u64::from_le_bytes(bytes) % P))
     }
 }
 
-impl Decoding for Elem {
+impl FromUniform for Elem {
     type Repr = ByteArray<8>;
-    fn decode(buf: ByteArray<8>) -> Self {
+    fn from_uniform(buf: ByteArray<8>) -> Self {
         Self(u64::from_le_bytes(*buf.as_ref()) % P)
     }
 }

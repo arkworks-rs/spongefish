@@ -268,7 +268,7 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
 
 impl<T: Unit, const WIDTH: usize> PermutationInstance<T, WIDTH> {
     /// Checks the parts of a relation and assembles the instance; the gate
-    /// behind [`PermutationRelation::compile`] and the byte decoder.
+    /// behind [`PermutationRelation::compile`] and the byte parser.
     pub(crate) fn validated(
         label: String,
         vars_count: usize,

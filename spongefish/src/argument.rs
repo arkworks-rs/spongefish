@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{
-    Decoding, DuplexSpongeInit, DuplexSpongeInterface, Encoding, NargDeserialize, ProverState,
+    DuplexSpongeInit, DuplexSpongeInterface, Encoding, FromNarg, FromUniform, ProverState,
     VerificationError, VerifierState,
 };
 
@@ -165,7 +165,7 @@ pub trait Transcript {
     /// read by the verifier.
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding + NargDeserialize;
+        T: Encoding + FromNarg;
 
     /// Declares a verifier message, sent by the verifier to the prover.
     ///
@@ -219,7 +219,7 @@ pub trait Transcript {
     /// }
     /// ```
     #[must_use]
-    fn verifier_message<T: Decoding>(&mut self) -> T;
+    fn verifier_message<T: FromUniform>(&mut self) -> T;
 
     /// A "public" prover message from the prover to the verifier.
     ///
@@ -249,10 +249,10 @@ pub trait Transcript {
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
     /// allows to return a random type `T`, marked as `Witness`.
-    fn sample<T: Decoding>(&mut self) -> Witness<T>;
+    fn sample<T: FromUniform>(&mut self) -> Witness<T>;
 
     /// Samples `n` random elements using the prover's private randomness.
-    fn sample_vec<T: Decoding>(&mut self, n: usize) -> Witness<Vec<T>>;
+    fn sample_vec<T: FromUniform>(&mut self, n: usize) -> Witness<Vec<T>>;
 
     /// The interactive verifier checks.
     ///
@@ -364,7 +364,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 {
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding + NargDeserialize,
+        T: Encoding + FromNarg,
     {
         // `Witness::unknown()` here fails with `VerificationError`.
         let Witness(value) = value;
@@ -373,7 +373,7 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Ok(value)
     }
 
-    fn verifier_message<T: Decoding>(&mut self) -> T {
+    fn verifier_message<T: FromUniform>(&mut self) -> T {
         Self::verifier_message(self)
     }
 
@@ -385,11 +385,11 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Witness::known(compute())
     }
 
-    fn sample<T: Decoding>(&mut self) -> Witness<T> {
+    fn sample<T: FromUniform>(&mut self) -> Witness<T> {
         Witness::known(self.rng().sample())
     }
 
-    fn sample_vec<T: Decoding>(&mut self, n: usize) -> Witness<Vec<T>> {
+    fn sample_vec<T: FromUniform>(&mut self, n: usize) -> Witness<Vec<T>> {
         Witness::known(self.rng().sample_vec(n))
     }
 
@@ -405,16 +405,16 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
     fn prover_message<T>(&mut self, _value: Witness<T>) -> Result<T, VerificationError>
     where
-        T: Encoding + NargDeserialize,
+        T: Encoding + FromNarg,
     {
         // The argument is `unknown` and is dropped; the message comes off the
         // wire. Absorbing the bytes read rather than a re-encoding of what was
         // parsed is what keeps a non-canonical codec from admitting a second
         // accepting proof.
-        Self::prover_message_as(self, T::deserialize_from_narg)
+        Self::prover_message_as(self, T::from_narg)
     }
 
-    fn verifier_message<T: Decoding>(&mut self) -> T {
+    fn verifier_message<T: FromUniform>(&mut self) -> T {
         Self::verifier_message(self)
     }
 
@@ -426,11 +426,11 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Witness::unknown()
     }
 
-    fn sample<T: Decoding>(&mut self) -> Witness<T> {
+    fn sample<T: FromUniform>(&mut self) -> Witness<T> {
         Witness::unknown()
     }
 
-    fn sample_vec<T: Decoding>(&mut self, _n: usize) -> Witness<Vec<T>> {
+    fn sample_vec<T: FromUniform>(&mut self, _n: usize) -> Witness<Vec<T>> {
         Witness::unknown()
     }
 

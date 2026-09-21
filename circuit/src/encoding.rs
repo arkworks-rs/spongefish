@@ -20,8 +20,8 @@
 use alloc::{format, string::String, vec::Vec};
 
 use spongefish::{
-    derive_session_id, DefaultHash, DuplexSpongeInit, DuplexSpongeInterface, Encoding,
-    NargDeserialize, NargReader, Unit, VerificationError,
+    derive_session_id, DefaultHash, DuplexSpongeInit, DuplexSpongeInterface, Encoding, FromNarg,
+    NargReader, Unit, VerificationError,
 };
 
 use crate::{
@@ -93,7 +93,7 @@ fn read_vars<const W: usize>(
     Ok(vars)
 }
 
-fn read_unit<T: NargDeserialize>(reader: &mut NargReader<'_>) -> Result<T, InvalidRelation> {
+fn read_unit<T: FromNarg>(reader: &mut NargReader<'_>) -> Result<T, InvalidRelation> {
     reader
         .read::<T>()
         .map_err(|VerificationError| malformed("unit value"))
@@ -134,9 +134,7 @@ fn read_header<T: Unit + Encoding>(
     String::from_utf8(label.to_vec()).map_err(|_| malformed("label is not UTF-8"))
 }
 
-impl<T: Unit + Encoding + NargDeserialize + PartialEq, const WIDTH: usize>
-    PermutationInstance<T, WIDTH>
-{
+impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> PermutationInstance<T, WIDTH> {
     /// The canonical byte encoding of this instance.
     pub fn to_bytes(&self) -> Vec<u8> {
         let unit_len = unit_len::<T>();
@@ -235,7 +233,7 @@ impl<T: Unit + Encoding + NargDeserialize + PartialEq, const WIDTH: usize>
     }
 }
 
-impl<T: Unit + Encoding + NargDeserialize + PartialEq, const WIDTH: usize> Encoding
+impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> Encoding
     for PermutationInstance<T, WIDTH>
 {
     fn encode(&self) -> impl AsRef<[u8]> {
@@ -243,15 +241,15 @@ impl<T: Unit + Encoding + NargDeserialize + PartialEq, const WIDTH: usize> Encod
     }
 }
 
-impl<T: Unit + Encoding + NargDeserialize + PartialEq, const WIDTH: usize> NargDeserialize
+impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> FromNarg
     for PermutationInstance<T, WIDTH>
 {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Self::read(reader).map_err(|_| VerificationError)
     }
 }
 
-impl<T: Unit + Encoding + NargDeserialize, const WIDTH: usize> PermutationWitness<T, WIDTH> {
+impl<T: Unit + Encoding + FromNarg, const WIDTH: usize> PermutationWitness<T, WIDTH> {
     /// The canonical byte encoding of this witness.
     pub fn to_bytes(&self) -> Vec<u8> {
         let unit_len = unit_len::<T>();

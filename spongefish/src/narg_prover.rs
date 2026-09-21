@@ -4,7 +4,7 @@ use core::fmt;
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{
-    duplex_sponge::DuplexSpongeInit, Decoding, DuplexSpongeInterface, Encoding, PrivateRng,
+    duplex_sponge::DuplexSpongeInit, DuplexSpongeInterface, Encoding, FromUniform, PrivateRng,
     SessionId,
 };
 
@@ -225,12 +225,12 @@ where
 
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
-    /// `T` must implement [`Decoding<H::U>`][`Decoding`].
+    /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
     #[must_use]
-    pub fn verifier_message<T: Decoding<H::U>>(&mut self) -> T {
+    pub fn verifier_message<T: FromUniform<H::U>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
-        T::decode(buf)
+        T::from_uniform(buf)
     }
 
     /// Input to the Fiat-Shamir transformation a slice of public messages.
@@ -295,13 +295,13 @@ where
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     #[must_use]
-    pub fn verifier_messages<T: Decoding<H::U>, const N: usize>(&mut self) -> [T; N] {
+    pub fn verifier_messages<T: FromUniform<H::U>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
     #[must_use]
-    pub fn verifier_messages_vec<T: Decoding<H::U>>(&mut self, len: usize) -> Vec<T> {
+    pub fn verifier_messages_vec<T: FromUniform<H::U>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
 
@@ -364,7 +364,7 @@ where
     /// - It **MUST** be distribution-preserving: for a uniformly random
     ///   input, the output must be (statistically close to) uniform over the
     ///   verifier message type. How large `n` must be for that to hold is
-    ///   documented on [`Decoding`][crate::Decoding].
+    ///   documented on [`FromUniform`][crate::FromUniform].
     /// - It is infallible
     /// - Its input must be uniform
     /// - Any change to the decoding (e.g. sampling verifier messages differently)

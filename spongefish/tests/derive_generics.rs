@@ -2,7 +2,7 @@
 
 use core::marker::PhantomData;
 
-use spongefish::{Codec, Decoding, Encoding, NargReader};
+use spongefish::{Codec, Encoding, FromUniform, NargReader};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Codec)]
 struct TaggedValue<T, const N: usize> {
@@ -69,15 +69,15 @@ impl Encoding for Padded {
     }
 }
 
-impl Decoding for Padded {
+impl FromUniform for Padded {
     type Repr = PaddedRepr;
 
-    fn decode(buf: Self::Repr) -> Self {
+    fn from_uniform(buf: Self::Repr) -> Self {
         Self(u16::from_le_bytes(buf.data))
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Decoding)]
+#[derive(Debug, PartialEq, Eq, FromUniform)]
 struct HasPaddedField {
     first: Padded,
     second: u8,
@@ -85,14 +85,14 @@ struct HasPaddedField {
 
 /// A `Repr` whose slice width disagrees with `size_of::<Repr>()` must panic.
 #[test]
-#[should_panic(expected = "`Decoding` derive")]
-fn decoding_derive_rejects_inconsistent_repr_width() {
-    let buffer = <HasPaddedField as Decoding>::Repr::default();
-    let _ = HasPaddedField::decode(buffer);
+#[should_panic(expected = "`FromUniform` derive")]
+fn from_uniform_derive_rejects_inconsistent_repr_width() {
+    let buffer = <HasPaddedField as FromUniform>::Repr::default();
+    let _ = HasPaddedField::from_uniform(buffer);
 }
 
-/// Builds a `Decoding::Repr` out of raw bytes, the way the sponge fills it.
-fn repr<T: Decoding>(bytes: &[u8]) -> T::Repr {
+/// Builds a `FromUniform::Repr` out of raw bytes, the way the sponge fills it.
+fn repr<T: FromUniform>(bytes: &[u8]) -> T::Repr {
     let mut buffer = T::Repr::default();
     buffer.as_mut().copy_from_slice(bytes);
     buffer
@@ -118,17 +118,17 @@ fn codec_derive_pins_multi_field_byte_layout() {
     ];
     assert_eq!(header.encode().as_ref(), &expected);
 
-    // Decoding: the representation is exactly as wide as the encoding, and
+    // FromUniform: the representation is exactly as wide as the encoding, and
     // consuming those same bytes reconstructs the non-skipped fields.
     assert_eq!(
-        core::mem::size_of::<<Header as Decoding>::Repr>(),
+        core::mem::size_of::<<Header as FromUniform>::Repr>(),
         expected.len()
     );
-    let decoded = Header::decode(repr::<Header>(&expected));
-    assert_eq!(decoded.tag, header.tag);
-    assert_eq!(decoded.id, header.id);
-    assert_eq!(decoded.nonce, header.nonce);
-    assert_eq!(decoded.cached, 0, "skipped fields decode to `Default`");
+    let sampled = Header::from_uniform(repr::<Header>(&expected));
+    assert_eq!(sampled.tag, header.tag);
+    assert_eq!(sampled.id, header.id);
+    assert_eq!(sampled.nonce, header.nonce);
+    assert_eq!(sampled.cached, 0, "skipped fields are `Default`");
 
     // A distinct byte pattern, to catch offsets that happen to coincide.
     let shifted = [
@@ -136,8 +136,8 @@ fn codec_derive_pins_multi_field_byte_layout() {
         0x02, 0x00, 0x00, 0x00, // id
         0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // nonce
     ];
-    let decoded = Header::decode(repr::<Header>(&shifted));
-    assert_eq!((decoded.tag, decoded.id, decoded.nonce), (1, 2, 3));
+    let sampled = Header::from_uniform(repr::<Header>(&shifted));
+    assert_eq!((sampled.tag, sampled.id, sampled.nonce), (1, 2, 3));
 
     // NARG round-trip keeps the same layout.
     let serialized = header.encode();
@@ -150,7 +150,7 @@ fn codec_derive_pins_multi_field_byte_layout() {
     // Tuple structs follow the same rules.
     let pair = Pair(0x0102, 0x03, 0xFFFF_FFFF);
     assert_eq!(pair.encode().as_ref(), &[0x02, 0x01, 0x03]);
-    assert_eq!(core::mem::size_of::<<Pair as Decoding>::Repr>(), 3);
-    let decoded = Pair::decode(repr::<Pair>(&[0x02, 0x01, 0x03]));
-    assert_eq!(decoded, Pair(0x0102, 0x03, 0));
+    assert_eq!(core::mem::size_of::<<Pair as FromUniform>::Repr>(), 3);
+    let sampled = Pair::from_uniform(repr::<Pair>(&[0x02, 0x01, 0x03]));
+    assert_eq!(sampled, Pair(0x0102, 0x03, 0));
 }

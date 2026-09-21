@@ -42,14 +42,14 @@ For conforming codecs, verification of every NARG string should terminate with e
 
 ### NARG string
 
-A malicious prover can provide truncated, extended or modified NARG strings. `NargReader` uses checked reads; the first failure poisons the reader, and every subsequent read is rejected without invoking the decoder. Custom deserializers provided by the implementer must reject invalid values and noncanonical encodings, check lengths, and terminate without panicking.
+A malicious prover can provide truncated, extended or modified NARG strings. `NargReader` uses checked reads; the first failure poisons the reader, and every subsequent read is rejected without invoking the parser. Custom deserializers provided by the implementer must reject invalid values and noncanonical encodings, check lengths, and terminate without panicking.
 
 ### Codecs
 
-`Encoding` must be injective and prefix-free; `Decoding` must produce a uniform, or negligibly biased, distribution from a sufficiently wide input. Derive fields marked `skip` are intentionally not bound by the transcript.
+`Encoding` must be injective and prefix-free; `FromUniform` must produce a uniform, or negligibly biased, distribution from a sufficiently wide input. Derive fields marked `skip` are intentionally not bound by the transcript.
 
 The high-level byte transcript uses `prover_message_as`, which absorbs the actual consumed bytes and rejects swallowed read failures. The generic low-level `prover_message` and `prover_message_with` paths re-encode the parsed value: their encodings must match the prover's absorption map, including for non-byte alphabets.
-Trait implementations do not prove injectivity, prefix-freeness, negligible decoding bias, adequate sponge capacity, or cryptographic security. Custom codecs and backends are trusted code.
+Trait implementations do not prove injectivity, prefix-freeness, negligible sampling bias, adequate sponge capacity, or cryptographic security. Custom codecs and backends are trusted code.
 
 ### Verification
 

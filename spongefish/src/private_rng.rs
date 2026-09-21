@@ -5,7 +5,7 @@ use zeroize::Zeroizing;
 
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
-use crate::{duplex_sponge::DuplexSpongeInit, Decoding};
+use crate::{duplex_sponge::DuplexSpongeInit, FromUniform};
 
 /// The byte length of a [`PrivateRng`] seed.
 pub const SEED_LEN: usize = 32;
@@ -94,21 +94,21 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         self.sponge.squeeze(dest);
     }
 
-    /// Samples a value through its [`Decoding`] codec — the same
+    /// Samples a value through its [`FromUniform`] map — the same
     /// distribution-preserving path used for verifier messages.
     ///
     /// The standard [`crate::ByteArray`] representation wipes itself after
-    /// decoding, even if decoding unwinds. A custom representation must erase
+    /// the map returns, even if it unwinds. A custom representation must erase
     /// its own storage; this method cannot wipe a buffer after transferring
-    /// ownership to the decoder. The returned sample is owned by the caller.
-    pub fn sample<T: Decoding>(&mut self) -> T {
+    /// ownership to the map. The returned sample is owned by the caller.
+    pub fn sample<T: FromUniform>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
-        T::decode(buf)
+        T::from_uniform(buf)
     }
 
-    /// Samples `n` values through their [`Decoding`] codec.
-    pub fn sample_vec<T: Decoding>(&mut self, n: usize) -> Vec<T> {
+    /// Samples `n` values through their [`FromUniform`] map.
+    pub fn sample_vec<T: FromUniform>(&mut self, n: usize) -> Vec<T> {
         (0..n).map(|_| self.sample()).collect()
     }
 }

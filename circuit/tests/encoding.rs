@@ -99,7 +99,7 @@ fn malformed_encodings_are_rejected() {
 }
 
 #[test]
-fn decoding_runs_the_relation_checks() {
+fn parsing_runs_the_relation_checks() {
     let (instance, _) = fixture();
     let mut bytes = instance.to_bytes();
     // The first query's first input wire: after the header (magic, version,

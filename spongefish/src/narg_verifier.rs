@@ -4,7 +4,7 @@ use core::fmt;
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{
-    Decoding, DuplexSpongeInterface, Encoding, NargDeserialize, NargReader, SessionId,
+    DuplexSpongeInterface, Encoding, FromNarg, FromUniform, NargReader, SessionId,
     VerificationError,
 };
 
@@ -80,10 +80,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// The dual of
     /// [`ProverState::prover_message`][crate::ProverState::prover_message]. On
     /// failure nothing is absorbed and the state is poisoned.
-    pub fn prover_message<T: Encoding<H::U> + NargDeserialize>(
-        &mut self,
-    ) -> Result<T, VerificationError> {
-        let (message, _) = self.read_message(T::deserialize_from_narg)?;
+    pub fn prover_message<T: Encoding<H::U> + FromNarg>(&mut self) -> Result<T, VerificationError> {
+        let (message, _) = self.read_message(T::from_narg)?;
         self.duplex_sponge_state.absorb(message.encode().as_ref());
         Ok(message)
     }
@@ -96,7 +94,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [`VerifierState::check_eof`], in one call that consumes the state, so
     /// the trailing-bytes check cannot be forgotten.
     ///
-    pub fn last_prover_message<T: Encoding<H::U> + NargDeserialize>(
+    pub fn last_prover_message<T: Encoding<H::U> + FromNarg>(
         mut self,
     ) -> Result<T, VerificationError> {
         let message = self.prover_message()?;
@@ -111,23 +109,23 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Returns a verifier message `T` that is uniformly distributed.
     ///
-    /// `T` must implement [`Decoding<H::U>`][`Decoding`].
+    /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
     #[must_use]
-    pub fn verifier_message<T: Decoding<H::U>>(&mut self) -> T {
+    pub fn verifier_message<T: FromUniform<H::U>>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.duplex_sponge_state.squeeze(buf.as_mut());
-        T::decode(buf)
+        T::from_uniform(buf)
     }
 
     /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     #[must_use]
-    pub fn verifier_messages<T: Decoding<H::U>, const N: usize>(&mut self) -> [T; N] {
+    pub fn verifier_messages<T: FromUniform<H::U>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
     /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
     #[must_use]
-    pub fn verifier_messages_vec<T: Decoding<H::U>>(&mut self, len: usize) -> Vec<T> {
+    pub fn verifier_messages_vec<T: FromUniform<H::U>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
 
@@ -162,7 +160,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     }
 
     /// Reads a fixed-size array of prover messages `T`, each implementing `Encoding<H::U>`.
-    pub fn prover_messages<T: Encoding<H::U> + NargDeserialize, const N: usize>(
+    pub fn prover_messages<T: Encoding<H::U> + FromNarg, const N: usize>(
         &mut self,
     ) -> Result<[T; N], VerificationError> {
         let result = self.prover_messages_vec::<T>(N)?;
@@ -171,7 +169,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
 
     /// Reads `len` prover messages `T` into a vector, each implementing `Encoding<H::U>`.
     /// A poisoned state rejects even an empty batch.
-    pub fn prover_messages_vec<T: Encoding<H::U> + NargDeserialize>(
+    pub fn prover_messages_vec<T: Encoding<H::U> + FromNarg>(
         &mut self,
         len: usize,
     ) -> Result<Vec<T>, VerificationError> {

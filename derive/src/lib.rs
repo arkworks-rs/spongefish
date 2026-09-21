@@ -49,8 +49,8 @@ fn struct_fields<'a>(input: &'a DeriveInput, derive: &str) -> Result<Vec<StructF
         .collect()
 }
 
-/// The types that must be bounded for an impl to hold: every field that is
-/// actually encoded or decoded, and no others.
+/// The types that must be bounded for an impl to hold: every field that
+/// the generated maps actually touch, and no others.
 ///
 /// A skipped field is untouched by the generated code, so bounding it would
 /// reject types the derive can perfectly well handle.
@@ -90,40 +90,40 @@ fn impl_block(
 
 /// The compile-time width reserved for a field inside the derived `Repr`.
 ///
-/// `Decoding` exposes no associated constant for the length of its `Repr`, and
+/// `FromUniform` exposes no associated constant for the length of its `Repr`, and
 /// `AsMut::as_mut(..).len()` — the width the sponge actually fills — is not a
 /// const expression, so the buffer size must be spelled with `size_of`. The
-/// generated `decode` checks at run time that the two agree (see
-/// [`decode_field_expr`]).
+/// generated `from_uniform` checks at run time that the two agree (see
+/// [`from_uniform_field_expr`]).
 fn field_repr_size(field_type: &Type) -> TokenStream2 {
     quote! {
-        ::core::mem::size_of::<<#field_type as ::spongefish::Decoding>::Repr>()
+        ::core::mem::size_of::<<#field_type as ::spongefish::FromUniform>::Repr>()
     }
 }
 
-/// Decodes one field out of `bytes`, advancing the shared `offset` cursor.
+/// Samples one field out of `bytes`, advancing the shared `offset` cursor.
 ///
 /// The width comes from `AsMut::<[u8]>::as_mut(..).len()`.
 ///
 /// # Panics
 ///
 /// The bounds check will panic if `Repr` is a slice whose length disagrees with its `size_of`.
-fn decode_field_expr(field_type: &Type) -> TokenStream2 {
+fn from_uniform_field_expr(field_type: &Type) -> TokenStream2 {
     quote! {
         {
-            let mut field_buf = <#field_type as ::spongefish::Decoding>::Repr::default();
+            let mut field_buf = <#field_type as ::spongefish::FromUniform>::Repr::default();
             let field_size = ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf).len();
             let start = offset;
             let end = start + field_size;
             assert!(
                 end <= bytes.len(),
-                "`Decoding` derive: field representation is wider than the derived buffer; \
+                "`FromUniform` derive: field representation is wider than the derived buffer; \
                  `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
             );
             ::core::convert::AsMut::<[u8]>::as_mut(&mut field_buf)
                 .copy_from_slice(&bytes[start..end]);
             offset = end;
-            <#field_type as ::spongefish::Decoding>::decode(field_buf)
+            <#field_type as ::spongefish::FromUniform>::from_uniform(field_buf)
         }
     }
 }
@@ -162,8 +162,8 @@ fn generate_encoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
     ))
 }
 
-fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
-    let fields = struct_fields(input, "Decoding")?;
+fn generate_from_uniform_impl(input: &DeriveInput) -> Result<TokenStream2> {
+    let fields = struct_fields(input, "FromUniform")?;
     let bounded = bounded_types(&fields);
 
     let field_inits = fields.iter().map(|field| {
@@ -171,8 +171,8 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         if field.skip {
             return quote!(#member: Default::default(),);
         }
-        let decode_field = decode_field_expr(field.ty);
-        quote!(#member: #decode_field,)
+        let from_uniform_field = from_uniform_field_expr(field.ty);
+        quote!(#member: #from_uniform_field,)
     });
 
     let size_components = bounded.iter().copied().map(field_repr_size);
@@ -182,10 +182,10 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         quote!(#(#size_components)+*)
     };
 
-    // Fields are decoded in declaration order from a single `offset` cursor, so
+    // Fields are read in declaration order from a single `offset` cursor, so
     // the offsets and the buffer size can never drift apart silently: the final
     // check pins the total to the buffer length.
-    let decode_body = if bounded.is_empty() {
+    let body = if bounded.is_empty() {
         quote! {
             let _ = buf;
             Self { #(#field_inits)* }
@@ -200,14 +200,14 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
             assert_eq!(
                 offset,
                 bytes.len(),
-                "`Decoding` derive: field representations do not cover the derived buffer; \
+                "`FromUniform` derive: field representations do not cover the derived buffer; \
                  every `Repr` must satisfy `size_of::<Repr>() == Repr::default().as_mut().len()`"
             );
             value
         }
     };
 
-    let trait_path = quote!(::spongefish::Decoding);
+    let trait_path = quote!(::spongefish::FromUniform);
     Ok(impl_block(
         input,
         &trait_path,
@@ -215,15 +215,15 @@ fn generate_decoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &quote! {
             type Repr = ::spongefish::ByteArray<{ #size_calc }>;
 
-            fn decode(buf: Self::Repr) -> Self {
-                #decode_body
+            fn from_uniform(buf: Self::Repr) -> Self {
+                #body
             }
         },
     ))
 }
 
-fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
-    let fields = struct_fields(input, "NargDeserialize")?;
+fn generate_from_narg_impl(input: &DeriveInput) -> Result<TokenStream2> {
+    let fields = struct_fields(input, "FromNarg")?;
     let bounded = bounded_types(&fields);
 
     let field_inits = fields.iter().map(|field| {
@@ -237,13 +237,13 @@ fn generate_narg_deserialize_impl(input: &DeriveInput) -> Result<TokenStream2> {
         }
     });
 
-    let trait_path = quote!(::spongefish::NargDeserialize);
+    let trait_path = quote!(::spongefish::FromNarg);
     Ok(impl_block(
         input,
         &trait_path,
         &bounded,
         &quote! {
-            fn deserialize_from_narg(
+            fn from_narg(
                 reader: &mut ::spongefish::NargReader<'_>,
             ) -> ::core::result::Result<Self, ::spongefish::VerificationError> {
                 // A unit struct, or one whose every field is skipped,
@@ -318,42 +318,42 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
     expand(generate_encoding_impl(&input))
 }
 
-/// Derive macro for the [`Decoding`](https://docs.rs/spongefish/latest/spongefish/trait.Decoding.html) trait.
+/// Derive macro for the [`FromUniform`](https://docs.rs/spongefish/latest/spongefish/trait.FromUniform.html) trait.
 ///
-/// Generates an implementation that decodes struct fields sequentially from a fixed-size buffer.
+/// Generates an implementation that samples struct fields sequentially from a fixed-size buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
-#[proc_macro_derive(Decoding, attributes(spongefish))]
-pub fn derive_decoding(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(FromUniform, attributes(spongefish))]
+pub fn derive_from_uniform(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand(generate_decoding_impl(&input))
+    expand(generate_from_uniform_impl(&input))
 }
 
-/// Derive macro for the [`NargDeserialize`](https://docs.rs/spongefish/latest/spongefish/trait.NargDeserialize.html) trait.
+/// Derive macro for the [`FromNarg`](https://docs.rs/spongefish/latest/spongefish/trait.FromNarg.html) trait.
 ///
-/// Generates an implementation that deserializes struct fields sequentially from a byte buffer.
+/// Generates an implementation that parses struct fields sequentially from the NARG string.
 /// Fields can be skipped using `#[spongefish(skip)]`.
 /// Parsing returns `VerificationError` on failure; use `NargReader::read` to
 /// reject poisoned readers and automatically record nested field errors.
-#[proc_macro_derive(NargDeserialize, attributes(spongefish))]
-pub fn derive_narg_deserialize(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(FromNarg, attributes(spongefish))]
+pub fn derive_from_narg(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand(generate_narg_deserialize_impl(&input))
+    expand(generate_from_narg_impl(&input))
 }
 
 /// Derive macro that generates [`Encoding`](https://docs.rs/spongefish/latest/spongefish/trait.Encoding.html),
-/// [`Decoding`](https://docs.rs/spongefish/latest/spongefish/trait.Decoding.html), and
-/// [`NargDeserialize`](https://docs.rs/spongefish/latest/spongefish/trait.NargDeserialize.html) in one go.
+/// [`FromUniform`](https://docs.rs/spongefish/latest/spongefish/trait.FromUniform.html), and
+/// [`FromNarg`](https://docs.rs/spongefish/latest/spongefish/trait.FromNarg.html) in one go.
 #[proc_macro_derive(Codec, attributes(spongefish))]
 pub fn derive_codec(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand((|| {
         let encoding = generate_encoding_impl(&input)?;
-        let decoding = generate_decoding_impl(&input)?;
-        let deserialize = generate_narg_deserialize_impl(&input)?;
+        let from_uniform = generate_from_uniform_impl(&input)?;
+        let from_narg = generate_from_narg_impl(&input)?;
         Ok(quote! {
             #encoding
-            #decoding
-            #deserialize
+            #from_uniform
+            #from_narg
         })
     })())
 }

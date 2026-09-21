@@ -6,8 +6,8 @@ use proptest::prelude::*;
 use spongefish::{
     derive_session_id,
     instantiations::{Shake128, TurboShake128},
-    DuplexSpongeInit, Encoding, LengthPrefixed, NargDeserialize, NargReader, ProverState,
-    SessionId, VerificationError, VerifierState,
+    DuplexSpongeInit, Encoding, FromNarg, LengthPrefixed, NargReader, ProverState, SessionId,
+    VerificationError, VerifierState,
 };
 
 fn lengths() -> impl Strategy<Value = usize> {
@@ -77,12 +77,12 @@ fn binding<H: DuplexSpongeInit<U = u8>>(
     assert!(verify::<H>(&session, &other_instance, messages.len(), &proof).is_err());
 }
 
-// A deliberately broken element decoder. read_vec must reject it rather than
+// A deliberately broken element parser. read_vec must reject it rather than
 // looping count times or allocating count elements without consuming input.
 struct NoProgress;
 
-impl NargDeserialize for NoProgress {
-    fn deserialize_from_narg(_reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+impl FromNarg for NoProgress {
+    fn from_narg(_reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         Ok(Self)
     }
 }

@@ -4,7 +4,7 @@
 //! over the field of size `P = 2^31-1`.
 
 use spongefish::{
-    Argument, ByteArray, Decoding, Encoding, Narg, NargDeserialize, NargReader, Transcript,
+    Argument, ByteArray, Encoding, FromNarg, FromUniform, Narg, NargReader, Transcript,
     VerificationError, Witness,
 };
 
@@ -31,8 +31,8 @@ impl Encoding for M31 {
     }
 }
 
-impl NargDeserialize for M31 {
-    fn deserialize_from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+impl FromNarg for M31 {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
         let bytes = reader.take_array::<4>()?;
         let v = u32::from_le_bytes(bytes);
         if v >= P {
@@ -42,9 +42,9 @@ impl NargDeserialize for M31 {
     }
 }
 
-impl Decoding for M31 {
+impl FromUniform for M31 {
     type Repr = ByteArray<4>;
-    fn decode(buf: ByteArray<4>) -> Self {
+    fn from_uniform(buf: ByteArray<4>) -> Self {
         Self(u32::from_le_bytes(*buf.as_ref()) % P)
     }
 }
@@ -196,7 +196,7 @@ fn verifier_rejects_a_caught_m31_validation_error() {
         let mut verifier = VerifierState::<DefaultHash>::new(&sid, &instance, &bytes);
         let mut untouched = VerifierState::<DefaultHash>::new(&sid, &instance, &bytes);
         let result = verifier.prover_message_as(|reader| {
-            // The decoder only returns Err. The reader poisons automatically,
+            // The parser only returns Err. The reader poisons automatically,
             // even if a surrounding parser catches it and substitutes a value.
             assert!(reader.read::<M31>().is_err());
             Ok(M31(0))
