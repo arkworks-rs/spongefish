@@ -11,7 +11,7 @@ use crate::{
 /// A marker indicating a witness value.
 ///
 /// Values marked `Witness` may be transformed and combined without exposing their
-/// contents:
+/// contents. The closures run on the prover only:
 ///
 /// ```
 /// use spongefish::Witness;
@@ -20,6 +20,21 @@ use crate::{
 /// let right = Witness::known(3u64);
 /// let _sum = left.zip(right).map(|(left, right)| left + right);
 /// let _unknown = Witness::<u64>::unknown().map(|value| value + 1);
+/// ```
+///
+/// A computation that can fail returns a `Witness<Result<T, E>>`, and
+/// [`Witness::transpose`] moves the error out so that `?` applies:
+///
+/// ```
+/// # use spongefish::{VerificationError, Witness};
+/// fn reciprocal(witness: Witness<u64>) -> Result<Witness<u64>, VerificationError> {
+///     witness
+///         .map(|value| 1u64.checked_div(value).ok_or(VerificationError))
+///         .transpose()
+/// }
+/// assert!(reciprocal(Witness::known(2)).is_ok());
+/// assert!(reciprocal(Witness::known(0)).is_err()); // the prover fails
+/// assert!(reciprocal(Witness::unknown()).is_ok()); // the verifier computes nothing
 /// ```
 ///
 /// Control flow may not depend on a value marked [`Witness`].
@@ -51,7 +66,7 @@ use crate::{
 /// It prevents verifier code and control flow from directly depending on a
 /// prover-only value, but it does not by itself provide zeroization or side-
 /// channel resistance.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct Witness<T>(Option<T>);
 
 impl<T> core::fmt::Debug for Witness<T> {
@@ -90,6 +105,37 @@ impl<T> Witness<T> {
     pub const fn as_mut(&mut self) -> Witness<&mut T> {
         Witness(self.0.as_mut())
     }
+
+    /// Return the internal value, or `None`.
+    pub fn into_known(self) -> Option<T> {
+        self.0
+    }
+}
+
+impl<T, E> Witness<Result<T, E>> {
+    /// Moves a prover-side error out of the marker.
+    ///
+    /// The equivalent of [`Option::transpose`].
+    ///
+    /// A known witness wrapped in `Ok` becomes a known witness, while a known `Err` is returned.
+    /// An unknown witness stays unknown and never fails.
+    pub fn transpose(self) -> Result<Witness<T>, E> {
+        self.0.transpose().map(Witness)
+    }
+}
+
+impl<T: Copy> Witness<&T> {
+    /// Copies the borrowed value into an owned witness.
+    pub const fn copied(self) -> Witness<T> {
+        Witness(self.0.copied())
+    }
+}
+
+impl<T: Clone> Witness<&T> {
+    /// Clones the borrowed value into an owned witness.
+    pub fn cloned(self) -> Witness<T> {
+        Witness(self.0.cloned())
+    }
 }
 
 impl<T> From<T> for Witness<T> {
@@ -113,18 +159,15 @@ impl<T> From<T> for Witness<T> {
 /// }
 /// ```
 pub trait Transcript {
-    /// A prover message: the prover sends the value, the verifier reads one.
+    /// Declares a prover message.
     ///
-    /// The prover uses its known witness value to derive the prover message.
-    /// The verifier does not know a witness (i.e. the witness value is empty) and
-    /// reads the prover message sent by the prover.
-    /// In a zero-knowledge protocol, this prover message contributes to the proof, but
-    /// communicates nothing about the witness.
+    /// The prover will send the value marked as input; the returned value is the one
+    /// read by the verifier.
     fn prover_message<T>(&mut self, value: Witness<T>) -> Result<T, VerificationError>
     where
         T: Encoding + NargDeserialize;
 
-    /// A verifier message, sent by the verifier to the prover.
+    /// Declares a verifier message, sent by the verifier to the prover.
     ///
     /// Both parties derive it from the transcript so far, so the prover cannot
     /// foresee it. A random challenge folds two equations into one check,
@@ -156,7 +199,7 @@ pub trait Transcript {
     /// #         instance: &[u32; 2],
     /// #         witness: Witness<&[u32; 2]>,
     /// #     ) -> Result<(), VerificationError> {
-    /// #         pair_equals(transcript, instance, witness.map(|w| *w))
+    /// #         pair_equals(transcript, instance, witness.copied())
     /// #     }
     /// # }
     /// # let tag = b"examples/pair-equals";
@@ -189,14 +232,18 @@ pub trait Transcript {
 
     /// Computes a prover-only value from public inputs without sampling randomness.
     ///
-    /// The prover evaluates `compute` and wraps its result as a witness, or
-    /// propagates its error. The verifier skips the computation and returns an
-    /// unknown witness. Use [`Witness::map`] for computations on existing
-    /// witness values.
-    fn prover_only<T>(
-        &self,
-        compute: impl FnOnce() -> Result<T, VerificationError>,
-    ) -> Result<Witness<T>, VerificationError>;
+    /// # Example
+    ///
+    /// ```
+    /// # use spongefish::{Transcript, VerificationError, Witness};
+    /// fn nonce<T: Transcript>(transcript: &mut T, seed: u64) -> Result<u64, VerificationError> {
+    ///     let nonce = transcript
+    ///         .prover_only(|| (0..u64::MAX).find(|n| (n ^ seed) % 7 == 0).ok_or(VerificationError))
+    ///         .transpose()?;
+    ///     transcript.prover_message(nonce)
+    /// }
+    /// ```
+    fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T>;
 
     /// Samples a random element using the prover's private randomness.
     ///
@@ -239,7 +286,7 @@ pub trait Transcript {
 ///         _instance: &u8,
 ///         witness: Witness<&u64>,
 ///     ) -> Result<(), VerificationError> {
-///         let value = transcript.prover_message(witness.map(|value| *value))?;
+///         let value = transcript.prover_message(witness.copied())?;
 ///         transcript.check(|| value == 1)
 ///     }
 /// }
@@ -334,11 +381,8 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Self::public_message(self, value);
     }
 
-    fn prover_only<T>(
-        &self,
-        compute: impl FnOnce() -> Result<T, VerificationError>,
-    ) -> Result<Witness<T>, VerificationError> {
-        compute().map(Witness::known)
+    fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T> {
+        Witness::known(compute())
     }
 
     fn sample<T: Decoding>(&mut self) -> Witness<T> {
@@ -378,11 +422,8 @@ impl<H: DuplexSpongeInterface<U = u8>> Transcript for VerifierState<'_, H> {
         Self::public_message(self, value);
     }
 
-    fn prover_only<T>(
-        &self,
-        _compute: impl FnOnce() -> Result<T, VerificationError>,
-    ) -> Result<Witness<T>, VerificationError> {
-        Ok(Witness::unknown())
+    fn prover_only<T>(&self, _compute: impl FnOnce() -> T) -> Witness<T> {
+        Witness::unknown()
     }
 
     fn sample<T: Decoding>(&mut self) -> Witness<T> {

@@ -1,7 +1,6 @@
 # Fiat–Shamir with proof-of-work for verifier messages
 
-This crate is an extension of the Sponge FiSh library that provides support for challenges computed via grinding or proof-of-work mechanisms.
-It allows proof-of-work-based challenge generation within multi-round public coin protocols.
+This crate is an extension of spongefish for grinding or proof-of-work mechanisms in multi-round public coin protocols.
 
 ## Security disclaimer and expectations
 
@@ -13,7 +12,7 @@ It has not been reviewed, and should be considered a proof-of-concept example th
 
 The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
 
-Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier, so later checks, message reads, and the end-of-input check fail even if the error is caught.
+Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier.
 
 Use the default features of `spongefish` and `spongefish-pow` for this example:
 

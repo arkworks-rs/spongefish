@@ -57,7 +57,7 @@ impl Argument for Toy {
         instance: &Claim,
         witness: Witness<&Elem>,
     ) -> Result<(), VerificationError> {
-        let a = transcript.prover_message(witness.map(|w| *w))?;
+        let a = transcript.prover_message(witness.copied())?;
         let c: Elem = transcript.verifier_message();
         let z = transcript.prover_message(Witness::known(Elem((a.0 + c.0) % P)))?;
         transcript.check(|| z.0 == (a.0 + c.0) % P)?;
