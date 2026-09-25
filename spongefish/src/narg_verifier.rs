@@ -208,12 +208,13 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(message)
     }
 
-    /// [`VerifierState::prover_message_with`] as a terminal
-    /// (see [`VerifierState::last_prover_message`]).
-    pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
+    /// [`VerifierState::prover_message_as`] or [`VerifierState::prover_message_with`]
+    /// as a terminal (see [`VerifierState::last_prover_message`]).
+    ///
+    /// Since the last message is not absorbed, this works over any sponge alphabet.
+    pub fn last_prover_message_as<T>(
         mut self,
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
-        _encode: impl FnOnce(&T) -> B,
     ) -> Result<T, VerificationError> {
         let (message, _) = self.read_message(deserialize)?;
         self.check_eof()?;
@@ -391,17 +392,6 @@ where
     ) -> Result<T, VerificationError> {
         let (message, bytes) = self.read_message(deserialize)?;
         self.duplex_sponge_state.absorb(bytes);
-        Ok(message)
-    }
-
-    /// [`VerifierState::prover_message_as`] as a terminal
-    /// (see [`VerifierState::last_prover_message`]).
-    pub fn last_prover_message_as<T>(
-        mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
-    ) -> Result<T, VerificationError> {
-        let (message, _) = self.read_message(deserialize)?;
-        self.check_eof()?;
         Ok(message)
     }
 

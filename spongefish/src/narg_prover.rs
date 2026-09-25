@@ -325,15 +325,16 @@ where
         serialize(message, &mut self.narg_string);
     }
 
-    /// [`ProverState::prover_message_with`] as a terminal
-    /// (see [`ProverState::last_prover_message`]).
-    pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+    /// [`ProverState::prover_message_as`] or [`ProverState::prover_message_with`]
+    /// as a terminal (see [`ProverState::last_prover_message`]).
+    ///
+    /// Since the last message is not absorbed, this works over any sponge alphabet.
+    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
         mut self,
         message: &'a T,
-        _encode: impl FnOnce(&'a T) -> B,
-        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
+        encode: impl FnOnce(&'a T) -> B,
     ) -> Vec<u8> {
-        serialize(message, &mut self.narg_string);
+        self.narg_string.extend_from_slice(encode(message).as_ref());
         self.narg_string
     }
 
@@ -418,18 +419,6 @@ where
         let bytes = encode(message);
         self.duplex_sponge_state.absorb(bytes.as_ref());
         self.narg_string.extend_from_slice(bytes.as_ref());
-    }
-
-    /// [`ProverState::prover_message_as`] as a terminal
-    /// (see [`ProverState::last_prover_message`]).
-    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
-        mut self,
-        message: &'a T,
-        encode: impl FnOnce(&'a T) -> B,
-    ) -> Vec<u8> {
-        let bytes = encode(message);
-        self.narg_string.extend_from_slice(bytes.as_ref());
-        self.narg_string
     }
 
     /// Input a slice of prover messages through a closure.
