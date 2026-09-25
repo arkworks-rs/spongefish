@@ -92,12 +92,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [`ProverState::last_prover_message`][crate::ProverState::last_prover_message]:
     /// [`VerifierState::prover_message`] followed by
     /// [`VerifierState::check_eof`], in one call that consumes the state, so
-    /// the trailing-bytes check cannot be forgotten.
+    /// the trailing-bytes check cannot be forgotten. The message is not
+    /// absorbed: no verifier message can follow it.
     ///
-    pub fn last_prover_message<T: Encoding<H::U> + FromNarg>(
-        mut self,
-    ) -> Result<T, VerificationError> {
-        let message = self.prover_message()?;
+    pub fn last_prover_message<T: FromNarg>(mut self) -> Result<T, VerificationError> {
+        let (message, _) = self.read_message(T::from_narg)?;
         self.check_eof()?;
         Ok(message)
     }
@@ -214,9 +213,9 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
         mut self,
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
-        encode: impl FnOnce(&T) -> B,
+        _encode: impl FnOnce(&T) -> B,
     ) -> Result<T, VerificationError> {
-        let message = self.prover_message_with(deserialize, encode)?;
+        let (message, _) = self.read_message(deserialize)?;
         self.check_eof()?;
         Ok(message)
     }
@@ -401,7 +400,7 @@ where
         mut self,
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<T, VerificationError> {
-        let message = self.prover_message_as(deserialize)?;
+        let (message, _) = self.read_message(deserialize)?;
         self.check_eof()?;
         Ok(message)
     }

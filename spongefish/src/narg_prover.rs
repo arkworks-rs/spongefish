@@ -213,13 +213,11 @@ where
 
     /// Input the last prover message and return the NARG string.
     ///
-    /// This function runs [`ProverState::prover_message`] consuming the prover state and
-    /// returning the NARG string ([`ProverState::narg_string`]).
-    pub fn last_prover_message<T: Encoding<H::U> + Encoding + ?Sized>(
-        mut self,
-        message: &T,
-    ) -> Vec<u8> {
-        self.prover_message(message);
+    /// Like [`ProverState::prover_message`], but consumes the prover state and returns the
+    /// NARG string. The message is not absorbed: no verifier message can follow it.
+    pub fn last_prover_message<T: Encoding + ?Sized>(mut self, message: &T) -> Vec<u8> {
+        self.narg_string
+            .extend_from_slice(<T as Encoding>::encode(message).as_ref());
         self.narg_string
     }
 
@@ -332,10 +330,10 @@ where
     pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
         mut self,
         message: &'a T,
-        encode: impl FnOnce(&'a T) -> B,
+        _encode: impl FnOnce(&'a T) -> B,
         serialize: impl FnOnce(&'a T, &mut Vec<u8>),
     ) -> Vec<u8> {
-        self.prover_message_with(message, encode, serialize);
+        serialize(message, &mut self.narg_string);
         self.narg_string
     }
 
