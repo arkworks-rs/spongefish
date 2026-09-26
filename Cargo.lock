@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "ascon",
  "curve25519-dalek",
@@ -744,7 +744,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-circuit"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "p3-baby-bear",
  "p3-field",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-derive"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "spongefish-pow"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "blake3",
  "bytemuck",
