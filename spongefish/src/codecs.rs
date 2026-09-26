@@ -335,7 +335,7 @@ impl_tuple_encoding! {
 pub struct LengthPrefixed<T>(pub T);
 
 impl<T> LengthPrefixed<T> {
-    /// Consumes the wrapper, returning the inner sequence.
+    /// Consume the wrapper, returning the inner sequence.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -383,7 +383,7 @@ impl<T: Encoding> Encoding for LengthPrefixed<Vec<T>> {
 impl<T: crate::FromNarg> crate::FromNarg for LengthPrefixed<Vec<T>> {
     /// The deserialization function for a length-prefixed deserializable vector.
     ///
-    /// Rejects truncated counts, invalid elements, and elements that consume
+    /// Reject truncated counts, invalid elements, and elements that consume
     /// no input with [`VerificationError`][crate::VerificationError].
     fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, crate::VerificationError> {
         let len = reader.read::<u32>()? as usize;

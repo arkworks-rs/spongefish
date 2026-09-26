@@ -74,7 +74,7 @@ pub struct VerifierState<
 }
 
 impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
-    /// Reads a prover message from the NARG string and absorbs its encoding
+    /// Read a prover message from the NARG string and absorb its encoding
     /// into the duplex sponge state.
     ///
     /// The dual of
@@ -102,12 +102,12 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(message)
     }
 
-    /// Absorbs a public message without consuming the NARG string.
+    /// Absorb a public message without consuming the NARG string.
     pub fn public_message<T: Encoding<H::U> + ?Sized>(&mut self, message: &T) {
         self.duplex_sponge_state.absorb(message.encode().as_ref());
     }
 
-    /// Returns a verifier message `T` that is uniformly distributed.
+    /// Return a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
     #[must_use]
@@ -117,19 +117,19 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         T::from_uniform(buf)
     }
 
-    /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    /// Return a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     #[must_use]
     pub fn verifier_messages<T: FromUniform<H::U>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    /// Return a vector of `len` uniformly-distributed verifier messages `T`.
     #[must_use]
     pub fn verifier_messages_vec<T: FromUniform<H::U>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
     }
 
-    /// Absorbs a slice of public messages.
+    /// Absorb a slice of public messages.
     ///
     /// # Security
     ///
@@ -167,7 +167,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(result.try_into().unwrap_or_else(|_| unreachable!()))
     }
 
-    /// Reads `len` prover messages `T` into a vector, each implementing `Encoding<H::U>`.
+    /// Read `len` prover messages `T` into a vector, each implementing `Encoding<H::U>`.
     /// A poisoned state rejects even an empty batch.
     pub fn prover_messages_vec<T: Encoding<H::U> + FromNarg>(
         &mut self,
@@ -179,7 +179,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         (0..len).map(|_| self.prover_message()).collect()
     }
 
-    /// Reads a prover message with deserialization and encoding closures.
+    /// Read a prover message with deserialization and encoding closures.
     ///
     /// On failure nothing is absorbed and the state is poisoned.
     ///
@@ -287,7 +287,7 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
         Ok((message, &before[..before.len() - after.len()]))
     }
 
-    /// Ensures that no trailing bytes remain in the NARG string.
+    /// Ensure that no trailing bytes remain in the NARG string.
     ///
     /// An invalid reader state will return [`VerificationError`] .
     ///
@@ -304,7 +304,7 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
         }
     }
 
-    /// Consumes the state and returns the unread rest of the NARG string, or
+    /// Consume the state and return the unread rest of the NARG string, or
     /// an error if the state is poisoned.
     ///
     /// Empty exactly when [`VerifierState::check_eof`] would succeed. For a
@@ -409,7 +409,7 @@ where
     /// Reads `len` prover messages into a vector through one deserialization
     /// closure.
     ///
-    /// Calls [`VerifierState::prover_message_as`] `len` times in order; the
+    /// Call [`VerifierState::prover_message_as`] `len` times in order; the
     /// closure is subject to the codec requirements documented there. This is
     /// the reader for a batch sent with
     /// [`ProverState::prover_messages_as`][crate::ProverState::prover_messages_as].

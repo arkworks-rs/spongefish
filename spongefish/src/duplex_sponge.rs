@@ -47,7 +47,7 @@ pub trait Unit: Clone + Sized {
 ///
 /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 pub trait EncodedSessionId: Unit {
-    /// Reads `bytes` as a string of units.
+    /// Read `bytes` as a string of units.
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]>;
 }
 
@@ -83,7 +83,7 @@ pub trait DuplexSpongeInterface: Clone {
     /// [CO25]: https://eprint.iacr.org/2025/536.pdf
     type U: Unit;
 
-    /// Absorbs new elements in the sponge.
+    /// Absorb new elements in the sponge.
     ///
     /// Calls to absorb are meant to be associative:
     /// calling this function multiple times is equivalent to calling it once
@@ -333,7 +333,7 @@ where
     P: Permutation<WIDTH> + Default,
     P::U: EncodedSessionId,
 {
-    /// Absorbs the session identifier as ordinary input (overwrite-mode
+    /// Absorb the session identifier as ordinary input (overwrite-mode
     /// convention; not the draft's `Init`).
     fn init(session_id: &[u8; 32]) -> Self {
         let mut sponge = Self::with_permutation(P::default());
@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(split.squeeze_array::<32>(), joined.squeeze_array::<32>());
     }
 
-    /// Streess-test squeezing.
+    /// Stress-test squeezing.
     /// The current implementation is iterative, since the previous recursive implementation
     /// would overflow on a default test-thread stack.
     #[test]

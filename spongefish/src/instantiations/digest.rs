@@ -49,14 +49,14 @@ impl<D: OutputSizeUser> Leftovers<D> {
         &self.buf[self.start..self.end]
     }
 
-    /// Marks the first `count` unconsumed bytes as consumed.
+    /// Mark the first `count` unconsumed bytes as consumed.
     #[inline]
     fn consume(&mut self, count: usize) {
         debug_assert!(count <= self.len(), "consuming more than is buffered");
         self.start += count;
     }
 
-    /// Replaces the buffered bytes with `bytes`, the unread tail of a digest.
+    /// Replace the buffered bytes with `bytes`, the unread tail of a digest.
     #[inline]
     fn set(&mut self, bytes: &[u8]) {
         debug_assert!(bytes.len() <= self.buf.len(), "more than one digest");
@@ -65,7 +65,7 @@ impl<D: OutputSizeUser> Leftovers<D> {
         self.end = bytes.len();
     }
 
-    /// Drops every buffered byte, consumed or not.
+    /// Drop every buffered byte, consumed or not.
     ///
     /// The bytes stay in `buf` until overwritten; only [`Zeroize`] wipes them.
     #[inline]
@@ -212,7 +212,7 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Hash<D> {
 impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> crate::duplex_sponge::DuplexSpongeInit
     for Hash<D>
 {
-    /// Absorbs the session identifier as ordinary input
+    /// Absorb the session identifier as ordinary input
     /// (not the draft's rate-padded `Init`).
     fn init(session_id: &[u8; 32]) -> Self {
         let mut sponge = Self::default();

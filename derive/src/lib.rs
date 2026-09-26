@@ -62,7 +62,7 @@ fn bounded_types<'a>(fields: &'a [StructField<'a>]) -> Vec<&'a Type> {
         .collect()
 }
 
-/// Wraps `items` in an impl of `trait_path` for the deriving type, adding a
+/// Wrap `items` in an impl of `trait_path` for the deriving type, adding a
 /// `#ty: #trait_path` predicate for each of `bounded`.
 fn impl_block(
     input: &DeriveInput,
@@ -101,7 +101,7 @@ fn field_repr_size(field_type: &Type) -> TokenStream2 {
     }
 }
 
-/// Samples one field out of `bytes`, advancing the shared `offset` cursor.
+/// Sample one field out of `bytes`, advancing the shared `offset` cursor.
 ///
 /// The width comes from `AsMut::<[u8]>::as_mut(..).len()`.
 ///
@@ -279,7 +279,7 @@ fn generate_unit_impl(input: &DeriveInput) -> Result<TokenStream2> {
     ))
 }
 
-/// Turns a generated impl into tokens, reporting failure as a `compile_error!`
+/// Turn a generated impl into tokens, reporting failure as a `compile_error!`
 /// on the offending span rather than as a proc-macro panic.
 fn expand(generated: Result<TokenStream2>) -> TokenStream {
     TokenStream::from(generated.unwrap_or_else(syn::Error::into_compile_error))
@@ -320,7 +320,7 @@ pub fn derive_encoding(input: TokenStream) -> TokenStream {
 
 /// Derive macro for the [`FromUniform`](https://docs.rs/spongefish/latest/spongefish/trait.FromUniform.html) trait.
 ///
-/// Generates an implementation that samples struct fields sequentially from a fixed-size buffer.
+/// Generate an implementation that samples struct fields sequentially from a fixed-size buffer.
 /// Fields can be skipped using `#[spongefish(skip)]`.
 #[proc_macro_derive(FromUniform, attributes(spongefish))]
 pub fn derive_from_uniform(input: TokenStream) -> TokenStream {
@@ -330,7 +330,7 @@ pub fn derive_from_uniform(input: TokenStream) -> TokenStream {
 
 /// Derive macro for the [`FromNarg`](https://docs.rs/spongefish/latest/spongefish/trait.FromNarg.html) trait.
 ///
-/// Generates an implementation that parses struct fields sequentially from the NARG string.
+/// Generate an implementation that parses struct fields sequentially from the NARG string.
 /// Fields can be skipped using `#[spongefish(skip)]`.
 /// Parsing returns `VerificationError` on failure; use `NargReader::read` to
 /// reject poisoned readers and automatically record nested field errors.

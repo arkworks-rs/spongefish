@@ -24,7 +24,7 @@ pub struct PoWGrinder<S: PowStrategy> {
 }
 
 impl<S: PowStrategy> PoWGrinder<S> {
-    /// Creates a new PoW grinder with the given challenge and difficulty.
+    /// Create a new PoW grinder with the given challenge and difficulty.
     ///
     /// # Arguments
     /// * `challenge` - A 32-byte challenge array
@@ -35,15 +35,15 @@ impl<S: PowStrategy> PoWGrinder<S> {
         }
     }
 
-    /// Attempts to find a nonce that satisfies the proof-of-work requirement.
+    /// Attempt to find a nonce that satisfies the proof-of-work requirement.
     ///
-    /// Returns the minimal nonce that makes the hash fall below the target threshold,
+    /// Return the minimal nonce that makes the hash fall below the target threshold,
     /// or `None` if no valid nonce is found (extremely unlikely for reasonable difficulty).
     pub fn grind(&mut self) -> Option<PoWSolution> {
         self.strategy.solve()
     }
 
-    /// Verifies that a given nonce satisfies the proof-of-work requirement.
+    /// Verify that a given nonce satisfies the proof-of-work requirement.
     #[must_use = "unchecked proof of work verification"]
     pub fn verify(&mut self, nonce: u64) -> bool {
         self.strategy.check(nonce)
@@ -59,7 +59,7 @@ pub struct PoWSolution {
 pub mod convenience {
     use crate::{PoWGrinder, PoWSolution, PowStrategy};
 
-    /// Performs proof-of-work on a challenge and returns the solution.
+    /// Perform proof-of-work on a challenge and return the solution.
     ///
     /// This is a simple wrapper that creates a grinder and immediately grinds.
     pub fn grind_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64) -> Option<PoWSolution> {
@@ -67,7 +67,7 @@ pub mod convenience {
         grinder.grind()
     }
 
-    /// Verifies a proof-of-work nonce.
+    /// Verify a proof-of-work nonce.
     #[must_use = "unchecked proof of work verification"]
     pub fn verify_pow<S: PowStrategy>(challenge: [u8; 32], bits: f64, nonce: u64) -> bool {
         let mut grinder = PoWGrinder::<S>::new(challenge, bits);
@@ -76,7 +76,7 @@ pub mod convenience {
 }
 
 pub trait PowStrategy: Clone + Sync {
-    /// Creates a new proof-of-work challenge.
+    /// Create a new proof-of-work challenge.
     /// The `challenge` is a 32-byte array that represents the challenge.
     /// The `bits` is the binary logarithm of the expected amount of work.
     /// When `bits` is large (i.e. close to 64), a valid solution may not be found.
@@ -86,10 +86,10 @@ pub trait PowStrategy: Clone + Sync {
     #[must_use = "unchecked proof of work verification"]
     fn check(&mut self, nonce: u64) -> bool;
 
-    /// Builds a solution given the input nonce.
+    /// Build a solution given the input nonce.
     fn solution(&self, nonce: u64) -> PoWSolution;
 
-    /// Finds the minimal `nonce` that satisfies the challenge.
+    /// Find the minimal `nonce` that satisfies the challenge.
     #[cfg(not(feature = "parallel"))]
     fn solve(&mut self) -> Option<PoWSolution> {
         (0..=u64::MAX)

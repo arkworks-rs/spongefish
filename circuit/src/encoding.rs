@@ -99,7 +99,7 @@ fn read_unit<T: FromNarg>(reader: &mut NargReader<'_>) -> Result<T, InvalidRelat
         .map_err(|VerificationError| malformed("unit value"))
 }
 
-/// Reads and checks a header, returning the label for an instance.
+/// Read and check a header, returning the label for an instance.
 fn read_header<T: Unit + Encoding>(
     reader: &mut NargReader<'_>,
     magic: [u8; 4],
@@ -168,7 +168,7 @@ impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> PermutationI
         out
     }
 
-    /// Parses [`Self::to_bytes`], running the same checks as
+    /// Parse [`Self::to_bytes`], running the same checks as
     /// [`PermutationRelation::compile`][crate::PermutationRelation::compile].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, InvalidRelation> {
         let mut reader = NargReader::new(bytes);
@@ -267,7 +267,7 @@ impl<T: Unit + Encoding + FromNarg, const WIDTH: usize> PermutationWitness<T, WI
         out
     }
 
-    /// Parses [`Self::to_bytes`].
+    /// Parse [`Self::to_bytes`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, InvalidRelation> {
         let mut reader = NargReader::new(bytes);
         read_header::<T>(&mut reader, WITNESS_MAGIC, WIDTH, false)?;
