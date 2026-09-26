@@ -1,7 +1,7 @@
-//! This module defines the duplex sponge construction that can absorb and squeeze data.
+//! The duplex sponge construction.
 //!
-//! Hashes can operate over generic elements called [`Unit`], be they field elements, bytes, or any other data structure.
-//! Roughly speaking, a [`Unit`] requires only [`Clone`] and [`Sized`], and has a
+//! The alphabet of the duplex sponge is called [`Unit`]: it may be field elements, bytes, or any other data structure.
+//! A [`Unit`] requires only [`Clone`] and [`Sized`], and has a
 //! special element [`Unit::ZERO`] that denotes the default, neutral value to write on initialization and deletion.
 //!
 //! A [`DuplexSpongeInterface`] is the interface providing basic absorb/squeeze functions over [`Unit`]s.
@@ -32,18 +32,14 @@ pub trait Unit: Clone + Sized {
     const ZERO: Self;
 }
 
-/// The embedding of byte strings into a sponge alphabet.
+/// Encoding of the session identifier as [`Unit`]s.
 ///
-/// Some inputs are byte strings whatever the sponge's alphabet is,  above all the
-/// 32-byte session identifier, which [draft-irtf-cfrg-fiat-shamir][FS] derives
-/// with a byte-oriented hash and hands to `Init`.
+/// Algebraic hash functions need to implement this trait to map the (unique)
+/// 32-byte session identifier into the alphabet of the duplex sponge.
 ///
 /// # Security
 ///
-/// The map **MUST** be injective on the byte lengths it is used at. It need
-/// not be prefix-free. The session identifier is always exactly 32 bytes,
-/// but a caller absorbing variable-length byte strings through it must length-
-/// prefix them itself.
+/// The map has the same requirement of [`Encoding`][crate::Encoding] implementations.
 ///
 /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
 pub trait EncodedSessionId: Unit {
@@ -51,8 +47,6 @@ pub trait EncodedSessionId: Unit {
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]>;
 }
 
-/// Over bytes the embedding is the identity, and borrows rather than
-/// allocating: a byte sponge pays nothing for this indirection.
 impl EncodedSessionId for u8 {
     fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]> {
         bytes
@@ -72,8 +66,10 @@ impl_integer_unit!(u8, u32, u64, u128);
 
 /// A [`DuplexSpongeInterface`] is an abstract interface for absorbing and squeezing elements implementing [`Unit`].
 ///
-/// **HAZARD**: Don't implement this trait unless you know what you are doing.
+/// # Security
+///
 /// Consider using the sponges already provided by this library.
+/// Don't implement this trait unless you know what you are doing.
 pub trait DuplexSpongeInterface: Clone {
     /// The type of elements over which this duplex sponge operates.
     ///
@@ -90,7 +86,7 @@ pub trait DuplexSpongeInterface: Clone {
     /// on the concatenated inputs.
     fn absorb(&mut self, input: &[Self::U]) -> &mut Self;
 
-    /// Squeezes out new elements.
+    /// Squeeze out new elements.
     ///
     /// Calls to this function are meant to be associative:
     /// calling this function multiple times is equivalent to calling it once

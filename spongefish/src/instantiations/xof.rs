@@ -1,11 +1,8 @@
-//! Generic XOF-based duplex sponge implementation.
+//! A [`DuplexSpongeInterface`] bridge for [`digest::ExtendableOutput`] implementations.
 //!
-//! [`XOF`] wraps any extendable-output function implementing
-//! [`digest::ExtendableOutput`] with the duplex semantics of
-//! draft-irtf-cfrg-fiat-shamir: squeezing finalizes a *copy* of the absorbing
-//! state into a reader, consecutive squeezes continue one output stream, a
-//! non-empty absorb discards the reader, and absorbing the empty string is a
-//! no-op.
+//! In short, squeezing finalizes a *copy* of the absorbing state into a reader,
+//! consecutive squeezes continue one output stream, a non-empty absorb discards the reader,
+//! and absorbing the empty string is a no-op.
 
 use digest::{ExtendableOutput, Update, XofReader};
 #[cfg(feature = "zeroize")]
@@ -35,7 +32,7 @@ impl<const RATE: usize, const DS: u8> XofRate for turboshake::TurboShake<RATE, D
     const RATE: usize = RATE;
 }
 
-/// Generic XOF-based duplex sponge implementation.
+/// Wrapper struct for an [`ExtendableOutput`] implementation.
 ///
 /// This implementation uses any XOF (extendable output function) that implements
 /// [`digest::ExtendableOutput`] to provide absorb and squeeze operations
