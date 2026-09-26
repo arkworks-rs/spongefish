@@ -317,11 +317,11 @@ dependencies = [
 
 [[package]]
 name = "p3-baby-bear"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40694b3680bbb9a76a6a3a3a467c0bd40b5791a96cb1cbad93a0a6a1f47a9a31"
+checksum = "923c206a5680448c97314ab1cd86064608988513535a5532e35e1da8258f4a0d"
 dependencies = [
- "p3-field",
+ "p3-field 0.8.0",
  "p3-mds",
  "p3-monty-31",
  "p3-poseidon1",
@@ -332,15 +332,15 @@ dependencies = [
 
 [[package]]
 name = "p3-dft"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4344492a3a2981879411ef31b51b12fb364efeda59b9ac855d7d92559e7b46e8"
+checksum = "03c2282e0a50da4b65c508fdcf4b12ce9db65aa0efa9b521a361b8565815d2b8"
 dependencies = [
  "itertools",
- "p3-field",
+ "p3-field 0.8.0",
  "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
+ "p3-maybe-rayon 0.8.0",
+ "p3-util 0.8.0",
  "spin",
  "tracing",
 ]
@@ -353,8 +353,24 @@ checksum = "f45f7364ae3aac1bd42e8dfec4aa76d1bc9087c4749649c893a671e386e96727"
 dependencies = [
  "itertools",
  "num-bigint",
- "p3-maybe-rayon",
- "p3-util",
+ "p3-maybe-rayon 0.7.0",
+ "p3-util 0.7.0",
+ "paste",
+ "rand 0.10.3",
+ "serde",
+ "tracing",
+]
+
+[[package]]
+name = "p3-field"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7cc6ecaf9cd198bb7d3b07eedf0c1524ca8fff07cffe8928785e302f45156cf"
+dependencies = [
+ "itertools",
+ "num-bigint",
+ "p3-maybe-rayon 0.8.0",
+ "p3-util 0.8.0",
  "paste",
  "rand 0.10.3",
  "serde",
@@ -363,14 +379,14 @@ dependencies = [
 
 [[package]]
 name = "p3-matrix"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92f322bd7dded657d51f4c3adcc64bed27ffe4894dbd0f9c077d5670ce73217e"
+checksum = "35016a778f1da67e06a56b26320cdb72fd000045576a92bbf942289cb8be12bb"
 dependencies = [
  "itertools",
- "p3-field",
- "p3-maybe-rayon",
- "p3-util",
+ "p3-field 0.8.0",
+ "p3-maybe-rayon 0.8.0",
+ "p3-util 0.8.0",
  "rand 0.10.3",
  "serde",
  "tracing",
@@ -383,36 +399,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "486d6396b0d22274f862a6c5987bb25f9ea61b34f21b54c23a2ee53f2d8c20ea"
 
 [[package]]
-name = "p3-mds"
-version = "0.7.0"
+name = "p3-maybe-rayon"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00e11f572a44aa3c91057e59625d0992aacc6ffdb80dc1b44948d5587d66a159"
+checksum = "fe1d83295d958b3d098e11b7868ac35c866c9c0432ce5266b90f7844dad513de"
+
+[[package]]
+name = "p3-mds"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b87bac3d0e7f7c5da90e833734062eaaaadf9628047b569077068fae5a2d83f3"
 dependencies = [
  "p3-dft",
- "p3-field",
+ "p3-field 0.8.0",
  "p3-symmetric",
- "p3-util",
+ "p3-util 0.8.0",
  "rand 0.10.3",
 ]
 
 [[package]]
 name = "p3-monty-31"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d189ef589fa016c579d46714cbe3329dc39bf4f991a6164f12fa6bf8f6ef217a"
+checksum = "636c04267f40c93213d19ead4c828f3ac3e8a452a0f6fb0a352db605e8d838b1"
 dependencies = [
  "itertools",
  "num-bigint",
  "p3-dft",
- "p3-field",
+ "p3-field 0.8.0",
  "p3-matrix",
- "p3-maybe-rayon",
+ "p3-maybe-rayon 0.8.0",
  "p3-mds",
  "p3-poseidon1",
  "p3-poseidon2",
  "p3-symmetric",
- "p3-util",
- "paste",
+ "p3-util 0.8.0",
  "rand 0.10.3",
  "serde",
  "spin",
@@ -421,11 +442,11 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon1"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "457e895bcf89b77e062653021b60c12ccd94dce599c54898d9ced4bfbabc820d"
+checksum = "f58309738855348b9a6d9ff1d4009f4cdd04463dfa1e27552dcd25cc75b9513f"
 dependencies = [
- "p3-field",
+ "p3-field 0.8.0",
  "p3-mds",
  "p3-symmetric",
  "rand 0.10.3",
@@ -433,27 +454,29 @@ dependencies = [
 
 [[package]]
 name = "p3-poseidon2"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65501f32d58b5055c9470ccff459b2576de5f4e6ba72e91f78457231bc67b1c6"
+checksum = "3950061c69b220c60f76c72e6de54be97e2e5dc169a5374e9b57d6118114c8cf"
 dependencies = [
- "p3-field",
+ "p3-field 0.8.0",
  "p3-mds",
  "p3-symmetric",
- "p3-util",
+ "p3-util 0.8.0",
  "rand 0.10.3",
+ "thiserror",
 ]
 
 [[package]]
 name = "p3-symmetric"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3335886a1e2bec45877e050f76e6bf7a1a77019111c5f599d8b41c5889a2ea1c"
+checksum = "cb7b7cc37b4f9592c57bfceabc737de757267b23ae956b2e648d24461f93fb42"
 dependencies = [
  "itertools",
- "p3-field",
- "p3-util",
+ "p3-field 0.8.0",
+ "p3-util 0.8.0",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -462,7 +485,17 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e020b468e9188da32310d8c876225e5183df105a1970368df97f8a76b85dcc5b"
 dependencies = [
- "p3-maybe-rayon",
+ "p3-maybe-rayon 0.7.0",
+ "serde",
+]
+
+[[package]]
+name = "p3-util"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2deb6b0e30be32c696ab3cd443cc6f10b2ffce0faa31d37bd59e58789dd6df1"
+dependencies = [
+ "p3-maybe-rayon 0.8.0",
  "serde",
 ]
 
@@ -747,7 +780,7 @@ name = "spongefish-circuit"
 version = "0.7.4"
 dependencies = [
  "p3-baby-bear",
- "p3-field",
+ "p3-field 0.7.0",
  "spin",
  "spongefish",
  "spongefish-pow",
@@ -800,6 +833,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe5197923287db20a58125f0bc85c062f7f2c892de97b18c356f9efb14b28524"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
 ]
 
 [[package]]
