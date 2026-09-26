@@ -476,8 +476,15 @@ impl<H: DuplexSpongeInterface + Default> Default for ProverState<H> {
     }
 }
 
-/// Creates a new [`ProverState`] using the given duplex sponge interface.
-#[cfg(all(feature = "getrandom", feature = "turboshake128"))]
+/// Create a new [`ProverState`] from an already-seeded duplex sponge.
+///
+/// This skips the session identifier and the instance: the caller is
+/// responsible for both. Only available with the `yolocrypto` feature.
+#[cfg(all(
+    feature = "yolocrypto",
+    feature = "getrandom",
+    feature = "turboshake128"
+))]
 impl<H: DuplexSpongeInterface> From<H> for ProverState<H> {
     fn from(value: H) -> Self {
         Self {

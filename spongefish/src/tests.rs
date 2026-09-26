@@ -3,8 +3,8 @@ use alloc::format;
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Argument, DefaultHash, DuplexSpongeInterface, Encoding, FromNarg, Narg,
-    PrivateRng, ProverState, SessionId, Transcript, VerificationError, VerifierState, Witness,
+    derive_session_id, Argument, DefaultHash, Encoding, FromNarg, Narg, PrivateRng, ProverState,
+    SessionId, Transcript, VerificationError, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
@@ -388,19 +388,39 @@ mod word_sponge {
     }
 
     pub type WordSponge = DuplexSponge<ToyPermutation, 4, 2>;
+
+    /// One word per session-identifier byte.
+    impl crate::EncodedSessionId for u64 {
+        fn encode_bytes(bytes: &[u8]) -> impl AsRef<[Self]> {
+            bytes
+                .iter()
+                .map(|&b| Self::from(b))
+                .collect::<alloc::vec::Vec<_>>()
+        }
+    }
+
+    pub struct Words(pub [u64; 2]);
+
+    impl crate::Encoding<u64> for Words {
+        fn encode(&self) -> impl AsRef<[u64]> {
+            self.0
+        }
+    }
 }
 
 #[test]
 fn closure_codecs_generic_alphabet_round_trip() {
+    use word_sponge::{WordSponge, Words};
+
     struct Foreign(u64);
 
     let encode = |v: &Foreign| [v.0];
     let value = Foreign(0xdead_beef);
 
-    let mut session = word_sponge::WordSponge::default();
-    session.absorb(&[42, 7]);
+    let session_id = test_session_id(b"generic alphabet");
+    let instance = Words([42, 7]);
 
-    let mut prover = ProverState::from(session.clone());
+    let mut prover = ProverState::<WordSponge>::new(&session_id, &instance);
     prover.prover_message_with(&value, encode, |v, out| {
         out.extend_from_slice(&v.0.to_le_bytes());
     });
@@ -408,7 +428,7 @@ fn closure_codecs_generic_alphabet_round_trip() {
     let prover_challenge: [u64; 2] = prover.verifier_message_as(2, |units| [units[0], units[1]]);
     let proof = prover.into_narg_string();
 
-    let mut verifier = VerifierState::from_parts(session, &proof);
+    let mut verifier = VerifierState::<WordSponge>::new(&session_id, &instance, &proof);
     let read = verifier
         .prover_message_with(|buf| buf.read::<u64>().map(Foreign), encode)
         .unwrap();

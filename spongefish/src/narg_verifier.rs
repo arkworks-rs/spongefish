@@ -264,7 +264,11 @@ where
 }
 
 impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
-    /// Creates a verifier state from a duplex sponge and a NARG string.
+    /// Create a verifier state from an already-seeded duplex sponge and a NARG string.
+    ///
+    /// This skips the session identifier and the instance: the caller is
+    /// responsible for both. Only available with the `yolocrypto` feature.
+    #[cfg(feature = "yolocrypto")]
     pub const fn from_parts(duplex_sponge_state: H, narg_string: &'a [u8]) -> Self {
         VerifierState {
             duplex_sponge_state,
