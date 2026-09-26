@@ -4,9 +4,7 @@ use alloc::vec::Vec;
 
 use crate::Unit;
 
-/// Marker trait for types that have all three codec maps.
-///
-/// A type is a [`Codec`] if it implements [`Encoding`], [`FromUniform`],
+/// Marker trait for types that implement [`Encoding`], [`FromUniform`],
 /// and [`FromNarg`][crate::FromNarg].
 ///
 /// # Derive Macros
@@ -28,31 +26,26 @@ use crate::Unit;
 /// # }
 /// ```
 ///
-/// Equivalent to deriving `Encoding`, `FromUniform`, and `FromNarg`. Fields marked with
-/// `#[spongefish(skip)]` are initialized via `Default`; any other
-/// `#[spongefish(..)]` form is a compile error.
+/// Fields marked with `#[spongefish(skip)]` are initialized via `Default`.
+/// Any other `#[spongefish(..)]` is a compile error.
 ///
-/// A skipped field is not bound by the Fiat-Shamir transformation — it reaches
-/// neither the sponge nor the NARG string. Skipping every field therefore
-/// leaves a zero-length encoding, under which all values of the struct are
-/// indistinguishable; that is injective, and so admissible, only for a type
-/// with a single inhabitant.
+/// A skipped field will not be absorbed by the duplex sponge, nor serialized
+/// into the NARG string.
 pub trait Codec<U: Unit = u8>: Encoding + Encoding<U> + FromUniform<U> + crate::FromNarg {}
 
-/// A prefix-free map from a type into strings over a sponge alphabet.
+/// Map into string over the [`Unit`] of the sponge.
 ///
-/// The parameter `U` is the target alphabet: `Encoding<U>` maps into strings
-/// over the [`Unit`] `U` of the sponge, and its output is what will be absorbed.
-/// The default alphabet, `Encoding<u8>`, is also the serialization written to
-/// the NARG string.
-/// A type used with a sponge over another alphabet implements the trait once per alphabet;
-/// see [Messages and codecs](crate#messages-and-codecs).
+/// `Encoding` maps allow to define, for a struct, how they should be serialized into the NARG string.
+///
+/// The encoding map over bytes, implemented via `Encoding<u8>` will be used also for serializing into a NARG string.
+/// See [Messages and codecs](crate#messages-and-codecs).
 ///
 /// # Security
 ///
-/// [`spongefish`][`crate`] assumes that prover and verifier will know the length of all the prover messages.
-/// [`Encoding`] must be **prefix-free**: the output of [`Encoding::encode`] is never a prefix of the
-/// encoding of any other instance of the same type.
+/// [`Encoding`] must be **prefix-free**, that is, the output of [`Encoding::encode`] is never
+/// a prefix of the encoding of any other instance of the same type.
+/// It is the responsibility of the caller to make sure that prover and verifier both know the length of
+/// all prover messages.
 ///
 /// Changing the encoding function requires changing the session identifier too.
 ///
@@ -60,64 +53,45 @@ pub trait Codec<U: Unit = u8>: Encoding + Encoding<U> + FromUniform<U> + crate::
 ///
 /// # Encoding conventions
 ///
-/// Byte arrays `[u8; N]` encode as themselves; a bare `[u8]` has no encoding,
-/// as it is not prefix-free (use [`LengthPrefixed`]).
+/// Byte arrays `[u8; N]` are encoded with the identity map. Use [`LengthPrefixed`] to prepend the length
+/// to a byte struct.
+///
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
+///
 /// Integers are encoded as their fixed-width little-endian bytes.
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub trait Encoding<U: Unit = u8> {
-    /// The function encoding prover messages into inputs to be absorbed by the duplex sponge.
+    /// The function encoding prover messages into strings over duplex sponge alphabet.
     ///
     /// This map must be injective. The computation of the pre-image of this map will affect the extraction time.
     fn encode(&self) -> impl AsRef<[U]>;
 }
 
-/// A distribution-preserving map from squeezed sponge output to a verifier
-/// message.
+/// Maps uniformly sampled [`Unit`] values to a uniformly distributed `Self`.
 ///
-/// The parameter `U` is the sponge alphabet, as for [`Encoding`]:
-/// `FromUniform<U>` takes a uniform string over the [`Unit`] `U` of the sponge, and the
-/// default `FromUniform<u8>` serves byte sponges. This is the map `ψ` of
-/// [[CO25], Definition 4.1]: the sponge squeezes a uniformly random
-/// [`FromUniform::Repr`], and [`from_uniform`][FromUniform::from_uniform] turns it into the
-/// message. The same map draws the prover's private randomness
-/// ([`PrivateRng::sample`][crate::PrivateRng::sample]), where a bias is worse
-/// than a soundness loss: biased nonces leak the witness.
+/// This is the map `ψ` of [[CO25], Definition 4.1]: given a uniformly random string [`FromUniform::Repr`],
+/// [`from_uniform`][FromUniform::from_uniform] turns it into a verifier message.
 ///
 /// # Security
 ///
 /// [`from_uniform`][FromUniform::from_uniform] need not be injective, but it **must**
 /// preserve the uniform distribution: for a uniform `Repr`, its output must
-/// be uniform over the message type, or statistically close to it. [[CO25]]
-/// calls that statistical distance the bias of the decoding map, and this distance
-/// is part of the soundness and zero-knowledge bounds as an additive error term, so it
-/// has to be negligible.
+/// be uniform over the message type, or statistically close to it.
 ///
-/// The width of `Repr` can help make the bias negligible:
+/// This is also called the bias of the decoding map, which has to be negligible in the soundness
+/// and zero-knowledge to preserve those properties in the non-interactive transformation.
 ///
-/// - A type with a power-of-two number of values, an integer `uN` or a byte
-///   array, is drawn from a `Repr` of exactly its own width: the map is a
-///   bijection and the bias is zero. The built-in codecs do this for [u8],
-///   [u16], [u32], [u64], and [u128].
-/// - An integer modulo `p`, a field element or a scalar, is drawn by
-///   reducing a uniform `m`-bit integer modulo `p`. The bias of that
-///   reduction is at most `2^-λ` once `m ≥ ⌈log₂ p⌉ + λ`
-///   ([[CO25], Appendix C, Lemma C.1]), so squeeze `λ` bits more than `p`
-///   occupies and reduce the whole string. This is `DecodeUint` of
-///   draft-irtf-cfrg-fiat-shamir, whose `Ns + 16` bytes are `λ = 128`.
-///   Reducing only as many bytes as `p` occupies is not safe in general: the
-///   same lemma puts the bias at `2r(p − r) / (p · 2^m)` with `r = 2^m mod p`,
-///   which is negligible only when `2^m` lies within a negligible fraction of
-///   a multiple of `p`. It is about `2^-31` for the P-256 group order, and
-///   about `0.15`, a constant, for the BLS12-381 scalar field.
+///  Changing this map requires changing the session identifier too.
 ///
-/// On a byte sponge, `ByteArray<N>` is the `N`-byte `Repr`. The width is part
-/// of the codec: prover and verifier must squeeze the same `Repr`, and a change
-/// of width changes the transcript, so it must be reflected in the application
-/// tag.
+/// # Conventions
 ///
-/// Changing this map requires changing the session identifier too.
+/// An integer modulo `2^n` or a byte array, are returned as they are, and their decoding map is the identity.
+/// This holds for [u8], [u16], [u32], [u64], and [u128].
+///
+/// An integer modulo `p`, a field element or a scalar, is drawn by
+/// reducing a uniform `m`-bit integer modulo `p`. The bias of that
+/// reduction is at most `2^-λ` ([[CO25], Appendix C, Lemma C.1])
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub trait FromUniform<U: Unit = u8> {
@@ -134,16 +108,17 @@ pub trait FromUniform<U: Unit = u8> {
     /// assert_eq!(repr.as_ref(), &[0u8; 4]);
     /// ```
     ///
-    /// Private sampling transfers this buffer into `from_uniform`. [`ByteArray`]
-    /// wipes itself on drop, including during unwinding. Custom representations
-    /// used for private sampling must provide their own erasure; copies made by
-    /// an implementation and the returned value remain the implementation's and the caller's responsibility.
+    /// Private sampling transfers this buffer into `from_uniform`.
     type Repr: Default + AsMut<[U]>;
 
     /// The distribution-preserving map from a squeezed [`FromUniform::Repr`] to a verifier message.
     ///
-    /// It need not be injective, and it inverts nothing. What is demanded is that
-    /// it preserves the uniform distribution: if [`FromUniform::Repr`] is uniformly distributed, then so is the output of [`from_uniform`][FromUniform::from_uniform].
+    /// # Security
+    ///
+    /// It is required that if [`FromUniform::Repr`] is uniformly distributed, then so is the output of [`from_uniform`][FromUniform::from_uniform].
+    /// The behavior if the input distribution is not uniform is undefined.
+    ///
+    /// The `Repr` provided as input is not erased after decoding. Callers must securely delete `Repr` on drop, if secure deletion is needed.
     fn from_uniform(buf: Self::Repr) -> Self;
 }
 
@@ -154,24 +129,12 @@ impl<U: Unit, T: Encoding<U> + ?Sized> Encoding<U> for &T {
 }
 
 /// Arrays encode as the concatenation of their elements' encodings.
-///
-/// # Security
-///
-/// The concatenation is prefix-free because `N` is fixed by the type, so the
-/// number of elements can never be chosen by the prover; for a length chosen at
-/// run time, use [`LengthPrefixed`] instead. Each element's encoding must be
-/// prefix-free on its own domain, which [`Encoding`] already requires.
 impl<U: Unit, T: Encoding<U>, const N: usize> Encoding<U> for [T; N] {
     fn encode(&self) -> impl AsRef<[U]> {
         let mut output = Vec::new();
         if let Some(first) = self.first() {
             let head = first.encode();
             let head = head.as_ref();
-            // Elements of an array share a type, and every codec in this crate
-            // is fixed-width, so the first element's length times `N` is the
-            // exact total: one allocation instead of `log2(N)` reallocations.
-            // A variable-width element codec merely makes this a hint — the
-            // vector still grows on its own, and the bytes are unchanged.
             output.reserve_exact(head.len().saturating_mul(N));
             // `head` again rather than re-encoding element 0.
             output.extend_from_slice(head);
@@ -203,12 +166,9 @@ macro_rules! impl_int_encoding {
 
 impl_int_encoding!(u8, u16, u32, u64, u128);
 
-/// A fixed-width squeeze buffer, wiped on drop even without the `zeroize`
-/// feature. That feature controls sponge-state erasure, not these buffers.
+/// A fixed-width squeeze buffer.
 ///
-/// The buffer moves into [`FromUniform::from_uniform`], so its owner wipes it when
-/// the map returns or unwinds. Implementations should borrow through [`AsRef`]
-/// rather than copying the preimage into an unprotected temporary.
+/// The buffer is wiped on drop.
 #[derive(Clone, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct ByteArray<const N: usize>([u8; N]);
 
@@ -243,10 +203,7 @@ impl<const N: usize> FromUniform for [u8; N] {
     }
 }
 
-/// Handy for serializing UTF-8 strings.
-///
 /// Strings are encoded as their little-endian `u32` byte length followed by their UTF-8 bytes.
-/// This makes the byte-oriented encoding prefix-free.
 impl Encoding for str {
     fn encode(&self) -> impl AsRef<[u8]> {
         let len: u32 = self
@@ -261,13 +218,6 @@ impl Encoding for str {
 }
 
 /// Tuples encode as the concatenation of their components' encodings.
-///
-/// # Security
-///
-/// The concatenation is prefix-free exactly when each component's encoding is,
-/// which [`Encoding`] already requires. It does **not** hold for a tuple mixing
-/// codecs of different alphabets or widths chosen at run time — the components
-/// must each be prefix-free on their own domain.
 macro_rules! impl_tuple_encoding {
     ($(($($param:ident $binding:ident $index:tt),+);)*) => {$(
         impl<$($param: Encoding),+> Encoding for ($($param,)+) {
@@ -292,7 +242,9 @@ impl_tuple_encoding! {
     (A a 0, B b 1, C c 2, D d 3, E e 4, F f 5, G g 6, H h 7);
 }
 
-/// A variable-length sequence, encoded with a `u32` element-count prefix.
+/// A wrapper struct for variable-length sequences.
+///
+/// A [`LengthPrefixed`] value will be serialized with a `u32` element-count prefix.
 ///
 /// ```
 /// # #[cfg(all(feature = "turboshake128", feature = "getrandom"))]
@@ -325,12 +277,6 @@ impl_tuple_encoding! {
 /// assert_eq!(Narg::verify::<Sequence>(tag, &0, &narg).unwrap(), values);
 /// # }
 /// ```
-///
-/// # Security
-///
-/// The count prefix makes the encoding prefix-free even when the sequence
-/// length is not fixed by the protocol, but does not disambiguate the type or what the length indicates.
-/// This information is part of the session identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LengthPrefixed<T>(pub T);
 

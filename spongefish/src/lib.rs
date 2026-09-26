@@ -43,63 +43,51 @@
 //! # }
 //! ```
 //!
-//! See the [README quick start] for a multi-round example.
-//!
 //! ## Security requirements
 //!
-//! Spongefish implements a transformation; it does not make an insecure
-//! interactive protocol secure. The interactive protocol must be public coin, and
-//! implementors must follow the security considerations of
-//! [draft-irtf-cfrg-fiat-shamir]. In particular:
+//! Spongefish transforms a public-coin interactive argument into a non-interactive one.
+//! The security of the transformation depends on:
 //!
-//! - Every application tag must uniquely pin the **non-interactive** NARG, its
+//! - The choice of the session identifier is entirely on the user of this library.
+//!   The session identifier must uniquely pin the **non-interactive** NARG, its
 //!   codecs, and the application context where it is being used. Reusing a tag
 //!   can invalidate soundness and domain separation.
 //!   [`Narg`] derives the typed [`SessionId`] from this tag.
-//! - Encodings absorbed into the random oracle must satisfy the
-//!   prefix-freeness requirements documented by [`Encoding`], and verifier
-//!   messages must be sampled from a squeezed unit string wide enough to leave a
-//!   negligible bias. Codec changes, a change of width included, require a new
-//!   application tag.
-//! - Verification must consume the complete NARG. [`Narg::verify`] performs
-//!   this check; low-level users must call [`VerifierState::check_eof`].
-//! - Prover randomness must be secret, unpredictable, and never reused.
-//!   Deterministic constructors are for tests and test vectors only.
+//! - Codecs defined by the implementor must satisfy the
+//!   prefix-freeness requirements documented by [`Encoding`].
+//!   Trait implementations for `FromUniform` must output a uniformly-distributed verifier message,
+//!   and `FromNarg` must be the left inverse of [`Encoding`].
+//! - The randomness source must be cryptographically secure.
 //!
 //! The current codebase should be treated as unaudited. Earlier revisions were
 //! reviewed by Radically Open Security and OpenZeppelin; see the repository's
 //! [security policy] for scope, versions, and private reporting instructions.
 //!
+//! See [draft-irtf-cfrg-fiat-shamir] for more information about the security requirements.
+//!
 //! ## Messages and codecs
 //!
-//! A duplex sponge works over an alphabet, the [`Unit`] type `U` of its
-//! [`DuplexSpongeInterface`]: bytes for every instantiation in this crate, a
-//! prime field for the algebraic permutations of `spongefish-circuit`. A
-//! prover message has two destinations, and a codec is the pair of maps that
-//! take it there:
+//! A duplex sponge works over an alphabet, denoted [`Unit`] / `U`.
+//! A codec is the set of maps that encode/decode a prover messages.
 //!
-//! - [`Encoding<U>`][Encoding] maps the message into the sponge alphabet.
-//!   Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
-//! - [`Encoding`], the default `Encoding<u8>`, is the byte serialization
-//!   written to the NARG string, and the map that [`FromNarg`] inverts
-//!   on the verifier's side.
+//! Encodings implement the trait [`Encoding<U>`][Encoding] and map the message
+//! into the duplex sponge alphabet.
+//! Its output is what the sponge absorbs (the map `φ` of [[CO25]]).
+//! The default unit of encodings is `Encoding<u8>`, and is also used for the byte serialization
+//! of the NARG string.
 //!
-//! Both must be prefix-free; see [`Encoding`].
+//! Decoding maps are implemented via the trait [`FromUniform<U>`][FromUniform] and map
+//! the duplex sponge output into a verifier message.
 //!
-//! Parse values through [`NargReader::read`] and custom parsing closures through
+//! The trait [`FromNarg`] denotes the deserialization function, and is used to read a prover message from
+//! the NARG string.
+//!
+//! A NARG string is read via [`NargReader::read`], and custom parsing closures through
 //! [`NargReader::read_with`]. All reads use [`VerificationError`]; byte
-//! reads with `take` and `take_array` can use `?` directly. A failure poisons the
-//! reader: subsequent reads fail, including empty reads, and catching a nested
-//! error cannot turn the outer read into a success. The deserialization trait
-//! methods are implementation hooks; calling them directly bypasses these
-//! checks. Custom codecs should use reader methods for nested parsing too.
+//! reads with `take` and `take_array` can use `?` directly. Upon a failure deserializing a prover message,
+//! the reader will be poisoned and subsequent reads will fail, including empty reads.
 //!
-//! On a byte sponge the two coincide: `Encoding<u8>` is one trait bound
-//! spelled two ways, a single implementation does both jobs, and the bytes
-//! absorbed are exactly the bytes written. The verifier relies on this to read
-//! and absorb a message in one operation, on the very bytes read
-//! ([`VerifierState::prover_message_as`]). The [`Argument`] API is defined
-//! over byte sponges, so the distinction never surfaces there.
+//! The [`Argument`] API allows to define an interactive argument.
 //!
 //! On a sponge over a field `F`, a message type carries two implementations,
 //! `Encoding<F>` for the sponge and `Encoding` for the NARG string. They need
@@ -311,7 +299,7 @@ pub fn derive_session_id<H: DuplexSpongeInit<U = u8>>(tag: &[u8]) -> SessionId {
     SessionId(out)
 }
 
-/// Implementation details used by the derive macros. Not public API.
+/// Implementation details used by the derive macros.
 #[doc(hidden)]
 pub mod __private {
     pub use alloc::vec::Vec;
