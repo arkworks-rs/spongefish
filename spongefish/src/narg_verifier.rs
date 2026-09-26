@@ -92,12 +92,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [`ProverState::last_prover_message`][crate::ProverState::last_prover_message]:
     /// [`VerifierState::prover_message`] followed by
     /// [`VerifierState::check_eof`], in one call that consumes the state, so
-    /// the trailing-bytes check cannot be forgotten.
+    /// the trailing-bytes check cannot be forgotten. The message is not
+    /// absorbed: no verifier message can follow it.
     ///
-    pub fn last_prover_message<T: Encoding<H::U> + FromNarg>(
-        mut self,
-    ) -> Result<T, VerificationError> {
-        let message = self.prover_message()?;
+    pub fn last_prover_message<T: FromNarg>(mut self) -> Result<T, VerificationError> {
+        let (message, _) = self.read_message(T::from_narg)?;
         self.check_eof()?;
         Ok(message)
     }
@@ -209,14 +208,15 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
         Ok(message)
     }
 
-    /// [`VerifierState::prover_message_with`] as a terminal
-    /// (see [`VerifierState::last_prover_message`]).
-    pub fn last_prover_message_with<T, B: AsRef<[H::U]>>(
+    /// [`VerifierState::prover_message_as`] or [`VerifierState::prover_message_with`]
+    /// as a terminal (see [`VerifierState::last_prover_message`]).
+    ///
+    /// Since the last message is not absorbed, this works over any sponge alphabet.
+    pub fn last_prover_message_as<T>(
         mut self,
         deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
-        encode: impl FnOnce(&T) -> B,
     ) -> Result<T, VerificationError> {
-        let message = self.prover_message_with(deserialize, encode)?;
+        let (message, _) = self.read_message(deserialize)?;
         self.check_eof()?;
         Ok(message)
     }
@@ -392,17 +392,6 @@ where
     ) -> Result<T, VerificationError> {
         let (message, bytes) = self.read_message(deserialize)?;
         self.duplex_sponge_state.absorb(bytes);
-        Ok(message)
-    }
-
-    /// [`VerifierState::prover_message_as`] as a terminal
-    /// (see [`VerifierState::last_prover_message`]).
-    pub fn last_prover_message_as<T>(
-        mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
-    ) -> Result<T, VerificationError> {
-        let message = self.prover_message_as(deserialize)?;
-        self.check_eof()?;
         Ok(message)
     }
 

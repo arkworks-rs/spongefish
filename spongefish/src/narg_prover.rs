@@ -213,13 +213,11 @@ where
 
     /// Input the last prover message and return the NARG string.
     ///
-    /// This function runs [`ProverState::prover_message`] consuming the prover state and
-    /// returning the NARG string ([`ProverState::narg_string`]).
-    pub fn last_prover_message<T: Encoding<H::U> + Encoding + ?Sized>(
-        mut self,
-        message: &T,
-    ) -> Vec<u8> {
-        self.prover_message(message);
+    /// Like [`ProverState::prover_message`], but consumes the prover state and returns the
+    /// NARG string. The message is not absorbed: no verifier message can follow it.
+    pub fn last_prover_message<T: Encoding + ?Sized>(mut self, message: &T) -> Vec<u8> {
+        self.narg_string
+            .extend_from_slice(<T as Encoding>::encode(message).as_ref());
         self.narg_string
     }
 
@@ -327,15 +325,16 @@ where
         serialize(message, &mut self.narg_string);
     }
 
-    /// [`ProverState::prover_message_with`] as a terminal
-    /// (see [`ProverState::last_prover_message`]).
-    pub fn last_prover_message_with<'a, T: ?Sized, B: AsRef<[H::U]>>(
+    /// [`ProverState::prover_message_as`] or [`ProverState::prover_message_with`]
+    /// as a terminal (see [`ProverState::last_prover_message`]).
+    ///
+    /// Since the last message is not absorbed, this works over any sponge alphabet.
+    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
         mut self,
         message: &'a T,
         encode: impl FnOnce(&'a T) -> B,
-        serialize: impl FnOnce(&'a T, &mut Vec<u8>),
     ) -> Vec<u8> {
-        self.prover_message_with(message, encode, serialize);
+        self.narg_string.extend_from_slice(encode(message).as_ref());
         self.narg_string
     }
 
@@ -420,18 +419,6 @@ where
         let bytes = encode(message);
         self.duplex_sponge_state.absorb(bytes.as_ref());
         self.narg_string.extend_from_slice(bytes.as_ref());
-    }
-
-    /// [`ProverState::prover_message_as`] as a terminal
-    /// (see [`ProverState::last_prover_message`]).
-    pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
-        mut self,
-        message: &'a T,
-        encode: impl FnOnce(&'a T) -> B,
-    ) -> Vec<u8> {
-        let bytes = encode(message);
-        self.narg_string.extend_from_slice(bytes.as_ref());
-        self.narg_string
     }
 
     /// Input a slice of prover messages through a closure.
