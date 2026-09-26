@@ -260,6 +260,12 @@ impl Encoding for str {
     }
 }
 
+impl Encoding for alloc::string::String {
+    fn encode(&self) -> impl AsRef<[u8]> {
+        Encoding::<u8>::encode(self.as_str())
+    }
+}
+
 /// Tuples encode as the concatenation of their components' encodings.
 ///
 /// # Security
