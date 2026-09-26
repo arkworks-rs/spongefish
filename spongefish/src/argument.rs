@@ -76,7 +76,7 @@ impl<T> core::fmt::Debug for Witness<T> {
 }
 
 impl<T> Witness<T> {
-    /// Initializes the witness with value `T` (the prover's view).
+    /// Initialize the witness with value `T` (the prover's view).
     pub const fn known(value: T) -> Self {
         Self(Some(value))
     }
@@ -113,7 +113,7 @@ impl<T> Witness<T> {
 }
 
 impl<T, E> Witness<Result<T, E>> {
-    /// Moves a prover-side error out of the marker.
+    /// Move a prover-side error out of the marker.
     ///
     /// The equivalent of [`Option::transpose`].
     ///
@@ -125,14 +125,14 @@ impl<T, E> Witness<Result<T, E>> {
 }
 
 impl<T: Copy> Witness<&T> {
-    /// Copies the borrowed value into an owned witness.
+    /// Copy the borrowed value into an owned witness.
     pub const fn copied(self) -> Witness<T> {
         Witness(self.0.copied())
     }
 }
 
 impl<T: Clone> Witness<&T> {
-    /// Clones the borrowed value into an owned witness.
+    /// Clone the borrowed value into an owned witness.
     pub fn cloned(self) -> Witness<T> {
         Witness(self.0.cloned())
     }
@@ -159,7 +159,7 @@ impl<T> From<T> for Witness<T> {
 /// }
 /// ```
 pub trait Transcript {
-    /// Declares a prover message.
+    /// Declare a prover message.
     ///
     /// The prover will send the value marked as input; the returned value is the one
     /// read by the verifier.
@@ -167,7 +167,7 @@ pub trait Transcript {
     where
         T: Encoding + FromNarg;
 
-    /// Declares a verifier message, sent by the verifier to the prover.
+    /// Declare a verifier message, sent by the verifier to the prover.
     ///
     /// Both parties derive it from the transcript so far, so the prover cannot
     /// foresee it. A random challenge folds two equations into one check,
@@ -230,7 +230,7 @@ pub trait Transcript {
     /// shorter proofs, but it will be part of the non-interactive Fiat-Shamir transformation.
     fn public_message<T: Encoding + ?Sized>(&mut self, value: &T);
 
-    /// Computes a prover-only value from public inputs without sampling randomness.
+    /// Compute a prover-only value from public inputs without sampling randomness.
     ///
     /// # Example
     ///
@@ -245,13 +245,13 @@ pub trait Transcript {
     /// ```
     fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T>;
 
-    /// Samples a random element using the prover's private randomness.
+    /// Sample a random element using the prover's private randomness.
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
     /// allows to return a random type `T`, marked as `Witness`.
     fn sample<T: FromUniform>(&mut self) -> Witness<T>;
 
-    /// Samples `n` random elements using the prover's private randomness.
+    /// Sample `n` random elements using the prover's private randomness.
     fn sample_vec<T: FromUniform>(&mut self, n: usize) -> Witness<Vec<T>>;
 
     /// The interactive verifier checks.
@@ -465,9 +465,9 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         crate::derive_session_id::<H>(tag)
     }
 
-    /// The non-intearctive prover.
+    /// The non-interactive prover.
     ///
-    /// Returns a NARG string along with whatever terminal value the prover produced
+    /// Return a NARG string along with whatever terminal value the prover produced
     /// at the end. For instance in reductions of knowledge this can be the reduced
     /// relation instance/witness pair.
     ///

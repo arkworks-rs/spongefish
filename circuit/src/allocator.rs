@@ -77,7 +77,7 @@ impl<T: Unit> VarAllocator<T> {
         }
     }
 
-    /// Allocates one wire, unassigned.
+    /// Allocate one wire, unassigned.
     ///
     /// # Panics
     ///
@@ -93,13 +93,13 @@ impl<T: Unit> VarAllocator<T> {
         FieldVar(values.len() - 1)
     }
 
-    /// Allocates `N` wires, so `let [x, y] = allocator.allocate_vars()`
+    /// Allocate `N` wires, so `let [x, y] = allocator.allocate_vars()`
     /// allocates two at once.
     pub fn allocate_vars<const N: usize>(&self) -> [FieldVar; N] {
         core::array::from_fn(|_| self.allocate_var())
     }
 
-    /// Allocates `count` wires.
+    /// Allocate `count` wires.
     ///
     /// # Panics
     ///
@@ -121,7 +121,7 @@ impl<T: Unit> VarAllocator<T> {
         (0..count).map(|_| self.allocate_var()).collect()
     }
 
-    /// Allocates one wire and assigns it `value`.
+    /// Allocate one wire and assign it `value`.
     pub fn allocate_var_with(&self, value: T) -> FieldVar
     where
         T: PartialEq,
@@ -131,7 +131,7 @@ impl<T: Unit> VarAllocator<T> {
         var
     }
 
-    /// Allocates `N` wires and assigns them `values`.
+    /// Allocate `N` wires and assign them `values`.
     pub fn allocate_vars_with<const N: usize>(&self, values: &[T; N]) -> [FieldVar; N]
     where
         T: PartialEq,
@@ -141,7 +141,7 @@ impl<T: Unit> VarAllocator<T> {
         vars
     }
 
-    /// Allocates one wire per element of `values` and assigns them.
+    /// Allocate one wire per element of `values` and assign them.
     pub fn allocate_vars_vec_with(&self, values: &[T]) -> Vec<FieldVar>
     where
         T: PartialEq,
@@ -161,7 +161,7 @@ impl<T: Unit> VarAllocator<T> {
         var.index() < self.vars_count()
     }
 
-    /// Assigns `value` to `var`, making the wire public.
+    /// Assign `value` to `var`, making the wire public.
     ///
     /// # Panics
     ///
@@ -185,7 +185,7 @@ impl<T: Unit> VarAllocator<T> {
         }
     }
 
-    /// Assigns each wire of `vars` the corresponding element of `values`.
+    /// Assign each wire of `vars` the corresponding element of `values`.
     ///
     /// # Panics
     ///

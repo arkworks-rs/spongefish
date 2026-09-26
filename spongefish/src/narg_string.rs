@@ -33,7 +33,7 @@ pub struct NargReader<'a> {
 }
 
 impl<'a> NargReader<'a> {
-    /// Creates a reader positioned at the start of `narg_string`.
+    /// Create a reader positioned at the start of `narg_string`.
     pub const fn new(narg_string: &'a [u8]) -> Self {
         Self {
             unread: Cell::new(Some(narg_string)),
@@ -55,12 +55,12 @@ impl<'a> NargReader<'a> {
         self.unread.get().is_none()
     }
 
-    /// Marks the reader invalid, including after the last byte was consumed.
+    /// Mark the reader invalid, including after the last byte was consumed.
     fn poison(&self) {
         self.unread.set(None);
     }
 
-    /// Runs a verification check, retaining failures even if they are caught.
+    /// Run a verification check, retaining failures even if they are caught.
     pub(crate) fn check(&self, holds: impl FnOnce() -> bool) -> Result<(), VerificationError> {
         if self.is_poisoned() {
             return Err(VerificationError);
@@ -79,15 +79,15 @@ impl<'a> NargReader<'a> {
         self.unread.get()
     }
 
-    /// Reads one value from the front of the NARG string.
+    /// Read one value from the front of the NARG string.
     ///
-    /// Returns [`VerificationError`] and poisons the reader on any parsing
+    /// Return [`VerificationError`] and poison the reader on any parsing
     /// failure. A poisoned reader rejects the read without invoking the parser.
     pub fn read<T: FromNarg>(&mut self) -> Result<T, VerificationError> {
         self.read_with(T::from_narg)
     }
 
-    /// Runs a parser, returning [`VerificationError`] on any parsing failure.
+    /// Run a parser, returning [`VerificationError`] on any parsing failure.
     ///
     /// A returned error will poison the reader.
     /// Use this for closure-based codecs and [`Self::read`] for types implementing
@@ -146,9 +146,9 @@ impl<'a> NargReader<'a> {
         Ok(elements)
     }
 
-    /// Consumes the next `len` bytes.
+    /// Consume the next `len` bytes.
     ///
-    /// Returns [`VerificationError`] and poisons the reader if fewer than `len` bytes remain,
+    /// Return [`VerificationError`] and poison the reader if fewer than `len` bytes remain,
     /// so a truncated NARG string can never make a parser read past its end.
     /// `len` may come from the NARG string itself: an over-long length prefix
     /// fails here rather than being trusted.
@@ -156,7 +156,7 @@ impl<'a> NargReader<'a> {
         self.advance(|unread| unread.split_at_checked(len))
     }
 
-    /// Consumes the next `N` bytes as a fixed-size array.
+    /// Consume the next `N` bytes as a fixed-size array.
     ///
     /// The fixed-length read that carries most prover messages: a compressed
     /// group element, a canonical scalar, a digest. A short NARG string fails
@@ -166,7 +166,7 @@ impl<'a> NargReader<'a> {
             .copied()
     }
 
-    /// Splits a head off the unread tail and advances past it.
+    /// Split a head off the unread tail and advance past it.
     ///
     /// A poisoned reader returns an error; a failed split poisons the reader.
     fn advance<T>(
@@ -234,7 +234,7 @@ pub trait FromNarg: Sized {
     /// wrapper and does not guarantee poisoning on a returned error.
     fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError>;
 
-    /// Reads `N` consecutive values: the body of `[Self; N]`'s implementation.
+    /// Read `N` consecutive values: the body of `[Self; N]`'s implementation.
     ///
     /// The batch deserialization method, so that a whole array of prover message can be read at once.
     /// Call `reader.read::<[T; N]>()` to parse an array with automatic poisoning.

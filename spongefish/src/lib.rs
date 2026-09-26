@@ -260,7 +260,7 @@ pub type DefaultHash = instantiations::TurboShake128;
 pub struct SessionId([u8; 32]);
 
 impl SessionId {
-    /// Wraps 32 bytes already derived elsewhere — a vendored test vector, or
+    /// Wrap 32 bytes already derived elsewhere — a vendored test vector, or
     /// an identifier carried across a protocol boundary. Deriving from a tag
     /// with [`derive_session_id`] is the ordinary route.
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {

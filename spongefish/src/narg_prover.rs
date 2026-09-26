@@ -163,24 +163,24 @@ where
     H: DuplexSpongeInterface,
     R: DuplexSpongeInit<U = u8>,
 {
-    /// Returns the private RNG bound to this prover.
+    /// Return the private RNG bound to this prover.
     pub const fn rng(&mut self) -> &mut PrivateRng<R> {
         &mut self.private_rng
     }
 
-    /// Mixes external entropy into the private RNG
+    /// Mix external entropy into the private RNG
     /// (see [`PrivateRng::mix_entropy`]).
     pub fn mix_entropy(&mut self, data: &[u8; crate::private_rng::SEED_LEN]) {
         self.private_rng.mix_entropy(data);
     }
 
-    /// Returns the current serialized NARG string.
+    /// Return the current serialized NARG string.
     #[inline]
     pub const fn narg_string(&self) -> &[u8] {
         self.narg_string.as_slice()
     }
 
-    /// Consumes the state and returns the NARG string.
+    /// Consume the state and return the NARG string.
     ///
     /// The terminal for a transcript whose last move is a verifier message or
     /// a public message. When the last move is a prover message, send it with
@@ -223,7 +223,7 @@ where
         self.narg_string
     }
 
-    /// Returns a verifier message `T` that is uniformly distributed.
+    /// Return a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
     #[must_use]
@@ -271,6 +271,7 @@ where
     /// Calling this function multiple times is identical to absorbing the concatenation of its elements.
     /// Therefore, the number of elements sent must be fixed by the protocol or derived from the instance,
     /// never from prover-controlled data. For variable-length data, send a [`LengthPrefixed`][crate::LengthPrefixed]
+    /// sequence instead.
     pub fn prover_messages<T: Encoding<H::U> + Encoding>(&mut self, messages: &[T]) {
         for message in messages {
             self.prover_message(message);
@@ -293,13 +294,13 @@ where
             .for_each(|message| self.prover_message(&message));
     }
 
-    /// Returns a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
+    /// Return a fixed-length array of uniformly-distributed verifier messages `[T; N]`.
     #[must_use]
     pub fn verifier_messages<T: FromUniform<H::U>, const N: usize>(&mut self) -> [T; N] {
         core::array::from_fn(|_| self.verifier_message())
     }
 
-    /// Returns a vector of `len` uniformly-distributed verifier messages `T`.
+    /// Return a vector of `len` uniformly-distributed verifier messages `T`.
     #[must_use]
     pub fn verifier_messages_vec<T: FromUniform<H::U>>(&mut self, len: usize) -> Vec<T> {
         (0..len).map(|_| self.verifier_message()).collect()
@@ -436,7 +437,7 @@ where
 
     /// Input a slice of prover messages through a closure.
     ///
-    /// Calls [`ProverState::prover_message_as`] on each element in order; the
+    /// Call [`ProverState::prover_message_as`] on each element in order; the
     /// closure is subject to the codec requirements documented there. The
     /// verifier reads the batch back with
     /// [`VerifierState::prover_messages_vec_as`][crate::VerifierState::prover_messages_vec_as].
@@ -456,7 +457,7 @@ where
     }
 }
 
-/// Creates a new [`ProverState`] with an OS-entropy-seeded RNG and an
+/// Create a new [`ProverState`] with an OS-entropy-seeded RNG and an
 /// **unseeded** sponge state.
 ///
 /// [`ProverState::default`] is only available with the `yolocrypto` feature and

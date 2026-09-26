@@ -60,7 +60,7 @@ impl From<BabyBearUnit> for BabyBear {
     }
 }
 
-/// Reads a byte string as BabyBear units, one element per byte.
+/// Read a byte string as BabyBear units, one element per byte.
 ///
 /// This is what lets a sponge over [`BabyBearUnit`] be seeded from a session
 /// identifier: [`DuplexSponge`][spongefish::DuplexSponge] implements

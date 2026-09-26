@@ -91,14 +91,14 @@ fn from_uniform_derive_rejects_inconsistent_repr_width() {
     let _ = HasPaddedField::from_uniform(buffer);
 }
 
-/// Builds a `FromUniform::Repr` out of raw bytes, the way the sponge fills it.
+/// Build a `FromUniform::Repr` out of raw bytes, the way the sponge fills it.
 fn repr<T: FromUniform>(bytes: &[u8]) -> T::Repr {
     let mut buffer = T::Repr::default();
     buffer.as_mut().copy_from_slice(bytes);
     buffer
 }
 
-/// Pins the byte layout of the derived codecs: fields are laid out in
+/// Pin the byte layout of the derived codecs: fields are laid out in
 /// declaration order, each at its own width, and skipped fields occupy no
 /// bytes on the wire nor in the squeezed representation.
 #[test]

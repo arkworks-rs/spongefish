@@ -195,7 +195,7 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
         self.allocator.set_vars(vars, values);
     }
 
-    /// Records a query of the permutation on `input`, returning fresh output
+    /// Record a query of the permutation on `input`, returning fresh output
     /// wires.
     pub fn allocate_permutation(&self, input: &[FieldVar; WIDTH]) -> [FieldVar; WIDTH] {
         let output = self.allocate_vars();
@@ -203,14 +203,14 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
         output
     }
 
-    /// Records that the permutation maps `input` to `output`.
+    /// Record that the permutation maps `input` to `output`.
     pub fn add_permutation(&self, input: [FieldVar; WIDTH], output: [FieldVar; WIDTH]) {
         self.queries
             .write()
             .push(QueryAnswerPair::new(input, output));
     }
 
-    /// Adds the equation `terms = image`.
+    /// Add the equation `terms = image`.
     ///
     /// Terms are built with the operators on [`FieldVar`]: `x * a + y * b + z`
     /// weights `x` by `a`, `y` by `b`, and `z` by one. Every wire with a
@@ -238,7 +238,7 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
         self.allocator.public_vars()
     }
 
-    /// Compiles the relation into a validated [`PermutationInstance`].
+    /// Compile the relation into a validated [`PermutationInstance`].
     ///
     /// Every wire a query or an equation mentions must have been allocated,
     /// and every wire with a nonzero weight in an equation must be bound: an
@@ -267,7 +267,7 @@ impl<T: Unit, const WIDTH: usize> PermutationRelation<T, WIDTH> {
 }
 
 impl<T: Unit, const WIDTH: usize> PermutationInstance<T, WIDTH> {
-    /// Checks the parts of a relation and assembles the instance; the gate
+    /// Check the parts of a relation and assemble the instance; the gate
     /// behind [`PermutationRelation::compile`] and the byte parser.
     pub(crate) fn validated(
         label: String,
@@ -492,14 +492,14 @@ impl<P: Permutation<WIDTH>, const WIDTH: usize> PermutationWitnessBuilder<P, WID
         &self.permutation
     }
 
-    /// Evaluates the permutation on `input` and records the step.
+    /// Evaluate the permutation on `input` and record the step.
     pub fn allocate_permutation(&self, input: &[P::U; WIDTH]) -> [P::U; WIDTH] {
         let output = self.permutation.permute(input);
         self.add_permutation(input, &output);
         output
     }
 
-    /// Records a step without evaluating the permutation.
+    /// Record a step without evaluating the permutation.
     pub fn add_permutation(&self, input: &[P::U; WIDTH], output: &[P::U; WIDTH]) {
         self.trace
             .write()

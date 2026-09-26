@@ -101,7 +101,7 @@ impl PowStrategy for Blake3PoW {
         u64::from_le_bytes(hash) < self.threshold
     }
 
-    /// Finds the minimal `nonce` that satisfies the challenge.
+    /// Find the minimal `nonce` that satisfies the challenge.
     #[cfg(not(feature = "parallel"))]
     fn solve(&mut self) -> Option<PoWSolution> {
         (0..)
@@ -169,7 +169,7 @@ impl Blake3PoW {
 
     /// Check a SIMD-width batch of nonces starting at `nonce`.
     ///
-    /// Returns the first nonce in the batch that satisfies the challenge threshold,
+    /// Return the first nonce in the batch that satisfies the challenge threshold,
     /// or `None` if none do.
     fn check_many(&mut self, nonce: u64) -> Option<u64> {
         // Fill each SIMD input block with the challenge + nonce suffix.

@@ -47,7 +47,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     /// The byte length of the RNG seed.
     pub const SEED_LEN: usize = SEED_LEN;
 
-    /// Seeds the RNG with 32 bytes from the operating system's entropy source.
+    /// Seed the RNG with 32 bytes from the operating system's entropy source.
     ///
     /// # Security
     ///
@@ -66,7 +66,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         }
     }
 
-    /// Builds a **deterministic** CSRNG from a seed.
+    /// Build a **deterministic** CSRNG from a seed.
     ///
     /// # Security
     ///
@@ -79,7 +79,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         }
     }
 
-    /// Mixes additional entropy into the RNG state.
+    /// Mix additional entropy into the RNG state.
     ///
     /// The fixed-width seed is passed to [`DuplexSpongeInit::absorb_block`].
     /// The provided SHAKE128 and TurboSHAKE128 suites zero-fill each mix to
@@ -89,7 +89,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         self.sponge.absorb_block(data);
     }
 
-    /// Fills `dest` with random bytes.
+    /// Fill `dest` with random bytes.
     pub fn fill_bytes(&mut self, dest: &mut [u8]) {
         self.sponge.squeeze(dest);
     }
@@ -107,7 +107,7 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         T::from_uniform(buf)
     }
 
-    /// Samples `n` values through their [`FromUniform`] map.
+    /// Sample `n` values through their [`FromUniform`] map.
     pub fn sample_vec<T: FromUniform>(&mut self, n: usize) -> Vec<T> {
         (0..n).map(|_| self.sample()).collect()
     }
