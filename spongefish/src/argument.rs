@@ -302,11 +302,11 @@ pub trait Transcript {
 /// An interactive argument is a marker structure. It should not carry any state, as
 /// those are part of the instance and the session identifier.
 ///
-/// This is partially enforced making sure implementations are zero-sized,
-/// so that a field is a clear compile error:
+/// This is partially enforced by [`FiatShamir`], which rejects implementations
+/// that are not zero-sized, so that a field is a clear compile error:
 ///
 /// ```compile_fail,E0080
-/// # use spongefish::{Argument, Transcript, Witness};
+/// # use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
 /// struct IP {
 ///     generator: u64,   // reaches neither the sponge nor the session id
 /// }
@@ -323,17 +323,9 @@ pub trait Transcript {
 ///         -> Result<(), VerificationError> { Ok(()) }
 /// }
 ///
-/// const _: () = <IP as Argument>::NO_STATE;
+/// let _ = Narg::verify::<IP>(b"ip", &0, &[]);
 /// ```
 pub trait Argument: Sized {
-    /// Asserts that the implementor carries no data.
-    #[doc(hidden)]
-    const NO_STATE: () = assert!(
-        core::mem::size_of::<Self>() == 0,
-        "an Argument must be zero-sized. Values must be explicitly part of \
-         `Instance`, and `Witness`. Protocol parameters can be const generics",
-    );
-
     /// The instance of the interactive argument.
     type Instance: Encoding;
     /// The witness of the interactive argument.
@@ -349,11 +341,14 @@ pub trait Argument: Sized {
     ) -> Result<Self::Output, VerificationError>;
 }
 
-#[inline]
-fn assert_argument_has_no_state<A: Argument>() {
-    assert!(
+/// A private check to ensure Arguments have zero size.
+struct NoState<A>(PhantomData<A>);
+
+impl<A: Argument> NoState<A> {
+    const ASSERT: () = assert!(
         core::mem::size_of::<A>() == 0,
-        "an Argument must be zero-sized"
+        "an Argument must be zero-sized. Values must be explicitly part of \
+         `Instance`, and `Witness`. Protocol parameters can be const generics",
     );
 }
 
@@ -490,8 +485,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         instance: &A::Instance,
         witness: &A::Witness,
     ) -> Result<(alloc::vec::Vec<u8>, A::Output), VerificationError> {
-        assert_argument_has_no_state::<A>();
-        let () = A::NO_STATE;
+        let () = NoState::<A>::ASSERT;
         let mut prover_state = ProverState::<H>::new(session_id, instance);
         let output = A::run(&mut prover_state, instance, Witness::known(witness))?;
         Ok((prover_state.into_narg_string(), output))
@@ -516,8 +510,7 @@ impl<H: DuplexSpongeInit<U = u8>> FiatShamir<H> {
         instance: &A::Instance,
         narg_string: &[u8],
     ) -> Result<A::Output, VerificationError> {
-        assert_argument_has_no_state::<A>();
-        let () = A::NO_STATE;
+        let () = NoState::<A>::ASSERT;
         let mut verifier_state = VerifierState::<H>::new(session_id, instance, narg_string);
         let output = A::run(&mut verifier_state, instance, Witness::unknown())?;
         verifier_state.check_eof()?;
