@@ -311,9 +311,48 @@ impl FromNarg for u8 {
     }
 }
 
+/// The inverse of the `str` [`Encoding`](crate::Encoding): a little-endian
+/// `u32` byte length, then that many bytes of valid UTF-8.
+impl FromNarg for alloc::string::String {
+    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+        let len = usize::try_from(reader.read::<u32>()?).map_err(|_| VerificationError)?;
+        let bytes = reader.take(len)?;
+        core::str::from_utf8(bytes)
+            .map(Into::into)
+            .map_err(|_| VerificationError)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FromNarg, NargReader, VerificationError};
+
+    #[test]
+    fn string_round_trips_and_rejects_malformed_input() {
+        use alloc::string::String;
+
+        use crate::Encoding;
+
+        for text in ["", "abc", "ünïcödé"] {
+            let owned = String::from(text);
+            let bytes = Encoding::<u8>::encode(&owned);
+            let mut reader = NargReader::new(bytes.as_ref());
+            assert_eq!(reader.read::<String>().unwrap(), text);
+            assert!(reader.is_empty());
+        }
+
+        let rejected: [&[u8]; 4] = [
+            &[3, 0, 0],                // truncated length
+            &[3, 0, 0, 0, b'a', b'b'], // truncated body
+            &[1, 0, 0, 0, 0xff],       // invalid UTF-8
+            &[2, 0, 0, 0, 0xc3, 0x28], // invalid continuation byte
+        ];
+        for bytes in rejected {
+            let mut reader = NargReader::new(bytes);
+            assert!(reader.read::<String>().is_err());
+            assert!(reader.is_poisoned());
+        }
+    }
 
     #[test]
     fn failures_at_any_position_reject_all_later_reads() {
