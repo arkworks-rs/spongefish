@@ -191,7 +191,7 @@ impl<'a> NargReader<'a> {
 ///
 /// - be the inverse of the corresponding [`Encoding<u8>`][crate::Encoding] implementation:
 ///   every value produced by `Encoding::encode` must deserialize to that value,
-///   and there must be at most one valid value for each possible input.
+///   and every accepted input must be the encoding of the value it parses to.
 ///   Accepting multiple encodings for the same value can make a proof malleable.
 ///   Invalid inputs must be rejected.
 /// - Lengths, counts, and other hints read from the NARG string are untrusted and must
