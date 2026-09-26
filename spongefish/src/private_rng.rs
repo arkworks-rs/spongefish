@@ -94,13 +94,11 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
         self.sponge.squeeze(dest);
     }
 
-    /// Samples a value through its [`FromUniform`] map — the same
-    /// distribution-preserving path used for verifier messages.
+    /// Sample a value through its [`FromUniform`] codec.
     ///
-    /// The standard [`crate::ByteArray`] representation wipes itself after
-    /// the map returns, even if it unwinds. A custom representation must erase
-    /// its own storage; this method cannot wipe a buffer after transferring
-    /// ownership to the map. The returned sample is owned by the caller.
+    /// Use the internal RNG to squeeze a [`Repr`][FromUniform::Repr] and decode it.
+    /// [`crate::ByteArray`] wipes itself on drop; a custom `Repr` must erase its own
+    /// storage, and a decoder any copies it makes.
     pub fn sample<T: FromUniform>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
