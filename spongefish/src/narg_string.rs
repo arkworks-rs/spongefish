@@ -40,9 +40,8 @@ impl<'a> NargReader<'a> {
         }
     }
 
-    /// Whether the whole NARG string has been consumed.
-    ///
-    /// A reader in an invalid state will return `false`.
+    /// Return `false` if the reader is poisoned or the NARG string
+    /// was not fully consumed, `true` otherwise.
     pub const fn is_empty(&self) -> bool {
         match self.unread.get() {
             Some(unread) => unread.is_empty(),
@@ -50,7 +49,7 @@ impl<'a> NargReader<'a> {
         }
     }
 
-    /// Return `true` if the reader is in an invalid state, `false` otherwise.
+    /// Return `true` if the reader is poisoned, `false` otherwise.
     pub const fn is_poisoned(&self) -> bool {
         self.unread.get().is_none()
     }
@@ -126,9 +125,8 @@ impl<'a> NargReader<'a> {
 
     /// Reads `count` values in sequence.
     ///
-    /// `count` is untrusted: initial allocation is capped, and an element that
-    /// consumes no input is rejected, so a large count cannot spin without
-    /// consuming the NARG string.
+    /// An element that consumes no input is an error. `count` is untrusted:
+    /// only the initial allocation is capped, at `64` elements.
     pub fn read_vec<T: FromNarg>(&mut self, count: usize) -> Result<Vec<T>, VerificationError> {
         if self.is_poisoned() {
             return Err(VerificationError);
