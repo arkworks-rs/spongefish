@@ -214,7 +214,7 @@ where
     /// Input the last prover message and return the NARG string.
     ///
     /// Like [`ProverState::prover_message`], but consumes the prover state and returns the
-    /// NARG string. The message is not absorbed: no verifier message can follow it.
+    /// NARG string. The last prover message is not absorbed by the duplex sponge.
     pub fn last_prover_message<T: Encoding + ?Sized>(mut self, message: &T) -> Vec<u8> {
         self.narg_string
             .extend_from_slice(<T as Encoding>::encode(message).as_ref());
