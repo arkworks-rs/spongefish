@@ -1,6 +1,6 @@
 //! A [`DuplexSpongeInterface`] bridge for [`digest::ExtendableOutput`] implementations.
 //!
-//! In short, squeezing finalizes a *copy* of the absorbing state into a reader,
+//! In this instantiation, to squeeze will finalizes a *copy* of the absorbing state into a reader,
 //! consecutive squeezes continue one output stream, a non-empty absorb discards the reader,
 //! and absorbing the empty string is a no-op.
 
