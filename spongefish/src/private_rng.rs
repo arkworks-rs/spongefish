@@ -97,8 +97,8 @@ impl<H: DuplexSpongeInit<U = u8>> PrivateRng<H> {
     /// Sample a value through its [`FromUniform`] codec.
     ///
     /// Use the internal RNG to squeeze a [`Repr`][FromUniform::Repr] and decode it.
-    /// [`crate::ByteArray`] wipes itself on drop; a custom `Repr` must erase its own
-    /// storage, and a decoder any copies it makes.
+    /// [`crate::ByteArray`] will zeroize on drop.
+    /// Custom `Repr` implementations must make sure that all copies made during decoding are zeroized.
     pub fn sample<T: FromUniform>(&mut self) -> T {
         let mut buf = T::Repr::default();
         self.fill_bytes(buf.as_mut());
