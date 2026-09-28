@@ -98,12 +98,12 @@ impl<T: Transcript + ?Sized> PowTranscriptExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
+    use std::cell::RefCell;
 
     use spongefish::{
         instantiations::{Shake128, TurboShake128},
-        Argument, DuplexSpongeInterface, Narg, ProverState, Transcript, VerificationError,
-        VerifierState, Witness,
+        Argument, DuplexSpongeInit, DuplexSpongeInterface, Narg, ProverState, Transcript,
+        VerificationError, VerifierState, Witness,
     };
 
     use super::PowTranscriptExt;
@@ -261,22 +261,45 @@ mod tests {
         Squeeze(usize),
     }
 
+    thread_local! {
+        static EVENTS: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn events() -> Vec<Event> {
+        EVENTS.with_borrow(Clone::clone)
+    }
+
     #[derive(Clone)]
-    struct RecordingSponge(Rc<RefCell<Vec<Event>>>);
+    struct RecordingSponge;
 
     impl DuplexSpongeInterface for RecordingSponge {
         type U = u8;
 
         fn absorb(&mut self, input: &[u8]) -> &mut Self {
-            self.0.borrow_mut().push(Event::Absorb(input.to_vec()));
+            EVENTS.with_borrow_mut(|events| events.push(Event::Absorb(input.to_vec())));
             self
         }
 
         fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
-            self.0.borrow_mut().push(Event::Squeeze(output.len()));
+            EVENTS.with_borrow_mut(|events| events.push(Event::Squeeze(output.len())));
             output.fill(0);
             self
         }
+    }
+
+    impl DuplexSpongeInit for RecordingSponge {
+        fn init(_session_id: &[u8; 32]) -> Self {
+            Self
+        }
+    }
+
+    /// A verifier over [`RecordingSponge`], with the log cleared after the
+    /// instance is absorbed.
+    fn recording_verifier(proof: &[u8]) -> VerifierState<'_, RecordingSponge> {
+        let session_id = Narg::derive_session_id(b"pow/tests/v1");
+        let verifier = VerifierState::new(&session_id, &0u32, proof);
+        EVENTS.with_borrow_mut(Vec::clear);
+        verifier
     }
 
     #[derive(Clone)]
@@ -335,17 +358,13 @@ mod tests {
 
     #[test]
     fn rejected_nonce_produces_no_challenge_and_poisoning_survives_caught_errors() {
-        let events = Rc::new(RefCell::new(Vec::new()));
-        let mut verifier = VerifierState::from_parts(RecordingSponge(events.clone()), &[0; 8]);
+        let mut verifier = recording_verifier(&[0; 8]);
         assert!(verifier
             .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
             .is_err());
         // The nonce is an ordinary prover message. Its failed check prevents
         // the protected challenge, even though all proof bytes were consumed.
-        assert_eq!(
-            *events.borrow(),
-            [Event::Squeeze(32), Event::Absorb(vec![0; 8])]
-        );
+        assert_eq!(events(), [Event::Squeeze(32), Event::Absorb(vec![0; 8])]);
         assert!(verifier
             .check(|| panic!("a failed check must not run again"))
             .is_err());
@@ -359,9 +378,8 @@ mod tests {
 
     #[test]
     fn valid_nonce_is_absorbed_before_the_protected_challenge() {
-        let events = Rc::new(RefCell::new(Vec::new()));
         let proof = 42u64.to_le_bytes();
-        let mut verifier = VerifierState::from_parts(RecordingSponge(events.clone()), &proof);
+        let mut verifier = recording_verifier(&proof);
         assert_eq!(
             verifier
                 .verifier_message_pow::<u64, FixedPredicate<true>>(8.0)
@@ -369,7 +387,7 @@ mod tests {
             0
         );
         assert_eq!(
-            *events.borrow(),
+            events(),
             [
                 Event::Squeeze(32),
                 Event::Absorb(proof.to_vec()),
@@ -382,14 +400,13 @@ mod tests {
     #[test]
     fn every_truncated_nonce_is_rejected() {
         for length in 0..8 {
-            let events = Rc::new(RefCell::new(Vec::new()));
             let proof = vec![0; length];
-            let mut verifier = VerifierState::from_parts(RecordingSponge(events.clone()), &proof);
+            let mut verifier = recording_verifier(&proof);
             // Even an always-accepting predicate cannot rescue a short nonce.
             assert!(verifier
                 .verifier_message_pow::<u64, FixedPredicate<true>>(8.0)
                 .is_err());
-            assert_eq!(*events.borrow(), [Event::Squeeze(32)]);
+            assert_eq!(events(), [Event::Squeeze(32)]);
             assert!(verifier.check_eof().is_err());
         }
     }
