@@ -6,54 +6,89 @@ It implements duplex sponges for bytes (or prime fields) spec-compatible with [d
 
 ## Quickstart
 
-The simplest way to start is defining an interactive `Argument`, and then compile it with `Narg`:
+The simplest way to start is defining an interactive `Argument`, and then compile it with `Narg`. As an example, here is the sumcheck for multilinear polynomials over the Mersenne prime field of size 2^31 - 1:
 
 ```rust
-use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
+use spongefish::{Argument, Codec, Narg, Transcript, VerificationError, Witness};
 
-struct Schnorr;
+const P: u64 = (1 << 31) - 1;
 
-impl Argument for Schnorr {
-    type Instance = [u32; 2]; // [generator, public key]
-    type Witness = u32;
-    type Output = ();
+/// A field element, with the codecs of its `u32` representation.
+#[derive(Clone, Copy, PartialEq, Debug, Codec)]
+struct M31(u32);
+
+impl M31 {
+    fn add(self, other: Self) -> Self {
+        Self(((u64::from(self.0) + u64::from(other.0)) % P) as u32)
+    }
+    fn sub(self, other: Self) -> Self {
+        Self(((u64::from(self.0) + P - u64::from(other.0)) % P) as u32)
+    }
+    fn mul(self, other: Self) -> Self {
+        Self(((u64::from(self.0) * u64::from(other.0)) % P) as u32)
+    }
+}
+
+/// The sumcheck for a multilinear polynomial, given by its evaluations over {0, 1}^n.
+struct Sumcheck;
+
+impl Argument for Sumcheck {
+    type Instance = (u32, M31); // (number of variables, claimed sum)
+    type Witness = Vec<M31>; // the evaluations, the first variable in the low bit of the index
+    type Output = M31; // the evaluation at the sampled point
 
     fn run<T: Transcript>(
         transcript: &mut T,
         instance: &Self::Instance,
         witness: Witness<&Self::Witness>,
-    ) -> Result<(), VerificationError> {
-        let [generator, public_key] = *instance;
-        let nonce = transcript.sample::<u32>();
-        let commitment = transcript
-            .prover_message(nonce.map(|k| generator.wrapping_mul(k)))?;
-        let challenge = transcript.verifier_message::<u32>();
-        let response = transcript.prover_message(
-            nonce
-                .zip(witness)
-                .map(|(k, x)| k.wrapping_add(challenge.wrapping_mul(*x))),
-        )?;
-        transcript.check(|| {
-            generator.wrapping_mul(response)
-                == commitment.wrapping_add(challenge.wrapping_mul(public_key))
-        })
+    ) -> Result<M31, VerificationError> {
+        let (num_variables, claimed_sum) = *instance;
+        let mut table = witness.map(Clone::clone); // folded round by round, by the prover only
+        let mut claim = claimed_sum;
+        for _ in 0..num_variables {
+            let polynomial = table.as_ref().map(|t| round_polynomial(t));
+            let [a0, a1] = transcript.prover_message(polynomial)?;
+            transcript.check(|| a0.add(a0).add(a1) == claim)?;
+            let r: M31 = transcript.verifier_message();
+            claim = a0.add(a1.mul(r));
+            table = table.map(|t| fold(&t, r));
+        }
+        Ok(claim)
     }
 }
 
-// The tag identifies the protocol, the codecs, and the application context.
-let tag = b"example-v00/schnorr-u32";
-let witness = 42u32;
-let instance = [7, 7 * witness];
+/// The round polynomial `a0 + a1 X`: the table summed over all variables but the first.
+fn round_polynomial(table: &[M31]) -> [M31; 2] {
+    let (mut even, mut odd) = (M31(0), M31(0));
+    for [p0, p1] in table.as_chunks::<2>().0 {
+        (even, odd) = (even.add(*p0), odd.add(*p1));
+    }
+    [even, odd.sub(even)]
+}
 
-let (narg, ()) = Narg::prove::<Schnorr>(tag, &instance, &witness).unwrap();
-Narg::verify::<Schnorr>(tag, &instance, &narg).unwrap();
+/// The table with its first variable fixed to `r`.
+fn fold(table: &[M31], r: M31) -> Vec<M31> {
+    let pairs = table.as_chunks::<2>().0;
+    pairs
+        .iter()
+        .map(|[p0, p1]| p0.add(r.mul(p1.sub(*p0))))
+        .collect()
+}
+
+// The tag identifies the protocol, the codecs, and the application context.
+let tag = b"example-v00/sumcheck-m31";
+let table: Vec<M31> = (0..16).map(|i| M31(1 << i)).collect();
+let instance = (4, M31(0xffff)); // four variables; the table sums to 2^16 - 1
+
+let (narg, evaluation) = Narg::prove::<Sumcheck>(tag, &instance, &table).unwrap();
+assert_eq!(Narg::verify::<Sumcheck>(tag, &instance, &narg).unwrap(), evaluation);
 ```
 
-`Witness` values exist only for the prover; `prover_message` turns witness values into plain values that can be used both by prover and verifier. `verifier_message` squeezes a challenge, and `sample` draws a uniformly random value using the prover's private randomness. `check` runs the verification equation. 
+`Witness` values exist only for the prover; `prover_message` turns them into plain values that both prover and verifier can use, `verifier_message` squeezes a challenge, and `check` runs a verification equation. Whatever `run` returns, here the claim left after the last round, is the output of both `Narg::prove` and `Narg::verify`. `sample` draws private randomness for protocols that need it.
 
-The session identifier is automatically derived from the tag, the verifier must consume the whole NARG string. An unused challenge is a compile error. 
+The session identifier is automatically derived from the tag, and the verifier must consume the whole NARG string. An unused challenge is a compile error.
 
-Each prover and verifier messages, as well as the instance, must have associated codecs. See `LengthPrefixed` and `#[derive(Codec)]` for helpers in defining new codecs.
+Prover and verifier messages, as well as the instance, must have associated codecs: `Encoding` to absorb a value and write it to the NARG string, `NargDeserialize` to parse it back, and `Decoding` to turn squeezed bytes into a challenge. Fixed-width integers, byte arrays, and tuples come with codecs, `#[derive(Codec)]` composes them, and `LengthPrefixed` frames variable-length sequences. The codec derived above is the one of `u32`: the verifier accepts non-canonical encodings of a field element, and challenges are reduced by the arithmetic rather than when decoded. The [sumcheck integration test](spongefish/tests/sumcheck.rs) hand-writes codecs that reject them instead, and checks this protocol against the test vector of draft-irtf-cfrg-fiat-shamir.
 
 
 ## Crates
@@ -98,46 +133,29 @@ assert_eq!(sponge.absorb(&plaintext).squeeze_array::<16>(), tag);
 
 Hash preimage statements can be built via `spongefish-circuit`. 
 
-A `PermutationRelation` yields the constraints proving correct evaluations of query-answers for a permutation oracle.
-It is additionally possible to constrain the evaluations on algebraic relations: 
+A `PermutationRelation` is a `Permutation` over wires: each call the sponge makes to it becomes a query of the instance it compiles to. A `PermutationWitnessBuilder` around the real permutation records the trace, the witness for that instance. The same sponge code runs over either:
 
 ```rust
 use spongefish::{instantiations::KeccakF1600, DuplexSponge, DuplexSpongeInterface};
 use spongefish_circuit::{PermutationRelation, PermutationWitnessBuilder};
 
-fn xof<S: DuplexSpongeInterface>(sponge: &mut S, input: &[S::U], len: usize) -> Box<[S::U]> {
-    sponge.absorb(input).squeeze_boxed(len)
-}
-
-// Natively, recording the trace: the digest, then the ciphertext and tag.
+// Natively, recording the trace.
 let tracer = PermutationWitnessBuilder::<KeccakF1600, 200>::new(KeccakF1600);
-let digest = xof(&mut DuplexSponge::<_, 200, 136>::from(tracer.clone()), b"hello", 32);
 let mut sponge = DuplexSponge::<_, 200, 136>::from(tracer.clone());
-let keystream = xof(&mut sponge, b"key", 14);
-let ciphertext: Vec<u8> = b"attack at dawn".iter().zip(&keystream).map(|(p, k)| p ^ k).collect();
-let tag: [u8; 16] = sponge.absorb(b"attack at dawn").squeeze_array();
+let digest: [u8; 32] = sponge.absorb(b"hello").squeeze_array();
 
-// Symbolically: the preimage, the key and the plaintext are secret wires;
-// the digest, the ciphertext and the tag are public.
+// Symbolically: the preimage is a secret wire, the digest is public.
 let relation = PermutationRelation::<u8, 200>::labeled("keccak-f[1600]");
 let preimage = relation.allocate_vars::<5>();
-let out = xof(&mut DuplexSponge::<_, 200, 136>::from(relation.clone()), &preimage, 32);
-relation.set_vars(out.iter(), &digest);
-
-let key = relation.allocate_vars::<3>();
-let plaintext = relation.allocate_vars::<14>();
 let mut sponge = DuplexSponge::<_, 200, 136>::from(relation.clone());
-let keystream = xof(&mut sponge, &key, 14);
-for ((k, p), c) in keystream.iter().zip(&plaintext).zip(&ciphertext) {
-    relation.add_equation(*k * 0xFF + *p, *c); // k ^ p = c
-}
-let tag_wires: [_; 16] = sponge.absorb(&plaintext).squeeze_array();
-relation.set_vars(tag_wires, tag);
+let digest_wires: [_; 32] = sponge.absorb(&preimage).squeeze_array();
+relation.set_vars(digest_wires, digest);
 
 let instance = relation.compile().unwrap();
-assert_eq!(instance.queries().len(), 3);
 assert!(instance.is_witness_valid(&KeccakF1600, &tracer.snapshot()));
 ```
+
+Linear equations over the wires, such as the XORs of a duplex cipher, are added with `add_equation`.
 
 ## Arguments with grinding
 
