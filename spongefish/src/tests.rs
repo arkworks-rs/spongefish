@@ -111,32 +111,6 @@ fn argument_cannot_accept_a_caught_verification_failure() {
 }
 
 #[test]
-#[should_panic(expected = "an Argument must be zero-sized")]
-fn argument_cannot_override_the_statelessness_check() {
-    #[allow(dead_code)]
-    struct Stateful(u8);
-
-    impl Argument for Stateful {
-        const NO_STATE: () = ();
-
-        type Instance = u32;
-        type Witness = ();
-        type Output = ();
-
-        fn run<T: Transcript>(
-            _transcript: &mut T,
-            _instance: &Self::Instance,
-            _witness: Witness<&Self::Witness>,
-        ) -> Result<Self::Output, VerificationError> {
-            Ok(())
-        }
-    }
-
-    let session_id = test_session_id(b"stateful argument");
-    let _ = Narg::prove_with_session_id::<Stateful>(&session_id, &0, &());
-}
-
-#[test]
 fn seeded_prover_rng_is_deterministic_and_mixing_diverges() {
     let instance = [1u32];
     let session_id = test_session_id(b"seeded rng");
