@@ -1,4 +1,4 @@
-//! A [`DuplexSpongeInterface`] bridge for fixed-output [`digest::Digest`] hash functions.
+//! A [`DuplexSpongeInterface`] bridge for [`digest::Digest`] implementations.
 //!
 //! This code is inspired by libsignal's poksho:
 //! <https://github.com/signalapp/libsignal/blob/main/rust/poksho/src/shosha256.rs>,

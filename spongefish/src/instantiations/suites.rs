@@ -1,7 +1,8 @@
-//! The named duplex sponge instantiations.
+//! A collection of instantiations for [`DuplexSpongeInterface`].
 //!
 //! [`Shake128`] and [`TurboShake128`] are the suites of
-//! draft-irtf-cfrg-fiat-shamir. [`Keccak`] and [`Ascon12`] are overwrite-mode
+//! draft-irtf-cfrg-fiat-shamir.
+//! [`Keccak`] and [`Ascon12`] are overwrite-mode
 //! duplex sponges outside the draft.
 
 #[cfg(any(feature = "keccak", feature = "ascon"))]
@@ -17,8 +18,6 @@ pub type Shake128 = XOF<shake::Shake128>;
 
 /// The TurboSHAKE128 duplex sponge of draft-irtf-cfrg-fiat-shamir
 /// (`Keccak-p[1600, 12]`, RFC 9861, `D = 0x1F`).
-///
-/// This is the library's default hash ([`DefaultHash`][crate::DefaultHash]).
 #[cfg(feature = "turboshake128")]
 pub type TurboShake128 = XOF<::turboshake::TurboShake128>;
 
@@ -26,10 +25,8 @@ pub type TurboShake128 = XOF<::turboshake::TurboShake128>;
 /// A [`DuplexSponge`] instantiated with [`keccak::Keccak::with_f1600`].
 ///
 /// **Warning**: This is **not** SHA-3 and **not** the SHAKE128 suite of
-/// draft-irtf-cfrg-fiat-shamir (use [`Shake128`] for that — the two produce
-/// different bytes for the same inputs). Despite using the same permutation,
-/// this type is a duplex sponge in overwrite mode, the construction analyzed
-/// in [CO25].
+/// draft-irtf-cfrg-fiat-shamir. This instantiation is the duplex sponge of
+/// [CO25].
 ///
 /// [CO25]: https://eprint.iacr.org/2025/536.pdf
 pub type Keccak = DuplexSponge<permutations::KeccakF1600, 200, 136>;
