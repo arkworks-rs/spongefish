@@ -16,7 +16,6 @@ use crate::{
 /// 1. The duplex sponge state, to produce verifier messages;
 /// 2. A [`NargReader`] over the NARG string.
 ///
-///
 /// If de-serialization from the NARG string fails, the reader is poisoned and the duplex sponge
 /// state is left at the last successful operation.
 ///
