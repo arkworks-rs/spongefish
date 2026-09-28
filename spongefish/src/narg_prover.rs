@@ -328,7 +328,7 @@ where
     /// [`ProverState::prover_message_as`] or [`ProverState::prover_message_with`]
     /// as a terminal (see [`ProverState::last_prover_message`]).
     ///
-    /// Since the last message is not absorbed, this works over any sponge alphabet.
+    /// Since the last message is not absorbed by the duplex sponge, no encoding map is needed.
     pub fn last_prover_message_as<'a, T: ?Sized, B: AsRef<[u8]>>(
         mut self,
         message: &'a T,
