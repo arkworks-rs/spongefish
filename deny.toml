@@ -82,7 +82,10 @@ license-files = []
 multiple-versions = "warn"
 # Wildcard version requirements make the lockfile meaningless.
 wildcards = "deny"
-allow-wildcard-paths = false
+# Path-only dev-dependencies are omitted from published manifests. This lets
+# spongefish-derive test against spongefish without a publication cycle;
+# registry wildcard requirements remain denied.
+allow-wildcard-paths = true
 # Prefer the crate highest in the tree when de-duplicating.
 highlight = "all"
 # No crate is outright banned yet. Candidates for this list are crates that
