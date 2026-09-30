@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.8.0](https://github.com/arkworks-rs/spongefish/compare/spongefish-circuit-v0.7.4...spongefish-circuit-v0.8.0) - 2026-09-28
+## [0.8.0](https://github.com/arkworks-rs/spongefish/compare/spongefish-circuit-v0.7.4...spongefish-circuit-v0.8.0) - 2026-09-30
 
 ### Other
 
