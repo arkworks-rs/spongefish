@@ -21,7 +21,9 @@ quote = "1.0"
 syn = { version = "3.0", features = ["derive"] }
 
 [dev-dependencies]
-spongefish = { workspace = true, default-features = false }
+# Keep this test-only dependency out of the published manifest so derive can
+# be published before spongefish, which depends on it.
+spongefish = { path = "../spongefish", default-features = false }
 
 [lints]
 workspace = true
