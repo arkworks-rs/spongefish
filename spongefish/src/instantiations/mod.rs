@@ -1,8 +1,8 @@
 //! Concrete hash backends:
 //!
-//! - the [`Hash`][crate::instantiations::Hash] bridge for fixed-output digests,
-//! - the [`XOF`][crate::instantiations::XOF] bridge for extendable-output functions,
-//! - the raw permutations behind the [`DuplexSponge`] construction,
+//! - the [`struct@Hash`] bridge for fixed-output digests,
+//! - the [`XOF`] bridge for extendable-output functions,
+//! - the raw permutations behind the [`DuplexSponge`](crate::DuplexSponge) construction,
 //!
 //! along with the named suites built from them.
 
