@@ -211,7 +211,8 @@ assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).un
 
 | Feature | Default | Description |
 | --- | :-: | --- |
-| `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `DefaultHash`, `Narg`, and `ProverState` |
+| `digest` | ✓ | RustCrypto `digest` bridges: `instantiations::{Hash, XOF}` |
+| `turboshake128` | ✓ | The draft's SHAKE128 and TurboSHAKE128 suites, `DefaultHash`, `Narg`, and `ProverState`; enables `digest` |
 | `getrandom` | ✓ | Enables OS-seeded `ProverState::new`; with `turboshake128`, also enables `Narg::prove` |
 | `zeroize` | ✓ | Enables sponge-state wiping where supported by the backend; standard squeeze buffers and RNG seed buffers are always wiped on drop |
 | `derive` | | `#[derive(Codec)]` and friends via `spongefish-derive` |

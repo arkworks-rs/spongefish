@@ -49,8 +49,11 @@ const fn _assert_duplex_sponge_impls() {
         assert_init_impl::<Shake128>();
         assert_init_impl::<TurboShake128>();
     }
-    assert_impl::<super::Hash<sha2::Sha256>>();
-    assert_init_impl::<super::Hash<sha2::Sha256>>();
+    #[cfg(feature = "digest")]
+    {
+        assert_impl::<super::Hash<sha2::Sha256>>();
+        assert_init_impl::<super::Hash<sha2::Sha256>>();
+    }
     #[cfg(feature = "keccak")]
     {
         assert_impl::<Keccak>();
