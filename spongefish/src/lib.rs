@@ -138,8 +138,8 @@
 //!   [`Narg`] when the default `turboshake128` feature is enabled.
 //! - `Keccak` and `Ascon12`, overwrite-mode duplex sponges available through
 //!   their respective feature flags. These are not the draft's SHAKE suites.
-//! - [`instantiations::XOF`] and [`instantiations::Hash`], bridges for the
-//!   RustCrypto `digest` traits. Constructions outside the draft or the ideal-
+//! - `instantiations::XOF` and `instantiations::Hash`, bridges enabled by the
+//!   `digest` feature for the RustCrypto `digest` traits. Constructions outside the draft or the ideal-
 //!   permutation analysis of [[CO25]] should be treated as heuristic.
 //!
 //! [`FiatShamir`] selects a non-default sponge. [`DuplexSponge`] and
