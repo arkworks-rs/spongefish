@@ -9,7 +9,7 @@
 //!
 //! Many instantiations of [`DuplexSpongeInterface`] are provided in this crate.
 //! While a formal analysis exists only for ideal permutations, i.e. a [`Permutation`] used with the [`DuplexSponge`] struct,
-//! we also provide additional examples from generic XOFs implementing [`digest::ExtendableOutput`] and hash functions implementing [`digest::Digest`].
+//! we also provide additional examples from generic XOFs implementing `digest::ExtendableOutput` and hash functions implementing `digest::Digest`.
 
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};

@@ -15,14 +15,16 @@ all-features = true
 rustdoc-args = ["--html-in-header", "doc/katex-header.html", "--cfg", "docsrs"]
 
 [features]
-default = ["turboshake128", "getrandom", "zeroize"]
+default = ["digest", "turboshake128", "getrandom", "zeroize"]
 # feature flag for hazardous features
 yolocrypto = []
 # Core features
+# RustCrypto digest bridges (Hash and XOF).
+digest = ["dep:digest"]
 derive = ["dep:spongefish-derive"]
 zeroize = ["shake?/zeroize", "turboshake?/zeroize"]
 # The draft-irtf-cfrg-fiat-shamir suites (SHAKE128 and TurboSHAKE128) and DefaultHash.
-turboshake128 = ["dep:shake", "dep:turboshake"]
+turboshake128 = ["digest", "dep:shake", "dep:turboshake"]
 # Prover randomness: OS entropy for the private RNG (default), and an optional
 # rand_core adapter so the RNG can be passed to ecosystem samplers.
 getrandom = ["dep:getrandom"]
@@ -33,7 +35,7 @@ ascon = ["dep:ascon"]
 
 [dependencies]
 ascon = { version = "^0.5.0", optional = true }
-digest = { workspace = true }
+digest = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 keccak = { workspace = true, optional = true }
 rand_core = { workspace = true, optional = true }
