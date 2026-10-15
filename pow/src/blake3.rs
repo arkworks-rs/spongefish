@@ -11,8 +11,9 @@ use crate::PoWSolution;
 
 /// A SIMD-accelerated BLAKE3-based proof-of-work engine.
 ///
-/// This struct encapsulates the state needed to search for a nonce such that
-/// `BLAKE3(challenge || nonce)` is below a difficulty threshold.
+/// This struct searches for a nonce such that the first eight bytes of
+/// `BLAKE3(challenge || nonce.to_le_bytes() || [0; 24])`, interpreted as a
+/// little-endian `u64`, are below the difficulty threshold.
 ///
 /// It leverages `Platform::hash_many` for parallel hash evaluation using `MAX_SIMD_DEGREE` lanes.
 #[derive(Clone, Copy)]
@@ -23,7 +24,7 @@ pub struct Blake3PoW {
     threshold: u64,
     /// Platform-specific SIMD hashing backend selected at runtime.
     platform: Platform,
-    /// SIMD batch of hash inputs, each 64 bytes (challenge + nonce).
+    /// SIMD batch of 64-byte inputs: challenge, little-endian nonce, 24 zero bytes.
     inputs: [[u8; BLOCK_LEN]; MAX_SIMD_DEGREE],
     /// SIMD batch of hash outputs (32 bytes each).
     outputs: [u8; OUT_LEN * MAX_SIMD_DEGREE],
@@ -90,7 +91,7 @@ impl PowStrategy for Blake3PoW {
         hasher.update(&self.challenge);
         // Feed the nonce as little-endian bytes.
         hasher.update(&nonce.to_le_bytes());
-        // Zero-extend the nonce to 32 bytes (challenge + nonce = full block).
+        // Pad the challenge and nonce to a full 64-byte BLAKE3 input block.
         hasher.update(&[0; 24]);
 
         // Hash the input and extract the first 8 bytes.
