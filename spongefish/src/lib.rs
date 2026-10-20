@@ -181,6 +181,9 @@ mod private_rng;
 /// The NARG verifier state.
 mod narg_verifier;
 
+/// Prover-side search over candidate prover messages.
+mod search;
+
 /// Utilities for serializing prover messages and de-serializing NARG strings.
 pub(crate) mod narg_string;
 
@@ -209,6 +212,7 @@ pub use narg_prover::ProverState;
 pub use narg_string::{FromNarg, NargReader};
 pub use narg_verifier::VerifierState;
 pub use private_rng::PrivateRng;
+pub use search::{MessageSearch, Probe};
 #[cfg(feature = "derive")]
 pub use spongefish_derive::{Codec, Encoding, FromNarg, FromUniform, Unit};
 

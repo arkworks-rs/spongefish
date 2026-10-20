@@ -3,8 +3,8 @@ use alloc::format;
 use shake::{ExtendableOutput, Update, XofReader};
 
 use crate::{
-    derive_session_id, Argument, DefaultHash, Encoding, FromNarg, Narg, PrivateRng, ProverState,
-    SessionId, Transcript, VerificationError, VerifierState, Witness,
+    derive_session_id, Argument, DefaultHash, Encoding, FromNarg, Narg, PrivateRng, Probe,
+    ProverState, SessionId, Transcript, VerificationError, VerifierState, Witness,
 };
 
 fn test_session_id(tag: &[u8]) -> SessionId {
@@ -605,4 +605,50 @@ fn a_failed_prover_only_computation_fails_the_prover() {
     }
 
     assert!(Narg::prove::<Exhausted>(b"exhausted", &0, &()).is_err());
+}
+
+#[test]
+fn probe_matches_sending_the_candidate_then_squeezing() {
+    let session_id = test_session_id(b"message search");
+    let new_prover = || {
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&session_id, &[3u32], [1; 32]);
+        prover.prover_message(&9u32);
+        prover
+    };
+
+    let mut probed = new_prover();
+    let narg_before = probed.narg_string().to_vec();
+    let mut predicted = [0u8; 200];
+    probed
+        .message_search()
+        .probe(7u64.encode().as_ref(), &mut predicted);
+    // Probing changes neither the NARG string nor the later transcript.
+    assert_eq!(probed.narg_string(), narg_before);
+    let mut untouched = new_prover();
+    assert_eq!(
+        probed.verifier_message::<[u8; 32]>(),
+        untouched.verifier_message::<[u8; 32]>()
+    );
+
+    let mut sent = new_prover();
+    sent.prover_message(&7u64);
+    assert_eq!(sent.verifier_message::<[u8; 200]>(), predicted);
+}
+
+#[test]
+fn prover_search_runs_only_on_the_prover() {
+    let session_id = test_session_id(b"message search");
+    let prover = ProverState::<DefaultHash>::new_with_seed(&session_id, &[3u32], [1; 32]);
+    let found = Transcript::prover_search(&prover, |probe| {
+        let mut out = [0u8; 4];
+        probe.probe(&[1, 2, 3], &mut out);
+        out
+    });
+    assert!(found.into_known().is_some());
+
+    let verifier = VerifierState::<DefaultHash>::new(&session_id, &[3u32], &[]);
+    let skipped = Transcript::prover_search(&verifier, |_| -> u8 {
+        panic!("the verifier must not run the search")
+    });
+    assert!(skipped.into_known().is_none());
 }
