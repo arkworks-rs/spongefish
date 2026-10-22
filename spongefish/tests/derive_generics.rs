@@ -11,6 +11,15 @@ struct TaggedValue<T, const N: usize> {
     _marker: PhantomData<(T, [(); N])>,
 }
 
+/// Skipped generic fields still need `Default` in the generated decoding
+/// implementations, even when their type has no codec implementation.
+#[derive(Debug, PartialEq, Eq, Codec)]
+struct Cached<T> {
+    value: u32,
+    #[spongefish(skip)]
+    cache: T,
+}
+
 #[test]
 fn codec_derive_handles_generic_types() {
     let tagged = TaggedValue::<u8, 4> {
@@ -30,6 +39,26 @@ fn codec_derive_handles_generic_types() {
     #[allow(clippy::items_after_statements)]
     fn assert_codec<T: Codec>(_: &T) {}
     assert_codec(&tagged);
+}
+
+#[test]
+fn codec_derive_bounds_skipped_generic_fields_by_default() {
+    let cached = Cached {
+        value: 0x1234_5678,
+        cache: String::from("not encoded"),
+    };
+
+    let encoded = cached.encode();
+    let mut reader = NargReader::new(encoded.as_ref());
+    let decoded = reader.read::<Cached<String>>().expect("roundtrip");
+    assert_eq!(decoded.value, cached.value);
+    assert_eq!(decoded.cache, String::new());
+    assert!(reader.is_empty());
+
+    let sampled =
+        Cached::<String>::from_uniform(repr::<Cached<String>>(&cached.value.to_le_bytes()));
+    assert_eq!(sampled.value, cached.value);
+    assert_eq!(sampled.cache, String::new());
 }
 
 /// Mixed field widths, so an off-by-one in the derived offsets shows up.

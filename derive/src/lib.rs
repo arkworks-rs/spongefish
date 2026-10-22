@@ -62,12 +62,23 @@ fn bounded_types<'a>(fields: &'a [StructField<'a>]) -> Vec<&'a Type> {
         .collect()
 }
 
+/// The types that need `Default` because skipped fields are constructed with
+/// `Default::default()` by the generated decoding implementations.
+fn defaulted_types<'a>(fields: &'a [StructField<'a>]) -> Vec<&'a Type> {
+    fields
+        .iter()
+        .filter(|field| field.skip)
+        .map(|field| field.ty)
+        .collect()
+}
+
 /// Wrap `items` in an impl of `trait_path` for the deriving type, adding a
 /// `#ty: #trait_path` predicate for each of `bounded`.
 fn impl_block(
     input: &DeriveInput,
     trait_path: &TokenStream2,
     bounded: &[&Type],
+    defaulted: &[&Type],
     items: &TokenStream2,
 ) -> TokenStream2 {
     let name = &input.ident;
@@ -77,6 +88,14 @@ fn impl_block(
         let where_clause = generics.make_where_clause();
         for ty in bounded {
             where_clause.predicates.push(parse_quote!(#ty: #trait_path));
+        }
+    }
+    if !defaulted.is_empty() {
+        let where_clause = generics.make_where_clause();
+        for ty in defaulted {
+            where_clause
+                .predicates
+                .push(parse_quote!(#ty: ::core::default::Default));
         }
     }
 
@@ -144,6 +163,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
         input,
         &trait_path,
         &bounded,
+        &[],
         &quote! {
             fn encode(&self) -> impl AsRef<[u8]> {
                 // Sized up front from the struct's own width. That is only a
@@ -165,6 +185,7 @@ fn generate_encoding_impl(input: &DeriveInput) -> Result<TokenStream2> {
 fn generate_from_uniform_impl(input: &DeriveInput) -> Result<TokenStream2> {
     let fields = struct_fields(input, "FromUniform")?;
     let bounded = bounded_types(&fields);
+    let defaulted = defaulted_types(&fields);
 
     let field_inits = fields.iter().map(|field| {
         let member = &field.member;
@@ -212,6 +233,7 @@ fn generate_from_uniform_impl(input: &DeriveInput) -> Result<TokenStream2> {
         input,
         &trait_path,
         &bounded,
+        &defaulted,
         &quote! {
             type Repr = ::spongefish::ByteArray<{ #size_calc }>;
 
@@ -225,6 +247,7 @@ fn generate_from_uniform_impl(input: &DeriveInput) -> Result<TokenStream2> {
 fn generate_from_narg_impl(input: &DeriveInput) -> Result<TokenStream2> {
     let fields = struct_fields(input, "FromNarg")?;
     let bounded = bounded_types(&fields);
+    let defaulted = defaulted_types(&fields);
 
     let field_inits = fields.iter().map(|field| {
         let member = &field.member;
@@ -242,6 +265,7 @@ fn generate_from_narg_impl(input: &DeriveInput) -> Result<TokenStream2> {
         input,
         &trait_path,
         &bounded,
+        &defaulted,
         &quote! {
             fn from_narg(
                 reader: &mut ::spongefish::NargReader<'_>,
@@ -273,6 +297,7 @@ fn generate_unit_impl(input: &DeriveInput) -> Result<TokenStream2> {
         input,
         &trait_path,
         &bounded,
+        &[],
         &quote! {
             const ZERO: Self = Self { #(#zero_fields)* };
         },
