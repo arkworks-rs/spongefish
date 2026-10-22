@@ -4,8 +4,8 @@ use core::fmt;
 #[cfg(feature = "turboshake128")]
 use crate::DefaultHash;
 use crate::{
-    duplex_sponge::DuplexSpongeInit, DuplexSpongeInterface, Encoding, FromUniform, PrivateRng,
-    SessionId,
+    duplex_sponge::DuplexSpongeInit, DuplexSpongeInterface, Encoding, FromUniform, MessageSearch,
+    PrivateRng, SessionId,
 };
 
 /// [`ProverState`] is the prover state in the non-interactive transformation.
@@ -219,6 +219,18 @@ where
         self.narg_string
             .extend_from_slice(<T as Encoding>::encode(message).as_ref());
         self.narg_string
+    }
+
+    /// Return a read-only view of the public sponge for searching over the
+    /// next prover message.
+    ///
+    /// See [`MessageSearch`] for what the view can and cannot do. A probe of
+    /// `candidate` returns the same bytes as [`ProverState::prover_message`]
+    /// with an encoding `candidate`, followed by
+    /// [`ProverState::verifier_message`], but leaves this state unchanged.
+    #[must_use]
+    pub fn message_search(&self) -> MessageSearch<H> {
+        MessageSearch::new(self.duplex_sponge_state.clone())
     }
 
     /// Return a verifier message `T` that is uniformly distributed.
