@@ -90,10 +90,11 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// The dual of
     /// [`ProverState::last_prover_message`][crate::ProverState::last_prover_message]:
-    /// [`VerifierState::prover_message`] followed by
-    /// [`VerifierState::check_eof`], in one call that consumes the state, so
-    /// the trailing-bytes check cannot be forgotten. The message is not
-    /// absorbed: no verifier message can follow it.
+    /// deserialize the message through [`FromNarg`], then call
+    /// [`VerifierState::check_eof`]. This consumes the state, so the
+    /// trailing-bytes check cannot be forgotten. The message is not absorbed
+    /// and does not need an [`Encoding`] implementation: no verifier message
+    /// can follow it.
     ///
     pub fn last_prover_message<T: FromNarg>(mut self) -> Result<T, VerificationError> {
         let (message, _) = self.read_message(T::from_narg)?;
@@ -171,8 +172,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// Read a prover message with deserialization and encoding closures.
     ///
     /// Over byte-oriented duplex sponges (`H::U = u8`), prefer
-    /// [`VerifierState::prover_message_as`] which uses the same function for both encoding
-    /// and serializing.
+    /// [`VerifierState::prover_message_as`], which absorbs the bytes consumed
+    /// by the deserialization closure directly, without re-encoding the message.
     ///
     /// # Codec requirements
     ///
