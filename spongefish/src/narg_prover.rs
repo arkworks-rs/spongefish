@@ -221,6 +221,23 @@ where
         self.narg_string
     }
 
+    /// Return an owned, cloneable callback that evaluates verifier output for
+    /// candidate prover messages.
+    /// Each call absorbs the candidate, encoded in the duplex sponge's alphabet,
+    /// into a fresh copy of the captured public duplex sponge and squeezes into
+    /// the supplied output.
+    /// The prover state and private RNG stay untouched;
+    /// [`crate::Transcript::search_verifier_message`] wraps this callback in
+    /// [`crate::Witness`] for prover-only computation.
+    pub fn search_verifier_message(&self) -> impl Fn(&[H::U], &mut [H::U]) + Clone {
+        let snapshot = self.duplex_sponge_state.clone();
+        move |candidate, output| {
+            let mut sponge = snapshot.clone();
+            sponge.absorb(candidate);
+            sponge.squeeze(output);
+        }
+    }
+
     /// Return a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
