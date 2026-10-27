@@ -159,7 +159,37 @@ Linear equations over the wires, such as the XORs of a duplex cipher, are added 
 
 ## Arguments with grinding
 
-`spongefish-pow` provides a config-based API and search machinery for proof-of-work-protected verifier messages. The strategy describes the puzzle; transcript helpers bind it, verify the nonce, and derive the protected message. See [the PoW crate](pow/README.md) for the API and requirements for custom constructions.
+It is possible to augment the bits of soundnes with a proof of work using `spongefish-pow`:
+
+```rust
+use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
+use spongefish_pow::{FusedPowConfig, PowTranscriptExt};
+
+/// A challenge the prover pays `BITS` bits of work for.
+struct GrindingArgumentExample<const BITS: u32>;
+
+impl<const BITS: u32> Argument for GrindingArgumentExample<BITS> {
+    type Instance = [u8; 32]; // whatever the work is bound to
+    type Witness = ();
+    type Output = u64;
+
+    fn run<T: Transcript>(
+        transcript: &mut T,
+        _instance: &[u8; 32],
+        _witness: Witness<&()>,
+    ) -> Result<u64, VerificationError> {
+        transcript.verifier_message_pow(FusedPowConfig::new(BITS))
+    }
+}
+
+let tag = b"example-v00/grind-16";
+let instance = [7u8; 32];
+let (narg, challenge) = Narg::prove::<GrindingArgumentExample<16>>(tag, &instance, &()).unwrap();
+assert!((1..=4).contains(&narg.len())); // compact nonce at 16 bits
+assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).unwrap(), challenge);
+```
+
+`verifier_message_pow` searches for a compact nonce whose duplex sponge output has `BITS` low zero bits, sends it as a prover message, checks it, then returns the protected verifier message. Difficulty is an integer from 0 to 57; at zero there is no nonce or check. This generic method is always sequential and uses no SIMD, so grinding inside `Argument::run` is slower than the parallel BLAKE3 search of `v0.8.0` at the same difficulty (about 35 times fewer trials per second in one measurement on a 10-core machine). The `spongefish-pow/parallel` feature also provides `verifier_message_pow_parallel(&mut prover, FusedPowConfig::new(BITS))` for concrete provers with a `Send` public duplex sponge. Ordinary proving, private RNGs and verification require neither `Send` nor `Sync`.
 
 ## Also in the box
 
