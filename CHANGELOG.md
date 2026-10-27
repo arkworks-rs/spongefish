@@ -12,7 +12,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Added
 
-- `Transcript::search_verifier_message` and `ProverState::search_verifier_message`: evaluate verifier output for candidate prover messages without sending one. The prover gets an owned, cloneable callback that absorbs a candidate into a copy of the public duplex sponge and squeezes the verifier output, leaving the prover state and private RNG untouched. The trait method wraps it in `Witness` (unknown on the verifier, and by default); the inherent method returns it directly.
+- `Transcript::verifier_message_oracle` and `ProverState::verifier_message_oracle`: these functions allow to preview a verifier message without altering the prover state. This seems useful in cases (like proof of work) where the prover wants to squeeze a verifier output leaving the prover state and RNG untouched. This was previously achievable with the feature flag `yolocrypto` cloning the prover state.
 - `spongefish-pow::PowTranscriptExt::verifier_message_pow`, a shared proof-of-work step available on generic `Transcript` implementations and directly on `ProverState` / `VerifierState`. 
 - New traits: `Argument`, used to define an interactive argument, with type parameters `Instance`, `Witness` and `Output` that define the interactive protocol. The function `Argument::run` is the interactive protocol itself, and relies on a new trait `Transcript` to declare prover / verifier messages and the verifier checks. The trait `Transcript` is implemented by `ProverState` and `VerifierState`.
 - Closure-based codecs (`prover_message_as` / `verifier_message_as`, and the alphabet-generic `prover_message_with` / `verifier_message_with`).

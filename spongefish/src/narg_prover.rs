@@ -221,15 +221,12 @@ where
         self.narg_string
     }
 
-    /// Return an owned, cloneable callback that evaluates verifier output for
-    /// candidate prover messages.
-    /// Each call absorbs the candidate, encoded in the duplex sponge's alphabet,
-    /// into a fresh copy of the captured public duplex sponge and squeezes into
-    /// the supplied output.
-    /// The prover state and private RNG stay untouched;
-    /// [`crate::Transcript::search_verifier_message`] wraps this callback in
-    /// [`crate::Witness`] for prover-only computation.
-    pub fn search_verifier_message(&self) -> impl Fn(&[H::U], &mut [H::U]) + Clone {
+    /// Preview of a verifier message for a given input.
+    ///
+    /// Return an owned cloneable callback that evaluates verifier output for a candidate prover message.
+    /// The prover state and private RNG will not be affected.
+    /// This is the "extension oracle" of state-restoration soundness.
+    pub fn verifier_message_oracle(&self) -> impl Fn(&[H::U], &mut [H::U]) + Clone {
         let snapshot = self.duplex_sponge_state.clone();
         move |candidate, output| {
             let mut sponge = snapshot.clone();

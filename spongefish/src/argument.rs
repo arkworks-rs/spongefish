@@ -245,14 +245,11 @@ pub trait Transcript {
     /// ```
     fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T>;
 
-    /// Return a prover-only, owned and cloneable callback in [`Witness`] that
-    /// evaluates verifier output for candidate prover messages.
-    /// Each call absorbs the encoded candidate into a fresh copy of the captured
-    /// public duplex sponge and squeezes into the supplied output, without changing
-    /// the prover state or accessing the private RNG.
-    /// The verifier and the default implementation return [`Witness::unknown`];
-    /// [`ProverState::search_verifier_message`] returns the callback directly.
-    fn search_verifier_message(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<Self>> {
+    /// Preview of a verifier message for a candidate prover message.
+    ///
+    /// Return an owned cloneable callback that evaluates verifier output for a candidate prover message.
+    /// The callback is wrapped in [`Witness`] and is executed only by the prover.
+    fn verifier_message_oracle(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<Self>> {
         Witness::<fn(&[u8], &mut [u8])>::unknown()
     }
 
@@ -391,8 +388,8 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
         Witness::known(compute())
     }
 
-    fn search_verifier_message(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<H, R>> {
-        Witness::known(Self::search_verifier_message(self))
+    fn verifier_message_oracle(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<H, R>> {
+        Witness::known(Self::verifier_message_oracle(self))
     }
 
     fn sample<T: FromUniform>(&mut self) -> Witness<T> {
