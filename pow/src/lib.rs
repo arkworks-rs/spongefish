@@ -13,6 +13,8 @@ pub mod blake3;
 pub mod keccak;
 mod protocol;
 
+#[cfg(feature = "parallel")]
+pub use protocol::verifier_message_pow_parallel;
 pub use protocol::PowTranscriptExt;
 
 /// Search a prepared proof-of-work strategy for its least accepted nonce.

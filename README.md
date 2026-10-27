@@ -159,11 +159,11 @@ Linear equations over the wires, such as the XORs of a duplex cipher, are added 
 
 ## Arguments with grinding
 
-It is possible to augment the bits of soundnes with a proof of work using `spongefish-pow`:
+It is possible to augment the bits of soundness with a proof of work using `spongefish-pow`:
 
 ```rust
 use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
-use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
+use spongefish_pow::PowTranscriptExt;
 
 /// A challenge the prover pays `BITS` bits of work for.
 struct GrindingArgumentExample<const BITS: u32>;
@@ -178,19 +178,18 @@ impl<const BITS: u32> Argument for GrindingArgumentExample<BITS> {
         _instance: &[u8; 32],
         _witness: Witness<&()>,
     ) -> Result<u64, VerificationError> {
-        let seed = transcript.verifier_message::<[u8; 32]>();
-        transcript.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+        transcript.verifier_message_pow(BITS)
     }
 }
 
 let tag = b"example-v00/grind-16";
 let instance = [7u8; 32];
 let (narg, challenge) = Narg::prove::<GrindingArgumentExample<16>>(tag, &instance, &()).unwrap();
-assert_eq!(narg.len(), 8); // one u64 nonce
+assert!((1..=4).contains(&narg.len())); // LEB128 nonce: 1 to 4 bytes at 16 bits
 assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).unwrap(), challenge);
 ```
 
-Parallel grinding is possible via `grind_parallel` with the `parallel` feature.
+`verifier_message_pow(bits)` grinds a nonce so that the low `bits` bits of the next squeezed bytes are zero, sends and checks it, then returns the next verifier message. `bits` is 0 to 57; at 0 nothing is sent. The search is sequential; with the `parallel` feature, `verifier_message_pow_parallel(&mut prover, bits)` searches on all threads and writes the same proof. The standalone BLAKE3 and Keccak grinders are still available.
 
 ## Also in the box
 

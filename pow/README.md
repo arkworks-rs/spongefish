@@ -12,29 +12,29 @@ It has not been reviewed, and should be considered a proof-of-concept example th
 
 The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
 
-Both parties explicitly squeeze a 32-byte grinding seed and prepare the strategy before calling the helper, which exchanges a nonce, checks it, and returns the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier.
+Both parties exchange a nonce, check bytes squeezed from the transcript sponge, then derive the protected verifier message. Only the prover searches, through `Transcript::verifier_message_oracle`. A rejected or truncated nonce poisons the verifier.
+
+The search is sequential. The `parallel` feature (on by default) adds `verifier_message_pow_parallel(&mut prover, bits)` for provers whose public sponge is `Send`; it writes the same proof, so verifiers use `verifier_message_pow`.
 
 Use the default features of `spongefish` and `spongefish-pow` for this example:
 
 ```rust
 use spongefish::{DefaultHash, Narg, ProverState, VerificationError, VerifierState};
-use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
+use spongefish_pow::PowTranscriptExt;
 
 // Fixed by the protocol, never read from the proof.
 const POW_BITS: u32 = 8;
 
 fn main() -> Result<(), VerificationError> {
-    let session_id = Narg::derive_session_id(b"example/v1/blake3-pow-8/u32");
+    let session_id = Narg::derive_session_id(b"example/v1/sponge-pow-8/u32");
     let instance = 0u32;
 
     let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
-    let seed = prover.verifier_message::<[u8; 32]>();
-    let challenge = prover.verifier_message_pow::<u32>(Blake3PoW::new(seed, POW_BITS))?;
+    let challenge = prover.verifier_message_pow::<u32>(POW_BITS)?;
     let proof = prover.into_narg_string();
 
     let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
-    let seed = verifier.verifier_message::<[u8; 32]>();
-    let replay = verifier.verifier_message_pow::<u32>(Blake3PoW::new(seed, POW_BITS))?;
+    let replay = verifier.verifier_message_pow::<u32>(POW_BITS)?;
     assert_eq!(challenge, replay);
     verifier.check_eof()
 }
@@ -44,7 +44,7 @@ The same method is available with only a `Transcript` bound, so an interactive a
 
 ```rust
 use spongefish::{Argument, Transcript, VerificationError, Witness};
-use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
+use spongefish_pow::PowTranscriptExt;
 
 struct PowRound;
 impl Argument for PowRound {
@@ -57,10 +57,11 @@ impl Argument for PowRound {
         _instance: &u32,
         _witness: Witness<&()>,
     ) -> Result<u32, VerificationError> {
-        let seed = transcript.verifier_message::<[u8; 32]>();
-        transcript.verifier_message_pow::<u32>(Blake3PoW::new(seed, 8))
+        transcript.verifier_message_pow::<u32>(8)
     }
 }
 ```
 
-The nonce is encoded as a little-endian `u64`. The PoW strategy, difficulty, placement of the step, and returned message type must be fixed by the protocol and accounted for in its session tag. The example uses a cheap difficulty for demonstration; the appropriate work factor and soundness benefit depend on the protocol.
+Difficulty is an integer from 0 to 57. The nonce is encoded as canonical LEB128 below `2^(bits + 7)`; at zero difficulty no nonce or check bytes are used. The duplex sponge backend, difficulty, placement of the step, and returned message type must be fixed by the protocol and accounted for in its session tag. The example uses a cheap difficulty for demonstration; the appropriate work factor and soundness benefit depend on the protocol.
+
+All PoW APIs take difficulty as `u32` and use `u64` nonces. `verifier_message_pow` accepts at most 57 bits, so its nonce space holds 128 times the expected search; the standalone BLAKE3 and Keccak strategies accept up to 59.
