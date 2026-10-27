@@ -30,6 +30,8 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
+- **Breaking:** `spongefish-pow` now accepts the difficulty as `u32`, and the solution is an `Option<u64>` instead of `PoWSolution`. `verifier_message_pow` accepts a prepared strategy; callers squeeze the seed explicitly before constructing it.
+
 - **Breaking:** `Decoding` is renamed `FromUniform`, with `decode` renamed `from_uniform`, and `NargDeserialize` is renamed `FromNarg`, with `deserialize_from_narg` renamed `from_narg`. The two maps out of a string are named by the string they take: `FromNarg` parses an encoding and may fail, `FromUniform` takes a uniform squeezed string and may not. `NargSerialize` is gone: `Encoding<u8>` is the NARG serialization.
 - **Breaking:** `Encoding`, `FromUniform`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
 - **Breaking:** `Transcript` implementations must provide the new `prover_only` hook.

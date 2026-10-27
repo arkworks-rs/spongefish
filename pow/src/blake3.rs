@@ -3,24 +3,22 @@ use blake3::{
     platform::{Platform, MAX_SIMD_DEGREE},
     IncrementCounter, OUT_LEN,
 };
-#[cfg(feature = "parallel")]
-use rayon::broadcast;
 
 use super::PowStrategy;
-use crate::PoWSolution;
+use crate::difficulty_target;
 
 /// A SIMD-accelerated BLAKE3-based proof-of-work engine.
 ///
 /// This struct searches for a nonce such that the first eight bytes of
 /// `BLAKE3(challenge || nonce.to_le_bytes() || [0; 24])`, interpreted as a
-/// little-endian `u64`, are below the difficulty threshold.
+/// little-endian `u64`, are at most the difficulty threshold.
 ///
 /// It leverages `Platform::hash_many` for parallel hash evaluation using `MAX_SIMD_DEGREE` lanes.
 #[derive(Clone, Copy)]
 pub struct Blake3PoW {
     /// The 32-byte challenge seed used as a prefix to every hash input.
     challenge: [u8; 32],
-    /// Difficulty target: hashes must be less than this 64-bit threshold.
+    /// Difficulty target: hashes must be at most this 64-bit threshold.
     threshold: u64,
     /// Platform-specific SIMD hashing backend selected at runtime.
     platform: Platform,
@@ -30,7 +28,7 @@ pub struct Blake3PoW {
     outputs: [u8; OUT_LEN * MAX_SIMD_DEGREE],
 }
 
-impl PowStrategy for Blake3PoW {
+impl Blake3PoW {
     /// Create a new Blake3PoW instance with a given challenge and difficulty.
     ///
     /// The `bits` parameter controls the difficulty. A higher number means
@@ -38,16 +36,14 @@ impl PowStrategy for Blake3PoW {
     /// input buffer with the challenge prefix and sets the internal threshold.
     ///
     /// # Panics
-    /// - If `bits` is not in the range [0.0, 60.0).
+    /// - If `bits` is not in the range `0..60`.
     /// - If `BLOCK_LEN` or `OUT_LEN` do not match expected values.
-    #[allow(clippy::cast_sign_loss)]
-    fn new(challenge: [u8; 32], bits: f64) -> Self {
+    pub fn new(challenge: [u8; 32], bits: u32) -> Self {
         // BLAKE3 block size must be 64 bytes.
         assert_eq!(BLOCK_LEN, 64);
         // BLAKE3 output size must be 32 bytes.
         assert_eq!(OUT_LEN, 32);
-        // Ensure the difficulty is within supported range.
-        assert!((0.0..60.0).contains(&bits), "bits must be smaller than 60");
+        let threshold = difficulty_target(bits);
 
         // Prepare SIMD input buffer: fill each lane with the challenge prefix.
         let mut inputs = [[0u8; BLOCK_LEN]; MAX_SIMD_DEGREE];
@@ -59,7 +55,7 @@ impl PowStrategy for Blake3PoW {
             // Store challenge prefix.
             challenge,
             // Compute threshold: smaller means harder PoW.
-            threshold: (64.0 - bits).exp2().ceil() as u64,
+            threshold,
             // Detect SIMD platform (e.g., AVX2, NEON, etc).
             platform: Platform::detect(),
             // Pre-filled SIMD inputs (nonce injected later).
@@ -68,21 +64,16 @@ impl PowStrategy for Blake3PoW {
             outputs: [0; OUT_LEN * MAX_SIMD_DEGREE],
         }
     }
+}
 
-    fn solution(&self, nonce: u64) -> PoWSolution {
-        PoWSolution {
-            challenge: self.challenge,
-            nonce,
-        }
-    }
-
+impl PowStrategy for Blake3PoW {
     /// Check if a given `nonce` satisfies the challenge.
     ///
     /// This uses the standard high-level BLAKE3 interface to ensure
     /// full compatibility with reference implementations.
     ///
     /// A nonce is valid if the first 8 bytes of the hash output,
-    /// interpreted as a little-endian `u64`, are below the internal threshold.
+    /// interpreted as a little-endian `u64`, are at most the internal threshold.
     fn check(&mut self, nonce: u64) -> bool {
         // Create a new BLAKE3 hasher instance.
         let mut hasher = blake3::Hasher::new();
@@ -98,17 +89,15 @@ impl PowStrategy for Blake3PoW {
         let mut hash = [0u8; 8];
         hasher.finalize_xof().fill(&mut hash);
 
-        // Check whether the result is below the threshold.
-        u64::from_le_bytes(hash) < self.threshold
+        // Check whether the result is at or below the threshold.
+        u64::from_le_bytes(hash) <= self.threshold
     }
 
     /// Find the minimal `nonce` that satisfies the challenge.
-    #[cfg(not(feature = "parallel"))]
-    fn solve(&mut self) -> Option<PoWSolution> {
-        (0..)
+    fn solve(&mut self) -> Option<u64> {
+        (0..=u64::MAX)
             .step_by(MAX_SIMD_DEGREE)
             .find_map(|nonce| self.check_many(nonce))
-            .map(|nonce| self.solution(nonce))
     }
 
     /// Search for the lowest `nonce` that satisfies the challenge using parallel threads.
@@ -117,45 +106,8 @@ impl PowStrategy for Blake3PoW {
     /// The first thread to find a satisfying nonce updates a shared atomic minimum,
     /// and all others check against it to avoid unnecessary work.
     #[cfg(feature = "parallel")]
-    fn solve(&mut self) -> Option<PoWSolution> {
-        use std::sync::atomic::{AtomicU64, Ordering};
-
-        // Split the work across all available threads.
-        // Use atomics to find the unique deterministic lowest satisfying nonce.
-        let global_min = AtomicU64::new(u64::MAX);
-
-        // Spawn parallel workers using Rayon's broadcast.
-        let _ = broadcast(|ctx| {
-            // Copy the PoW instance for thread-local use.
-            let mut worker = *self;
-
-            // Each thread searches a distinct subset of nonces.
-            let nonces = ((MAX_SIMD_DEGREE * ctx.index()) as u64..)
-                .step_by(MAX_SIMD_DEGREE * ctx.num_threads());
-
-            for nonce in nonces {
-                // Skip work if another thread already found a lower valid nonce.
-                //
-                // Use relaxed ordering to eventually get notified of another thread's solution.
-                // (Propagation delay should be in the order of tens of nanoseconds.)
-                if nonce >= global_min.load(Ordering::Relaxed) {
-                    break;
-                }
-                // Check a batch of nonces starting from `nonce`.
-                if let Some(nonce) = worker.check_many(nonce) {
-                    // We found a solution, store it in the global_min.
-                    // Use fetch_min to solve race condition with simultaneous solutions.
-                    global_min.fetch_min(nonce, Ordering::SeqCst);
-                    break;
-                }
-            }
-        });
-
-        // Return the best found nonce, or fallback check on `u64::MAX`.
-        match global_min.load(Ordering::SeqCst) {
-            u64::MAX => self.check(u64::MAX).then(|| self.solution(u64::MAX)),
-            nonce => Some(self.solution(nonce)),
-        }
+    fn solve_parallel(&mut self) -> Option<u64> {
+        crate::search_parallel(self, MAX_SIMD_DEGREE as u64, Self::check_many)
     }
 }
 
@@ -204,7 +156,7 @@ impl Blake3PoW {
             &mut self.outputs,
         );
 
-        // Scan results and return the first nonce under the threshold.
+        // Scan results and return the first nonce at or below the threshold.
         for (i, chunk) in self
             .outputs
             .as_chunks::<OUT_LEN>()
@@ -214,7 +166,7 @@ impl Blake3PoW {
             .enumerate()
         {
             let hash = u64::from_le_bytes(chunk[..8].try_into().unwrap());
-            if hash < self.threshold {
+            if hash <= self.threshold {
                 return nonce.checked_add(i as u64);
             }
         }
@@ -229,192 +181,104 @@ mod tests {
     use super::*;
     use crate::{convenience::*, PoWGrinder};
 
-    fn sample_challenges() -> Vec<[u8; 32]> {
-        vec![
-            [0u8; 32],                                              // All zeroes
-            [0xFF; 32],                                             // All ones
-            [42u8; 32],                                             // Constant value
-            (0..32).collect::<Vec<u8>>().try_into().unwrap(),       // Increasing
-            (0..32).rev().collect::<Vec<u8>>().try_into().unwrap(), // Decreasing
-        ]
+    fn reference_hash(seed: [u8; 32], nonce: u64) -> [u8; OUT_LEN] {
+        let mut input = [0; BLOCK_LEN];
+        input[..32].copy_from_slice(&seed);
+        input[32..40].copy_from_slice(&nonce.to_le_bytes());
+        *blake3::hash(&input).as_bytes()
+    }
+
+    fn reference_word(seed: [u8; 32], nonce: u64) -> u64 {
+        u64::from_le_bytes(reference_hash(seed, nonce)[..8].try_into().unwrap())
     }
 
     #[test]
-    fn test_pow_blake3() {
-        const BITS: f64 = 10.0;
-
-        for challenge in sample_challenges() {
-            // Generate a proof-of-work solution
-            let _solution =
-                grind_pow::<Blake3PoW>(challenge, BITS).expect("Should find a valid solution");
-
-            // Verify we can generate solutions consistently
-            assert!(grind_pow::<Blake3PoW>(challenge, BITS).is_some());
-        }
-
-        // Test using the PoWGrinder directly
-        let challenge = [42u8; 32];
-        let mut grinder = PoWGrinder::<Blake3PoW>::new(challenge, BITS);
-        let _solution = grinder.grind().expect("Should find a valid solution");
-    }
-
-    #[test]
-    #[allow(clippy::cast_sign_loss)]
-    fn test_new_pow_valid_bits() {
-        for bits in [0.1, 10.0, 20.0, 40.0, 59.99] {
-            let challenge = [1u8; 32];
-            let pow = Blake3PoW::new(challenge, bits);
-            let expected_threshold = (64.0 - bits).exp2().ceil() as u64;
-            assert_eq!(pow.threshold, expected_threshold);
-            assert_eq!(pow.challenge, challenge);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_new_invalid_bits() {
-        let _ = Blake3PoW::new([0u8; 32], 60.0);
-    }
-
-    #[test]
-    fn test_check_function_basic() {
-        let challenge = [0u8; 32];
-        let mut pow = Blake3PoW::new(challenge, 8.0);
-        for nonce in (0u64..10000).step_by(MAX_SIMD_DEGREE) {
-            if let Some(solution) = pow.check_many(nonce) {
-                assert!(pow.check(solution), "check() should match check_many()");
-                return;
+    fn simd_matches_independent_hashes_including_partial_tail() {
+        for seed in [[0; 32], core::array::from_fn(|i| i as u8)] {
+            for base in [
+                0,
+                127,
+                u64::MAX - MAX_SIMD_DEGREE as u64 + 1,
+                u64::MAX - 1,
+                u64::MAX,
+            ] {
+                let mut pow = Blake3PoW::new(seed, 0);
+                for threshold in [
+                    0,
+                    u64::MAX,
+                    reference_word(seed, base),
+                    reference_word(seed, 0),
+                ] {
+                    pow.threshold = threshold;
+                    let expected = (0..MAX_SIMD_DEGREE)
+                        .filter_map(|lane| base.checked_add(lane as u64))
+                        .find(|&nonce| reference_word(seed, nonce) <= threshold);
+                    assert_eq!(
+                        pow.check_many(base),
+                        expected,
+                        "base={base}, threshold={threshold}"
+                    );
+                    for lane in 0..MAX_SIMD_DEGREE {
+                        if let Some(nonce) = base.checked_add(lane as u64) {
+                            assert_eq!(
+                                pow.outputs[lane * OUT_LEN..(lane + 1) * OUT_LEN],
+                                reference_hash(seed, nonce)
+                            );
+                            assert_eq!(pow.check(nonce), reference_word(seed, nonce) <= threshold);
+                        }
+                    }
+                }
             }
         }
-        panic!("Expected at least one valid nonce under threshold using check_many");
     }
 
     #[test]
-    fn test_check_many_handles_u64_tail() {
-        let mut pow = Blake3PoW::new([0u8; 32], 50.0);
-        let _ = pow.check_many(u64::MAX - 1);
-        assert_eq!(
-            u64::from_le_bytes(pow.inputs[0][32..40].try_into().unwrap()),
-            u64::MAX - 1
-        );
-        if MAX_SIMD_DEGREE > 2 {
-            assert_eq!(
-                u64::from_le_bytes(pow.inputs[2][32..40].try_into().unwrap()),
-                0
-            );
+    fn threshold_is_inclusive_and_difficulty_is_exact() {
+        let mut pow = Blake3PoW::new([7; 32], 0);
+        for (bits, threshold) in [
+            (0, u64::MAX),
+            (1, 0x7fff_ffff_ffff_ffff),
+            (32, 0xffff_ffff),
+            (59, 31),
+        ] {
+            assert_eq!(Blake3PoW::new([7; 32], bits).threshold, threshold);
         }
-    }
-
-    #[cfg(not(feature = "parallel"))]
-    #[test]
-    fn test_solve_sequential() {
-        let challenge = [2u8; 32];
-        let mut pow = Blake3PoW::new(challenge, 10.0);
-        let solution = pow.solve().expect("Should find a nonce");
-        assert!(
-            pow.check(solution.nonce),
-            "Found nonce does not satisfy challenge"
-        );
-    }
-
-    #[cfg(feature = "parallel")]
-    #[test]
-    fn test_solve_parallel() {
-        let challenge = [3u8; 32];
-        let mut pow = Blake3PoW::new(challenge, 10.0);
-        let _solution = pow.solve().expect("Should find a solution");
-        // Solution is valid by construction
+        let word = reference_word([7; 32], 23);
+        assert!(word > 0);
+        pow.threshold = word;
+        assert!(pow.check(23));
+        assert_eq!(pow.check_many(23), Some(23));
+        pow.threshold = word - 1;
+        assert!(!pow.check(23));
+        assert_ne!(pow.check_many(23), Some(23));
     }
 
     #[test]
-    fn test_different_challenges_consistency() {
-        let bits = 8.0;
-        for challenge in sample_challenges() {
-            let mut pow = Blake3PoW::new(challenge, bits);
-            let _solution = pow.solve().expect("Must find solution for low difficulty");
-            // Solution is valid by construction
-        }
-    }
-
-    #[test]
-    fn test_check_many_determinism() {
-        let challenge = [42u8; 32];
-        let mut pow1 = Blake3PoW::new(challenge, 10.0);
-        let mut pow2 = Blake3PoW::new(challenge, 10.0);
-
-        let n1 = pow1.check_many(0);
-        let n2 = pow2.check_many(0);
-        assert_eq!(n1, n2, "check_many should be deterministic");
-    }
-
-    #[test]
-    #[allow(clippy::cast_sign_loss)]
-    fn test_threshold_rounding_boundaries() {
-        let c = [7u8; 32];
-        let bits = 24.5;
-        let pow = Blake3PoW::new(c, bits);
-        let expected = (64.0 - bits).exp2().ceil() as u64;
-        assert_eq!(pow.threshold, expected);
-    }
-
-    #[test]
-    fn test_check_many_inserts_nonce_bytes() {
-        let challenge = [0xAB; 32];
-        let mut pow = Blake3PoW::new(challenge, 50.0);
-
-        // Run check_many to populate nonces.
-        let base_nonce = 12_345_678;
-        let _ = pow.check_many(base_nonce);
-
-        for (i, input) in pow.inputs.iter().enumerate() {
-            // Confirm prefix is unchanged
-            assert_eq!(&input[..32], &challenge);
-            // Confirm suffix is the correct nonce bytes
-            let expected_nonce = base_nonce + i as u64;
-            let actual = u64::from_le_bytes(input[32..40].try_into().unwrap());
-            assert_eq!(actual, expected_nonce);
-        }
-    }
-
-    #[test]
-    fn test_solve_returns_minimal_nonce() {
-        let c = [123; 32];
-        let mut pow = Blake3PoW::new(c, 10.0);
-        let mut best_nonce = None;
-        for nonce in (0..10000).step_by(MAX_SIMD_DEGREE) {
-            if let Some(found) = pow.check_many(nonce) {
-                best_nonce = Some(found);
-                break;
+    fn grinders_return_the_reference_minimum() {
+        for bits in [0, 8, 10] {
+            let seed = [3; 32];
+            let threshold = u64::MAX >> bits;
+            let expected = (0..=u64::MAX)
+                .find(|&nonce| reference_word(seed, nonce) <= threshold)
+                .unwrap();
+            let mut grinder = PoWGrinder::new(Blake3PoW::new(seed, bits));
+            assert_eq!(grinder.grind(), Some(expected));
+            assert_eq!(grind_pow(Blake3PoW::new(seed, bits)), Some(expected));
+            assert!(verify_pow(Blake3PoW::new(seed, bits), expected));
+            #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
+            for workers in [1, 3, 4] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(workers)
+                    .build()
+                    .unwrap();
+                assert_eq!(pool.install(|| grinder.grind_parallel()), Some(expected));
             }
         }
-
-        // Get solution from solve()
-        let solution = pow.solve().expect("Should find a solution");
-
-        // If we found a nonce manually, create the same solution and compare
-        if let Some(nonce) = best_nonce {
-            let expected_solution = pow.solution(nonce);
-
-            assert_eq!(
-                solution.nonce, expected_solution.nonce,
-                "solve should return the first valid nonce"
-            );
-        }
     }
 
     #[test]
-    fn stress_test_check_many_entropy() {
-        let challenge = [42u8; 32];
-        let mut pow = Blake3PoW::new(challenge, 16.0);
-
-        let mut found = 0;
-        for nonce in (0..1_000_000).step_by(MAX_SIMD_DEGREE) {
-            if pow.check_many(nonce).is_some() {
-                found += 1;
-            }
-        }
-
-        // Should find some hits at low difficulty
-        assert!(found > 0, "Expected to find at least one solution");
+    #[should_panic(expected = "bits must be smaller than 60")]
+    fn rejects_unsupported_difficulty() {
+        let _ = Blake3PoW::new([0; 32], 60);
     }
 }

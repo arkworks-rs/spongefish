@@ -1,7 +1,7 @@
 use ::keccak::{Keccak, State1600};
 
 use super::PowStrategy;
-use crate::PoWSolution;
+use crate::difficulty_target;
 
 #[derive(Clone, Copy)]
 pub struct KeccakPoW {
@@ -10,38 +10,22 @@ pub struct KeccakPoW {
     state: [u64; 25],
 }
 
-impl PowStrategy for KeccakPoW {
+impl KeccakPoW {
     /// Create a new `KeccakPoW` instance with a given challenge and difficulty.
     ///
     /// # Panics
-    /// - If `bits` is not in the range `[0.0, 60.0)`.
-    #[allow(clippy::cast_sign_loss)]
-    fn new(challenge: [u8; 32], bits: f64) -> Self {
-        // The difficulty must stay in a range where `2^(64 - bits)` is a meaningful
-        // `u64` threshold. With negative `bits` the threshold exceeds `2^64` and
-        // saturates to `u64::MAX` on the cast below, so *every* nonce verifies: a
-        // silent no-op proof of work. `bits == 0.0` is the explicit "no grinding"
-        // setting and stays allowed. The upper bound mirrors `Blake3PoW`: both
-        // engines compare a single little-endian 64-bit word against the threshold,
-        // so the representable range is identical, and past ~60 bits the expected
-        // grinding cost is already out of reach anyway.
-        assert!((0.0..60.0).contains(&bits), "bits must be smaller than 60");
-
-        let threshold = (64.0 - bits).exp2().ceil() as u64;
+    /// - If `bits` is not in the range `0..60`.
+    pub fn new(challenge: [u8; 32], bits: u32) -> Self {
+        let threshold = difficulty_target(bits);
         Self {
             challenge: bytemuck::cast(challenge),
             threshold,
             state: [0; 25],
         }
     }
+}
 
-    fn solution(&self, nonce: u64) -> PoWSolution {
-        PoWSolution {
-            challenge: bytemuck::cast(self.challenge),
-            nonce,
-        }
-    }
-
+impl PowStrategy for KeccakPoW {
     fn check(&mut self, nonce: u64) -> bool {
         self.state[..4].copy_from_slice(&self.challenge);
         self.state[4] = nonce;
@@ -49,7 +33,7 @@ impl PowStrategy for KeccakPoW {
             *s = 0;
         }
         f1600(&mut self.state);
-        self.state[0] < self.threshold
+        self.state[0] <= self.threshold
     }
 }
 
@@ -57,53 +41,65 @@ fn f1600(state: &mut State1600) {
     Keccak::new().with_f1600(|f1600| f1600(state));
 }
 
-#[test]
-fn test_pow_keccak() {
+#[cfg(test)]
+mod tests {
+    use super::*;
     use crate::{convenience::*, PoWGrinder};
 
-    const BITS: f64 = 10.0;
+    fn reference_word(seed: [u8; 32], nonce: u64) -> u64 {
+        let mut state = [0u64; 25];
+        for (word, bytes) in state.iter_mut().zip(seed.as_chunks::<8>().0) {
+            *word = u64::from_le_bytes(*bytes);
+        }
+        state[4] = nonce;
+        Keccak::new().with_f1600(|permute| permute(&mut state));
+        state[0]
+    }
 
-    // Test with a fixed challenge
-    let challenge = [42u8; 32];
+    #[test]
+    fn predicate_matches_raw_permutation_and_inclusive_threshold() {
+        // Keccak-f[1600] zero-state known answer, independent of the grinder.
+        assert_eq!(reference_word([0; 32], 0), 0xf125_8f79_40e1_dde7);
+        for seed in [[0; 32], core::array::from_fn(|i| i as u8)] {
+            let mut pow = KeccakPoW::new(seed, 0);
+            for nonce in [0, 1, u64::MAX] {
+                let word = reference_word(seed, nonce);
+                pow.threshold = word;
+                assert!(pow.check(nonce));
+                assert_eq!(pow.state[0], word);
+                assert!(word > 0);
+                pow.threshold = word - 1;
+                assert!(!pow.check(nonce));
+            }
+        }
+    }
 
-    // Generate a proof-of-work solution
-    let solution = grind_pow::<KeccakPoW>(challenge, BITS).expect("Should find a valid solution");
+    #[test]
+    fn grinders_return_the_reference_minimum() {
+        for bits in [0, 8, 10] {
+            let seed = [42; 32];
+            let threshold = u64::MAX >> bits;
+            let expected = (0..=u64::MAX)
+                .find(|&nonce| reference_word(seed, nonce) <= threshold)
+                .unwrap();
+            let mut grinder = PoWGrinder::new(KeccakPoW::new(seed, bits));
+            assert_eq!(grinder.grind(), Some(expected));
+            assert_eq!(grind_pow(KeccakPoW::new(seed, bits)), Some(expected));
+            assert!(verify_pow(KeccakPoW::new(seed, bits), expected));
+            #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
+            for workers in [1, 3, 4] {
+                let pool = rayon::ThreadPoolBuilder::new()
+                    .num_threads(workers)
+                    .build()
+                    .unwrap();
+                assert_eq!(pool.install(|| grinder.grind_parallel()), Some(expected));
+            }
+        }
+    }
 
-    // Grinding is deterministic: it returns the minimal satisfying nonce, so
-    // re-grinding the same challenge must yield the very same solution.
-    let mut grinder = PoWGrinder::<KeccakPoW>::new(challenge, BITS);
-    let solution2 = grinder.grind().expect("Should find a valid solution");
-    assert_eq!(solution.nonce, solution2.nonce);
-
-    // And the nonce must verify against the original challenge.
-    assert!(verify_pow::<KeccakPoW>(challenge, BITS, solution.nonce));
-}
-
-/// A negative difficulty would saturate the threshold to `u64::MAX` and make every
-/// nonce verify, so it must be rejected loudly instead.
-#[test]
-#[should_panic(expected = "bits must be smaller than 60")]
-fn test_keccak_rejects_negative_bits() {
-    let _ = <KeccakPoW as PowStrategy>::new([0u8; 32], -1.0);
-}
-
-/// Difficulties at or above 60 bits are out of the supported range.
-#[test]
-#[should_panic(expected = "bits must be smaller than 60")]
-fn test_keccak_rejects_excessive_bits() {
-    let _ = <KeccakPoW as PowStrategy>::new([0u8; 32], 60.0);
-}
-
-/// A difficulty inside the supported range still grinds and verifies.
-#[test]
-fn test_keccak_valid_difficulty_round_trip() {
-    use crate::convenience::*;
-
-    let challenge = [7u8; 32];
-    for bits in [0.0, 1.0, 8.0, 12.0] {
-        let solution =
-            grind_pow::<KeccakPoW>(challenge, bits).expect("Should find a valid solution");
-        assert!(verify_pow::<KeccakPoW>(challenge, bits, solution.nonce));
-        assert_eq!(solution.challenge, challenge);
+    #[test]
+    #[should_panic(expected = "bits must be smaller than 60")]
+    fn rejects_unsupported_difficulty() {
+        let _ = KeccakPoW::new([0; 32], 60);
     }
 }

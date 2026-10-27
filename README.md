@@ -178,7 +178,8 @@ impl<const BITS: u32> Argument for GrindingArgumentExample<BITS> {
         _instance: &[u8; 32],
         _witness: Witness<&()>,
     ) -> Result<u64, VerificationError> {
-        transcript.verifier_message_pow::<u64, Blake3PoW>(f64::from(BITS))
+        let seed = transcript.verifier_message::<[u8; 32]>();
+        transcript.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
     }
 }
 
@@ -189,7 +190,7 @@ assert_eq!(narg.len(), 8); // one u64 nonce
 assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).unwrap(), challenge);
 ```
 
-`verifier_message_pow` internally squeezes a grinding seed, has the prover search for a nonce solving the grinding problem, then sends the nonce as a prover message, and returns a new verifier message. A Keccak strategy is available too, and the `parallel` feature will use multi-threading the search across threads.
+Parallel grinding is possible via `grind_parallel` with the `parallel` feature.
 
 ## Also in the box
 
