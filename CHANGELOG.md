@@ -12,8 +12,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Added
 
-- `spongefish-pow::verifier_message_pow_parallel` searches a concrete prover's public duplex sponge using owned `Send` snapshots. The private RNG and verification need neither `Send` nor `Sync`; verification uses the generic method and both search paths produce identical proofs.
-
+- `spongefish-pow::verifier_message_pow_parallel`: parallel search for `verifier_message_pow` on a `ProverState` whose public sponge is `Send`. It writes the same proof.
 - `Transcript::verifier_message_oracle` and `ProverState::verifier_message_oracle`: these functions allow to preview a verifier message without altering the prover state. This seems useful in cases (like proof of work) where the prover wants to squeeze a verifier output leaving the prover state and RNG untouched. This was previously achievable with the feature flag `yolocrypto` cloning the prover state.
 - `spongefish-pow::PowTranscriptExt::verifier_message_pow`, a shared proof-of-work step available on generic `Transcript` implementations and directly on `ProverState` / `VerifierState`. 
 - New traits: `Argument`, used to define an interactive argument, with type parameters `Instance`, `Witness` and `Output` that define the interactive protocol. The function `Argument::run` is the interactive protocol itself, and relies on a new trait `Transcript` to declare prover / verifier messages and the verifier checks. The trait `Transcript` is implemented by `ProverState` and `VerifierState`.
@@ -32,8 +31,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
-- **Breaking:** `spongefish-pow::PowTranscriptExt::verifier_message_pow` now accepts a `u32` difficulty instead of a prepared seeded strategy. It grinds directly on the public duplex sponge and returns the protected verifier message. The nonce is canonical LEB128 below `2^(bits + 7)` and the check uses `ceil(bits / 8)` bytes; difficulty is at most 57, and zero uses no nonce or check. This changes the proof format: remove the explicit seed squeeze, pass the difficulty, and update the protocol session tag. Generic search remains sequential; the `parallel` feature provides the explicit parallel function for concrete provers.
-
+- **Breaking:** `spongefish-pow::PowTranscriptExt::verifier_message_pow::<T, S>(bits: f64)` is now `verifier_message_pow::<T>(bits: u32)`. It grinds on the transcript sponge instead of a separate BLAKE3 or Keccak hash: the nonce is canonical LEB128 below `2^(bits + 7)` and the check uses `ceil(bits / 8)` squeezed bytes. `v0.8.0` proofs do not verify, so update the protocol's session tag. Round fractional difficulties up; `bits > 57` panics. The search is now sequential (about 35 times fewer trials per second than the `v0.8.0` BLAKE3 search at 20 bits on a 10-core machine); use `verifier_message_pow_parallel` for speed.
 - **Breaking:** `spongefish-pow` now accepts the difficulty as `u32`, and the solution is an `Option<u64>` instead of `PoWSolution`. Standalone grinders accept prepared strategies; callers can bind their seeds to the transcript explicitly.
 
 - **Breaking:** `Decoding` is renamed `FromUniform`, with `decode` renamed `from_uniform`, and `NargDeserialize` is renamed `FromNarg`, with `deserialize_from_narg` renamed `from_narg`. The two maps out of a string are named by the string they take: `FromNarg` parses an encoding and may fail, `FromUniform` takes a uniform squeezed string and may not. `NargSerialize` is gone: `Encoding<u8>` is the NARG serialization.

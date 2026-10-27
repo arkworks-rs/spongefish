@@ -1,13 +1,10 @@
-//! Proof-of-work-protected verifier messages using the public duplex sponge.
+//! Proof of work on the transcript sponge.
 //!
-//! This module connects the proof-of-work utilities to the transcript API.
-//! Proof of work must be bound to the generation of the next verifier message.
-//! A separate proof-of-work check alone does not guarantee multiplicative soundness amplification.
-//! The helper keeps nonce absorption, verification, and verifier-message generation together.
-//!
-//! The prover searches for a nonce whose absorption makes the first `bits` bits
-//! of the next verifier output zero. Both parties check those bits and then
-//! obtain the protected verifier message from the following output.
+//! The prover grinds a nonce so that, once it is absorbed, the low `bits` bits
+//! of the next squeezed bytes (read little-endian) are zero. Both parties check
+//! those bits and then squeeze the protected verifier message. The work is
+//! bound to that message: a proof-of-work check detached from the next
+//! challenge does not amplify soundness.
 
 #[cfg(feature = "parallel")]
 use spongefish::{DuplexSpongeInit, DuplexSpongeInterface, ProverState};
@@ -15,28 +12,10 @@ use spongefish::{FromUniform, Transcript, VerificationError, Witness};
 
 use crate::{PoWGrinder, PowStrategy};
 
-/// Proof-of-work-protected verifier messages for [`Transcript`] implementations.
-///
-/// This extension is available on every [`Transcript`], including concrete
-/// [`ProverState`](spongefish::ProverState) and
-/// [`VerifierState`](spongefish::VerifierState) values and the generic [`Transcript`]
-/// passed to [`Argument::run`](spongefish::Argument::run).
-///
-/// Both parties exchange a short variable-length nonce, check it against
-/// bytes from the public duplex sponge, then obtain the protected verifier
-/// message. Grinding is a prover-only computation; the verifier checks the
-/// received nonce without running the search.
-///
-/// A rejected nonce fails [`Transcript::check`], permanently rejecting the
-/// verifier state even if the error is caught. Truncated nonces fail
-/// during the prover-message read.
-///
-/// # Protocol parameters
-///
-/// The duplex sponge backend, difficulty, position of this step, and the codec of the
-/// protected message must be fixed by the protocol and accounted for in its
-/// session tag. The difficulty must not come from an untrusted proof value.
-/// Any soundness benefit depends on the surrounding protocol and duplex sponge backend.
+/// Adds [`verifier_message_pow`](Self::verifier_message_pow) to every
+/// [`Transcript`], including [`ProverState`](spongefish::ProverState),
+/// [`VerifierState`](spongefish::VerifierState) and the transcript passed to
+/// [`Argument::run`](spongefish::Argument::run).
 ///
 /// # Example
 ///
@@ -66,96 +45,65 @@ use crate::{PoWGrinder, PowStrategy};
 /// # Ok::<(), spongefish::VerificationError>(())
 /// ```
 pub trait PowTranscriptExt: Transcript {
-    /// A proof of work on the public duplex sponge itself.
+    /// Grind `bits` bits of work into the transcript, then return a verifier message.
     ///
-    /// For `bits > 0`, the prover sends a nonce below `2^(bits + 7)` as
-    /// canonical LEB128: seven bits per byte, least significant first, the
-    /// high bit set on every byte but the last, and no trailing zero byte. Both
-    /// parties then squeeze `ceil(bits / 8)` bytes and accept the nonce iff
-    /// their low `bits` bits are zero, then return the protected verifier
-    /// message. For `bits == 0`, it returns an ordinary verifier message without
-    /// a nonce or check bytes.
+    /// For `bits > 0`:
     ///
-    /// The returned message is protected, as are further verifier messages up to the
-    /// next prover message. A type implementing [`FromUniform`] can bundle a
-    /// group of protected challenges into one returned message.
+    /// 1. The prover sends the least nonce `n <= 2^(bits+7) - 1` that passes
+    ///    the check, as canonical LEB128: seven bits per byte, least
+    ///    significant first, no redundant trailing byte.
+    /// 2. Both parties squeeze `ceil(bits / 8)` bytes and accept iff their low
+    ///    `bits` bits, read little-endian, are zero.
+    /// 3. Both parties return [`Transcript::verifier_message`].
     ///
-    /// The prover sends the least accepted nonce. It is below 128, and takes one
-    /// byte, with probability `1 - (1 - 2^-bits)^128`: at least `1 - e^-8` for
-    /// `bits <= 4`. The nonce space holds `2^7` times the expected number of
-    /// trials, so for an ideal duplex sponge an honest search fails with probability
-    /// at most `e^-128`. This method always searches sequentially (see
-    /// *Prover performance*). The `parallel` feature provides
-    /// `verifier_message_pow_parallel` for concrete provers; both paths return
-    /// the same least nonce and produce identical proofs.
+    /// For `bits == 0`, no nonce is sent and nothing is squeezed before the
+    /// returned message.
+    ///
+    /// The nonce takes at most `ceil((bits + 7) / 7)` bytes, and one byte with
+    /// probability at least `1 - e^-8` when `bits <= 4`. The nonce space holds
+    /// `2^7` times the expected search, so for an ideal sponge an honest search
+    /// fails with probability at most `e^-128`. Any nonce that passes is
+    /// accepted, not only the least, so proofs are not unique.
     ///
     /// # Security
     ///
-    /// For a fresh ideal duplex sponge output, the check passes with
-    /// probability `2^-bits`, and conditioning only on that check leaves the
-    /// bytes that follow uniform. A cheating prover can also select on the
-    /// protected messages, paying for both conditions. The soundness of the
-    /// whole protocol depends on its state-restoration soundness, on the
-    /// backend's reduction to an ideal primitive, and on the decoding bias of
-    /// the protected messages. Chiesa and Orrù give such a reduction, with an
-    /// additive error, for the permutation-backed overwrite duplex sponge; it
-    /// does not by itself cover the digest and XOF bridges. The difficulty, the
-    /// position of this step and the messages it protects must be fixed by the
-    /// protocol and bound in its session.
+    /// The returned message, and further verifier messages up to the next
+    /// prover message, are protected: each attempt to change them costs a
+    /// cheating prover `2^bits` expected trials. The overall bound also depends
+    /// on the protocol's state-restoration soundness and on the sponge's
+    /// reduction to an ideal permutation; [[CO25]] gives one for the
+    /// permutation-backed overwrite duplex sponge. The difficulty, the position
+    /// of this step and the type `T` must be fixed by the protocol and bound in
+    /// its session tag; `bits` must never come from the proof.
     ///
-    /// # Cost
+    /// # Performance
     ///
-    /// This step needs no separate proof-of-work hash and no grinding
-    /// challenge. With a permutation-backed duplex sponge, when the nonce fits in the
-    /// current absorb block and the check and the protected messages fit in one
-    /// rate block, each search trial costs one permutation call and the
-    /// verifier needs one permutation after the nonce. Other alignments, longer
-    /// outputs and other backends can cost more.
-    ///
-    /// # Prover performance
-    ///
-    /// The search runs on the calling thread, one candidate at a time, with the
-    /// backend's scalar duplex sponge: each trial clones the public sponge,
-    /// absorbs the nonce and squeezes the check bytes. In `v0.8.0`, this
-    /// method searched a separate BLAKE3 or Keccak hash on all Rayon threads,
-    /// with SIMD batches for BLAKE3. At the same difficulty, grinding through
-    /// this method, including inside [`Argument::run`](spongefish::Argument::run)
-    /// and the [`FiatShamir`](spongefish::FiatShamir) prover, is therefore
-    /// slower. In one measurement at 20 bits with `DefaultHash` on a 10-core
-    /// machine, this method ran about 35 times fewer trials per second than
-    /// the `v0.8.0` BLAKE3 search, and `verifier_message_pow_parallel` about 6
-    /// times fewer.
-    ///
-    /// This method cannot dispatch to the parallel search. Parallel jobs need
-    /// a `Send` evaluator, and [`Transcript::verifier_message_oracle`] does not
-    /// promise one, so that [`ProverState`](spongefish::ProverState) keeps
-    /// accepting duplex sponges that are not `Send`. Lifting this limitation
-    /// needs a `Send` bound on that evaluator, and hence on the public duplex
-    /// sponge of every prover, or a new hook on [`Transcript`]. Code that holds
-    /// a concrete `ProverState` with a `Send` public sponge can call
-    /// `verifier_message_pow_parallel` instead; it writes the same proof.
+    /// The search runs sequentially on the calling thread. On a
+    /// [`ProverState`](spongefish::ProverState) whose public sponge is `Send`,
+    /// `verifier_message_pow_parallel` (feature `parallel`) searches on the
+    /// Rayon pool and writes the same proof. With a permutation-backed sponge,
+    /// when the nonce, the check bytes and the returned message fit in one rate
+    /// block, a search trial costs about one permutation.
     ///
     /// # Errors
     ///
-    /// The prover returns [`VerificationError`] if the search exhausts the
-    /// nonce space, or if the [`Transcript`] implementation does not support
-    /// [`Transcript::verifier_message_oracle`] and rejects the resulting unknown prover
-    /// message, as [`ProverState`](spongefish::ProverState) does. The prover
-    /// also replays the check on its own transcript, in release builds too,
-    /// and returns the error if the replay rejects the nonce it found. This
-    /// happens only with a duplex sponge whose absorb and squeeze are not
-    /// associative, as [`DuplexSpongeInterface`](spongefish::DuplexSpongeInterface)
-    /// requires; the prover then reports an error instead of writing an
-    /// invalid proof. For
-    /// `bits > 0`, the verifier returns it if the nonce is not canonical,
-    /// exceeds the nonce space or misses the target, or if the proof is
-    /// truncated. At any difficulty, an earlier failed read or check also
-    /// rejects the step.
+    /// The prover returns [`VerificationError`] if:
+    /// - the search exhausts the nonce space;
+    /// - the transcript does not provide [`Transcript::verifier_message_oracle`];
+    /// - replaying the check on its own transcript rejects the nonce. This means
+    ///   the sponge breaks the associativity that
+    ///   [`DuplexSpongeInterface`](spongefish::DuplexSpongeInterface) requires.
+    ///   The nonce is already written by then, so discard the prover state.
+    ///
+    /// The verifier returns it if the nonce is truncated, not canonical or above
+    /// `2^(bits+7) - 1`, if the check bits are not zero, or if an earlier read
+    /// or check already rejected the transcript.
     ///
     /// # Panics
     ///
-    /// Panics if `bits > 57`. Above that, a `u64` nonce no longer leaves `2^7`
-    /// times the expected work.
+    /// Panics if `bits > 57`: the `u64` nonce space must hold `2^(bits+7)` values.
+    ///
+    /// [CO25]: https://eprint.iacr.org/2025/536.pdf
     fn verifier_message_pow<T: FromUniform>(&mut self, bits: u32) -> Result<T, VerificationError> {
         validate_bits(bits);
         let nonce = if bits == 0 {
@@ -170,24 +118,18 @@ pub trait PowTranscriptExt: Transcript {
 
 impl<T: Transcript + ?Sized> PowTranscriptExt for T {}
 
-/// Obtain a protected verifier message using parallel search on a concrete prover.
+/// Like [`PowTranscriptExt::verifier_message_pow`], but searches on the Rayon pool.
 ///
-/// Available with `parallel`. Only the public duplex sponge must be `Send`; evaluator
-/// clones are made on the calling thread and moved into independent jobs.
-/// There are as many jobs as pool threads, each with its own snapshot; Rayon
-/// may schedule them on any worker. Each trial clones its job's snapshot to
-/// restart from the same state. No `Sync` bound is required.
-/// The private RNG and proof buffer stay on the calling thread. The least nonce,
-/// proof format and returned message match [`PowTranscriptExt::verifier_message_pow`].
-/// Verification uses that sequential method and never performs a search.
-/// Difficulty, encoding, errors and the 57-bit limit are the same for both paths.
+/// Requires the `parallel` feature and a `Send` public sponge; the private RNG
+/// needs neither `Send` nor `Sync`. It writes the same proof, so the verifier
+/// uses the sequential method.
 ///
 /// ```
 /// use spongefish::{DefaultHash, Narg, ProverState, VerifierState};
 /// use spongefish_pow::{verifier_message_pow_parallel, PowTranscriptExt};
 ///
 /// let session = Narg::derive_session_id(b"parallel-pow/v1");
-/// let mut prover = ProverState::<DefaultHash>::new_with_seed(&session, &0u32, [7; 32]);
+/// let mut prover = ProverState::<DefaultHash>::new(&session, &0u32);
 /// let challenge = verifier_message_pow_parallel::<u64>(&mut prover, 8)?;
 /// let proof = prover.into_narg_string();
 /// let mut verifier = VerifierState::<DefaultHash>::new(&session, &0u32, &proof);
@@ -279,7 +221,7 @@ const fn accepts(bits: u32, word: [u8; 8]) -> bool {
     u64::from_le_bytes(word) & ((1u64 << bits) - 1) == 0
 }
 
-/// A prepared duplex sponge strategy using the same grinder as seeded PoW.
+/// A PoW strategy that tests nonces through the transcript's verifier-message oracle.
 #[derive(Clone)]
 struct TranscriptPoW<E> {
     evaluate: E,
@@ -350,7 +292,7 @@ mod tests {
     };
 
     use super::PowTranscriptExt;
-    // Use different public/private duplex sponges to exercise the refactored RNG bound.
+    // Different public and private sponge types catch a bound placed on the wrong one.
     fn prover() -> ProverState<TurboShake128, Shake128> {
         let session_id = Narg::derive_session_id(b"pow/tests/v1");
         ProverState::new_with_seed(&session_id, &0u32, [7; 32])
@@ -452,6 +394,8 @@ mod tests {
             ProverState::<NonAssociativeSponge>::new_with_seed(&session_id, &0u32, [7; 32]);
         // 9 bits use a two-byte check word.
         assert!(prover.verifier_message_pow::<u64>(9).is_err());
+        // The nonce is written before the replay rejects it.
+        assert_eq!(prover.narg_string(), [0u8]);
         #[cfg(feature = "parallel")]
         {
             let mut parallel =
@@ -941,7 +885,7 @@ mod tests {
     }
 
     #[test]
-    fn verifier_message_pow_layout() {
+    fn nonce_and_check_sizes_per_difficulty() {
         use super::{accepts, last_nonce, max_nonce_len, word_len, Leb128};
         let layout = |bits| (last_nonce(bits), max_nonce_len(bits), word_len(bits));
         assert_eq!(layout(1), (255, 2, 1));
