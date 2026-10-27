@@ -29,7 +29,7 @@ rayon = { workspace = true, optional = true }
 spongefish = { workspace = true }
 
 [dev-dependencies]
-spongefish = { workspace = true, default-features = true }
+spongefish = { workspace = true, default-features = true, features = ["keccak"] }
 
 [lints]
 workspace = true
