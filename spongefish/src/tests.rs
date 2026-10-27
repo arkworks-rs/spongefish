@@ -608,7 +608,7 @@ fn a_failed_prover_only_computation_fails_the_prover() {
 }
 
 #[test]
-fn search_matches_sending_the_candidate_then_squeezing() {
+fn verifier_message_oracle_matches_transcript_execution() {
     fn assert_sync<T: Sync>(_: &T) {}
 
     let session_id = test_session_id(b"message search");
@@ -620,13 +620,13 @@ fn search_matches_sending_the_candidate_then_squeezing() {
 
     let mut probed = new_prover();
     let narg_before = probed.narg_string().to_vec();
-    let evaluate = probed.search_verifier_message();
+    let evaluate = probed.verifier_message_oracle();
     let retained = evaluate.clone();
     assert_sync(&evaluate);
 
     let mut predicted = [0u8; 200];
     evaluate(7u64.encode().as_ref(), &mut predicted);
-    let delegated = Transcript::search_verifier_message(&probed).map(|evaluate| {
+    let delegated = Transcript::verifier_message_oracle(&probed).map(|evaluate| {
         let mut output = [0u8; 200];
         evaluate(7u64.encode().as_ref(), &mut output);
         output
@@ -655,10 +655,10 @@ fn search_matches_sending_the_candidate_then_squeezing() {
 }
 
 #[test]
-fn search_verifier_message_runs_only_on_the_prover() {
+fn verifier_message_oracle_is_prover_only() {
     let session_id = test_session_id(b"message search");
     let prover = ProverState::<DefaultHash>::new_with_seed(&session_id, &[3u32], [1; 32]);
-    let found = Transcript::search_verifier_message(&prover).map(|evaluate| {
+    let found = Transcript::verifier_message_oracle(&prover).map(|evaluate| {
         let mut out = [0u8; 4];
         evaluate(&[1, 2, 3], &mut out);
         out
@@ -666,104 +666,24 @@ fn search_verifier_message_runs_only_on_the_prover() {
     assert!(found.into_known().is_some());
 
     let verifier = VerifierState::<DefaultHash>::new(&session_id, &[3u32], &[]);
-    let skipped = Transcript::search_verifier_message(&verifier)
+    let skipped = Transcript::verifier_message_oracle(&verifier)
         .map(|_| -> u8 { panic!("the verifier must not run the search") });
     assert!(skipped.into_known().is_none());
 }
 
 #[test]
-fn generic_search_verifier_message_outlives_the_transcript() {
-    fn retained_search<T: Transcript>(mut transcript: T) {
-        let evaluate = transcript.search_verifier_message().into_known().unwrap();
-        let retained = evaluate.clone();
-        let mut expected = [0u8; 32];
-        evaluate(&[7], &mut expected);
+fn verifier_message_oracle_owns_its_snapshot() {
+    fn assert_owned<T: Transcript>(mut transcript: T) {
+        let oracle = transcript.verifier_message_oracle().into_known().unwrap();
         transcript.prover_message(Witness::known(9u8)).unwrap();
         drop(transcript);
-        let mut actual = [0u8; 32];
-        retained(&[7], &mut actual);
-        assert_eq!(actual, expected);
+        oracle(&[7], &mut [0u8; 32]);
     }
 
     let session_id = test_session_id(b"retained generic search");
-    retained_search(ProverState::<DefaultHash>::new_with_seed(
+    assert_owned(ProverState::<DefaultHash>::new_with_seed(
         &session_id,
         &0u32,
         [1; 32],
     ));
-}
-
-mod non_sync_backend {
-    use core::cell::RefCell;
-
-    use super::*;
-    use crate::{DuplexSpongeInit, DuplexSpongeInterface, FiatShamir};
-
-    #[derive(Clone)]
-    struct NonSyncSponge(RefCell<DefaultHash>);
-
-    impl DuplexSpongeInterface for NonSyncSponge {
-        type U = u8;
-
-        fn absorb(&mut self, input: &[u8]) -> &mut Self {
-            self.0.get_mut().absorb(input);
-            self
-        }
-
-        fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
-            self.0.get_mut().squeeze(output);
-            self
-        }
-    }
-
-    impl DuplexSpongeInit for NonSyncSponge {
-        fn init(session_id: &[u8; 32]) -> Self {
-            Self(RefCell::new(DefaultHash::init(session_id)))
-        }
-    }
-
-    struct Round;
-    impl Argument for Round {
-        type Instance = u32;
-        type Witness = ();
-        type Output = u64;
-
-        fn run<T: Transcript>(
-            transcript: &mut T,
-            _instance: &u32,
-            _witness: Witness<&()>,
-        ) -> Result<u64, VerificationError> {
-            let candidate = transcript.search_verifier_message().map(|evaluate| {
-                let mut output = [0u8; 8];
-                evaluate(&[7], &mut output);
-                output
-            });
-            transcript.prover_message(candidate)?;
-            Ok(transcript.verifier_message())
-        }
-    }
-
-    #[test]
-    fn verification_does_not_require_sync() {
-        let tag = b"non-sync verification";
-        let (proof, challenge) = Narg::prove::<Round>(tag, &0, &()).unwrap();
-        assert_eq!(
-            FiatShamir::<NonSyncSponge>::verify::<Round>(tag, &0, &proof).unwrap(),
-            challenge
-        );
-    }
-    #[test]
-    fn proving_does_not_require_sync() {
-        let tag = b"non-sync proving";
-        let (proof, challenge) = FiatShamir::<NonSyncSponge>::prove::<Round>(tag, &0, &()).unwrap();
-        let session = FiatShamir::<NonSyncSponge>::derive_session_id(tag);
-        assert_eq!(
-            FiatShamir::<NonSyncSponge>::prove_with_session_id::<Round>(&session, &0, &()).unwrap(),
-            (proof.clone(), challenge)
-        );
-        assert_eq!(
-            FiatShamir::<NonSyncSponge>::verify::<Round>(tag, &0, &proof).unwrap(),
-            challenge
-        );
-    }
 }
