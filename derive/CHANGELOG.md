@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1](https://github.com/arkworks-rs/spongefish/compare/spongefish-derive-v0.8.0...spongefish-derive-v0.8.1) - 2026-10-28
+
+### Added
+
+- make digest an optional default-enabled dependency ([#284](https://github.com/arkworks-rs/spongefish/pull/284))
+
+### Fixed
+
+- *(derive)* add Default bounds for skipped generic fields ([#289](https://github.com/arkworks-rs/spongefish/pull/289))
+
 ## [0.8.0](https://github.com/arkworks-rs/spongefish/compare/spongefish-derive-v0.7.4...spongefish-derive-v0.8.0) - 2026-09-30
 
 ### Fixed
