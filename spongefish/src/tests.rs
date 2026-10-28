@@ -606,3 +606,84 @@ fn a_failed_prover_only_computation_fails_the_prover() {
 
     assert!(Narg::prove::<Exhausted>(b"exhausted", &0, &()).is_err());
 }
+
+#[test]
+fn verifier_message_oracle_matches_transcript_execution() {
+    fn assert_sync<T: Sync>(_: &T) {}
+
+    let session_id = test_session_id(b"message search");
+    let new_prover = || {
+        let mut prover = ProverState::<DefaultHash>::new_with_seed(&session_id, &[3u32], [1; 32]);
+        prover.prover_message(&9u32);
+        prover
+    };
+
+    let mut probed = new_prover();
+    let narg_before = probed.narg_string().to_vec();
+    let evaluate = probed.verifier_message_oracle();
+    let retained = evaluate.clone();
+    assert_sync(&evaluate);
+
+    let mut predicted = [0u8; 200];
+    evaluate(7u64.encode().as_ref(), &mut predicted);
+    let delegated = Transcript::verifier_message_oracle(&probed).map(|evaluate| {
+        let mut output = [0u8; 200];
+        evaluate(7u64.encode().as_ref(), &mut output);
+        output
+    });
+    assert_eq!(delegated.into_known().unwrap(), predicted);
+    // Search leaves the proof, public duplex sponge and private RNG unchanged.
+    assert_eq!(probed.narg_string(), narg_before);
+    let mut untouched = new_prover();
+    assert_eq!(
+        probed.rng().sample::<[u8; 32]>(),
+        untouched.rng().sample::<[u8; 32]>()
+    );
+    assert_eq!(
+        probed.verifier_message::<[u8; 32]>(),
+        untouched.verifier_message::<[u8; 32]>()
+    );
+
+    drop(probed);
+    let mut replayed = [0u8; 200];
+    retained(7u64.encode().as_ref(), &mut replayed);
+    assert_eq!(replayed, predicted);
+
+    let mut sent = new_prover();
+    sent.prover_message(&7u64);
+    assert_eq!(sent.verifier_message::<[u8; 200]>(), predicted);
+}
+
+#[test]
+fn verifier_message_oracle_is_prover_only() {
+    let session_id = test_session_id(b"message search");
+    let prover = ProverState::<DefaultHash>::new_with_seed(&session_id, &[3u32], [1; 32]);
+    let found = Transcript::verifier_message_oracle(&prover).map(|evaluate| {
+        let mut out = [0u8; 4];
+        evaluate(&[1, 2, 3], &mut out);
+        out
+    });
+    assert!(found.into_known().is_some());
+
+    let verifier = VerifierState::<DefaultHash>::new(&session_id, &[3u32], &[]);
+    let skipped = Transcript::verifier_message_oracle(&verifier)
+        .map(|_| -> u8 { panic!("the verifier must not run the search") });
+    assert!(skipped.into_known().is_none());
+}
+
+#[test]
+fn verifier_message_oracle_owns_its_snapshot() {
+    fn assert_owned<T: Transcript>(mut transcript: T) {
+        let oracle = transcript.verifier_message_oracle().into_known().unwrap();
+        transcript.prover_message(Witness::known(9u8)).unwrap();
+        drop(transcript);
+        oracle(&[7], &mut [0u8; 32]);
+    }
+
+    let session_id = test_session_id(b"retained generic search");
+    assert_owned(ProverState::<DefaultHash>::new_with_seed(
+        &session_id,
+        &0u32,
+        [1; 32],
+    ));
+}

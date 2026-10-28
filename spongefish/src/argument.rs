@@ -245,6 +245,14 @@ pub trait Transcript {
     /// ```
     fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T>;
 
+    /// Preview of a verifier message for a candidate prover message.
+    ///
+    /// Return an owned cloneable callback that evaluates verifier output for a candidate prover message.
+    /// The callback is wrapped in [`Witness`] and is executed only by the prover.
+    fn verifier_message_oracle(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<Self>> {
+        Witness::<fn(&[u8], &mut [u8])>::unknown()
+    }
+
     /// Sample a random element using the prover's private randomness.
     ///
     /// Zero-knowledge argument provers often require randomness, and this function
@@ -378,6 +386,10 @@ impl<H: DuplexSpongeInterface<U = u8>, R: DuplexSpongeInit<U = u8>> Transcript
 
     fn prover_only<T>(&self, compute: impl FnOnce() -> T) -> Witness<T> {
         Witness::known(compute())
+    }
+
+    fn verifier_message_oracle(&self) -> Witness<impl Fn(&[u8], &mut [u8]) + Clone + use<H, R>> {
+        Witness::known(Self::verifier_message_oracle(self))
     }
 
     fn sample<T: FromUniform>(&mut self) -> Witness<T> {

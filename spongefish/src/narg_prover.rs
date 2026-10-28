@@ -221,6 +221,20 @@ where
         self.narg_string
     }
 
+    /// Preview of a verifier message for a given input.
+    ///
+    /// Return an owned cloneable callback that evaluates verifier output for a candidate prover message.
+    /// The prover state and private RNG will not be affected.
+    /// This is the "extension oracle" of state-restoration soundness.
+    pub fn verifier_message_oracle(&self) -> impl Fn(&[H::U], &mut [H::U]) + Clone {
+        let snapshot = self.duplex_sponge_state.clone();
+        move |candidate, output| {
+            let mut sponge = snapshot.clone();
+            sponge.absorb(candidate);
+            sponge.squeeze(output);
+        }
+    }
+
     /// Return a verifier message `T` that is uniformly distributed.
     ///
     /// `T` must implement [`FromUniform<H::U>`][`FromUniform`].
