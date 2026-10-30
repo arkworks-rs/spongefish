@@ -12,7 +12,7 @@ It has not been reviewed, and should be considered a proof-of-concept example th
 
 The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
 
-Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier.
+Both parties explicitly squeeze a 32-byte grinding seed and prepare the strategy before calling the helper, which exchanges a nonce, checks it, and returns the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier.
 
 Use the default features of `spongefish` and `spongefish-pow` for this example:
 
@@ -21,18 +21,20 @@ use spongefish::{DefaultHash, Narg, ProverState, VerificationError, VerifierStat
 use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
 
 // Fixed by the protocol, never read from the proof.
-const POW_BITS: f64 = 8.0;
+const POW_BITS: u32 = 8;
 
 fn main() -> Result<(), VerificationError> {
     let session_id = Narg::derive_session_id(b"example/v1/blake3-pow-8/u32");
     let instance = 0u32;
 
     let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
-    let challenge = prover.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
+    let seed = prover.verifier_message::<[u8; 32]>();
+    let challenge = prover.verifier_message_pow::<u32>(Blake3PoW::new(seed, POW_BITS))?;
     let proof = prover.into_narg_string();
 
     let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
-    let replay = verifier.verifier_message_pow::<u32, Blake3PoW>(POW_BITS)?;
+    let seed = verifier.verifier_message::<[u8; 32]>();
+    let replay = verifier.verifier_message_pow::<u32>(Blake3PoW::new(seed, POW_BITS))?;
     assert_eq!(challenge, replay);
     verifier.check_eof()
 }
@@ -55,7 +57,8 @@ impl Argument for PowRound {
         _instance: &u32,
         _witness: Witness<&()>,
     ) -> Result<u32, VerificationError> {
-        transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
+        let seed = transcript.verifier_message::<[u8; 32]>();
+        transcript.verifier_message_pow::<u32>(Blake3PoW::new(seed, 8))
     }
 }
 ```

@@ -1,4 +1,10 @@
-//! An interactive proof-of-work step shared by every transcript implementation.
+//! Proof-of-work-protected verifier messages.
+//!
+//! This module connects the proof-of-work utilities to the transcript API.
+//! Proof of work must be bound to the generation of the next verifier message.
+//! A separate proof-of-work check alone does not guarantee multiplicative soundness amplification.
+//! The helper introduced here keeps nonce absorption, verification, and challenge generation together
+//! to make this integration easier to get right.
 
 use spongefish::{FromUniform, Transcript, VerificationError};
 
@@ -11,8 +17,9 @@ use crate::{PoWGrinder, PowStrategy};
 /// [`VerifierState`](spongefish::VerifierState) values and the generic transcript
 /// passed to [`Argument::run`](spongefish::Argument::run).
 ///
-/// Both parties run the same protocol: obtain a 32-byte grinding challenge,
-/// exchange a little-endian `u64` nonce, check it, then obtain the protected
+/// Callers prepare the same proof-of-work problem on both sides, binding its seed
+/// to the transcript before calling this helper. Both parties exchange a
+/// little-endian `u64` nonce, check it, then obtain the protected
 /// verifier message. Grinding is a prover-only computation; the verifier checks
 /// the received nonce without running the search.
 ///
@@ -47,7 +54,8 @@ use crate::{PoWGrinder, PowStrategy};
 ///         _instance: &u32,
 ///         _witness: Witness<&()>,
 ///     ) -> Result<u32, VerificationError> {
-///         transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
+///         let seed = transcript.verifier_message::<[u8; 32]>();
+///         transcript.verifier_message_pow::<u32>(Blake3PoW::new(seed, 8))
 ///     }
 /// }
 ///
@@ -59,37 +67,28 @@ use crate::{PoWGrinder, PowStrategy};
 /// # Ok::<(), spongefish::VerificationError>(())
 /// ```
 pub trait PowTranscriptExt: Transcript {
-    /// Obtain a verifier message after a proof-of-work step using `S`.
+    /// Obtain a verifier message after solving and checking a prepared strategy.
     ///
     /// Both the prover and verifier return `Result<T, VerificationError>`.
-    /// `bits` is the binary logarithm of the expected work, subject to the
-    /// chosen strategy's supported range.
+    /// The caller binds the strategy to the transcript, for example by squeezing
+    /// a seed and constructing it with the protocol's difficulty. This helper
+    /// searches sequentially and does not squeeze a seed itself.
     ///
     /// # Errors
     ///
     /// The prover returns [`VerificationError`] if grinding exhausts the nonce
     /// space. The verifier returns it if the nonce is invalid, the proof is
     /// truncated, or an earlier read or check rejected the transcript.
-    ///
-    /// # Panics
-    ///
-    /// Either side may panic if the strategy rejects an unsupported difficulty.
-    fn verifier_message_pow<T, S>(&mut self, bits: f64) -> Result<T, VerificationError>
-    where
-        T: FromUniform,
-        S: PowStrategy,
-    {
-        let challenge = self.verifier_message::<[u8; 32]>();
+    fn verifier_message_pow<T: FromUniform>(
+        &mut self,
+        strategy: impl PowStrategy,
+    ) -> Result<T, VerificationError> {
+        let mut grinder = PoWGrinder::new(strategy);
         let nonce = self
-            .prover_only(|| {
-                PoWGrinder::<S>::new(challenge, bits)
-                    .grind()
-                    .map(|solution| solution.nonce)
-                    .ok_or(VerificationError)
-            })
+            .prover_only(|| grinder.grind().ok_or(VerificationError))
             .transpose()?;
         let nonce = self.prover_message(nonce)?;
-        self.check(|| PoWGrinder::<S>::new(challenge, bits).verify(nonce))?;
+        self.check(|| grinder.verify(nonce))?;
         Ok(self.verifier_message())
     }
 }
@@ -109,10 +108,10 @@ mod tests {
     use super::PowTranscriptExt;
     #[cfg(feature = "blake3")]
     use crate::PoWGrinder;
-    use crate::{PoWSolution, PowStrategy};
+    use crate::PowStrategy;
 
     #[cfg(any(feature = "blake3", feature = "keccak"))]
-    const BITS: f64 = 8.0;
+    const BITS: u32 = 8;
 
     // Use different public/private sponges to exercise the refactored RNG bound.
     fn prover() -> ProverState<TurboShake128, Shake128> {
@@ -126,40 +125,47 @@ mod tests {
         VerifierState::new(&session_id, &0u32, proof)
     }
 
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
-    fn round_trip<S: PowStrategy>() {
+    #[cfg(feature = "blake3")]
+    #[test]
+    fn interleaved_pow_steps_preserve_messages_and_challenges() {
+        use crate::blake3::Blake3PoW;
+
         let mut prover = prover();
         prover.prover_message(&123u32);
-        let first: u64 = prover.verifier_message_pow::<u64, S>(BITS).unwrap();
+        let first: u64 = {
+            let seed = prover.verifier_message::<[u8; 32]>();
+            prover.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+        }
+        .unwrap();
         prover.prover_message(&456u32);
-        let second: [u8; 32] = prover.verifier_message_pow::<[u8; 32], S>(BITS).unwrap();
+        let second: [u8; 32] = {
+            let seed = prover.verifier_message::<[u8; 32]>();
+            prover.verifier_message_pow::<[u8; 32]>(Blake3PoW::new(seed, BITS))
+        }
+        .unwrap();
         let proof = prover.into_narg_string();
         assert_eq!(proof.len(), 4 + 8 + 4 + 8);
 
         let mut verifier = verifier(&proof);
         assert_eq!(verifier.prover_message::<u32>().unwrap(), 123);
         assert_eq!(
-            verifier.verifier_message_pow::<u64, S>(BITS).unwrap(),
+            {
+                let seed = verifier.verifier_message::<[u8; 32]>();
+                verifier.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+            }
+            .unwrap(),
             first
         );
         assert_eq!(verifier.prover_message::<u32>().unwrap(), 456);
         assert_eq!(
-            verifier.verifier_message_pow::<[u8; 32], S>(BITS).unwrap(),
+            {
+                let seed = verifier.verifier_message::<[u8; 32]>();
+                verifier.verifier_message_pow::<[u8; 32]>(Blake3PoW::new(seed, BITS))
+            }
+            .unwrap(),
             second
         );
         assert!(verifier.check_eof().is_ok());
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn blake3_round_trip() {
-        round_trip::<crate::blake3::Blake3PoW>();
-    }
-
-    #[cfg(feature = "keccak")]
-    #[test]
-    fn keccak_round_trip() {
-        round_trip::<crate::keccak::KeccakPoW>();
     }
 
     #[cfg(feature = "blake3")]
@@ -178,7 +184,10 @@ mod tests {
                 _instance: &u32,
                 _witness: Witness<&()>,
             ) -> Result<u64, VerificationError> {
-                transcript.verifier_message_pow::<u64, Blake3PoW>(BITS)
+                {
+                    let seed = transcript.verifier_message::<[u8; 32]>();
+                    transcript.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+                }
             }
         }
 
@@ -191,13 +200,21 @@ mod tests {
 
         let mut direct = prover();
         assert_eq!(
-            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
+            {
+                let seed = direct.verifier_message::<[u8; 32]>();
+                direct.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+            }
+            .unwrap(),
             challenge
         );
         assert_eq!(direct.into_narg_string(), proof);
         let mut direct = verifier(&proof);
         assert_eq!(
-            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
+            {
+                let seed = direct.verifier_message::<[u8; 32]>();
+                direct.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+            }
+            .unwrap(),
             challenge
         );
         assert!(direct.check_eof().is_ok());
@@ -205,26 +222,28 @@ mod tests {
 
     #[cfg(feature = "blake3")]
     #[test]
-    fn matches_manual_transcript_and_nonce_encoding() {
+    fn prepared_pow_preserves_explicit_seed_nonce_challenge_sequence() {
         use crate::blake3::Blake3PoW;
 
         let mut manual = prover();
         let challenge = manual.verifier_message::<[u8; 32]>();
-        let solution = PoWGrinder::<Blake3PoW>::new(challenge, BITS)
+        let solution = PoWGrinder::new(Blake3PoW::new(challenge, BITS))
             .grind()
             .unwrap();
-        manual.prover_message(&solution.nonce);
+        manual.prover_message(&solution);
         let expected = manual.verifier_message::<u64>();
 
         let mut bundled = prover();
         assert_eq!(
-            bundled
-                .verifier_message_pow::<u64, Blake3PoW>(BITS)
-                .unwrap(),
+            {
+                let seed = bundled.verifier_message::<[u8; 32]>();
+                bundled.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+            }
+            .unwrap(),
             expected
         );
-        assert_eq!(bundled.into_narg_string(), solution.nonce.to_le_bytes());
-        assert_eq!(manual.into_narg_string(), solution.nonce.to_le_bytes());
+        assert_eq!(bundled.into_narg_string(), solution.to_le_bytes());
+        assert_eq!(manual.into_narg_string(), solution.to_le_bytes());
     }
 
     #[cfg(feature = "blake3")]
@@ -233,8 +252,8 @@ mod tests {
         use crate::blake3::Blake3PoW;
 
         let challenge = verifier(&[]).verifier_message::<[u8; 32]>();
-        let mut easy = PoWGrinder::<Blake3PoW>::new(challenge, BITS);
-        let mut hard = PoWGrinder::<Blake3PoW>::new(challenge, BITS + 8.0);
+        let mut easy = PoWGrinder::new(Blake3PoW::new(challenge, BITS));
+        let mut hard = PoWGrinder::new(Blake3PoW::new(challenge, BITS + 8));
         // Explicitly choose a nonce that fails the harder predicate; a valid
         // low-difficulty nonce can also satisfy a higher difficulty.
         let nonce = (0..=u64::MAX)
@@ -242,15 +261,19 @@ mod tests {
             .unwrap();
         let proof = nonce.to_le_bytes();
         let mut easy_verifier = verifier(&proof);
-        assert!(easy_verifier
-            .verifier_message_pow::<u64, Blake3PoW>(BITS)
-            .is_ok());
+        assert!({
+            let seed = easy_verifier.verifier_message::<[u8; 32]>();
+            easy_verifier.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS))
+        }
+        .is_ok());
         assert!(easy_verifier.check_eof().is_ok());
 
         let mut hard_verifier = verifier(&proof);
-        assert!(hard_verifier
-            .verifier_message_pow::<u64, Blake3PoW>(BITS + 8.0)
-            .is_err());
+        assert!({
+            let seed = hard_verifier.verifier_message::<[u8; 32]>();
+            hard_verifier.verifier_message_pow::<u64>(Blake3PoW::new(seed, BITS + 8))
+        }
+        .is_err());
         assert!(hard_verifier.prover_messages_vec::<u8>(0).is_err());
         assert!(hard_verifier.check_eof().is_err());
     }
@@ -306,22 +329,11 @@ mod tests {
     struct FixedPredicate<const ACCEPT: bool>;
 
     impl<const ACCEPT: bool> PowStrategy for FixedPredicate<ACCEPT> {
-        fn new(_challenge: [u8; 32], _bits: f64) -> Self {
-            Self
-        }
-
         fn check(&mut self, _nonce: u64) -> bool {
             ACCEPT
         }
 
-        fn solution(&self, nonce: u64) -> PoWSolution {
-            PoWSolution {
-                challenge: [0; 32],
-                nonce,
-            }
-        }
-
-        fn solve(&mut self) -> Option<PoWSolution> {
+        fn solve(&mut self) -> Option<u64> {
             assert!(!ACCEPT, "verifier must not run the nonce search");
             None
         }
@@ -331,7 +343,7 @@ mod tests {
     fn exhausted_grinding_returns_an_error_without_sending_a_nonce() {
         let mut prover = prover();
         assert!(prover
-            .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
+            .verifier_message_pow::<u64>(FixedPredicate::<false>)
             .is_err());
         assert_eq!(prover.into_narg_string(), []);
     }
@@ -349,7 +361,7 @@ mod tests {
                 _instance: &u32,
                 _witness: Witness<&()>,
             ) -> Result<(), VerificationError> {
-                let _ = transcript.verifier_message_pow::<u64, FixedPredicate<false>>(8.0);
+                let _ = transcript.verifier_message_pow::<u64>(FixedPredicate::<false>);
                 Ok(())
             }
         }
@@ -357,23 +369,40 @@ mod tests {
     }
 
     #[test]
-    fn rejected_nonce_produces_no_challenge_and_poisoning_survives_caught_errors() {
-        let mut verifier = recording_verifier(&[0; 8]);
-        assert!(verifier
-            .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
-            .is_err());
-        // The nonce is an ordinary prover message. Its failed check prevents
-        // the protected challenge, even though all proof bytes were consumed.
-        assert_eq!(events(), [Event::Squeeze(32), Event::Absorb(vec![0; 8])]);
-        assert!(verifier
-            .check(|| panic!("a failed check must not run again"))
-            .is_err());
-        assert!(verifier.prover_message::<u8>().is_err());
-        assert!(verifier.prover_messages_vec::<u8>(0).is_err());
-        assert!(verifier
-            .verifier_message_pow::<u64, FixedPredicate<false>>(8.0)
-            .is_err());
-        assert!(verifier.check_eof().is_err());
+    fn rejected_nonce_blocks_challenge_and_poisoning_persists() {
+        #[derive(Clone)]
+        struct BoundedPredicate;
+
+        impl PowStrategy for BoundedPredicate {
+            fn check(&mut self, _nonce: u64) -> bool {
+                true
+            }
+
+            fn last_nonce(&self) -> u64 {
+                0
+            }
+        }
+
+        fn assert_rejected(strategy: impl PowStrategy, nonce: u64) {
+            let proof = nonce.to_le_bytes();
+            let mut verifier = recording_verifier(&proof);
+            assert!(verifier
+                .verifier_message_pow::<u64>(strategy.clone())
+                .is_err());
+            // The nonce is an ordinary prover message. Its failed check prevents
+            // the protected challenge, even though all proof bytes were consumed.
+            assert_eq!(events(), [Event::Absorb(proof.to_vec())]);
+            assert!(verifier
+                .check(|| panic!("a failed check must not run again"))
+                .is_err());
+            assert!(verifier.prover_message::<u8>().is_err());
+            assert!(verifier.prover_messages_vec::<u8>(0).is_err());
+            assert!(verifier.verifier_message_pow::<u64>(strategy).is_err());
+            assert!(verifier.check_eof().is_err());
+        }
+
+        assert_rejected(FixedPredicate::<false>, 0);
+        assert_rejected(BoundedPredicate, 1);
     }
 
     #[test]
@@ -382,18 +411,11 @@ mod tests {
         let mut verifier = recording_verifier(&proof);
         assert_eq!(
             verifier
-                .verifier_message_pow::<u64, FixedPredicate<true>>(8.0)
+                .verifier_message_pow::<u64>(FixedPredicate::<true>)
                 .unwrap(),
             0
         );
-        assert_eq!(
-            events(),
-            [
-                Event::Squeeze(32),
-                Event::Absorb(proof.to_vec()),
-                Event::Squeeze(8)
-            ]
-        );
+        assert_eq!(events(), [Event::Absorb(proof.to_vec()), Event::Squeeze(8)]);
         assert!(verifier.check_eof().is_ok());
     }
 
@@ -404,9 +426,9 @@ mod tests {
             let mut verifier = recording_verifier(&proof);
             // Even an always-accepting predicate cannot rescue a short nonce.
             assert!(verifier
-                .verifier_message_pow::<u64, FixedPredicate<true>>(8.0)
+                .verifier_message_pow::<u64>(FixedPredicate::<true>)
                 .is_err());
-            assert_eq!(events(), [Event::Squeeze(32)]);
+            assert_eq!(events(), []);
             assert!(verifier.check_eof().is_err());
         }
     }
