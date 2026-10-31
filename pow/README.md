@@ -4,16 +4,24 @@ This crate is an extension of spongefish for grinding or proof-of-work mechanism
 
 ## Security disclaimer and expectations
 
-⚠️⚠️⚠️⚠️ THIS CRATE IS AN EXPERIMENT AND NOT READY FOR PRODUCTION USE ⚠️⚠️⚠️⚠️
+⚠️⚠️⚠️⚠️ THIS CRATE IS NOT READY FOR PRODUCTION USE ⚠️⚠️⚠️⚠️
 
 It has not been reviewed, and should be considered a proof-of-concept example that does not make any claim about security.
 
 ## Wiring into a NARG
 
-The `PowTranscriptExt` extension adds a proof-of-work step to every `Transcript`. It works both inside a generic `Argument::run` and directly on `ProverState` and `VerifierState`. Both sides return `Result<T, VerificationError>`. The standalone `PoWGrinder` and convenience functions remain available for other integrations.
+`PowTranscriptExt` augments the soundness in a round with proof-of-work, for any `Transcript`. Implementations can add proof of work strategies via `PowStrategy`.
 
-Both parties execute the same protocol: obtain a 32-byte grinding challenge, exchange a nonce, check it, then obtain the protected verifier message. `Transcript::prover_only` runs the nonce search only on the prover. A rejected or truncated nonce poisons the verifier.
+```rust
+use spongefish::{Transcript, VerificationError};
+use spongefish_pow::{PowStrategy, PowTranscriptExt};
 
-This revision includes no built-in strategy. Implement `PowStrategy` for a custom construction.
+fn round<T: Transcript>(
+    transcript: &mut T,
+    config: impl PowStrategy,
+) -> Result<u64, VerificationError> {
+    transcript.verifier_message_pow(config)
+}
+```
 
-The nonce is encoded as a little-endian `u64`. The PoW strategy, difficulty, placement of the step, and returned message type must be fixed by the protocol and accounted for in its session tag. The example uses a cheap difficulty for demonstration; the appropriate work factor and soundness benefit depend on the protocol.
+Rayon is optional and disabled by default. Enable `spongefish-pow`'s `parallel` feature to opt into Rayon-backed search. Transcript helpers are synchronous. Parallel search may block the calling thread until the PoW step completes.
