@@ -159,7 +159,7 @@ Linear equations over the wires, such as the XORs of a duplex cipher, are added 
 
 ## Arguments with grinding
 
-`spongefish-pow` provides a generic proof-of-work strategy interface. This revision includes no built-in construction. See [the PoW crate](pow/README.md) for custom integration.
+`spongefish-pow` provides a config-based API and search machinery for proof-of-work-protected verifier messages. The strategy describes the puzzle; transcript helpers bind it, verify the nonce, and derive the protected message. See [the PoW crate](pow/README.md) for the API and requirements for custom constructions.
 
 ## Also in the box
 

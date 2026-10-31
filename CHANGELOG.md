@@ -13,7 +13,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 ### Added
 
 - `Transcript::verifier_message_oracle` and `ProverState::verifier_message_oracle`: these functions allow to preview a verifier message without altering the prover state. This seems useful in cases (like proof of work) where the prover wants to squeeze a verifier output leaving the prover state and RNG untouched. This was previously achievable with the feature flag `yolocrypto` cloning the prover state.
-- `spongefish-pow::PowTranscriptExt::verifier_message_pow`, a shared proof-of-work step available on generic `Transcript` implementations and directly on `ProverState` / `VerifierState`. 
+- `spongefish-pow::PowTranscriptExt::verifier_message_pow`, a shared proof-of-work step available on generic `Transcript` implementations and directly on `ProverState` / `VerifierState`.
 - New traits: `Argument`, used to define an interactive argument, with type parameters `Instance`, `Witness` and `Output` that define the interactive protocol. The function `Argument::run` is the interactive protocol itself, and relies on a new trait `Transcript` to declare prover / verifier messages and the verifier checks. The trait `Transcript` is implemented by `ProverState` and `VerifierState`.
 - Closure-based codecs (`prover_message_as` / `verifier_message_as`, and the alphabet-generic `prover_message_with` / `verifier_message_with`).
 - `NargReader`, the forward-only cursor used to read the NARG string (without relying on `std`), and `NargReader::read`, the shorthand for reading one value through it. Every read returns `VerificationError` on failure. A failed read automatically poisons the reader: all later reads fail, including empty reads, and it is never empty.
@@ -21,7 +21,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - `PrivateRng` is now generic over the duplex sponge.
 - The `LengthPrefixed` combinator for prefix-free encoding of variable-length sequences.
 - `Encoding` for tuples up to arity 8; previously only pairs and triples were covered.
-- `EncodedSessionId`, the embedding of 32-byte strings into a sponge alphabet. 
+- `EncodedSessionId`, the embedding of 32-byte strings into a sponge alphabet.
 - Typed session identifiers (`SessionId`), so transcript constructors cannot confuse application tags with already-derived identifiers.
 - A typed, single-body API for writing a public-coin argument once and a compiler into a non-interactive argument.
 - Consuming terminal-message helpers that return the prover's NARG string and make the verifier's end-of-input check mandatory.
@@ -30,7 +30,10 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
-- **Breaking:** Remove the BLAKE3 and Keccak PoW implementations and the `spongefish-pow` `blake3` and `keccak` features. The generic strategy API remains available.
+- **Breaking:** Remove the BLAKE3 and Keccak PoW implementations, their seeded configurations, and the `spongefish-pow` `blake3` and `keccak` features. The generic configuration API and search machinery remain available.
+- **Breaking:** Rayon-backed PoW search is opt-in through the `parallel` feature. `PowStrategy::solve_parallel` and the concrete-prover parallel function are always available; the default solver falls back to sequential search without Rayon. Default builds do not enable Rayon.
+- **Breaking:** PoW transcript helpers accept `PowStrategy`; configurations describe the puzzle without receiving a transcript. The shared helper absorbs the counter before deriving verifier bytes and owns binding, nonce exchange and verification. The default helper remains sequential; `verifier_message_pow_parallel` is a concrete-prover function requiring only a `Send` public sponge and configuration.
+- **Breaking:** Redesign `PowStrategy` and remove `PoWGrinder`, `PoWSolution`, and the `convenience` module. `PowStrategy` provides sequential and parallel search over an owned evaluator, returning `Option<u64>`; transcript verification enforces nonce bounds and acceptance.
 
 - **Breaking:** `Decoding` is renamed `FromUniform`, with `decode` renamed `from_uniform`, and `NargDeserialize` is renamed `FromNarg`, with `deserialize_from_narg` renamed `from_narg`. The two maps out of a string are named by the string they take: `FromNarg` parses an encoding and may fail, `FromUniform` takes a uniform squeezed string and may not. `NargSerialize` is gone: `Encoding<u8>` is the NARG serialization.
 - **Breaking:** `Encoding`, `FromUniform`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
