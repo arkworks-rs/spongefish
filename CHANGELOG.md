@@ -30,6 +30,8 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 
 ### Changed
 
+- **Breaking:** Remove the BLAKE3 and Keccak PoW implementations and the `spongefish-pow` `blake3` and `keccak` features. The generic strategy API remains available.
+
 - **Breaking:** `Decoding` is renamed `FromUniform`, with `decode` renamed `from_uniform`, and `NargDeserialize` is renamed `FromNarg`, with `deserialize_from_narg` renamed `from_narg`. The two maps out of a string are named by the string they take: `FromNarg` parses an encoding and may fail, `FromUniform` takes a uniform squeezed string and may not. `NargSerialize` is gone: `Encoding<u8>` is the NARG serialization.
 - **Breaking:** `Encoding`, `FromUniform`, and `Codec` are parameterised by the sponge [`Unit`] rather than by a slice type: `Encoding<[U]>` is now `Encoding<U>`, matching `DuplexSpongeInterface::U`. The default `Encoding<u8>` is unchanged for byte sponges; only explicit `Encoding<[u8]>` / `Decoding<[u8]>` spellings need updating.
 - **Breaking:** `Transcript` implementations must provide the new `prover_only` hook.
@@ -61,7 +63,6 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - More careful zeroize for the `DuplexSponge` state.
 - `prover_message_as` and `prover_message_with` accept a closure that consumes the whole remaining NARG string. The pointer-identity check they used to validate the caller's cursor with rejected an empty remainder, failing verification for an otherwise valid proof.
 - `spongefish-derive`: the generated code is usable from `no_std` crates, and the `FromUniform` derive now single-sources the field width. Malformed input is reported as a `compile_error!` on the offending span instead of aborting the macro with a panic.
-- `spongefish-pow`: guarded the difficulty parameter and the endianness of the ground nonce. Dropped an unused dependency.
 
 ### Security
 
