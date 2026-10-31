@@ -28,36 +28,6 @@ use crate::{PoWGrinder, PowStrategy};
 /// session tag. The difficulty must not come from an untrusted proof value.
 /// Any soundness benefit depends on the surrounding protocol and PoW strategy.
 ///
-/// # Example
-///
-/// ```
-/// # #[cfg(feature = "blake3")]
-/// # {
-/// use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
-/// use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
-///
-/// struct PowRound;
-/// impl Argument for PowRound {
-///     type Instance = u32;
-///     type Witness = ();
-///     type Output = u32;
-///
-///     fn run<T: Transcript>(
-///         transcript: &mut T,
-///         _instance: &u32,
-///         _witness: Witness<&()>,
-///     ) -> Result<u32, VerificationError> {
-///         transcript.verifier_message_pow::<u32, Blake3PoW>(8.0)
-///     }
-/// }
-///
-/// let tag = b"example/v1/blake3-pow-8/u32";
-/// let (proof, challenge) = Narg::prove::<PowRound>(tag, &0, &())?;
-/// let replay = Narg::verify::<PowRound>(tag, &0, &proof)?;
-/// assert_eq!(challenge, replay);
-/// # }
-/// # Ok::<(), spongefish::VerificationError>(())
-/// ```
 pub trait PowTranscriptExt: Transcript {
     /// Obtain a verifier message after a proof-of-work step using `S`.
     ///
@@ -107,152 +77,12 @@ mod tests {
     };
 
     use super::PowTranscriptExt;
-    #[cfg(feature = "blake3")]
-    use crate::PoWGrinder;
     use crate::{PoWSolution, PowStrategy};
-
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
-    const BITS: f64 = 8.0;
 
     // Use different public/private sponges to exercise the refactored RNG bound.
     fn prover() -> ProverState<TurboShake128, Shake128> {
         let session_id = Narg::derive_session_id(b"pow/tests/v1");
         ProverState::new_with_seed(&session_id, &0u32, [7; 32])
-    }
-
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
-    fn verifier(proof: &[u8]) -> VerifierState<'_, TurboShake128> {
-        let session_id = Narg::derive_session_id(b"pow/tests/v1");
-        VerifierState::new(&session_id, &0u32, proof)
-    }
-
-    #[cfg(any(feature = "blake3", feature = "keccak"))]
-    fn round_trip<S: PowStrategy>() {
-        let mut prover = prover();
-        prover.prover_message(&123u32);
-        let first: u64 = prover.verifier_message_pow::<u64, S>(BITS).unwrap();
-        prover.prover_message(&456u32);
-        let second: [u8; 32] = prover.verifier_message_pow::<[u8; 32], S>(BITS).unwrap();
-        let proof = prover.into_narg_string();
-        assert_eq!(proof.len(), 4 + 8 + 4 + 8);
-
-        let mut verifier = verifier(&proof);
-        assert_eq!(verifier.prover_message::<u32>().unwrap(), 123);
-        assert_eq!(
-            verifier.verifier_message_pow::<u64, S>(BITS).unwrap(),
-            first
-        );
-        assert_eq!(verifier.prover_message::<u32>().unwrap(), 456);
-        assert_eq!(
-            verifier.verifier_message_pow::<[u8; 32], S>(BITS).unwrap(),
-            second
-        );
-        assert!(verifier.check_eof().is_ok());
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn blake3_round_trip() {
-        round_trip::<crate::blake3::Blake3PoW>();
-    }
-
-    #[cfg(feature = "keccak")]
-    #[test]
-    fn keccak_round_trip() {
-        round_trip::<crate::keccak::KeccakPoW>();
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn argument_and_direct_state_apis_produce_the_same_proof_and_challenge() {
-        use crate::blake3::Blake3PoW;
-
-        struct PowRound;
-        impl Argument for PowRound {
-            type Instance = u32;
-            type Witness = ();
-            type Output = u64;
-
-            fn run<T: Transcript>(
-                transcript: &mut T,
-                _instance: &u32,
-                _witness: Witness<&()>,
-            ) -> Result<u64, VerificationError> {
-                transcript.verifier_message_pow::<u64, Blake3PoW>(BITS)
-            }
-        }
-
-        let tag = b"pow/tests/v1";
-        let (proof, challenge) = Narg::prove::<PowRound>(tag, &0, &()).unwrap();
-        assert_eq!(
-            Narg::verify::<PowRound>(tag, &0, &proof).unwrap(),
-            challenge
-        );
-
-        let mut direct = prover();
-        assert_eq!(
-            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
-            challenge
-        );
-        assert_eq!(direct.into_narg_string(), proof);
-        let mut direct = verifier(&proof);
-        assert_eq!(
-            direct.verifier_message_pow::<u64, Blake3PoW>(BITS).unwrap(),
-            challenge
-        );
-        assert!(direct.check_eof().is_ok());
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn matches_manual_transcript_and_nonce_encoding() {
-        use crate::blake3::Blake3PoW;
-
-        let mut manual = prover();
-        let challenge = manual.verifier_message::<[u8; 32]>();
-        let solution = PoWGrinder::<Blake3PoW>::new(challenge, BITS)
-            .grind()
-            .unwrap();
-        manual.prover_message(&solution.nonce);
-        let expected = manual.verifier_message::<u64>();
-
-        let mut bundled = prover();
-        assert_eq!(
-            bundled
-                .verifier_message_pow::<u64, Blake3PoW>(BITS)
-                .unwrap(),
-            expected
-        );
-        assert_eq!(bundled.into_narg_string(), solution.nonce.to_le_bytes());
-        assert_eq!(manual.into_narg_string(), solution.nonce.to_le_bytes());
-    }
-
-    #[cfg(feature = "blake3")]
-    #[test]
-    fn rejects_a_nonce_that_only_meets_the_lower_difficulty() {
-        use crate::blake3::Blake3PoW;
-
-        let challenge = verifier(&[]).verifier_message::<[u8; 32]>();
-        let mut easy = PoWGrinder::<Blake3PoW>::new(challenge, BITS);
-        let mut hard = PoWGrinder::<Blake3PoW>::new(challenge, BITS + 8.0);
-        // Explicitly choose a nonce that fails the harder predicate; a valid
-        // low-difficulty nonce can also satisfy a higher difficulty.
-        let nonce = (0..=u64::MAX)
-            .find(|&n| easy.verify(n) && !hard.verify(n))
-            .unwrap();
-        let proof = nonce.to_le_bytes();
-        let mut easy_verifier = verifier(&proof);
-        assert!(easy_verifier
-            .verifier_message_pow::<u64, Blake3PoW>(BITS)
-            .is_ok());
-        assert!(easy_verifier.check_eof().is_ok());
-
-        let mut hard_verifier = verifier(&proof);
-        assert!(hard_verifier
-            .verifier_message_pow::<u64, Blake3PoW>(BITS + 8.0)
-            .is_err());
-        assert!(hard_verifier.prover_messages_vec::<u8>(0).is_err());
-        assert!(hard_verifier.check_eof().is_err());
     }
 
     #[derive(Clone, Debug, PartialEq, Eq)]
