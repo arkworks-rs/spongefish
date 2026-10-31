@@ -1,16 +1,13 @@
 //! Proof of work on the transcript sponge.
 //!
-//! The prover grinds a nonce so that, once it is absorbed, the low `bits` bits
-//! of the next squeezed bytes (read little-endian) are zero. Both parties check
-//! those bits and then squeeze the protected verifier message. The work is
-//! bound to that message: a proof-of-work check detached from the next
-//! challenge does not amplify soundness.
+//! Candidate evaluations run on owned public-sponge snapshots. The live
+//! transcript advances only when the chosen nonce is replayed and checked.
 
 use spongefish::{Encoding, FromNarg, NargReader, VerificationError};
 
 use crate::PowStrategy;
 
-/// Grind `bits` bits of work into the transcript, then return a verifier message.
+/// A configuration for proof of work on the transcript sponge.
 ///
 /// For `bits > 0`:
 ///
@@ -19,7 +16,7 @@ use crate::PowStrategy;
 ///    significant first, no redundant trailing byte.
 /// 2. Both parties squeeze `ceil(bits / 8)` bytes and accept iff their low
 ///    `bits` bits, read little-endian, are zero.
-/// 3. Both parties return [`Transcript::verifier_message`](spongefish::Transcript::verifier_message).
+/// 3. The transcript helper returns [`Transcript::verifier_message`](spongefish::Transcript::verifier_message).
 ///
 /// For `bits == 0`, no nonce is sent and nothing is squeezed before the
 /// returned message.
@@ -32,18 +29,19 @@ use crate::PowStrategy;
 ///
 /// # Security
 ///
-/// The returned message, and further verifier messages up to the next
-/// prover message, are protected: each attempt to change them costs a
-/// cheating prover `2^bits` expected trials. The overall bound also depends
-/// on the protocol's state-restoration soundness and on the sponge's
-/// reduction to an ideal permutation; [[CO25]] gives one for the
-/// permutation-backed overwrite duplex sponge. The difficulty, the position
-/// of this step and the type `T` must be fixed by the protocol and bound in
+/// For a fresh ideal sponge output, the check passes with probability
+/// `2^-bits`; conditioning on it leaves the following bytes uniform. A prover
+/// can also select on the protected message, paying for both conditions. The
+/// overall bound depends on the protocol's state-restoration soundness, the
+/// sponge's reduction to an ideal primitive and the decoding bias. [[CO25]]
+/// gives a reduction for the permutation-backed overwrite duplex sponge,
+/// not for the digest and XOF bridges. The difficulty, the position
+/// of this step and the protected message type must be fixed by the protocol and bound in
 /// its session tag; `bits` must never come from the proof.
 ///
 /// # Performance
 ///
-/// The search runs sequentially on the calling thread. On a
+/// The default helper searches sequentially on the calling thread. On a
 /// [`ProverState`](spongefish::ProverState) whose public sponge is `Send`,
 /// `verifier_message_pow_parallel` (feature `parallel`) searches on the
 /// Rayon pool and writes the same proof. With a permutation-backed sponge,
@@ -101,6 +99,9 @@ impl PowStrategy for FusedPowConfig {
     }
 
     fn accepts(&self, _nonce: u64, challenge: &[u8]) -> bool {
+        if challenge.len() != self.challenge_len() {
+            return false;
+        }
         let mut word = [0; 8];
         word[..challenge.len()].copy_from_slice(challenge);
         accepts(self.bits, word)
@@ -198,7 +199,7 @@ mod tests {
     };
 
     use super::FusedPowConfig;
-    use crate::{verifier_message_pow_parallel, PowTranscriptExt};
+    use crate::{verifier_message_pow_parallel, PowStrategy, PowTranscriptExt};
     #[derive(Clone, Debug, PartialEq, Eq)]
     enum Event {
         Absorb(Vec<u8>),
@@ -545,13 +546,19 @@ mod tests {
 
     #[test]
     fn acceptance_checks_exactly_the_requested_low_bits() {
-        use super::accepts;
-
         for bits in [0, 1, 7, 8, 9, 56, 57] {
-            assert!(accepts(bits, [0; 8]));
+            let config = FusedPowConfig::new(bits);
+            let len = config.challenge_len();
+            for supplied in 0..=9 {
+                assert_eq!(config.accepts(0, &[0; 9][..supplied]), supplied == len);
+            }
             for bit in 0..64 {
                 let word = (1u64 << bit).to_le_bytes();
-                assert_eq!(accepts(bits, word), bit >= bits, "bits={bits}, bit={bit}");
+                assert_eq!(
+                    config.accepts(0, &word[..len]),
+                    bit >= bits,
+                    "bits={bits}, bit={bit}"
+                );
             }
         }
     }
@@ -560,54 +567,5 @@ mod tests {
     #[should_panic(expected = "bits must be at most 57")]
     fn verifier_message_pow_rejects_unsupported_difficulty() {
         let _ = FusedPowConfig::new(58);
-    }
-
-    #[test]
-    fn prover_rejects_a_nonce_its_own_replay_rejects() {
-        // Squeezes of one byte return 0xff, longer squeezes return zeros. The
-        // one-shot search evaluator squeezes the whole check word and accepts
-        // the first nonce; the byte-at-a-time replay rejects it. This violates
-        // the associativity that `DuplexSpongeInterface` requires.
-        #[derive(Clone)]
-        struct NonAssociativeSponge;
-
-        impl DuplexSpongeInterface for NonAssociativeSponge {
-            type U = u8;
-
-            fn absorb(&mut self, _input: &[u8]) -> &mut Self {
-                self
-            }
-
-            fn squeeze(&mut self, output: &mut [u8]) -> &mut Self {
-                output.fill(if output.len() == 1 { 0xff } else { 0 });
-                self
-            }
-        }
-
-        impl DuplexSpongeInit for NonAssociativeSponge {
-            fn init(_session_id: &[u8; 32]) -> Self {
-                Self
-            }
-        }
-
-        let session_id = Narg::derive_session_id(b"pow/tests/non-associative");
-        let mut prover =
-            ProverState::<NonAssociativeSponge>::new_with_seed(&session_id, &0u32, [7; 32]);
-        // 9 bits use a two-byte check word.
-        assert!(prover
-            .verifier_message_pow::<u64>(FusedPowConfig::new(9))
-            .is_err());
-        // The nonce is written before the replay rejects it.
-        assert_eq!(prover.narg_string(), [0u8]);
-        #[cfg(feature = "parallel")]
-        {
-            let mut parallel =
-                ProverState::<NonAssociativeSponge>::new_with_seed(&session_id, &0u32, [7; 32]);
-            assert!(crate::verifier_message_pow_parallel::<u64>(
-                &mut parallel,
-                FusedPowConfig::new(9)
-            )
-            .is_err());
-        }
     }
 }

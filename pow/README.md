@@ -28,54 +28,21 @@ Rayon is optional and disabled by default. Enable `spongefish-pow`'s `parallel` 
 
 ## Fused transcript proof of work
 
-Both parties exchange a nonce, check bytes squeezed from the transcript sponge, then derive the protected verifier message. Only the prover searches, through `Transcript::verifier_message_oracle`. A rejected or truncated nonce poisons the verifier.
-
-The search is sequential. The `parallel` feature (opt-in) adds `verifier_message_pow_parallel(&mut prover, FusedPowConfig::new(bits))` for provers whose public sponge is `Send`; it writes the same proof, so verifiers use `verifier_message_pow`.
-
-Use the default features of `spongefish` and `spongefish-pow` for this example:
+`FusedPowConfig::new(bits)` binds work directly to the current transcript sponge:
 
 ```rust
-use spongefish::{DefaultHash, Narg, ProverState, VerificationError, VerifierState};
+use spongefish::{Transcript, VerificationError};
 use spongefish_pow::{FusedPowConfig, PowTranscriptExt};
 
-// Fixed by the protocol, never read from the proof.
-const POW_BITS: u32 = 8;
-
-fn main() -> Result<(), VerificationError> {
-    let session_id = Narg::derive_session_id(b"example/v1/sponge-pow-8/u32");
-    let instance = 0u32;
-
-    let mut prover = ProverState::<DefaultHash>::new(&session_id, &instance);
-    let challenge = prover.verifier_message_pow::<u32>(FusedPowConfig::new(POW_BITS))?;
-    let proof = prover.into_narg_string();
-
-    let mut verifier = VerifierState::<DefaultHash>::new(&session_id, &instance, &proof);
-    let replay = verifier.verifier_message_pow::<u32>(FusedPowConfig::new(POW_BITS))?;
-    assert_eq!(challenge, replay);
-    verifier.check_eof()
+fn round<T: Transcript>(transcript: &mut T) -> Result<u64, VerificationError> {
+    transcript.verifier_message_pow(FusedPowConfig::new(8))
 }
 ```
 
-The same method is available with only a `Transcript` bound, so an interactive argument can use it directly:
+For positive difficulty, the prover sends the least accepted nonce as canonical LEB128 below `2^(bits + 7)`. Both roles absorb it, squeeze `ceil(bits / 8)` check bytes, check the low `bits` bits are zero, and then derive the protected verifier message. Difficulty is 0 through 57; at zero no nonce or check bytes are used. The new construction changes the proof format, so select it explicitly and update the protocol session tag.
 
-```rust
-use spongefish::{Argument, Transcript, VerificationError, Witness};
-use spongefish_pow::{FusedPowConfig, PowTranscriptExt};
+The prover evaluates candidates on owned snapshots of the public sponge. The verifier never searches or needs an evaluator. A rejected or truncated nonce permanently rejects verification; a prover whose replay disagrees with its evaluator reports an error even in release builds, and its state must be discarded.
 
-struct PowRound;
-impl Argument for PowRound {
-    type Instance = u32;
-    type Witness = ();
-    type Output = u32;
+The default helper uses scalar sequential search, including inside generic `Argument::run`. With the `parallel` feature, on a concrete prover with a `Send` public sponge, `spongefish_pow::verifier_message_pow_parallel(&mut prover, FusedPowConfig::new(bits))` uses owned snapshots on the Rayon pool and produces the same proof. The private RNG stays on the calling thread and needs neither `Send` nor `Sync`. Generic `Transcript` evaluators do not promise `Send`, so this fused parallel capability cannot be used with only a generic `Transcript` bound.
 
-    fn run<T: Transcript>(
-        transcript: &mut T,
-        _instance: &u32,
-        _witness: Witness<&()>,
-    ) -> Result<u32, VerificationError> {
-        transcript.verifier_message_pow::<u32>(FusedPowConfig::new(8))
-    }
-}
-```
-
-Difficulty is an integer from 0 to 57. The nonce is encoded as canonical LEB128 below `2^(bits + 7)`; at zero difficulty no nonce or check bytes are used. The duplex sponge backend, difficulty, placement of the step, and returned message type must be fixed by the protocol and accounted for in its session tag. The example uses a cheap difficulty for demonstration; the appropriate work factor and soundness benefit depend on the protocol.
+For a permutation-backed sponge, a trial costs one permutation when the nonce fits the current absorb block and the check plus protected message fit in one rate block. Longer nonces, other alignments and other sponge backends can cost more.

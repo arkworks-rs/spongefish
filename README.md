@@ -159,37 +159,7 @@ Linear equations over the wires, such as the XORs of a duplex cipher, are added 
 
 ## Arguments with grinding
 
-It is possible to augment the bits of soundness with a proof of work using `spongefish-pow`:
-
-```rust
-use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
-use spongefish_pow::{FusedPowConfig, PowTranscriptExt};
-
-/// A challenge the prover pays `BITS` bits of work for.
-struct GrindingArgumentExample<const BITS: u32>;
-
-impl<const BITS: u32> Argument for GrindingArgumentExample<BITS> {
-    type Instance = [u8; 32]; // whatever the work is bound to
-    type Witness = ();
-    type Output = u64;
-
-    fn run<T: Transcript>(
-        transcript: &mut T,
-        _instance: &[u8; 32],
-        _witness: Witness<&()>,
-    ) -> Result<u64, VerificationError> {
-        transcript.verifier_message_pow(FusedPowConfig::new(BITS))
-    }
-}
-
-let tag = b"example-v00/grind-16";
-let instance = [7u8; 32];
-let (narg, challenge) = Narg::prove::<GrindingArgumentExample<16>>(tag, &instance, &()).unwrap();
-assert!((1..=4).contains(&narg.len())); // LEB128 nonce: 1 to 4 bytes at 16 bits
-assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).unwrap(), challenge);
-```
-
-`verifier_message_pow(bits)` grinds a nonce so that the low `bits` bits of the next squeezed bytes are zero, sends and checks it, then returns the next verifier message. `bits` is 0 to 57; at 0 nothing is sent. The search is sequential; with the `parallel` feature, `verifier_message_pow_parallel(&mut prover, FusedPowConfig::new(bits))` searches on all threads and writes the same proof.
+`spongefish-pow` provides a config-based API and search machinery for proof-of-work-protected verifier messages. The strategy describes the puzzle; transcript helpers bind it, verify the nonce, and derive the protected message. See [the PoW crate](pow/README.md) for the API and requirements for custom constructions.
 
 ## Also in the box
 
