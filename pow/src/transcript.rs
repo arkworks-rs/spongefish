@@ -365,7 +365,7 @@ mod tests {
             let expected = accepted.iter().copied().filter(|&n| n <= limit).min();
             assert_eq!(problem.clone().solve(evaluate), expected);
             #[cfg(not(feature = "parallel"))]
-            assert_eq!(problem.clone().solve_parallel(evaluate), expected);
+            assert_eq!(problem.solve_parallel(evaluate), expected);
             #[cfg(all(feature = "parallel", not(target_arch = "wasm32")))]
             for workers in [1, 3, 4] {
                 let pool = rayon::ThreadPoolBuilder::new()
