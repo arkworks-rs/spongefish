@@ -159,37 +159,7 @@ Linear equations over the wires, such as the XORs of a duplex cipher, are added 
 
 ## Arguments with grinding
 
-It is possible to augment the bits of soundnes with a proof of work using `spongefish-pow`:
-
-```rust
-use spongefish::{Argument, Narg, Transcript, VerificationError, Witness};
-use spongefish_pow::{blake3::Blake3PoW, PowTranscriptExt};
-
-/// A challenge the prover pays `BITS` bits of work for.
-struct GrindingArgumentExample<const BITS: u32>;
-
-impl<const BITS: u32> Argument for GrindingArgumentExample<BITS> {
-    type Instance = [u8; 32]; // whatever the work is bound to
-    type Witness = ();
-    type Output = u64;
-
-    fn run<T: Transcript>(
-        transcript: &mut T,
-        _instance: &[u8; 32],
-        _witness: Witness<&()>,
-    ) -> Result<u64, VerificationError> {
-        transcript.verifier_message_pow::<u64, Blake3PoW>(f64::from(BITS))
-    }
-}
-
-let tag = b"example-v00/grind-16";
-let instance = [7u8; 32];
-let (narg, challenge) = Narg::prove::<GrindingArgumentExample<16>>(tag, &instance, &()).unwrap();
-assert_eq!(narg.len(), 8); // one u64 nonce
-assert_eq!(Narg::verify::<GrindingArgumentExample<16>>(tag, &instance, &narg).unwrap(), challenge);
-```
-
-`verifier_message_pow` internally squeezes a grinding seed, has the prover search for a nonce solving the grinding problem, then sends the nonce as a prover message, and returns a new verifier message. A Keccak strategy is available too, and the `parallel` feature will use multi-threading the search across threads.
+`spongefish-pow` provides a config-based API and search machinery for proof-of-work-protected verifier messages. The strategy describes the puzzle; transcript helpers bind it, verify the nonce, and derive the protected message. See [the PoW crate](pow/README.md) for the API and requirements for custom constructions.
 
 ## Also in the box
 
