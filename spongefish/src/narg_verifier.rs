@@ -95,7 +95,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// the trailing-bytes check cannot be forgotten. The message is not
     /// absorbed: no verifier message can follow it.
     ///
-    pub fn last_prover_message<T: FromNarg>(mut self) -> Result<T, VerificationError> {
+    pub fn last_prover_message<T: FromNarg>(self) -> Result<T, VerificationError> {
         let (message, _) = self.read_message(T::from_narg)?;
         self.check_eof()?;
         Ok(message)
@@ -187,7 +187,7 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_with<T, B: AsRef<[H::U]>>(
         &mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        deserialize: impl FnOnce(&NargReader<'_>) -> Result<T, VerificationError>,
         encode: impl FnOnce(&T) -> B,
     ) -> Result<T, VerificationError> {
         let (message, _) = self.read_message(deserialize)?;
@@ -200,8 +200,8 @@ impl<H: DuplexSpongeInterface> VerifierState<'_, H> {
     ///
     /// Since the last message is not absorbed, this works over any sponge alphabet.
     pub fn last_prover_message_as<T>(
-        mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        self,
+        deserialize: impl FnOnce(&NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<T, VerificationError> {
         let (message, _) = self.read_message(deserialize)?;
         self.check_eof()?;
@@ -267,8 +267,8 @@ impl<'a, H: DuplexSpongeInterface> VerifierState<'a, H> {
     /// If the reader was previously poisoned, or poisoned as a result of the `deserialize` function,
     /// the error [`VerificationError`] is returned.
     fn read_message<T>(
-        &mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        &self,
+        deserialize: impl FnOnce(&NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<(T, &'a [u8]), VerificationError> {
         let before = self.reader.unread().ok_or(VerificationError)?;
         let message = self.reader.read_with(deserialize)?;
@@ -384,7 +384,7 @@ where
     /// [FS]: https://datatracker.ietf.org/doc/draft-irtf-cfrg-fiat-shamir/
     pub fn prover_message_as<T>(
         &mut self,
-        deserialize: impl FnOnce(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        deserialize: impl FnOnce(&NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<T, VerificationError> {
         let (message, bytes) = self.read_message(deserialize)?;
         self.duplex_sponge_state.absorb(bytes);
@@ -409,7 +409,7 @@ where
     pub fn prover_messages_vec_as<T>(
         &mut self,
         len: usize,
-        mut deserialize: impl FnMut(&mut NargReader<'_>) -> Result<T, VerificationError>,
+        mut deserialize: impl FnMut(&NargReader<'_>) -> Result<T, VerificationError>,
     ) -> Result<Vec<T>, VerificationError> {
         if self.reader.is_poisoned() {
             return Err(VerificationError);

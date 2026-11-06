@@ -225,7 +225,7 @@ fn verifier_prover_message_poisons_on_deserialize_error() {
     struct BadMessage;
 
     impl FromNarg for BadMessage {
-        fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
+        fn from_narg(reader: &crate::NargReader<'_>) -> Result<Self, VerificationError> {
             // Consumes input and *then* fails: the verifier must end up
             // poisoned, not merely advanced.
             reader.take(1)?;
@@ -258,7 +258,7 @@ fn a_failed_read_poisons_the_reader() {
     struct Rejected;
 
     impl FromNarg for Rejected {
-        fn from_narg(_: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
+        fn from_narg(_: &crate::NargReader<'_>) -> Result<Self, VerificationError> {
             Err(VerificationError)
         }
     }
@@ -266,7 +266,7 @@ fn a_failed_read_poisons_the_reader() {
     let bytes = [1u8, 2, 3];
 
     // A short read.
-    let mut reader = crate::NargReader::new(&bytes);
+    let reader = crate::NargReader::new(&bytes);
     assert!(reader.take_array::<4>().is_err());
     assert!(reader.is_poisoned());
     assert!(reader.take(1).is_err());
@@ -275,13 +275,13 @@ fn a_failed_read_poisons_the_reader() {
     assert!(!reader.is_empty());
 
     // A deserializer's own rejection, with input to spare.
-    let mut reader = crate::NargReader::new(&bytes);
+    let reader = crate::NargReader::new(&bytes);
     assert!(reader.read::<Rejected>().is_err());
     assert!(reader.is_poisoned());
     assert!(reader.take(1).is_err());
 
     // A rejection after the last byte: a poisoned reader is never empty.
-    let mut reader = crate::NargReader::new(&bytes);
+    let reader = crate::NargReader::new(&bytes);
     assert_eq!(reader.take_array::<3>().unwrap(), bytes);
     assert!(reader.is_empty());
     assert!(reader.read::<Rejected>().is_err());
@@ -293,7 +293,7 @@ fn verifier_rejects_a_message_that_swallowed_a_failed_read() {
     struct Lenient(u8);
 
     impl FromNarg for Lenient {
-        fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, VerificationError> {
+        fn from_narg(reader: &crate::NargReader<'_>) -> Result<Self, VerificationError> {
             // Substitutes a default for a short read instead of failing.
             Ok(Self(reader.take_array::<8>().map_or(0, |bytes| bytes[0])))
         }
