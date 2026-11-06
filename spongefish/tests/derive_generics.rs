@@ -31,7 +31,7 @@ fn codec_derive_handles_generic_types() {
     assert_eq!(encoded.as_ref(), 7u32.to_le_bytes());
 
     let serialized = tagged.encode();
-    let mut reader = NargReader::new(serialized.as_ref());
+    let reader = NargReader::new(serialized.as_ref());
     let roundtrip = reader.read::<TaggedValue<u8, 4>>().expect("roundtrip");
     assert_eq!(roundtrip.value, tagged.value);
     assert!(reader.is_empty());
@@ -49,7 +49,7 @@ fn codec_derive_bounds_skipped_generic_fields_by_default() {
     };
 
     let encoded = cached.encode();
-    let mut reader = NargReader::new(encoded.as_ref());
+    let reader = NargReader::new(encoded.as_ref());
     let decoded = reader.read::<Cached<String>>().expect("roundtrip");
     assert_eq!(decoded.value, cached.value);
     assert_eq!(decoded.cache, String::new());
@@ -171,7 +171,7 @@ fn codec_derive_pins_multi_field_byte_layout() {
     // NARG round-trip keeps the same layout.
     let serialized = header.encode();
     assert_eq!(serialized.as_ref(), &expected);
-    let mut reader = NargReader::new(serialized.as_ref());
+    let reader = NargReader::new(serialized.as_ref());
     let roundtrip = reader.read::<Header>().expect("roundtrip");
     assert_eq!(roundtrip.id, header.id);
     assert!(reader.is_empty());

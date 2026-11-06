@@ -32,7 +32,7 @@ impl Encoding for M31 {
 }
 
 impl FromNarg for M31 {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         let bytes = reader.take_array::<4>()?;
         let v = u32::from_le_bytes(bytes);
         if v >= P {
@@ -168,7 +168,7 @@ fn rejects_trailing_bytes() {
 #[test]
 fn m31_validation_failure_automatically_poisons_the_reader() {
     let valid = (P - 1).to_le_bytes();
-    let mut reader = NargReader::new(&valid);
+    let reader = NargReader::new(&valid);
     assert_eq!(reader.read::<M31>().unwrap(), M31(P - 1));
     assert!(reader.is_empty());
 
@@ -176,7 +176,7 @@ fn m31_validation_failure_automatically_poisons_the_reader() {
         for suffix in [0, 1] {
             let mut bytes = invalid.to_le_bytes().to_vec();
             bytes.extend_from_slice(&[7][..suffix]);
-            let mut reader = NargReader::new(&bytes);
+            let reader = NargReader::new(&bytes);
             assert!(reader.read::<M31>().is_err());
             assert!(reader.is_poisoned());
             assert!(!reader.is_empty());

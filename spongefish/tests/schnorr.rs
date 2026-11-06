@@ -42,7 +42,7 @@ impl Encoding for Point {
     }
 }
 impl FromNarg for Point {
-    fn from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(r: &NargReader<'_>) -> Result<Self, VerificationError> {
         CompressedRistretto(r.take_array::<32>()?)
             .decompress()
             .map(Point)
@@ -62,7 +62,7 @@ impl Encoding for Fr {
     }
 }
 impl FromNarg for Fr {
-    fn from_narg(r: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(r: &NargReader<'_>) -> Result<Self, VerificationError> {
         let bytes = r.take_array::<32>()?;
         Option::<Scalar>::from(Scalar::from_canonical_bytes(bytes))
             .map(Fr)
@@ -147,7 +147,7 @@ fn schnorr_validation_failures_automatically_poison_the_reader() {
         // rejection with unread input following the invalid encoding.
         for length in [32, 33] {
             let bytes = vec![0xff; length];
-            let mut reader = NargReader::new(&bytes);
+            let reader = NargReader::new(&bytes);
             assert!(reader.read::<T>().is_err());
             assert!(reader.is_poisoned());
             assert!(!reader.is_empty());

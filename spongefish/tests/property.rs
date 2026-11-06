@@ -82,7 +82,7 @@ fn binding<H: DuplexSpongeInit<U = u8>>(
 struct NoProgress;
 
 impl FromNarg for NoProgress {
-    fn from_narg(_reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(_reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         Ok(Self)
     }
 }
@@ -93,7 +93,7 @@ proptest! {
         bytes in prop::collection::vec(any::<u8>(), 0..512),
         operations in prop::collection::vec(lengths(), 0..64),
     ) {
-        let mut reader = NargReader::new(&bytes);
+        let reader = NargReader::new(&bytes);
         let mut offset = 0;
         let mut poisoned = false;
         for length in operations {
@@ -118,7 +118,7 @@ proptest! {
     ) {
         let mut bytes = count.to_le_bytes().to_vec();
         bytes.extend_from_slice(&payload);
-        let mut reader = NargReader::new(&bytes);
+        let reader = NargReader::new(&bytes);
         let result = reader.read::<LengthPrefixed<Vec<u32>>>();
         if u64::from(count) > (payload.len() / 4) as u64 {
             prop_assert!(result.is_err());
@@ -139,7 +139,7 @@ proptest! {
     fn length_prefixed_sequences_round_trip(values in prop::collection::vec(any::<u32>(), 0..128)) {
         let wrapped = LengthPrefixed(&values[..]);
         let bytes = wrapped.encode();
-        let mut reader = NargReader::new(bytes.as_ref());
+        let reader = NargReader::new(bytes.as_ref());
         let parsed = reader.read::<LengthPrefixed<Vec<u32>>>().unwrap();
         prop_assert_eq!(&parsed.into_inner(), &values);
         prop_assert!(reader.is_empty());
@@ -147,7 +147,7 @@ proptest! {
 
     #[test]
     fn zero_width_elements_cannot_drive_unbounded_work(count in lengths()) {
-        let mut reader = NargReader::new(b"unconsumed");
+        let reader = NargReader::new(b"unconsumed");
         let result = reader.read_vec::<NoProgress>(count);
         prop_assert_eq!(result.is_ok(), count == 0);
         prop_assert_eq!(reader.is_poisoned(), count != 0);

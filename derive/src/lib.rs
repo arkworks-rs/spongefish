@@ -268,7 +268,7 @@ fn generate_from_narg_impl(input: &DeriveInput) -> Result<TokenStream2> {
         &defaulted,
         &quote! {
             fn from_narg(
-                reader: &mut ::spongefish::NargReader<'_>,
+                reader: &::spongefish::NargReader<'_>,
             ) -> ::core::result::Result<Self, ::spongefish::VerificationError> {
                 // A unit struct, or one whose every field is skipped,
                 // reads nothing at all.

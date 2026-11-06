@@ -23,7 +23,7 @@ impl Encoding for Elem {
 }
 
 impl FromNarg for Elem {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         // The bug, stated plainly. A canonical codec would reject `v >= P`.
         let bytes = reader.take_array::<8>()?;
         Ok(Self(u64::from_le_bytes(bytes) % P))
