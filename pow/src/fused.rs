@@ -1,7 +1,10 @@
-//! Proof of work on the transcript sponge.
+//! Proof of work using the Fiat–Shamir verifier-message oracle.
 //!
-//! Candidate evaluations run on owned public-sponge snapshots. The live
-//! transcript advances only when the chosen nonce is replayed and checked.
+//! The prover sends a nonce as an additional prover message before the
+//! verifier message. Both sides absorb the nonce and squeeze check bytes.
+//! The verifier rejects unless the low `d` bits are zero, where `d` is the
+//! difficulty. The prover uses the oracle to try candidate nonces on
+//! snapshots of the public sponge before sending one.
 
 use spongefish::{Encoding, FromNarg, NargReader, VerificationError};
 
@@ -11,33 +14,23 @@ use crate::PowStrategy;
 ///
 /// For `bits > 0`:
 ///
-/// 1. The prover sends the least nonce `n <= 2^(bits+7) - 1` that passes
-///    the check, as canonical LEB128: seven bits per byte, least
-///    significant first, no redundant trailing byte.
-/// 2. Both parties squeeze `ceil(bits / 8)` bytes and accept iff their low
-///    `bits` bits, read little-endian, are zero.
-/// 3. The transcript helper returns [`Transcript::verifier_message`](spongefish::Transcript::verifier_message).
+/// 1. The prover sends the least passing nonce `n < 2^(bits + 7)` as
+///    canonical unsigned LEB128.
+/// 2. The verifier checks the nonce encoding and range. Both parties absorb
+///    the nonce and squeeze `ceil(bits / 8)` check bytes. The verifier rejects
+///    unless their low `bits` bits, read little-endian, are zero.
+/// 3. Both parties derive the verifier message from the following sponge
+///    output via [`Transcript::verifier_message`](spongefish::Transcript::verifier_message).
 ///
-/// For `bits == 0`, no nonce is sent and nothing is squeezed before the
-/// returned message.
-///
-/// The nonce takes at most `ceil((bits + 7) / 7)` bytes, and one byte with
-/// probability at least `1 - e^-8` when `bits <= 4`. The nonce space holds
-/// `2^7` times the expected search, so for an ideal sponge an honest search
-/// fails with probability at most `e^-128`. Any nonce that passes is
-/// accepted, not only the least, so proofs are not unique.
+/// At zero difficulty, both parties derive the verifier message directly.
 ///
 /// # Security
 ///
-/// For a fresh ideal sponge output, the check passes with probability
-/// `2^-bits`; conditioning on it leaves the following bytes uniform. A prover
-/// can also select on the protected message, paying for both conditions. The
-/// overall bound depends on the protocol's state-restoration soundness, the
-/// sponge's reduction to an ideal primitive and the decoding bias. [[CO25]]
-/// gives a reduction for the permutation-backed overwrite duplex sponge,
-/// not for the digest and XOF bridges. The difficulty, the position
-/// of this step and the protected message type must be fixed by the protocol and bound in
-/// its session tag; `bits` must never come from the proof.
+/// For fresh, independent uniform sponge output, the check passes with
+/// probability `2^-bits`. The bytes after the check remain uniform.
+/// The soundness benefit depends on the protocol, sponge and challenge
+/// decoding. The difficulty, placement of this step and verifier-message
+/// type must be fixed by the protocol and bound in the session identifier.
 ///
 /// # Performance
 ///
@@ -51,22 +44,20 @@ use crate::PowStrategy;
 /// # Errors
 ///
 /// The prover returns [`VerificationError`] if:
-/// - the search exhausts the nonce space;
-/// - the transcript does not provide [`Transcript::verifier_message_oracle`](spongefish::Transcript::verifier_message_oracle);
-/// - replaying the check on its own transcript rejects the nonce. This means
-///   the sponge breaks the associativity that
-///   [`DuplexSpongeInterface`](spongefish::DuplexSpongeInterface) requires.
-///   The nonce is already written by then, so discard the prover state.
 ///
-/// The verifier returns it if the nonce is truncated, not canonical or above
-/// `2^(bits+7) - 1`, if the check bits are not zero, or if an earlier read
-/// or check already rejected the transcript.
+/// - The search exhausts the nonce space.
+/// - At positive difficulty, a custom transcript provides no
+///   [`Transcript::verifier_message_oracle`](spongefish::Transcript::verifier_message_oracle).
+/// - The live transcript rejects the nonce that passed the oracle check.
+///   The nonce has already been written, so discard the prover state.
+///
+/// The verifier returns an error if the nonce is truncated, noncanonical or
+/// out of range, if the check bits are nonzero, or if the transcript has
+/// already been rejected.
 ///
 /// # Panics
 ///
 /// Panics if `bits > 57`: the `u64` nonce space must hold `2^(bits+7)` values.
-///
-/// [CO25]: https://eprint.iacr.org/2025/536.pdf
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FusedPowConfig {
     bits: u32,
