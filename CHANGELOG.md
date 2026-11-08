@@ -48,7 +48,7 @@ Summary of the work on this branch since `v0.7.4`, as recorded by `git log v0.7.
 - **Breaking:** external codecs drivers are removed, we are embracing the orphan rule. We are stopping to implement `Unit` for other libraries, as this caused a proliferation of feature flags, and down the line conflicts with versioning.
 - **Breaking:** `rand` is now an optional dependency, and `getrandom`-seeded private RNG are the default for prover randomness.
 - **Breaking:** `LengthPrefixed` provides a shorthand for prefix-free encodings, and replaces `Vec<T>`'s `Encoding` implementation.
-- **Breaking:** deserialization reads through `&mut NargReader<'_>` instead of `&mut &[u8]`.
+- **Breaking:** deserialization closures and hooks take `&NargReader<'_>`. Read/take can advance the cursor via the shared reference
 - **Breaking:** removed the implicit `Deref` conversion from `VerificationError` to `Result<(), VerificationError>`; construct `Err(VerificationError)` explicitly.
 - **Breaking:** `VerifierState` owns its `NargReader`. A rejected prover message poisons the state rather than leaving the cursor where it was: every later read fails, `check_eof` fails, and `into_narg_string` returns an error.
 - **Breaking:** A more clean approach at duplex sponge initialization. `DuplexSpongeInit` is for generic units, and `EncodedSessionId` takes care of algebraic sponges. Byte transcripts are unchanged.

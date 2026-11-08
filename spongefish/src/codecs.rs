@@ -337,7 +337,7 @@ impl<T: crate::FromNarg> crate::FromNarg for LengthPrefixed<Vec<T>> {
     ///
     /// Reject truncated counts, invalid elements, and elements that consume
     /// no input with [`VerificationError`][crate::VerificationError].
-    fn from_narg(reader: &mut crate::NargReader<'_>) -> Result<Self, crate::VerificationError> {
+    fn from_narg(reader: &crate::NargReader<'_>) -> Result<Self, crate::VerificationError> {
         let len = reader.read::<u32>()? as usize;
         reader.read_vec(len).map(Self)
     }
@@ -449,19 +449,19 @@ mod tests {
         let wrapper = LengthPrefixed(&values[..]);
         let bytes = wrapper.encode();
 
-        let mut reader = crate::NargReader::new(bytes.as_ref());
+        let reader = crate::NargReader::new(bytes.as_ref());
         let LengthPrefixed(read_back) = reader.read::<LengthPrefixed<Vec<u32>>>().unwrap();
         assert_eq!(read_back, values);
         assert!(reader.is_empty());
 
         // Truncated element data is rejected.
         let truncated = &bytes.as_ref()[..bytes.as_ref().len() - 1];
-        let mut reader = crate::NargReader::new(truncated);
+        let reader = crate::NargReader::new(truncated);
         assert!(reader.read::<LengthPrefixed<Vec<u32>>>().is_err());
 
         // A huge count with no data behind it fails on the first element.
         let bogus = [0xFF, 0xFF, 0xFF, 0xFF];
-        let mut reader = crate::NargReader::new(&bogus);
+        let reader = crate::NargReader::new(&bogus);
         assert!(reader.read::<LengthPrefixed<Vec<u32>>>().is_err());
     }
 
@@ -545,9 +545,7 @@ mod tests {
     struct ZeroWidth;
 
     impl FromNarg for ZeroWidth {
-        fn from_narg(
-            _reader: &mut crate::NargReader<'_>,
-        ) -> Result<Self, crate::VerificationError> {
+        fn from_narg(_reader: &crate::NargReader<'_>) -> Result<Self, crate::VerificationError> {
             Ok(Self)
         }
     }
@@ -560,19 +558,19 @@ mod tests {
         // A huge count with nothing behind it: the first element consumes
         // nothing and is rejected, so the loop never spins through the count.
         let mut bytes = alloc::vec![0xFF, 0xFF, 0xFF, 0xFF];
-        let mut reader = crate::NargReader::new(&bytes);
+        let reader = crate::NargReader::new(&bytes);
         assert!(reader.read::<LengthPrefixed<Vec<ZeroWidth>>>().is_err());
 
         // A count with payload behind it is rejected on the first element all
         // the same: the elements would never consume the payload.
         bytes = alloc::vec![8, 0, 0, 0];
         bytes.extend_from_slice(&[0u8; 8]);
-        let mut reader = crate::NargReader::new(&bytes);
+        let reader = crate::NargReader::new(&bytes);
         assert!(reader.read::<LengthPrefixed<Vec<ZeroWidth>>>().is_err());
 
         // An empty sequence still parses: no element is ever read.
         let empty = [0u8, 0, 0, 0];
-        let mut reader = crate::NargReader::new(&empty);
+        let reader = crate::NargReader::new(&empty);
         let LengthPrefixed(elements) = reader.read::<LengthPrefixed<Vec<ZeroWidth>>>().unwrap();
         assert!(elements.is_empty());
         assert!(reader.is_empty());

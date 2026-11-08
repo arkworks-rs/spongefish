@@ -71,21 +71,19 @@ fn malformed(what: &str) -> InvalidRelation {
     InvalidRelation::new(format!("malformed encoding: {what}"))
 }
 
-fn read_u32(reader: &mut NargReader<'_>, what: &str) -> Result<usize, InvalidRelation> {
+fn read_u32(reader: &NargReader<'_>, what: &str) -> Result<usize, InvalidRelation> {
     reader
         .read::<u32>()
         .map(|value| value as usize)
         .map_err(|VerificationError| malformed(what))
 }
 
-fn read_var(reader: &mut NargReader<'_>) -> Result<FieldVar, InvalidRelation> {
+fn read_var(reader: &NargReader<'_>) -> Result<FieldVar, InvalidRelation> {
     let index = read_u32(reader, "wire index")?;
     FieldVar::try_from_index(index).ok_or_else(|| malformed("wire index out of range"))
 }
 
-fn read_vars<const W: usize>(
-    reader: &mut NargReader<'_>,
-) -> Result<[FieldVar; W], InvalidRelation> {
+fn read_vars<const W: usize>(reader: &NargReader<'_>) -> Result<[FieldVar; W], InvalidRelation> {
     let mut vars = [FieldVar::ZERO; W];
     for var in &mut vars {
         *var = read_var(reader)?;
@@ -93,7 +91,7 @@ fn read_vars<const W: usize>(
     Ok(vars)
 }
 
-fn read_unit<T: FromNarg>(reader: &mut NargReader<'_>) -> Result<T, InvalidRelation> {
+fn read_unit<T: FromNarg>(reader: &NargReader<'_>) -> Result<T, InvalidRelation> {
     reader
         .read::<T>()
         .map_err(|VerificationError| malformed("unit value"))
@@ -101,7 +99,7 @@ fn read_unit<T: FromNarg>(reader: &mut NargReader<'_>) -> Result<T, InvalidRelat
 
 /// Read and check a header, returning the label for an instance.
 fn read_header<T: Unit + Encoding>(
-    reader: &mut NargReader<'_>,
+    reader: &NargReader<'_>,
     magic: [u8; 4],
     width: usize,
     with_label: bool,
@@ -171,15 +169,15 @@ impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> PermutationI
     /// Parse [`Self::to_bytes`], running the same checks as
     /// [`PermutationRelation::compile`][crate::PermutationRelation::compile].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, InvalidRelation> {
-        let mut reader = NargReader::new(bytes);
-        let instance = Self::read(&mut reader)?;
+        let reader = NargReader::new(bytes);
+        let instance = Self::read(&reader)?;
         if !reader.is_empty() {
             return Err(malformed("trailing bytes"));
         }
         Ok(instance)
     }
 
-    fn read(reader: &mut NargReader<'_>) -> Result<Self, InvalidRelation> {
+    fn read(reader: &NargReader<'_>) -> Result<Self, InvalidRelation> {
         let label = read_header::<T>(reader, INSTANCE_MAGIC, WIDTH, true)?;
         let vars_count = read_u32(reader, "variable count")?;
         let n_public = read_u32(reader, "public count")?;
@@ -244,7 +242,7 @@ impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> Encoding
 impl<T: Unit + Encoding + FromNarg + PartialEq, const WIDTH: usize> FromNarg
     for PermutationInstance<T, WIDTH>
 {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         Self::read(reader).map_err(|_| VerificationError)
     }
 }
@@ -269,15 +267,15 @@ impl<T: Unit + Encoding + FromNarg, const WIDTH: usize> PermutationWitness<T, WI
 
     /// Parse [`Self::to_bytes`].
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, InvalidRelation> {
-        let mut reader = NargReader::new(bytes);
-        read_header::<T>(&mut reader, WITNESS_MAGIC, WIDTH, false)?;
-        let n_steps = read_u32(&mut reader, "step count")?;
+        let reader = NargReader::new(bytes);
+        read_header::<T>(&reader, WITNESS_MAGIC, WIDTH, false)?;
+        let n_steps = read_u32(&reader, "step count")?;
         let mut trace = Vec::new();
         for _ in 0..n_steps {
             let mut input = core::array::from_fn(|_| T::ZERO);
             let mut output = core::array::from_fn(|_| T::ZERO);
             for value in input.iter_mut().chain(&mut output) {
-                *value = read_unit::<T>(&mut reader)?;
+                *value = read_unit::<T>(&reader)?;
             }
             trace.push(QueryAnswerPair::new(input, output));
         }

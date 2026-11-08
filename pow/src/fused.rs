@@ -159,7 +159,7 @@ impl AsRef<[u8]> for Leb128Bytes {
 }
 
 impl FromNarg for Leb128 {
-    fn from_narg(reader: &mut NargReader<'_>) -> Result<Self, VerificationError> {
+    fn from_narg(reader: &NargReader<'_>) -> Result<Self, VerificationError> {
         let mut value = 0u64;
         for i in 0..10 {
             let byte: u8 = reader.read()?;
