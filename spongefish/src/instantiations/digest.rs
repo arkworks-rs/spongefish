@@ -96,6 +96,10 @@ impl<D: OutputSizeUser> Zeroize for Leftovers<D> {
 }
 
 /// A bridge to our sponge interface for legacy `Digest` implementations.
+///
+/// Unlike the draft's XOF suites, this bridge uses a fixed-output digest and
+/// has its own transcript format. An empty absorb leaves its state unchanged,
+/// including an in-progress squeeze stream, as in the other sponge backends.
 #[derive(Clone)]
 pub struct Hash<D: Digest + Clone + Reset + BlockSizeUser> {
     /// The underlying hasher.
@@ -113,6 +117,10 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> DuplexSpongeInterface
     type U = u8;
 
     fn absorb(&mut self, input: &[u8]) -> &mut Self {
+        if input.is_empty() {
+            return self;
+        }
+
         self.squeeze_end();
 
         if self.mode == Mode::Start {
@@ -305,6 +313,33 @@ impl<D: BlockSizeUser + Digest + Clone + FixedOutputReset> Default for Hash<D> {
             leftovers: Leftovers::default(),
         }
     }
+}
+
+#[cfg(test)]
+#[test]
+fn empty_absorb_is_no_op() {
+    let mut reference = Hash::<sha2::Sha256>::default();
+    reference.absorb(b"hello");
+    let expected = reference.squeeze_array::<64>();
+
+    let mut actual = Hash::<sha2::Sha256>::default();
+    actual.absorb(b"hello");
+    let mut output = [0u8; 64];
+    actual.squeeze(&mut output[..13]);
+    actual.absorb(&[]);
+    actual.squeeze(&mut output[13..]);
+
+    assert_eq!(output, expected);
+
+    // An empty absorb also leaves the initial state untouched. In particular,
+    // a following ratchet must not commit an empty absorb as a transcript step.
+    let mut without_empty = Hash::<sha2::Sha256>::default();
+    without_empty.ratchet().absorb(b"hello");
+    let expected = without_empty.squeeze_array::<32>();
+
+    let mut with_empty = Hash::<sha2::Sha256>::default();
+    with_empty.absorb(&[]).ratchet().absorb(b"hello");
+    assert_eq!(with_empty.squeeze_array::<32>(), expected);
 }
 
 /// Ratcheting must commit to everything absorbed so far, in every mode it can
@@ -502,11 +537,13 @@ fn test_shosha() {
     sho.squeeze(&mut got);
     assert_eq!(&got, expected);
 
-    let expected = b"\x0D\xDE\xEA\x97\x3F\x32\x10\xF7\x72\x5A\x3C\xDB\x24\x73\
-    \xF8\x73\xAE\xAB\x8F\xEB\x32\xB8\x0D\xEE\x67\xF0\xCD\xE7\
-    \x95\x4E\x92\x9A\x4E\x78\x7A\xEF\xEE\x6D\xBE\x91\xD3\xFF\
-    \xF1\x62\x1A\xAB\x8D\x0D\x29\x19\x4F\x8A\xF9\x86\xD6\xF3\
-    \x57\xAD\xD0\x15\x0D\xF7\xD9";
+    // An initial empty absorb is now a no-op, so this vector reflects only
+    // the non-empty inputs below.
+    let expected = b"\x33\x8D\x22\xE5\x3B\x63\x2C\x1C\x8E\xAF\x58\x63\xBB\x14\xC6\
+    \x84\xB5\x86\x6B\x3A\xEF\x5F\xBB\xC9\x69\xA3\x33\xCD\x38\xE7\
+    \x1D\xFF\x87\x44\x3A\x72\xC5\x52\xE1\x02\x39\x99\x5A\x9F\
+    \x70\xB5\x92\xC8\x63\x1A\xFC\x1B\x44\xED\x16\x2B\x5A\x4C\
+    \x1E\x61\xFD\xE8\xBC";
 
     let mut sho = Hash::<sha2::Sha256>::default();
     let mut got = [0u8; 150];
@@ -539,7 +576,7 @@ fn test_shosha() {
     sho.squeeze(&mut got[..128]);
     sho.squeeze_end();
     sho.squeeze(&mut got[..129]);
-    assert_eq!(got[0], 0xd0);
+    assert_eq!(got[0], 0x6b);
     sho.absorb(b"def");
     sho.ratchet();
     sho.squeeze(&mut got[..63]);
