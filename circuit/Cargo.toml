@@ -32,7 +32,10 @@ p3-baby-bear = { workspace = true }
 # proof-of-work example over `spongefish-pow`; see `readme_doctests` in
 # `src/lib.rs`.
 spongefish = { workspace = true, default-features = true, features = ["derive", "keccak"] }
-spongefish-pow = { workspace = true }
+# Path-only on purpose: without a version, cargo drops this test-only
+# dependency from the published manifest, so this crate can be published
+# before `spongefish-pow` (release-plz does not order by dev-dependencies).
+spongefish-pow = { path = "../pow" }
 
 [lints]
 workspace = true
